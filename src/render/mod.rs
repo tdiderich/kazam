@@ -40,6 +40,9 @@ pub fn render_source_view(
         glow: None,
         print_flow: None,
         freshness: None,
+        search_terms: Vec::new(),
+        owner: None,
+        references: Vec::new(),
     };
 
     render_page(&synthetic, config, base, "", rel_path, release)
@@ -81,6 +84,10 @@ pub fn render_page(
         }
     }
 
+    if !page.references.is_empty() {
+        rendered.html.push_str(&references_section(&page.references));
+    }
+
     match page.shell {
         Shell::Standard => {
             shells::standard::wrap(page, config, rendered, base, source_href, rel_path, release)
@@ -94,6 +101,19 @@ pub fn render_page(
     }
 }
 
+fn references_section(refs: &[crate::types::Reference]) -> String {
+    let mut html = String::from(r#"<section class="c-references"><h3>References</h3><ul>"#);
+    for r in refs {
+        html.push_str("<li><a href=\"");
+        html.push_str(&r.url);
+        html.push_str("\" target=\"_blank\" rel=\"noopener\">");
+        html.push_str(r.note.as_deref().unwrap_or(&r.url));
+        html.push_str("</a></li>");
+    }
+    html.push_str("</ul></section>");
+    html
+}
+
 /// Build the freshness banner HTML for a page, or return `None` when the
 /// page is fresh (or has no freshness metadata). The banner reuses the
 /// existing callout variants so color treatment stays consistent with the
@@ -104,7 +124,8 @@ pub fn render_page(
 fn freshness_banner(page: &Page, base: &str) -> Option<String> {
     use crate::freshness::FreshnessStatus;
 
-    let freshness = page.freshness.as_ref()?;
+    // "never" and absent freshness both skip the banner
+    let freshness = crate::freshness::freshness_struct(page.freshness.as_ref())?;
     let today = crate::freshness::today_iso();
     let info = crate::freshness::info_for(Some(freshness), &today)?;
 
@@ -237,6 +258,9 @@ fn default_404_page() -> Page {
         glow: None,
         print_flow: None,
         freshness: None,
+        search_terms: Vec::new(),
+        owner: None,
+        references: Vec::new(),
     }
 }
 

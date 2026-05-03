@@ -12,9 +12,10 @@
 //! Duration parsing accepts `Nd` / `Nw` / `Nm` / `Ny` and the word
 //! shortcuts `weekly` / `monthly` / `quarterly` / `yearly` / `annually`.
 
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::types::Freshness;
+use crate::types::{Freshness, FreshnessValue};
 
 /// Number of days before the review deadline at which a page starts
 /// surfacing a yellow "review due soon" banner. Inside this window the
@@ -94,7 +95,7 @@ impl FreshnessInfo {
 
 /// Parse a `Freshness` struct into days-since-epoch integers relative to
 /// `today_iso` (a `YYYY-MM-DD` string). Returns `None` when there's no
-/// freshness metadata at all.
+/// freshness metadata at all, or when the value is `FreshnessValue::Never`.
 pub fn info_for(f: Option<&Freshness>, today_iso: &str) -> Option<FreshnessInfo> {
     let f = f?;
     let today_days = parse_iso_date(today_iso).unwrap_or(0);
@@ -105,6 +106,282 @@ pub fn info_for(f: Option<&Freshness>, today_iso: &str) -> Option<FreshnessInfo>
         review_days,
         today_days,
     })
+}
+
+/// Extract the inner `Freshness` from an `Option<FreshnessValue>`, or
+/// `None` if the value is absent or is the "never" variant.
+pub fn freshness_struct(fv: Option<&FreshnessValue>) -> Option<&Freshness> {
+    fv?.as_full()
+}
+
+// ── `kazam freshness` command ──────────────────────────────────────────────
+
+/// Run the `kazam freshness` command — walk `dir`, evaluate staleness for
+/// every page, and print a JSON or human-readable report.
+pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use std::fs;
+    use walkdir::WalkDir;
+
+    let today = today_iso();
+
+    #[derive(Debug)]
+    struct PageResult {
+        path: String,
+        title: String,
+        status: FreshnessStatus,
+        days_overdue: Option<i64>,
+        #[allow(dead_code)]
+        days_until_due: Option<i64>,
+        owner: Option<String>,
+        updated: Option<String>,
+        review_every: Option<String>,
+        is_never: bool,
+        no_freshness: bool,
+    }
+
+    let mut results: Vec<PageResult> = Vec::new();
+
+    for entry in WalkDir::new(dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() > 0 && e.file_name() == "_site" && e.file_type().is_dir() {
+                return false;
+            }
+            if e.depth() > 0 {
+                if let Some(name) = e.file_name().to_str() {
+                    if name.starts_with('.') {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let fname = path.file_name().unwrap_or_default();
+        if fname == "kazam.yaml" || fname == "404.yaml" {
+            continue;
+        }
+
+        let is_yaml = path.extension().map(|e| e == "yaml").unwrap_or(false);
+        if !is_yaml {
+            continue;
+        }
+
+        let rel = path.strip_prefix(dir)?;
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+
+        let content = fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
+        let page: crate::types::Page =
+            serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
+
+        let display_path = rel_str;
+
+        match page.freshness.as_ref() {
+            None => {
+                // No freshness metadata at all
+                results.push(PageResult {
+                    path: display_path,
+                    title: page.title,
+                    status: FreshnessStatus::Fresh,
+                    days_overdue: None,
+                    days_until_due: None,
+                    owner: None,
+                    updated: None,
+                    review_every: None,
+                    is_never: false,
+                    no_freshness: true,
+                });
+            }
+            Some(fv) if fv.is_never() => {
+                results.push(PageResult {
+                    path: display_path,
+                    title: page.title,
+                    status: FreshnessStatus::Fresh,
+                    days_overdue: None,
+                    days_until_due: None,
+                    owner: None,
+                    updated: None,
+                    review_every: None,
+                    is_never: true,
+                    no_freshness: false,
+                });
+            }
+            Some(fv) => {
+                let f = fv.as_full().unwrap();
+                // Apply threshold override if provided
+                let effective_review_every = if let Some(days) = threshold {
+                    Some(format!("{}d", days))
+                } else {
+                    f.review_every.clone()
+                };
+
+                let f_override = Freshness {
+                    updated: f.updated.clone(),
+                    review_every: effective_review_every,
+                    owner: f.owner.clone(),
+                    sources_of_truth: f.sources_of_truth.clone(),
+                };
+
+                let status = match info_for(Some(&f_override), &today) {
+                    Some(info) => info.status(),
+                    None => FreshnessStatus::Fresh,
+                };
+
+                let (days_overdue, days_until_due) = match status {
+                    FreshnessStatus::Overdue { days_overdue } => (Some(days_overdue), None),
+                    FreshnessStatus::DueSoon { days_until_due } => (None, Some(days_until_due)),
+                    FreshnessStatus::Fresh => (None, None),
+                };
+
+                results.push(PageResult {
+                    path: display_path,
+                    title: page.title,
+                    status,
+                    days_overdue,
+                    days_until_due,
+                    owner: f.owner.clone(),
+                    updated: f.updated.clone(),
+                    review_every: f.review_every.clone(),
+                    is_never: false,
+                    no_freshness: false,
+                });
+            }
+        }
+    }
+
+    // Compute summary counts
+    let total = results.len();
+    let fresh_count = results
+        .iter()
+        .filter(|r| {
+            matches!(r.status, FreshnessStatus::Fresh) && !r.is_never && !r.no_freshness
+        })
+        .count();
+    let due_soon_count = results
+        .iter()
+        .filter(|r| matches!(r.status, FreshnessStatus::DueSoon { .. }))
+        .count();
+    let overdue_count = results
+        .iter()
+        .filter(|r| matches!(r.status, FreshnessStatus::Overdue { .. }))
+        .count();
+    let never_count = results.iter().filter(|r| r.is_never).count();
+    let no_freshness_count = results.iter().filter(|r| r.no_freshness).count();
+
+    // Non-fresh pages only in the `pages` array
+    let non_fresh: Vec<&PageResult> = results
+        .iter()
+        .filter(|r| {
+            matches!(
+                r.status,
+                FreshnessStatus::DueSoon { .. } | FreshnessStatus::Overdue { .. }
+            )
+        })
+        .collect();
+
+    if pretty {
+        // Human-readable table output
+        println!("Freshness report — {}", today);
+        println!(
+            "  total: {}  fresh: {}  due_soon: {}  overdue: {}  never: {}  no_freshness: {}",
+            total, fresh_count, due_soon_count, overdue_count, never_count, no_freshness_count
+        );
+
+        if non_fresh.is_empty() {
+            println!("\nAll pages are fresh.");
+        } else {
+            println!();
+            let mut sorted: Vec<&PageResult> = non_fresh;
+            sorted.sort_by(|a, b| {
+                let a_overdue = a.days_overdue.unwrap_or(-1);
+                let b_overdue = b.days_overdue.unwrap_or(-1);
+                b_overdue.cmp(&a_overdue)
+            });
+            for r in &sorted {
+                let status_str = match r.status {
+                    FreshnessStatus::Overdue { days_overdue } => {
+                        format!("OVERDUE ({} days)", days_overdue)
+                    }
+                    FreshnessStatus::DueSoon { days_until_due } => {
+                        format!("DUE SOON (in {} days)", days_until_due)
+                    }
+                    FreshnessStatus::Fresh => "FRESH".to_string(),
+                };
+                let owner = r
+                    .owner
+                    .as_deref()
+                    .map(|o| format!("  owner: {}", o))
+                    .unwrap_or_default();
+                println!("  [{status}] {path}{owner}", status = status_str, path = r.path);
+            }
+        }
+    } else {
+        // JSON output
+        let mut pages_json = String::from("[\n");
+        for (i, r) in non_fresh.iter().enumerate() {
+            let status_str = match r.status {
+                FreshnessStatus::Overdue { .. } => "overdue",
+                FreshnessStatus::DueSoon { .. } => "due_soon",
+                FreshnessStatus::Fresh => "fresh",
+            };
+            let days_overdue_str = r
+                .days_overdue
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| "null".to_string());
+            let owner_str = r
+                .owner
+                .as_deref()
+                .map(|o| format!("\"{}\"", json_escape(o)))
+                .unwrap_or_else(|| "null".to_string());
+            let updated_str = r
+                .updated
+                .as_deref()
+                .map(|u| format!("\"{}\"", json_escape(u)))
+                .unwrap_or_else(|| "null".to_string());
+            let review_every_str = r
+                .review_every
+                .as_deref()
+                .map(|rv| format!("\"{}\"", json_escape(rv)))
+                .unwrap_or_else(|| "null".to_string());
+
+            let comma = if i + 1 < non_fresh.len() { "," } else { "" };
+            pages_json.push_str(&format!(
+                "    {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days_overdue\":{},\"owner\":{},\"updated\":{},\"review_every\":{}}}{}\n",
+                json_escape(&r.path),
+                json_escape(&r.title),
+                status_str,
+                days_overdue_str,
+                owner_str,
+                updated_str,
+                review_every_str,
+                comma,
+            ));
+        }
+        pages_json.push_str("  ]");
+
+        println!(
+            "{{\n  \"date\":\"{}\",\n  \"summary\":{{\"total\":{},\"fresh\":{},\"due_soon\":{},\"overdue\":{},\"never\":{},\"no_freshness\":{}}},\n  \"pages\":{}\n}}",
+            today, total, fresh_count, due_soon_count, overdue_count, never_count, no_freshness_count, pages_json
+        );
+    }
+
+    Ok(())
+}
+
+fn json_escape(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 /// Parse an ISO `YYYY-MM-DD` date into days since 1970-01-01. Returns

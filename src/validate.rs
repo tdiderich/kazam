@@ -68,8 +68,10 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
             validate_components(file, &path, &slide.components, &mut errors);
         }
     }
-    if let Some(freshness) = &page.freshness {
-        validate_freshness(file, "freshness", freshness, &mut errors);
+    if let Some(fv) = &page.freshness {
+        if let Some(freshness) = fv.as_full() {
+            validate_freshness(file, "freshness", freshness, &mut errors);
+        }
     }
     errors
 }
@@ -813,6 +815,9 @@ mod tests {
             glow: None,
             print_flow: None,
             freshness: None,
+            search_terms: Vec::new(),
+            owner: None,
+            references: Vec::new(),
         }
     }
 
@@ -854,6 +859,9 @@ mod tests {
             glow: None,
             print_flow: None,
             freshness: None,
+            search_terms: Vec::new(),
+            owner: None,
+            references: Vec::new(),
         };
         let errors = validate_page("deck.yaml", &page);
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors.iter().map(|e| &e.message).collect::<Vec<_>>());
@@ -999,12 +1007,12 @@ mod tests {
     #[test]
     fn freshness_bad_date_fails() {
         let mut page = make_page(Shell::Standard, Some(vec![header_component()]));
-        page.freshness = Some(Freshness {
+        page.freshness = Some(crate::types::FreshnessValue::Full(Freshness {
             updated: Some("not-a-date".into()),
             review_every: None,
             owner: None,
             sources_of_truth: None,
-        });
+        }));
         let errors = validate_page("test.yaml", &page);
         assert!(
             errors.iter().any(|e| e.error_type == "format" && e.path.contains("updated")),
@@ -1015,12 +1023,12 @@ mod tests {
     #[test]
     fn freshness_bad_duration_fails() {
         let mut page = make_page(Shell::Standard, Some(vec![header_component()]));
-        page.freshness = Some(Freshness {
+        page.freshness = Some(crate::types::FreshnessValue::Full(Freshness {
             updated: None,
             review_every: Some("once in a while".into()),
             owner: None,
             sources_of_truth: None,
-        });
+        }));
         let errors = validate_page("test.yaml", &page);
         assert!(
             errors.iter().any(|e| e.error_type == "format" && e.path.contains("review_every")),
@@ -1031,12 +1039,12 @@ mod tests {
     #[test]
     fn freshness_valid_values_pass() {
         let mut page = make_page(Shell::Standard, Some(vec![header_component()]));
-        page.freshness = Some(Freshness {
+        page.freshness = Some(crate::types::FreshnessValue::Full(Freshness {
             updated: Some("2026-01-15".into()),
             review_every: Some("quarterly".into()),
             owner: Some("team@example.com".into()),
             sources_of_truth: None,
-        });
+        }));
         let errors = validate_page("test.yaml", &page);
         assert!(errors.is_empty(), "expected no errors for valid freshness");
     }

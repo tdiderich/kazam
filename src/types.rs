@@ -51,13 +51,72 @@ pub struct Page {
     /// where the viewport is near-square and landscape PDFs letterbox badly.
     #[serde(default)]
     pub print_flow: Option<PrintFlow>,
+    /// Extra search keywords that don't appear in rendered content.
+    /// Useful for aliases, acronyms, internal jargon.
+    #[serde(default)]
+    pub search_terms: Vec<String>,
     /// Optional freshness metadata: owner, last content update, review cadence,
     /// and sources of truth the agent / reader can consult to refresh the
     /// page. When the page is past its review window, a banner is injected
     /// at the top of the rendered output and the build reports the page as
     /// stale. Zero runtime JS — staleness is computed at `kazam build` time.
+    /// Set to `"never"` to explicitly opt out of freshness checks with no
+    /// warning emitted.
     #[serde(default)]
-    pub freshness: Option<Freshness>,
+    pub freshness: Option<FreshnessValue>,
+    /// Who is responsible for this page. Free-form string — email, Slack
+    /// handle, or team name. Serves as a fallback for `freshness.owner` in
+    /// the stale-page report when no freshness block is present.
+    #[serde(default)]
+    pub owner: Option<String>,
+    /// Links to sources of truth that inform this page's content.
+    /// Each entry has a URL and an optional note explaining what it references.
+    #[serde(default)]
+    pub references: Vec<Reference>,
+}
+
+/// Freshness value: either the bare string `"never"` (explicit opt-out —
+/// no decay checks, no warning) or a full metadata struct.
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]
+pub enum FreshnessValue {
+    /// Bare string `"never"` — page explicitly opts out of freshness checks.
+    Never(FreshnessNever),
+    /// Full freshness metadata struct.
+    Full(Freshness),
+}
+
+impl FreshnessValue {
+    /// Return the inner `Freshness` struct if this is a `Full` variant.
+    pub fn as_full(&self) -> Option<&Freshness> {
+        match self {
+            FreshnessValue::Full(f) => Some(f),
+            FreshnessValue::Never(_) => None,
+        }
+    }
+
+    /// True when the value is `"never"`.
+    pub fn is_never(&self) -> bool {
+        matches!(self, FreshnessValue::Never(_))
+    }
+}
+
+/// Captures the bare `"never"` string via serde rename.
+#[derive(Deserialize, Clone)]
+pub enum FreshnessNever {
+    #[serde(rename = "never")]
+    Never,
+}
+
+/// One reference entry. A URL pointing to a source of truth for this page's
+/// content, with an optional short note explaining what it covers.
+#[derive(Deserialize, Clone)]
+pub struct Reference {
+    /// URL to the source (PR, Slack thread, meeting notes, doc, etc.)
+    pub url: String,
+    /// Short description of what this reference covers
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 /// Freshness metadata for a page — when was it last updated, who owns it,
@@ -925,6 +984,36 @@ pub struct SiteConfig {
     /// SVG works on modern platforms. Optional.
     #[serde(default)]
     pub og_image: Option<String>,
+    /// Brand voice rules for consistent content authoring across agents and humans.
+    #[serde(default)]
+    pub voice: Option<Voice>,
+}
+
+/// Brand voice configuration — tone, reading level, and terminology preferences.
+/// All fields are optional; add what you want. This is config only — kazam does
+/// not enforce these rules at build time.
+#[derive(Deserialize, Clone, Default)]
+pub struct Voice {
+    /// Tone description, e.g. "direct, technical, no marketing fluff"
+    #[serde(default)]
+    pub tone: Option<String>,
+    /// Target reading level, e.g. "senior engineer", "general audience"
+    #[serde(default)]
+    pub reading_level: Option<String>,
+    /// Terminology preferences
+    #[serde(default)]
+    pub terminology: Option<Terminology>,
+}
+
+/// Preferred and avoided terms for consistent language across content authors.
+#[derive(Deserialize, Clone, Default)]
+pub struct Terminology {
+    /// Preferred term replacements: key = avoid, value = use instead
+    #[serde(default)]
+    pub prefer: std::collections::HashMap<String, String>,
+    /// Terms to avoid entirely
+    #[serde(default)]
+    pub avoid: Vec<String>,
 }
 
 /// Site-wide background pattern. All variants are subtle by design.
@@ -1098,6 +1187,7 @@ impl Default for SiteConfig {
             description: None,
             url: None,
             og_image: None,
+            voice: None,
         }
     }
 }

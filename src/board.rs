@@ -401,6 +401,9 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
         glow: None,
         print_flow: None,
         freshness: None,
+        search_terms: Vec::new(),
+        owner: None,
+        references: Vec::new(),
     })
 }
 
@@ -643,6 +646,7 @@ fn board_site_config(project: &Path) -> SiteConfig {
         description: None,
         url: None,
         og_image: None,
+        voice: None,
     }
 }
 
@@ -664,6 +668,7 @@ impl Clone for SiteConfig {
             description: self.description.clone(),
             url: self.url.clone(),
             og_image: self.og_image.clone(),
+            voice: self.voice.clone(),
         }
     }
 }

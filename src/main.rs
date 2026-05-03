@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod actions;
 mod agents;
 mod board;
 mod build;
@@ -16,11 +17,14 @@ mod llms;
 mod manifest;
 mod mcp;
 mod minify;
+mod prompts;
 mod render;
+mod search;
 mod theme;
 mod track;
 mod types;
 mod validate;
+mod voice;
 mod wish;
 mod workspace;
 
@@ -52,6 +56,9 @@ enum Command {
         /// Skip emitting site.json manifest
         #[arg(long)]
         no_manifest: bool,
+        /// Skip emitting search.json index
+        #[arg(long)]
+        no_search: bool,
     },
     /// Watch source, rebuild on change, serve at localhost:PORT
     Dev {
@@ -131,6 +138,43 @@ enum Command {
         #[arg(long)]
         allow_writes: bool,
     },
+    /// Show freshness status for all pages in the site
+    Freshness {
+        /// Site directory
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+        /// Human-readable output (default is JSON)
+        #[arg(long)]
+        pretty: bool,
+        /// Only show pages overdue by at least this many days
+        #[arg(long)]
+        threshold: Option<u64>,
+    },
+    /// Show or manage the site's voice configuration
+    Voice {
+        /// Site directory
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Manage prompt templates for agent workflows
+    Prompt {
+        #[command(subcommand)]
+        command: prompts::Command,
+        /// Project directory (default: current directory)
+        #[arg(short, long, default_value = ".", global = true)]
+        dir: PathBuf,
+    },
+    /// Manage GitHub Action workflow templates
+    Actions {
+        #[command(subcommand)]
+        command: ActionsCommand,
+        /// Project directory (default: current directory)
+        #[arg(short, long, default_value = ".", global = true)]
+        dir: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -142,7 +186,8 @@ fn main() -> Result<()> {
             allow_orphans,
             json,
             no_manifest,
-        } => build::run(&dir, &out, release, allow_orphans, json, no_manifest),
+            no_search,
+        } => build::run(&dir, &out, release, allow_orphans, json, no_manifest, no_search),
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),
         Command::Agents => agents::run(),
@@ -171,7 +216,29 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Mcp { dir, allow_writes } => mcp::run(&dir, allow_writes),
+        Command::Freshness {
+            dir,
+            pretty,
+            threshold,
+        } => freshness::run_command(&dir, pretty, threshold),
+        Command::Voice { dir, json } => voice::run(&dir, json),
+        Command::Prompt { command, dir } => prompts::run(command, &dir),
+        Command::Actions { command, dir } => match command {
+            ActionsCommand::List => actions::list(),
+            ActionsCommand::Init { name } => actions::init(&name, &dir),
+        },
     }
+}
+
+#[derive(Subcommand)]
+pub enum ActionsCommand {
+    /// List available action templates
+    List,
+    /// Initialize an action template in .github/workflows/
+    Init {
+        /// Template name (validate, freshness, build)
+        name: String,
+    },
 }
 
 #[derive(Subcommand)]

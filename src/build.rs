@@ -72,7 +72,7 @@ fn emit_json(event: &BuildEvent) {
     }
 }
 
-pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: bool, no_manifest: bool) -> Result<()> {
+pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: bool, no_manifest: bool, no_search: bool) -> Result<()> {
     let start = std::time::Instant::now();
     let config = load_config(dir)?;
     fs::create_dir_all(out)?;
@@ -94,6 +94,7 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
     let mut assets = 0;
     let mut entries: Vec<PageEntry> = Vec::new();
     let mut manifest_entries: Vec<PageManifestEntry> = Vec::new();
+    let mut search_entries: Vec<crate::search::SearchEntry> = Vec::new();
     // Collect stale-review pages so we can print a summary at the end
     // of the build. Staleness is evaluated against `KAZAM_TODAY` or the
     // system clock (see `freshness::today_iso`).
@@ -268,6 +269,7 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
                 let freshness_manifest = page
                     .freshness
                     .as_ref()
+                    .and_then(|fv| fv.as_full())
                     .map(|f| manifest::freshness_manifest(f, &today));
                 manifest_entries.push(PageManifestEntry {
                     path: html_path_str,
@@ -288,21 +290,26 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
                 .replace('\\', "/");
             page_links.push(crate::links::collect_page_links(&html_rel_for_links, &page));
 
+            if !no_search && !page.unlisted {
+                search_entries.push(crate::search::entry_for(&html_rel_for_links, &page));
+            }
+
             // Track freshness status for the end-of-build summary. Uses
             // the same computation as the banner inject so the report and
             // the rendered output never disagree. Fresh pages are dropped;
             // DueSoon and Overdue both feed the summary (grouped).
-            if let Some(info) = crate::freshness::info_for(page.freshness.as_ref(), &today) {
+            let freshness_full = page.freshness.as_ref().and_then(|fv| fv.as_full());
+            if let Some(info) = crate::freshness::info_for(freshness_full, &today) {
                 let status = info.status();
                 if !matches!(status, crate::freshness::FreshnessStatus::Fresh) {
                     stale_pages.push(StaleEntry {
                         html_path: rel.with_extension("html").to_string_lossy().to_string(),
                         title: page.title.clone(),
-                        owner: page.freshness.as_ref().and_then(|f| f.owner.clone()),
+                        owner: freshness_full
+                            .and_then(|f| f.owner.clone())
+                            .or_else(|| page.owner.clone()),
                         status,
-                        cadence: page
-                            .freshness
-                            .as_ref()
+                        cadence: freshness_full
                             .and_then(|f| f.review_every.clone())
                             .unwrap_or_default(),
                     });
@@ -344,6 +351,11 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
     // Emit site.json manifest (skippable via --no-manifest)
     if !no_manifest && !manifest_entries.is_empty() {
         manifest::write(out, &config, &manifest_entries)?;
+    }
+
+    // Emit search.json index (skippable via --no-search)
+    if !no_search && !search_entries.is_empty() {
+        crate::search::write(out, &search_entries)?;
     }
 
     // Emit sitemap.xml + robots.txt when a canonical URL is configured.
@@ -648,7 +660,7 @@ fn base_path_for(rel: &Path) -> String {
     "../".repeat(depth)
 }
 
-fn load_config(dir: &Path) -> Result<SiteConfig> {
+pub fn load_config(dir: &Path) -> Result<SiteConfig> {
     let config_path = dir.join("kazam.yaml");
     if config_path.exists() {
         let content = fs::read_to_string(&config_path)?;

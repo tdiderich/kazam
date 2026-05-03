@@ -112,7 +112,7 @@ pub fn read_page(dir: &Path, params: &Value) -> Result<ToolResult> {
             "shell": shell_name(page.shell).to_string(),
             "has_freshness": page.freshness.is_some(),
             "unlisted": page.unlisted,
-            "freshness": page.freshness.as_ref().map(|f| json!({
+            "freshness": page.freshness.as_ref().and_then(|fv| fv.as_full()).map(|f| json!({
                 "owner": f.owner,
                 "updated": f.updated,
                 "review_every": f.review_every,
