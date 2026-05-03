@@ -8,9 +8,82 @@ use crate::minify;
 use crate::render;
 use crate::types::{Page, SiteConfig};
 
-pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result<()> {
+#[derive(serde::Serialize)]
+#[serde(tag = "event")]
+#[allow(dead_code)]
+enum BuildEvent {
+    #[serde(rename = "build_start")]
+    BuildStart {
+        dir: String,
+        out: String,
+        release: bool,
+        timestamp: String,
+    },
+    #[serde(rename = "page_built")]
+    PageBuilt {
+        path: String,
+        title: String,
+        timestamp: String,
+    },
+    #[serde(rename = "asset_copied")]
+    AssetCopied {
+        path: String,
+        timestamp: String,
+    },
+    #[serde(rename = "warning")]
+    Warning {
+        message: String,
+        file: Option<String>,
+        timestamp: String,
+    },
+    #[serde(rename = "page_error")]
+    PageError {
+        path: String,
+        message: String,
+        timestamp: String,
+    },
+    #[serde(rename = "stale_page")]
+    StalePage {
+        path: String,
+        title: String,
+        days_overdue: Option<i64>,
+        days_until_due: Option<i64>,
+        owner: Option<String>,
+        timestamp: String,
+    },
+    #[serde(rename = "build_complete")]
+    BuildComplete {
+        pages: usize,
+        assets: usize,
+        duration_ms: u64,
+        stale_pages: usize,
+        timestamp: String,
+    },
+}
+
+fn now_iso() -> String {
+    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
+}
+
+fn emit_json(event: &BuildEvent) {
+    if let Ok(line) = serde_json::to_string(event) {
+        println!("{}", line);
+    }
+}
+
+pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: bool) -> Result<()> {
+    let start = std::time::Instant::now();
     let config = load_config(dir)?;
     fs::create_dir_all(out)?;
+
+    if json {
+        emit_json(&BuildEvent::BuildStart {
+            dir: dir.display().to_string(),
+            out: out.display().to_string(),
+            release,
+            timestamp: now_iso(),
+        });
+    }
 
     // Canonicalize the output dir so we can reliably skip walking into it
     // when it lives inside the source dir (e.g. docs/_site under docs/).
@@ -201,7 +274,15 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
                 }
             }
 
-            println!("  {}", out_path.display());
+            if json {
+                emit_json(&BuildEvent::PageBuilt {
+                    path: out_path.display().to_string(),
+                    title: page.title.clone(),
+                    timestamp: now_iso(),
+                });
+            } else {
+                println!("  {}", out_path.display());
+            }
             pages += 1;
         } else {
             // Static asset — copy verbatim
@@ -210,6 +291,12 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
                 fs::create_dir_all(parent)?;
             }
             fs::copy(path, &out_path)?;
+            if json {
+                emit_json(&BuildEvent::AssetCopied {
+                    path: out_path.display().to_string(),
+                    timestamp: now_iso(),
+                });
+            }
             assets += 1;
         }
     }
@@ -226,21 +313,23 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
         write_robots(out, site_url)?;
     }
 
-    if assets > 0 {
-        println!(
-            "\n✓ {} page(s), {} asset(s) → {}{}",
-            pages,
-            assets,
-            out.display(),
-            if release { " (minified)" } else { "" }
-        );
-    } else {
-        println!(
-            "\n✓ {} page(s) → {}{}",
-            pages,
-            out.display(),
-            if release { " (minified)" } else { "" }
-        );
+    if !json {
+        if assets > 0 {
+            println!(
+                "\n✓ {} page(s), {} asset(s) → {}{}",
+                pages,
+                assets,
+                out.display(),
+                if release { " (minified)" } else { "" }
+            );
+        } else {
+            println!(
+                "\n✓ {} page(s) → {}{}",
+                pages,
+                out.display(),
+                if release { " (minified)" } else { "" }
+            );
+        }
     }
 
     // Generate 404.html. If the source dir contains 404.yaml, render that
@@ -260,7 +349,11 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
     }
     fs::write(out.join("404.html"), html_404)?;
 
-    print_freshness_report(&stale_pages);
+    if json {
+        emit_stale_json(&stale_pages);
+    } else {
+        print_freshness_report(&stale_pages);
+    }
     write_freshness_report_md(out, &stale_pages, &today)?;
 
     // Link-graph analysis runs after every build. Orphans can be silenced
@@ -270,8 +363,21 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
     if allow_orphans {
         report.orphans.clear();
     }
-    crate::links::print_report(&report);
+    if !json {
+        crate::links::print_report(&report);
+    }
     crate::links::write_report_md(out, &report)?;
+
+    if json {
+        let duration_ms = start.elapsed().as_millis() as u64;
+        emit_json(&BuildEvent::BuildComplete {
+            pages,
+            assets,
+            duration_ms,
+            stale_pages: stale_pages.len(),
+            timestamp: now_iso(),
+        });
+    }
 
     Ok(())
 }
@@ -281,11 +387,30 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
 /// it by overdue-ness, not by llms.txt order.
 struct StaleEntry {
     html_path: String,
-    #[allow(dead_code)]
     title: String,
     owner: Option<String>,
     status: crate::freshness::FreshnessStatus,
     cadence: String,
+}
+
+/// Emit one `stale_page` JSON event per stale entry when running in JSON mode.
+fn emit_stale_json(stale: &[StaleEntry]) {
+    use crate::freshness::FreshnessStatus;
+    for e in stale {
+        let (days_overdue, days_until_due) = match e.status {
+            FreshnessStatus::Overdue { days_overdue } => (Some(days_overdue), None),
+            FreshnessStatus::DueSoon { days_until_due } => (None, Some(days_until_due)),
+            FreshnessStatus::Fresh => (None, None),
+        };
+        emit_json(&BuildEvent::StalePage {
+            path: e.html_path.clone(),
+            title: e.title.clone(),
+            days_overdue,
+            days_until_due,
+            owner: e.owner.clone(),
+            timestamp: now_iso(),
+        });
+    }
 }
 
 /// Write the stale-page report to `<out>/stale.md` whenever any page is

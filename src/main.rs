@@ -44,6 +44,9 @@ enum Command {
         /// Useful for draft pages you haven't wired into nav yet.
         #[arg(long)]
         allow_orphans: bool,
+        /// Emit structured NDJSON instead of human-readable output
+        #[arg(long)]
+        json: bool,
     },
     /// Watch source, rebuild on change, serve at localhost:PORT
     Dev {
@@ -123,7 +126,8 @@ fn main() -> Result<()> {
             out,
             release,
             allow_orphans,
-        } => build::run(&dir, &out, release, allow_orphans),
+            json,
+        } => build::run(&dir, &out, release, allow_orphans, json),
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),
         Command::Agents => agents::run(),
