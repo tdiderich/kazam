@@ -2414,3 +2414,124 @@ components:
         "non-blocked sibling should be pruned at build time"
     );
 }
+
+// ── kazam validate ───────────────────────────────────
+
+#[test]
+fn validate_kb_example_succeeds() {
+    // The bundled kb example is a well-formed site; `kazam validate` must
+    // exit 0 and output a JSON empty array.
+    let src = repo_root().join("examples/kb");
+    let output = Command::new(bin())
+        .args(["validate"])
+        .arg(&src)
+        .output()
+        .expect("run kazam validate");
+    assert!(
+        output.status.success(),
+        "kazam validate failed on examples/kb: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Default output is JSON.
+    let parsed: serde_json::Value = serde_json::from_str(&stdout)
+        .expect("validate output should be valid JSON");
+    assert!(
+        parsed.as_array().map(|a| a.is_empty()).unwrap_or(false),
+        "expected empty JSON array, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn validate_invalid_yaml_dir_fails_with_json_errors() {
+    // Build a tiny dir with a page that violates structural rules.
+    let dir = tmp_dir("validate-invalid");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
+
+    // Standard page with no components — structural error.
+    std::fs::write(
+        dir.join("bad.yaml"),
+        "title: Bad\nshell: standard\n",
+    )
+    .unwrap();
+
+    let output = Command::new(bin())
+        .args(["validate"])
+        .arg(&dir)
+        .output()
+        .expect("run kazam validate on invalid dir");
+
+    assert!(
+        !output.status.success(),
+        "kazam validate should exit non-zero for invalid site"
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let errors: serde_json::Value = serde_json::from_str(&stdout)
+        .expect("output should be valid JSON even on failure");
+    let arr = errors.as_array().expect("should be a JSON array");
+    assert!(!arr.is_empty(), "expected at least one validation error");
+
+    // Verify error shape: file, path, error_type, message all present.
+    let first = &arr[0];
+    assert!(first.get("file").is_some(), "error should have file field");
+    assert!(first.get("error_type").is_some(), "error should have error_type field");
+    assert!(first.get("message").is_some(), "error should have message field");
+}
+
+#[test]
+fn validate_pretty_output_is_human_readable() {
+    let dir = tmp_dir("validate-pretty");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
+    std::fs::write(
+        dir.join("page.yaml"),
+        "title: Bad\nshell: standard\n",
+    )
+    .unwrap();
+
+    let output = Command::new(bin())
+        .args(["validate", "--pretty"])
+        .arg(&dir)
+        .output()
+        .expect("run kazam validate --pretty");
+
+    // --pretty goes to stderr.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Should contain the file name and a human-readable error marker.
+    assert_contains(&stderr, "page.yaml");
+    // Should NOT be raw JSON.
+    assert!(
+        !stderr.trim_start().starts_with('['),
+        "--pretty output should not be a JSON array"
+    );
+}
+
+#[test]
+fn build_fails_on_structurally_invalid_yaml() {
+    // A page with an empty card_grid (zero cards) should fail the build.
+    let dir = tmp_dir("build-validate-fail");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
+    std::fs::write(
+        dir.join("index.yaml"),
+        "title: Bad\nshell: standard\ncomponents:\n  - type: card_grid\n    cards: []\n",
+    )
+    .unwrap();
+
+    let out = tmp_dir("build-validate-fail-out");
+    let status = Command::new(bin())
+        .args(["build"])
+        .arg(&dir)
+        .arg("--out")
+        .arg(&out)
+        .status()
+        .expect("run kazam build");
+
+    assert!(
+        !status.success(),
+        "build should fail when a page has a validation error"
+    );
+}

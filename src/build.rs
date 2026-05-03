@@ -80,6 +80,25 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
             let page: Page =
                 serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
 
+            // Semantic validation — catches structural/value errors serde can't.
+            let file_str = rel.to_string_lossy().to_string();
+            let val_errors = crate::validate::validate_page(&file_str, &page);
+            if !val_errors.is_empty() {
+                for e in &val_errors {
+                    let loc = if e.path.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" ({})", e.path)
+                    };
+                    eprintln!("  validation error in {}{}: {}", file_str, loc, e.message);
+                }
+                anyhow::bail!(
+                    "{} validation error(s) in {}. Run `kazam validate` for details.",
+                    val_errors.len(),
+                    file_str
+                );
+            }
+
             let base = base_path_for(rel);
             let source_filename = rel
                 .file_name()

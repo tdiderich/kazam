@@ -18,6 +18,7 @@ mod render;
 mod theme;
 mod track;
 mod types;
+mod validate;
 mod wish;
 mod workspace;
 
@@ -104,6 +105,15 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
+    /// Validate page YAML files against component schemas and structural rules.
+    Validate {
+        /// Directory of .yaml source files to validate (default: current directory)
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+        /// Human-readable output (default is JSON)
+        #[arg(long)]
+        pretty: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -129,6 +139,18 @@ fn main() -> Result<()> {
         Command::Ctx { command, dir } => ctx::run(command, &dir),
         Command::Board { dir, port } => board::run(&dir, port),
         Command::Workspace { command, dir } => workspace::run_command(command, &dir),
+        Command::Validate { dir, pretty } => {
+            let errors = validate::validate_dir(&dir);
+            if pretty {
+                validate::print_pretty(&errors);
+            } else {
+                println!("{}", serde_json::to_string_pretty(&errors)?);
+            }
+            if !errors.is_empty() {
+                std::process::exit(1);
+            }
+            Ok(())
+        }
     }
 }
 
