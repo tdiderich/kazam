@@ -13,6 +13,7 @@ mod id;
 mod init;
 mod links;
 mod llms;
+mod mcp;
 mod minify;
 mod render;
 mod theme;
@@ -117,6 +118,15 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
+    /// Run an MCP server over stdio for AI client integration
+    Mcp {
+        /// Site directory to serve
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+        /// Allow write operations (write_page tool)
+        #[arg(long)]
+        allow_writes: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -155,6 +165,7 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
+        Command::Mcp { dir, allow_writes } => mcp::run(&dir, allow_writes),
     }
 }
 
