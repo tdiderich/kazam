@@ -4,6 +4,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::llms::{self, PageEntry};
+use crate::manifest::{self, PageManifestEntry};
 use crate::minify;
 use crate::render;
 use crate::types::{Page, SiteConfig};
@@ -71,7 +72,7 @@ fn emit_json(event: &BuildEvent) {
     }
 }
 
-pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: bool) -> Result<()> {
+pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: bool, no_manifest: bool) -> Result<()> {
     let start = std::time::Instant::now();
     let config = load_config(dir)?;
     fs::create_dir_all(out)?;
@@ -92,6 +93,7 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
     let mut pages = 0;
     let mut assets = 0;
     let mut entries: Vec<PageEntry> = Vec::new();
+    let mut manifest_entries: Vec<PageManifestEntry> = Vec::new();
     // Collect stale-review pages so we can print a summary at the end
     // of the build. Staleness is evaluated against `KAZAM_TODAY` or the
     // system clock (see `freshness::today_iso`).
@@ -235,14 +237,47 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
             fs::copy(path, &yaml_out)?;
 
             // Collect metadata for llms.txt (unless marked unlisted)
+            let html_path_str = rel.with_extension("html").to_string_lossy().to_string();
+            let yaml_path_str = rel.to_string_lossy().to_string();
             if !page.unlisted {
-                let html_path = rel.with_extension("html").to_string_lossy().to_string();
-                let yaml_path = rel.to_string_lossy().to_string();
                 entries.push(PageEntry {
                     title: page.title.clone(),
                     subtitle: page.subtitle.clone(),
-                    html_path,
-                    yaml_path,
+                    html_path: html_path_str.clone(),
+                    yaml_path: yaml_path_str.clone(),
+                });
+            }
+
+            // Collect metadata for site.json manifest (all pages, including unlisted)
+            {
+                let page_components = {
+                    let top_level = page.components.as_deref().unwrap_or(&[]);
+                    let mut all = manifest::collect_component_types(top_level);
+                    // For deck pages, also walk slide components.
+                    if let Some(slides) = &page.slides {
+                        for slide in slides {
+                            for name in manifest::collect_component_types(&slide.components) {
+                                if !all.contains(&name) {
+                                    all.push(name);
+                                }
+                            }
+                        }
+                    }
+                    all
+                };
+                let freshness_manifest = page
+                    .freshness
+                    .as_ref()
+                    .map(|f| manifest::freshness_manifest(f, &today));
+                manifest_entries.push(PageManifestEntry {
+                    path: html_path_str,
+                    source: yaml_path_str,
+                    title: page.title.clone(),
+                    subtitle: page.subtitle.clone(),
+                    shell: manifest::shell_name(page.shell).to_string(),
+                    components: page_components,
+                    freshness: freshness_manifest,
+                    unlisted: page.unlisted,
                 });
             }
 
@@ -304,6 +339,11 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
     // Emit llms.txt
     if !entries.is_empty() {
         llms::write(out, &config, &entries)?;
+    }
+
+    // Emit site.json manifest (skippable via --no-manifest)
+    if !no_manifest && !manifest_entries.is_empty() {
+        manifest::write(out, &config, &manifest_entries)?;
     }
 
     // Emit sitemap.xml + robots.txt when a canonical URL is configured.

@@ -13,6 +13,7 @@ mod id;
 mod init;
 mod links;
 mod llms;
+mod manifest;
 mod mcp;
 mod minify;
 mod render;
@@ -48,6 +49,9 @@ enum Command {
         /// Emit structured NDJSON instead of human-readable output
         #[arg(long)]
         json: bool,
+        /// Skip emitting site.json manifest
+        #[arg(long)]
+        no_manifest: bool,
     },
     /// Watch source, rebuild on change, serve at localhost:PORT
     Dev {
@@ -137,7 +141,8 @@ fn main() -> Result<()> {
             release,
             allow_orphans,
             json,
-        } => build::run(&dir, &out, release, allow_orphans, json),
+            no_manifest,
+        } => build::run(&dir, &out, release, allow_orphans, json, no_manifest),
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),
         Command::Agents => agents::run(),
