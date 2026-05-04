@@ -186,13 +186,7 @@ pub fn validate_dir(dir: &Path) -> Vec<ValidationError> {
 
     // Second pass: nav cross-references.
     if let Some(nav) = &config.nav {
-        validate_nav_links(
-            "kazam.yaml",
-            "nav",
-            nav,
-            &known_pages,
-            &mut errors,
-        );
+        validate_nav_links("kazam.yaml", "nav", nav, &known_pages, &mut errors);
     }
 
     // Validate site config theme value.
@@ -214,7 +208,11 @@ fn validate_site_config(file: &str, config: &SiteConfig, errors: &mut Vec<Valida
                 file,
                 "theme",
                 "invalid_value",
-                format!("Unknown theme {:?}. Valid themes: {}", theme, VALID_THEMES.join(", ")),
+                format!(
+                    "Unknown theme {:?}. Valid themes: {}",
+                    theme,
+                    VALID_THEMES.join(", ")
+                ),
                 Some(format!("Set theme to one of: {}", VALID_THEMES.join(", "))),
             ));
         }
@@ -233,11 +231,18 @@ fn validate_shell_structure(file: &str, page: &Page, errors: &mut Vec<Validation
                     "slides",
                     "structural",
                     "shell: deck pages must have at least one slide under slides:",
-                    Some("Add a slides: list with at least one item (label: + components:).".into()),
+                    Some(
+                        "Add a slides: list with at least one item (label: + components:).".into(),
+                    ),
                 ));
             }
             // Deck pages should not have top-level components.
-            if page.components.as_ref().map(|c| !c.is_empty()).unwrap_or(false) {
+            if page
+                .components
+                .as_ref()
+                .map(|c| !c.is_empty())
+                .unwrap_or(false)
+            {
                 errors.push(ValidationError::new(
                     file,
                     "components",
@@ -249,7 +254,12 @@ fn validate_shell_structure(file: &str, page: &Page, errors: &mut Vec<Validation
         }
         Shell::Standard | Shell::Document => {
             // Non-deck pages must have components.
-            if page.components.as_ref().map(|c| c.is_empty()).unwrap_or(true) {
+            if page
+                .components
+                .as_ref()
+                .map(|c| c.is_empty())
+                .unwrap_or(true)
+            {
                 errors.push(ValidationError::new(
                     file,
                     "components",
@@ -456,12 +466,7 @@ fn validate_component(
         Component::Section { components, .. } => {
             // A section can be a pure heading/anchor with no nested components — valid.
             if !components.is_empty() {
-                validate_components(
-                    file,
-                    &format!("{}.components", path),
-                    components,
-                    errors,
-                );
+                validate_components(file, &format!("{}.components", path), components, errors);
             }
         }
 
@@ -842,7 +847,11 @@ mod tests {
     fn valid_standard_page_passes() {
         let page = make_page(Shell::Standard, Some(vec![header_component()]));
         let errors = validate_page("test.yaml", &page);
-        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors.iter().map(|e| &e.message).collect::<Vec<_>>());
+        assert!(
+            errors.is_empty(),
+            "expected no errors, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -872,7 +881,11 @@ mod tests {
             draft: false,
         };
         let errors = validate_page("deck.yaml", &page);
-        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors.iter().map(|e| &e.message).collect::<Vec<_>>());
+        assert!(
+            errors.is_empty(),
+            "expected no errors, got: {:?}",
+            errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+        );
     }
 
     // ── Structural rules enforced ─────────────────────
@@ -892,7 +905,9 @@ mod tests {
         let page = make_page(Shell::Deck, None);
         let errors = validate_page("test.yaml", &page);
         assert!(
-            errors.iter().any(|e| e.error_type == "structural" && e.path == "slides"),
+            errors
+                .iter()
+                .any(|e| e.error_type == "structural" && e.path == "slides"),
             "expected structural error on slides"
         );
     }
@@ -912,7 +927,9 @@ mod tests {
         );
         let errors = validate_page("test.yaml", &page);
         assert!(
-            errors.iter().any(|e| e.path.contains("cards") && e.error_type == "missing_field"),
+            errors
+                .iter()
+                .any(|e| e.path.contains("cards") && e.error_type == "missing_field"),
             "expected missing_field on cards"
         );
     }
@@ -1024,7 +1041,9 @@ mod tests {
         }));
         let errors = validate_page("test.yaml", &page);
         assert!(
-            errors.iter().any(|e| e.error_type == "format" && e.path.contains("updated")),
+            errors
+                .iter()
+                .any(|e| e.error_type == "format" && e.path.contains("updated")),
             "expected format error on freshness.updated"
         );
     }
@@ -1041,7 +1060,9 @@ mod tests {
         }));
         let errors = validate_page("test.yaml", &page);
         assert!(
-            errors.iter().any(|e| e.error_type == "format" && e.path.contains("review_every")),
+            errors
+                .iter()
+                .any(|e| e.error_type == "format" && e.path.contains("review_every")),
             "expected format error on freshness.review_every"
         );
     }

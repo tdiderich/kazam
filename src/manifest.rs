@@ -11,12 +11,12 @@ use crate::types::{Component, Freshness, Shell, SiteConfig};
 
 #[derive(Serialize)]
 pub struct PageManifestEntry {
-    pub path: String,             // relative HTML path, e.g. "customers/acme.html"
-    pub source: String,           // relative YAML path, e.g. "customers/acme.yaml"
+    pub path: String,   // relative HTML path, e.g. "customers/acme.html"
+    pub source: String, // relative YAML path, e.g. "customers/acme.yaml"
     pub title: String,
     pub subtitle: Option<String>,
-    pub shell: String,            // "standard", "document", or "deck"
-    pub components: Vec<String>,  // component type names used on this page
+    pub shell: String,           // "standard", "document", or "deck"
+    pub components: Vec<String>, // component type names used on this page
     pub freshness: Option<FreshnessManifest>,
     pub unlisted: bool,
     pub archived: bool,
@@ -59,7 +59,9 @@ fn collect_into(components: &[Component], out: &mut Vec<String>) {
         }
         // Recurse into containers that hold child components.
         match c {
-            Component::Section { components: inner, .. } => collect_into(inner, out),
+            Component::Section {
+                components: inner, ..
+            } => collect_into(inner, out),
             Component::Tabs { tabs } => {
                 for tab in tabs {
                     collect_into(&tab.components, out);
@@ -147,7 +149,11 @@ pub fn freshness_manifest(f: &Freshness, today: &str) -> FreshnessManifest {
 
 // ── Write ─────────────────────────────────────────────
 
-pub fn write(out: &Path, config: &SiteConfig, entries: &[PageManifestEntry]) -> std::io::Result<()> {
+pub fn write(
+    out: &Path,
+    config: &SiteConfig,
+    entries: &[PageManifestEntry],
+) -> std::io::Result<()> {
     let generated_at = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
     // Build a thin wrapper struct so we can serialize name/theme/generated_at
@@ -187,8 +193,8 @@ pub fn write(out: &Path, config: &SiteConfig, entries: &[PageManifestEntry]) -> 
         pages: entries,
     };
 
-    let json = serde_json::to_string_pretty(&manifest)
-        .expect("manifest serialization is infallible");
+    let json =
+        serde_json::to_string_pretty(&manifest).expect("manifest serialization is infallible");
     std::fs::write(out.join("site.json"), json)
 }
 
@@ -261,7 +267,9 @@ mod tests {
     fn collect_component_types_recurses_into_tabs() {
         let tab1 = make_tab("A", vec![make_header()]);
         let tab2 = make_tab("B", vec![make_markdown()]);
-        let tabs = Component::Tabs { tabs: vec![tab1, tab2] };
+        let tabs = Component::Tabs {
+            tabs: vec![tab1, tab2],
+        };
         let names = collect_component_types(&[tabs]);
         assert!(names.contains(&"tabs".to_string()));
         assert!(names.contains(&"header".to_string()));
@@ -283,12 +291,10 @@ mod tests {
     #[test]
     fn collect_component_types_recurses_into_accordion() {
         let acc = Component::Accordion {
-            items: vec![
-                AccordionItem {
-                    title: "Q".to_string(),
-                    components: vec![make_markdown()],
-                },
-            ],
+            items: vec![AccordionItem {
+                title: "Q".to_string(),
+                components: vec![make_markdown()],
+            }],
         };
         let names = collect_component_types(&[acc]);
         assert!(names.contains(&"accordion".to_string()));

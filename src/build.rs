@@ -27,10 +27,7 @@ enum BuildEvent {
         timestamp: String,
     },
     #[serde(rename = "asset_copied")]
-    AssetCopied {
-        path: String,
-        timestamp: String,
-    },
+    AssetCopied { path: String, timestamp: String },
     #[serde(rename = "warning")]
     Warning {
         message: String,
@@ -63,7 +60,9 @@ enum BuildEvent {
 }
 
 fn now_iso() -> String {
-    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
+    chrono::Utc::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string()
 }
 
 fn emit_json(event: &BuildEvent) {
@@ -72,7 +71,15 @@ fn emit_json(event: &BuildEvent) {
     }
 }
 
-pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: bool, no_manifest: bool, no_search: bool) -> Result<()> {
+pub fn run(
+    dir: &Path,
+    out: &Path,
+    release: bool,
+    allow_orphans: bool,
+    json: bool,
+    no_manifest: bool,
+    no_search: bool,
+) -> Result<()> {
     let start = std::time::Instant::now();
     let config = load_config(dir)?;
     fs::create_dir_all(out)?;
@@ -699,8 +706,7 @@ pub fn load_config(dir: &Path) -> Result<SiteConfig> {
     let config_path = dir.join("kazam.yaml");
     if config_path.exists() {
         let content = fs::read_to_string(&config_path)?;
-        let mut cfg: SiteConfig =
-            serde_yaml::from_str(&content).context("parsing kazam.yaml")?;
+        let mut cfg: SiteConfig = serde_yaml::from_str(&content).context("parsing kazam.yaml")?;
         if let Some(ref mut nav) = cfg.nav {
             for link in nav.iter_mut() {
                 link.normalize_hrefs();

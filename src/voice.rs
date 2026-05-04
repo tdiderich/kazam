@@ -11,10 +11,7 @@ pub fn run(dir: &Path, json: bool) -> Result<()> {
 
     match &config.voice {
         None => {
-            eprintln!(
-                "No voice configuration found for \"{}\".",
-                config.name
-            );
+            eprintln!("No voice configuration found for \"{}\".", config.name);
             eprintln!("Add a `voice:` section to kazam.yaml to define tone, reading level, and terminology.");
             eprintln!("\nExample:");
             eprintln!("  voice:");
@@ -83,10 +80,7 @@ fn print_json(voice: &Voice) -> Result<()> {
             term_obj.insert("prefer".into(), Value::Object(prefer_obj));
         }
         if !term.avoid.is_empty() {
-            term_obj.insert(
-                "avoid".into(),
-                json!(term.avoid),
-            );
+            term_obj.insert("avoid".into(), json!(term.avoid));
         }
         if !term_obj.is_empty() {
             obj.insert("terminology".into(), Value::Object(term_obj));

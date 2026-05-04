@@ -91,21 +91,15 @@ fn list(dir: &Path, json: bool) -> Result<()> {
     let mut paths: Vec<_> = fs::read_dir(&pd)
         .with_context(|| format!("reading prompts dir {:?}", pd))?
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .map(|x| x == "yaml")
-                .unwrap_or(false)
-        })
+        .filter(|e| e.path().extension().map(|x| x == "yaml").unwrap_or(false))
         .map(|e| e.path())
         .collect();
     paths.sort();
 
     for path in paths {
-        let content = fs::read_to_string(&path)
-            .with_context(|| format!("reading {:?}", path))?;
-        let prompt: Prompt = serde_yaml::from_str(&content)
-            .with_context(|| format!("parsing {:?}", path))?;
+        let content = fs::read_to_string(&path).with_context(|| format!("reading {:?}", path))?;
+        let prompt: Prompt =
+            serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
         let file = path
             .file_name()
             .map(|f| f.to_string_lossy().into_owned())
@@ -147,10 +141,9 @@ fn show(dir: &Path, name: &str, json: bool) -> Result<()> {
     if !path.exists() {
         bail!("prompt not found: prompts/{}.yaml", name);
     }
-    let content = fs::read_to_string(&path)
-        .with_context(|| format!("reading {:?}", path))?;
-    let prompt: Prompt = serde_yaml::from_str(&content)
-        .with_context(|| format!("parsing {:?}", path))?;
+    let content = fs::read_to_string(&path).with_context(|| format!("reading {:?}", path))?;
+    let prompt: Prompt =
+        serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&prompt)?);
@@ -162,8 +155,7 @@ fn show(dir: &Path, name: &str, json: bool) -> Result<()> {
 
 fn init(dir: &Path, name: &str) -> Result<()> {
     let pd = prompts_dir(dir);
-    fs::create_dir_all(&pd)
-        .with_context(|| format!("creating prompts dir {:?}", pd))?;
+    fs::create_dir_all(&pd).with_context(|| format!("creating prompts dir {:?}", pd))?;
 
     let path = prompt_path(dir, name);
     if path.exists() {
@@ -177,8 +169,7 @@ fn init(dir: &Path, name: &str) -> Result<()> {
         "name: {name}\ndescription: \"\"\nsystem_prompt: |\n  You are an agent working on the {site_name} knowledge base.\n\n  ## Voice\n  <voice config will be injected here if available>\n\n  ## Your task\n  <describe what this agent should do>\ntools: []\ntags: []\n"
     );
 
-    fs::write(&path, &scaffold)
-        .with_context(|| format!("writing {:?}", path))?;
+    fs::write(&path, &scaffold).with_context(|| format!("writing {:?}", path))?;
 
     println!("created prompts/{}.yaml", name);
     Ok(())
@@ -204,8 +195,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .map(|d| d.subsec_nanos())
             .unwrap_or(0);
-        let d = std::env::temp_dir()
-            .join(format!("kazam-prompts-test-{}-{}", suffix, ts));
+        let d = std::env::temp_dir().join(format!("kazam-prompts-test-{}-{}", suffix, ts));
         fs::create_dir_all(&d).unwrap();
         d
     }
@@ -275,12 +265,7 @@ tags: []
         let mut paths: Vec<_> = fs::read_dir(&pd)
             .unwrap()
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .map(|x| x == "yaml")
-                    .unwrap_or(false)
-            })
+            .filter(|e| e.path().extension().map(|x| x == "yaml").unwrap_or(false))
             .map(|e| e.path())
             .collect();
         paths.sort();

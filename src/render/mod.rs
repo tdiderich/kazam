@@ -98,7 +98,9 @@ pub fn render_page(
     }
 
     if !page.references.is_empty() {
-        rendered.html.push_str(&references_section(&page.references));
+        rendered
+            .html
+            .push_str(&references_section(&page.references));
     }
 
     match page.shell {

@@ -61,7 +61,9 @@ fn extract_searchable_text(
 ) {
     for c in components {
         match c {
-            Component::Header { title, subtitle, .. } => {
+            Component::Header {
+                title, subtitle, ..
+            } => {
                 headings.push(title.clone());
                 if let Some(sub) = subtitle {
                     push_snippet(snippets, sub);
@@ -342,7 +344,10 @@ mod tests {
         }]);
         let entry = entry_for("index.html", &page);
         assert!(entry.headings.contains(&"Hello World".to_string()));
-        assert!(entry.content_snippets.iter().any(|s| s.contains("subtitle")));
+        assert!(entry
+            .content_snippets
+            .iter()
+            .any(|s| s.contains("subtitle")));
     }
 
     #[test]
@@ -378,7 +383,10 @@ mod tests {
         let entry = entry_for("index.html", &page);
         assert!(entry.headings.contains(&"Step one".to_string()));
         assert!(entry.headings.contains(&"Step two".to_string()));
-        assert!(entry.content_snippets.iter().any(|s| s.contains("Do this first")));
+        assert!(entry
+            .content_snippets
+            .iter()
+            .any(|s| s.contains("Do this first")));
     }
 
     #[test]
@@ -394,7 +402,10 @@ mod tests {
         }]);
         let entry = entry_for("index.html", &page);
         assert!(entry.headings.contains(&"Section Heading".to_string()));
-        assert!(entry.content_snippets.iter().any(|s| s.contains("Inner content here")));
+        assert!(entry
+            .content_snippets
+            .iter()
+            .any(|s| s.contains("Inner content here")));
     }
 
     #[test]
@@ -408,9 +419,7 @@ mod tests {
     #[test]
     fn content_snippets_truncated() {
         let long_text = "a".repeat(300);
-        let page = make_page(vec![Component::Markdown {
-            body: long_text,
-        }]);
+        let page = make_page(vec![Component::Markdown { body: long_text }]);
         let entry = entry_for("index.html", &page);
         for snippet in &entry.content_snippets {
             assert!(snippet.len() <= 200, "snippet too long: {}", snippet.len());
@@ -441,7 +450,10 @@ mod tests {
         }]);
         let entry = entry_for("index.html", &page);
         assert!(entry.headings.contains(&"Tab A".to_string()));
-        assert!(entry.content_snippets.iter().any(|s| s.contains("Tab A content")));
+        assert!(entry
+            .content_snippets
+            .iter()
+            .any(|s| s.contains("Tab A content")));
     }
 
     #[test]
@@ -458,7 +470,13 @@ mod tests {
             equal_heights: false,
         }]);
         let entry = entry_for("index.html", &page);
-        assert!(entry.content_snippets.iter().any(|s| s.contains("Left column")));
-        assert!(entry.content_snippets.iter().any(|s| s.contains("Right column")));
+        assert!(entry
+            .content_snippets
+            .iter()
+            .any(|s| s.contains("Left column")));
+        assert!(entry
+            .content_snippets
+            .iter()
+            .any(|s| s.contains("Right column")));
     }
 }

@@ -135,10 +135,7 @@ pub fn init(name: &str, project_dir: &Path) -> Result<()> {
     let file_path = workflows_dir.join(format!("kazam-{}.yml", name));
 
     if file_path.exists() {
-        println!(
-            "File already exists: {}",
-            file_path.display()
-        );
+        println!("File already exists: {}", file_path.display());
         println!("Remove the file first if you want to regenerate it.");
         return Ok(());
     }
@@ -157,9 +154,7 @@ mod tests {
     use std::fs;
 
     fn tmp_dir(label: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir()
-            .join("kazam_actions_tests")
-            .join(label);
+        let dir = std::env::temp_dir().join("kazam_actions_tests").join(label);
         fs::create_dir_all(&dir).unwrap();
         dir
     }
