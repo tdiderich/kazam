@@ -3,6 +3,11 @@ use clap::Subcommand;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use walkdir::WalkDir;
+
+use crate::agents;
+use crate::build::load_config;
+use crate::types::Shell;
 
 // ── Types ─────────────────────────────────────────────
 
@@ -148,9 +153,177 @@ fn show(dir: &Path, name: &str, json: bool) -> Result<()> {
     if json {
         println!("{}", serde_json::to_string_pretty(&prompt)?);
     } else {
-        print!("{}", prompt.system_prompt);
+        let expanded = expand_template_vars(&prompt.system_prompt, dir);
+        print!("{}", expanded);
     }
     Ok(())
+}
+
+fn expand_template_vars(system_prompt: &str, dir: &Path) -> String {
+    let mut out = system_prompt.to_string();
+
+    if out.contains("{{config}}") {
+        let replacement = build_config_json(dir);
+        out = out.replace("{{config}}", &replacement);
+    }
+
+    if out.contains("{{voice}}") {
+        let replacement = build_voice_text(dir);
+        out = out.replace("{{voice}}", &replacement);
+    }
+
+    if out.contains("{{page_list}}") {
+        let replacement = build_page_list(dir);
+        out = out.replace("{{page_list}}", &replacement);
+    }
+
+    if out.contains("{{kazam_agents}}") {
+        out = out.replace("{{kazam_agents}}", agents::AGENTS_MD);
+    }
+
+    out
+}
+
+fn build_config_json(dir: &Path) -> String {
+    let config = match load_config(dir) {
+        Ok(c) => c,
+        Err(_) => return "{}".to_string(),
+    };
+
+    let roles: Vec<serde_json::Value> = config
+        .roles
+        .iter()
+        .map(|r| serde_json::json!({ "id": r.id, "label": r.label }))
+        .collect();
+
+    let obj = serde_json::json!({
+        "name": config.name,
+        "theme": config.theme,
+        "nav_layout": match config.nav_layout {
+            crate::types::NavLayout::Top => "top",
+            crate::types::NavLayout::Sidebar => "sidebar",
+        },
+        "roles": roles,
+        "edit_url": config.edit_url,
+        "url": config.url,
+    });
+
+    serde_json::to_string_pretty(&obj).unwrap_or_else(|_| "{}".to_string())
+}
+
+fn build_voice_text(dir: &Path) -> String {
+    let config = match load_config(dir) {
+        Ok(c) => c,
+        Err(_) => return "No voice configuration defined.".to_string(),
+    };
+
+    let voice = match &config.voice {
+        Some(v) => v,
+        None => return "No voice configuration defined.".to_string(),
+    };
+
+    let mut lines = Vec::new();
+    lines.push(format!("Voice configuration for \"{}\":", config.name));
+    if let Some(tone) = &voice.tone {
+        lines.push(format!("  Tone: {}", tone));
+    }
+    if let Some(level) = &voice.reading_level {
+        lines.push(format!("  Reading level: {}", level));
+    }
+    if let Some(term) = &voice.terminology {
+        if !term.prefer.is_empty() {
+            let mut prefer: Vec<(&String, &String)> = term.prefer.iter().collect();
+            prefer.sort_by_key(|(k, _)| *k);
+            for (avoid, use_instead) in prefer {
+                lines.push(format!("  Prefer: \"{}\" over \"{}\"", use_instead, avoid));
+            }
+        }
+        if !term.avoid.is_empty() {
+            lines.push(format!("  Avoid: {}", term.avoid.join(", ")));
+        }
+    }
+    lines.join("\n")
+}
+
+fn build_page_list(dir: &Path) -> String {
+    struct PageInfo {
+        path: String,
+        title: String,
+        shell: String,
+    }
+
+    let mut pages: Vec<PageInfo> = Vec::new();
+
+    for entry in WalkDir::new(dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() > 0 && e.file_type().is_dir() {
+                let name = e.file_name();
+                if name == "_site" || name == "prompts" {
+                    return false;
+                }
+            }
+            if e.depth() > 0 {
+                if let Some(name) = e.file_name().to_str() {
+                    if name.starts_with('.') {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+        .filter_map(|e| e.ok())
+    {
+        let path = entry.path();
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let fname = path.file_name().unwrap_or_default();
+        if fname == "kazam.yaml" {
+            continue;
+        }
+        if !path.extension().map(|e| e == "yaml").unwrap_or(false) {
+            continue;
+        }
+        let rel = match path.strip_prefix(dir) {
+            Ok(r) => r.to_string_lossy().to_string(),
+            Err(_) => continue,
+        };
+        let content = match fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        // Parse only enough to get title + shell
+        #[derive(serde::Deserialize)]
+        struct PageMini {
+            title: String,
+            #[serde(default)]
+            shell: Option<Shell>,
+        }
+        let page: PageMini = match serde_yaml::from_str(&content) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let shell_str = match page.shell {
+            Some(Shell::Document) => "document",
+            Some(Shell::Deck) => "deck",
+            _ => "standard",
+        };
+        pages.push(PageInfo {
+            path: rel,
+            title: page.title,
+            shell: shell_str.to_string(),
+        });
+    }
+
+    pages.sort_by(|a, b| a.path.cmp(&b.path));
+
+    pages
+        .iter()
+        .map(|p| format!("{}\t{}\t{}", p.path, p.title, p.shell))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn init(dir: &Path, name: &str) -> Result<()> {
@@ -325,5 +498,77 @@ tags: []
         // No prompts/ directory at all — should not error
         let result = list(&d, true);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn expand_template_vars_no_vars_passthrough() {
+        let d = tmp_dir("expand-noop");
+        let input = "You are an agent. Do things.";
+        let out = expand_template_vars(input, &d);
+        assert_eq!(out, input);
+    }
+
+    #[test]
+    fn expand_template_vars_voice_with_config() {
+        let d = tmp_dir("expand-voice");
+        fs::write(
+            d.join("kazam.yaml"),
+            "name: TestSite\nvoice:\n  tone: \"direct\"\n  reading_level: \"senior engineer\"\n",
+        )
+        .unwrap();
+        let out = expand_template_vars("Voice: {{voice}}", &d);
+        assert!(out.contains("direct"), "expected tone in voice output");
+        assert!(out.contains("senior engineer"));
+        assert!(!out.contains("{{voice}}"));
+    }
+
+    #[test]
+    fn expand_template_vars_voice_no_config() {
+        let d = tmp_dir("expand-voice-none");
+        fs::write(d.join("kazam.yaml"), "name: NoVoice\n").unwrap();
+        let out = expand_template_vars("{{voice}}", &d);
+        assert_eq!(out, "No voice configuration defined.");
+    }
+
+    #[test]
+    fn expand_template_vars_config_contains_site_name() {
+        let d = tmp_dir("expand-config");
+        fs::write(d.join("kazam.yaml"), "name: AcmeCorp\n").unwrap();
+        let out = expand_template_vars("Config: {{config}}", &d);
+        assert!(
+            out.contains("AcmeCorp"),
+            "expected site name in config JSON"
+        );
+        assert!(!out.contains("{{config}}"));
+    }
+
+    #[test]
+    fn expand_template_vars_page_list() {
+        let d = tmp_dir("expand-pages");
+        fs::write(d.join("kazam.yaml"), "name: MySite\n").unwrap();
+        fs::write(
+            d.join("index.yaml"),
+            "title: Home\nshell: standard\ncomponents: []\n",
+        )
+        .unwrap();
+        fs::write(
+            d.join("about.yaml"),
+            "title: About Us\nshell: document\ncomponents: []\n",
+        )
+        .unwrap();
+        let out = expand_template_vars("Pages:\n{{page_list}}", &d);
+        assert!(out.contains("Home"), "expected Home page title");
+        assert!(out.contains("About Us"), "expected About Us page title");
+        assert!(!out.contains("{{page_list}}"));
+    }
+
+    #[test]
+    fn expand_template_vars_kazam_agents() {
+        let d = tmp_dir("expand-agents");
+        let out = expand_template_vars("{{kazam_agents}}", &d);
+        assert!(!out.contains("{{kazam_agents}}"));
+        assert!(!out.is_empty());
+        // AGENTS_MD has content — verify we got something from the bundle
+        assert_eq!(out, agents::AGENTS_MD);
     }
 }
