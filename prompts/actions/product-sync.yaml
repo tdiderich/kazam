@@ -1,0 +1,34 @@
+name: Sync from Linear
+on:
+  schedule:
+    - cron: "0 8 * * 1"  # Mondays at 8 AM UTC
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install kazam
+
+      - name: Generate status page from Linear
+        run: |
+          kazam prompt show linear | claude -p \
+            "Generate a sprint status page from Linear. Team: Engineering. Cycle: current. Write to status/sprint.yaml."
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # MCP tools require their own auth — configure in .mcp.json
+          # or pass product-specific env vars as needed
+
+      - name: Validate and build
+        run: |
+          kazam validate .
+          kazam build .
+
+      - name: Open PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: "content: sync sprint status from Linear"
+          branch: sync/linear-sprint
+          commit-message: "content: sync sprint status"

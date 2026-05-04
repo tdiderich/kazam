@@ -4,8 +4,8 @@ shell: standard
 components:
   - type: header
     title: Get Started
-    eyebrow: 60 seconds
-    subtitle: Install the binary, then pick your path — agent workspace or static sites.
+    eyebrow: 5 minutes
+    subtitle: Install, init a site, add pages, add freshness, set up agent workflows. Adopt each layer when you need it.
 
   - type: section
     eyebrow: Install
@@ -66,66 +66,228 @@ components:
                   cp target/release/kazam /usr/local/bin/kazam
 
   - type: section
-    eyebrow: Two paths
-    heading: What are you building?
+    eyebrow: Step 1
+    heading: Init a site
     components:
-      - type: tabs
-        tabs:
-          - label: Agent workspace
-            components:
-              - type: markdown
-                body: |
-                  Give your coding agent persistent codebase context, task tracking, and a visual board.
-              - type: code
-                language: bash
-                code: |
-                  cd your-repo && kazam workspace init --agent claude
-              - type: markdown
-                body: |
-                  That's it. Your agent now reads the codebase index instead of running find/grep,
-                  tracks work with `kazam track`, and logs activity. Open the board in a separate terminal:
-              - type: code
-                language: bash
-                code: |
-                  kazam board
-              - type: callout
-                variant: info
-                title: Next up
-                body: The workspace guide covers anatomy, tracking, hooks, corrections, and benchmarks in detail.
-                links:
-                  - label: Workspace guide →
-                    href: workspace.html
-                    variant: primary
+      - type: code
+        language: bash
+        code: |
+          kazam init my-site
+          cd my-site
+          kazam dev .
 
-          - label: Static sites
-            components:
-              - type: markdown
-                body: |
-                  Build beautiful static sites from YAML — 30+ themed components, zero runtime JS.
-              - type: code
-                language: bash
-                code: |
-                  kazam init my-site && cd my-site && kazam dev .
-              - type: markdown
-                body: |
-                  Edit `index.yaml` — the browser reloads on save. That's the loop.
-              - type: code
-                language: bash
-                code: |
-                  kazam build . --out dist --release
-              - type: callout
-                variant: info
-                title: Or let your agent write it
-                body: "Run `kazam wish deck --yolo` and your agent scaffolds and populates the whole site for you."
-                links:
-                  - label: Read the wishes guide →
-                    href: wishes.html
-                    variant: primary
-              - type: callout
-                variant: info
-                title: Next up
-                body: The site guide walks through shells, components, and kazam.yaml config.
-                links:
-                  - label: Site guide →
-                    href: about.html
-                    variant: primary
+      - type: markdown
+        body: |
+          `kazam init` writes a `kazam.yaml`, an `index.yaml`, and a minimal nav.
+          `kazam dev` starts a local server with live reload — edit a YAML file,
+          the browser updates. That's the authoring loop.
+
+      - type: callout
+        variant: info
+        title: Site shape
+        body: "Every `.yaml` file becomes a page. Subdirectories become URL paths. One `kazam.yaml` at the root holds site-wide config: name, theme, nav."
+
+  - type: section
+    eyebrow: Step 2
+    heading: Add pages
+    components:
+      - type: markdown
+        body: |
+          A page is three keys: `title`, `shell`, and `components`. Drop a new
+          `.yaml` in the folder and it builds automatically.
+
+      - type: code
+        language: yaml
+        code: |
+          title: Onboarding Guide
+          shell: standard
+
+          components:
+            - type: header
+              title: Onboarding Guide
+              subtitle: Everything a new hire needs in week one.
+
+            - type: markdown
+              body: |
+                ## Day 1
+                - Tool access: request in #it-help
+                - Slack channels to join: #team, #eng, #incidents
+
+            - type: callout
+              variant: info
+              title: Questions?
+              body: Ping your manager or post in #onboarding.
+
+      - type: markdown
+        body: |
+          Build when you're ready to ship:
+
+      - type: code
+        language: bash
+        code: |
+          kazam build . --out _site
+
+      - type: callout
+        variant: info
+        title: More authoring detail
+        body: The authoring guide covers shells, components, and kazam.yaml config in full.
+        links:
+          - label: Authoring guide →
+            href: about.html
+            variant: secondary
+
+  - type: section
+    eyebrow: Step 3
+    heading: Add freshness metadata
+    components:
+      - type: markdown
+        body: |
+          Any page with a real owner and a review cadence should declare it.
+          kazam turns this into a build-time banner (yellow if due soon, red if
+          overdue) and includes it in the build report.
+
+      - type: code
+        language: yaml
+        code: |
+          title: Onboarding Guide
+          shell: standard
+
+          freshness:
+            updated: 2026-05-01
+            review_every: 90d
+            owner: hr@example.com
+            sources_of_truth:
+              - label: Notion — HR onboarding doc
+                href: https://notion.so/your-page
+              - label: "Linear: Onboarding project"
+                href: https://linear.app/your-co/project/onboarding
+
+          components:
+            ...
+
+      - type: markdown
+        body: |
+          Every build reports stale pages and writes `_site/stale.md`. Hand that
+          file to your agent to refresh them.
+
+      - type: code
+        language: bash
+        code: |
+          kazam build .
+          # _site/stale.md lists every page past or approaching its review deadline
+
+      - type: callout
+        variant: info
+        title: Full freshness reference
+        body: Banner variants, build report format, status computation, and the agent workflow pattern.
+        links:
+          - label: Freshness guide →
+            href: freshness.html
+            variant: secondary
+
+  - type: section
+    eyebrow: Step 4
+    heading: Use prompt templates
+    components:
+      - type: markdown
+        body: |
+          kazam ships standardized prompts for the content lifecycle. Print one
+          to give your agent a consistent starting point.
+
+      - type: code
+        language: bash
+        code: |
+          kazam prompt show migrate      # move existing content into YAML pages
+          kazam prompt show add-page     # scaffold a new page from source material
+          kazam prompt show refresh      # update a stale page from its sources of truth
+          kazam prompt show audit        # review a page for accuracy and gaps
+          kazam prompt show review       # editorial review — tone, structure, completeness
+
+      - type: markdown
+        body: |
+          Each prompt is designed to be copied into your agent session or piped
+          directly. They reference the kazam schema and freshness conventions so
+          the output is valid YAML.
+
+  - type: section
+    eyebrow: Step 5
+    heading: Set up the agent workspace
+    components:
+      - type: markdown
+        body: |
+          If you're using an AI coding agent on the same repo that holds your
+          kazam site, the workspace layer gives it a persistent codebase index,
+          task tracking, and a visual board. It's the engine that makes
+          agent-driven content management efficient.
+
+      - type: code
+        language: bash
+        code: |
+          kazam workspace init --agent claude
+
+      - type: markdown
+        body: |
+          That indexes the codebase, installs git hooks, and writes the agent
+          rules file. Open the board in a separate terminal while the agent works:
+
+      - type: code
+        language: bash
+        code: |
+          kazam board
+
+      - type: callout
+        variant: info
+        title: Workspace guide
+        body: Anatomy index, task tracking commands, benchmarks, corrections, and the visual board — all covered in the workspace reference.
+        links:
+          - label: Agent Workspace →
+            href: workspace.html
+            variant: secondary
+
+  - type: section
+    eyebrow: MCP server
+    heading: Let agents read and write directly
+    components:
+      - type: markdown
+        body: |
+          `kazam mcp` starts an MCP server that exposes your site to AI agents.
+          Five tools: `read_page`, `list_pages`, `search`, `write_page`, `get_config`.
+
+          **Local (stdio)** — for Claude Code, Cursor, or any agent on the same machine:
+
+      - type: code
+        language: bash
+        code: |
+          kazam mcp
+
+      - type: markdown
+        body: |
+          **Remote (HTTP)** — serve over a network so your whole team can connect:
+
+      - type: code
+        language: bash
+        code: |
+          kazam mcp --transport http --port 8090
+
+      - type: markdown
+        body: |
+          The HTTP transport speaks the same JSON-RPC protocol over POST requests
+          with CORS support. Put it behind a reverse proxy (Caddy, nginx) for HTTPS.
+
+          See the [MCP reference](/mcp.html) for Claude Code config, Claude Desktop
+          setup, team deployment, and the proxy script for non-technical users.
+
+  - type: callout
+    variant: info
+    title: You're set
+    body: "From here: the authoring guide for page structure, the freshness reference for staleness tracking, the workspace guide for agent setup, and the components catalog for every primitive."
+    links:
+      - label: Authoring guide →
+        href: about.html
+        variant: primary
+      - label: Freshness →
+        href: freshness.html
+        variant: secondary
+      - label: Components →
+        href: components/index.html
+        variant: secondary

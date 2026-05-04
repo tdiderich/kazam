@@ -1,0 +1,36 @@
+# This is a GitHub Actions workflow template, not a kazam prompt.
+# Copy to .github/workflows/ in your kazam site repo.
+name: Build and check content
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 9 * * 1-5"  # weekdays at 9 AM UTC
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install kazam
+      - run: kazam validate .
+      - run: kazam build . --out _site
+      - name: Check for stale pages
+        run: |
+          if [ -f _site/stale.md ]; then
+            echo "::warning::Stale pages detected"
+            cat _site/stale.md
+          fi
+      - name: Check for broken links
+        run: |
+          if [ -f _site/links.md ]; then
+            echo "::error::Broken links detected"
+            cat _site/links.md
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: _site/

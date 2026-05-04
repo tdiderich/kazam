@@ -51,13 +51,105 @@ pub struct Page {
     /// where the viewport is near-square and landscape PDFs letterbox badly.
     #[serde(default)]
     pub print_flow: Option<PrintFlow>,
+    /// Extra search keywords that don't appear in rendered content.
+    /// Useful for aliases, acronyms, internal jargon.
+    #[serde(default)]
+    pub search_terms: Vec<String>,
     /// Optional freshness metadata: owner, last content update, review cadence,
     /// and sources of truth the agent / reader can consult to refresh the
     /// page. When the page is past its review window, a banner is injected
     /// at the top of the rendered output and the build reports the page as
     /// stale. Zero runtime JS — staleness is computed at `kazam build` time.
+    /// Set to `"never"` to explicitly opt out of freshness checks with no
+    /// warning emitted.
     #[serde(default)]
-    pub freshness: Option<Freshness>,
+    pub freshness: Option<FreshnessValue>,
+    /// Who is responsible for this page. Free-form string — email, Slack
+    /// handle, or team name. Serves as a fallback for `freshness.owner` in
+    /// the stale-page report when no freshness block is present.
+    #[serde(default)]
+    pub owner: Option<String>,
+    /// Links to sources of truth that inform this page's content.
+    /// Each entry has a URL and an optional note explaining what it references.
+    #[serde(default)]
+    pub references: Vec<Reference>,
+    /// Role-based persona tags for this page. Values are freeform strings
+    /// matching roles defined in kazam.yaml (e.g. "everyone", "engineering",
+    /// "gtm", "product", "ops"). Pages with no personas default to being
+    /// visible to everyone. Used by nav filtering and role-map components.
+    #[serde(default)]
+    pub personas: Vec<String>,
+    /// Manually archive this page. Archived pages are still rendered (accessible
+    /// via direct URL) but excluded from nav, search, llms.txt, and sitemap.
+    /// A banner is injected at build time. Pages past their `freshness.expires`
+    /// date are auto-archived without needing this flag.
+    #[serde(default)]
+    pub archived: bool,
+    /// Mark this page as a draft. Drafts are excluded from nav, search,
+    /// llms.txt, and sitemap and get a "Draft" banner at build time.
+    /// Drafts that sit unchanged for 30+ days are auto-archived.
+    #[serde(default)]
+    pub draft: bool,
+}
+
+impl Page {
+    pub fn is_archived(&self, today: &str) -> bool {
+        if self.archived {
+            return true;
+        }
+        let freshness = self.freshness.as_ref().and_then(|fv| fv.as_full());
+        if crate::freshness::is_expired(freshness, today) {
+            return true;
+        }
+        if self.draft {
+            return crate::freshness::is_stale_draft(freshness, today);
+        }
+        false
+    }
+}
+
+/// Freshness value: either the bare string `"never"` (explicit opt-out —
+/// no decay checks, no warning) or a full metadata struct.
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]
+pub enum FreshnessValue {
+    /// Bare string `"never"` — page explicitly opts out of freshness checks.
+    Never(FreshnessNever),
+    /// Full freshness metadata struct.
+    Full(Freshness),
+}
+
+impl FreshnessValue {
+    /// Return the inner `Freshness` struct if this is a `Full` variant.
+    pub fn as_full(&self) -> Option<&Freshness> {
+        match self {
+            FreshnessValue::Full(f) => Some(f),
+            FreshnessValue::Never(_) => None,
+        }
+    }
+
+    /// True when the value is `"never"`.
+    pub fn is_never(&self) -> bool {
+        matches!(self, FreshnessValue::Never(_))
+    }
+}
+
+/// Captures the bare `"never"` string via serde rename.
+#[derive(Deserialize, Clone)]
+pub enum FreshnessNever {
+    #[serde(rename = "never")]
+    Never,
+}
+
+/// One reference entry. A URL pointing to a source of truth for this page's
+/// content, with an optional short note explaining what it covers.
+#[derive(Deserialize, Clone)]
+pub struct Reference {
+    /// URL to the source (PR, Slack thread, meeting notes, doc, etc.)
+    pub url: String,
+    /// Short description of what this reference covers
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 /// Freshness metadata for a page — when was it last updated, who owns it,
@@ -79,6 +171,12 @@ pub struct Freshness {
     /// alongside the href.
     #[serde(default)]
     pub sources_of_truth: Option<Vec<SourceOfTruth>>,
+    /// Hard expiration date (ISO YYYY-MM-DD). Pages past this date are
+    /// treated as expired — excluded from nav/search, rendered with an
+    /// "expired" banner. For time-bound content like event materials or
+    /// campaign pages.
+    #[serde(default)]
+    pub expires: Option<String>,
 }
 
 /// One source-of-truth entry. Either a bare URL or a labeled link.
@@ -251,6 +349,17 @@ pub enum Component {
         max_width: Option<u32>,
         #[serde(default)]
         align: Align,
+    },
+    /// Responsive iframe embed for Loom, YouTube, Vimeo, etc.
+    Embed {
+        src: String,
+        title: Option<String>,
+        aspect: Option<String>,
+    },
+    /// Structured link collection with per-item metadata. Consolidates
+    /// the "page that's just a few links" pattern into a reviewable list.
+    Resources {
+        items: Vec<ResourceItem>,
     },
     Badge {
         label: String,
@@ -848,6 +957,34 @@ pub struct NavLink {
     /// entries depending on `SiteConfig.nav_layout`.
     #[serde(default)]
     pub children: Option<Vec<NavLink>>,
+    /// Persona filter. When set, this link is only visible to the listed
+    /// roles. Rendered as `data-personas` attributes for client-side
+    /// filtering via `?role=` query param.
+    #[serde(default)]
+    pub personas: Vec<String>,
+    /// When true, child subsections render collapsed by default. Users can
+    /// click the subsection label to expand. Only meaningful on section-level
+    /// entries that have children with their own children.
+    #[serde(default)]
+    pub collapsed: bool,
+}
+
+impl NavLink {
+    /// Ensure hrefs are root-relative so sidebar links work from any page depth.
+    /// Bare paths like `scanners/wiz.html` become `/scanners/wiz.html`.
+    /// Already-absolute (`/…`) and external (`http…`) hrefs are left alone.
+    pub fn normalize_hrefs(&mut self) {
+        if let Some(ref mut h) = self.href {
+            if !h.starts_with('/') && !h.starts_with("http") {
+                *h = format!("/{h}");
+            }
+        }
+        if let Some(ref mut kids) = self.children {
+            for child in kids.iter_mut() {
+                child.normalize_hrefs();
+            }
+        }
+    }
 }
 
 /// How the sticky nav is laid out on `shell: standard` pages. Other shells
@@ -925,6 +1062,66 @@ pub struct SiteConfig {
     /// SVG works on modern platforms. Optional.
     #[serde(default)]
     pub og_image: Option<String>,
+    /// Brand voice rules for consistent content authoring across agents and humans.
+    #[serde(default)]
+    pub voice: Option<Voice>,
+    /// Persona role taxonomy. Defines the roles that pages can be tagged
+    /// with via their `personas:` field. Order determines display order in
+    /// the role-map component and nav filter.
+    #[serde(default)]
+    pub roles: Vec<Role>,
+}
+
+/// Brand voice configuration — tone, reading level, and terminology preferences.
+/// All fields are optional; add what you want. This is config only — kazam does
+/// not enforce these rules at build time.
+#[derive(Deserialize, Clone, Default)]
+pub struct Voice {
+    /// Tone description, e.g. "direct, technical, no marketing fluff"
+    #[serde(default)]
+    pub tone: Option<String>,
+    /// Target reading level, e.g. "senior engineer", "general audience"
+    #[serde(default)]
+    pub reading_level: Option<String>,
+    /// Terminology preferences
+    #[serde(default)]
+    pub terminology: Option<Terminology>,
+}
+
+/// Preferred and avoided terms for consistent language across content authors.
+#[derive(Deserialize, Clone, Default)]
+pub struct Terminology {
+    /// Preferred term replacements: key = avoid, value = use instead
+    #[serde(default)]
+    pub prefer: std::collections::HashMap<String, String>,
+    /// Terms to avoid entirely
+    #[serde(default)]
+    pub avoid: Vec<String>,
+}
+
+/// One role in the site's persona taxonomy.
+#[derive(Deserialize, Clone)]
+#[allow(dead_code)]
+pub struct Role {
+    /// Machine identifier, matches values in page `personas:` fields.
+    pub id: String,
+    /// Human-readable label.
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
+/// One item in a `resources` component.
+#[derive(Deserialize)]
+pub struct ResourceItem {
+    pub title: String,
+    pub href: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub owner: Option<String>,
 }
 
 /// Site-wide background pattern. All variants are subtle by design.
@@ -1098,6 +1295,8 @@ impl Default for SiteConfig {
             description: None,
             url: None,
             og_image: None,
+            voice: None,
+            roles: Vec::new(),
         }
     }
 }

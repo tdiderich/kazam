@@ -8,6 +8,7 @@ pub fn get(name: &str) -> Option<&'static str> {
         "tree" => Some(TREE),
         "deck" => Some(DECK),
         "nav" => Some(NAV),
+        "search" => Some(SEARCH),
         "reload" => Some(RELOAD),
         _ => None,
     }
@@ -38,9 +39,25 @@ document.addEventListener('DOMContentLoaded', function () {
   var here = window.location.pathname.replace(/\/$/, '/index.html');
   document.querySelectorAll('.nav-link, .sidebar-link').forEach(function (a) {
     try {
+      var raw = a.getAttribute('href');
+      if (!raw) return;
       var target = new URL(a.href).pathname.replace(/\/$/, '/index.html');
-      if (target === here) a.classList.add('nav-link-active');
+      if (target === here) {
+        a.classList.add('nav-link-active');
+        var sub = a.closest('.sidebar-subsection[data-collapsed]');
+        if (sub) sub.removeAttribute('data-collapsed');
+      }
     } catch (e) {}
+  });
+
+  // Sidebar subsection collapse/expand toggle.
+  document.querySelectorAll('[data-sidebar-toggle]').forEach(function (label) {
+    label.addEventListener('click', function () {
+      var sub = label.closest('.sidebar-subsection');
+      if (!sub) return;
+      if (sub.hasAttribute('data-collapsed')) sub.removeAttribute('data-collapsed');
+      else sub.setAttribute('data-collapsed', '');
+    });
   });
 
   // Mobile menu toggle. The button lives inside <nav> and flips `data-open`
@@ -79,6 +96,124 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 });
+"#;
+
+const SEARCH: &str = r#"
+(function () {
+  var overlay = document.getElementById('site-search');
+  var input = document.getElementById('site-search-input');
+  var results = document.getElementById('site-search-results');
+  if (!overlay || !input) return;
+  var base = input.dataset.base || '';
+  var index = null;
+  var selected = -1;
+
+  function load() {
+    if (index) return Promise.resolve(index);
+    return fetch(base + 'search.json', { cache: 'default' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) { index = data.pages || []; return index; })
+      .catch(function () { index = []; return index; });
+  }
+
+  function open() {
+    overlay.hidden = false;
+    input.value = '';
+    results.innerHTML = '';
+    selected = -1;
+    load();
+    requestAnimationFrame(function () { input.focus(); });
+  }
+
+  function close() {
+    overlay.hidden = true;
+    input.blur();
+  }
+
+  function render(hits) {
+    selected = -1;
+    if (hits.length === 0) {
+      results.innerHTML = '<div class="site-search-empty">No results</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < hits.length && i < 20; i++) {
+      var h = hits[i];
+      var desc = h.description || (h.content_snippets && h.content_snippets[0]) || '';
+      if (desc.length > 120) desc = desc.slice(0, 120) + '...';
+      html += '<a class="site-search-hit" href="' + base + h.path + '" data-idx="' + i + '">';
+      html += '<span class="site-search-hit-title">' + esc(h.title) + '</span>';
+      if (desc) html += '<span class="site-search-hit-desc">' + esc(desc) + '</span>';
+      html += '</a>';
+    }
+    results.innerHTML = html;
+  }
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function search(q) {
+    if (!index) { render([]); return; }
+    if (!q) { render(index.slice(0, 10)); return; }
+    var terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+    var scored = [];
+    for (var i = 0; i < index.length; i++) {
+      var p = index[i];
+      var hay = (p.title + ' ' + (p.description || '') + ' ' +
+        (p.headings || []).join(' ') + ' ' +
+        (p.search_terms || []).join(' ') + ' ' +
+        (p.content_snippets || []).join(' ')).toLowerCase();
+      var score = 0;
+      var miss = false;
+      for (var t = 0; t < terms.length; t++) {
+        var ti = hay.indexOf(terms[t]);
+        if (ti < 0) { miss = true; break; }
+        score += (p.title.toLowerCase().indexOf(terms[t]) >= 0) ? 10 : 1;
+      }
+      if (!miss) scored.push({ page: p, score: score });
+    }
+    scored.sort(function (a, b) { return b.score - a.score; });
+    render(scored.map(function (s) { return s.page; }));
+  }
+
+  function highlight(n) {
+    var hits = results.querySelectorAll('.site-search-hit');
+    hits.forEach(function (h, i) { h.classList.toggle('site-search-hit-active', i === n); });
+    if (hits[n]) hits[n].scrollIntoView({ block: 'nearest' });
+    selected = n;
+  }
+
+  document.querySelectorAll('.site-search-btn').forEach(function (btn) {
+    btn.addEventListener('click', open);
+  });
+
+  overlay.querySelector('.site-search-backdrop').addEventListener('click', close);
+
+  input.addEventListener('input', function () {
+    load().then(function () { search(input.value.trim()); });
+  });
+
+  overlay.addEventListener('keydown', function (e) {
+    var hits = results.querySelectorAll('.site-search-hit');
+    if (e.key === 'Escape') { close(); e.preventDefault(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(selected + 1, hits.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(selected - 1, 0)); }
+    else if (e.key === 'Enter' && selected >= 0 && hits[selected]) {
+      e.preventDefault();
+      hits[selected].click();
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      if (overlay.hidden) open(); else close();
+    }
+  });
+})();
 "#;
 
 const SELECTABLE_GRID: &str = r#"

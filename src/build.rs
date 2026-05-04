@@ -4,13 +4,94 @@ use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::llms::{self, PageEntry};
+use crate::manifest::{self, PageManifestEntry};
 use crate::minify;
 use crate::render;
 use crate::types::{Page, SiteConfig};
 
-pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result<()> {
+#[derive(serde::Serialize)]
+#[serde(tag = "event")]
+#[allow(dead_code)]
+enum BuildEvent {
+    #[serde(rename = "build_start")]
+    BuildStart {
+        dir: String,
+        out: String,
+        release: bool,
+        timestamp: String,
+    },
+    #[serde(rename = "page_built")]
+    PageBuilt {
+        path: String,
+        title: String,
+        timestamp: String,
+    },
+    #[serde(rename = "asset_copied")]
+    AssetCopied { path: String, timestamp: String },
+    #[serde(rename = "warning")]
+    Warning {
+        message: String,
+        file: Option<String>,
+        timestamp: String,
+    },
+    #[serde(rename = "page_error")]
+    PageError {
+        path: String,
+        message: String,
+        timestamp: String,
+    },
+    #[serde(rename = "stale_page")]
+    StalePage {
+        path: String,
+        title: String,
+        days_overdue: Option<i64>,
+        days_until_due: Option<i64>,
+        owner: Option<String>,
+        timestamp: String,
+    },
+    #[serde(rename = "build_complete")]
+    BuildComplete {
+        pages: usize,
+        assets: usize,
+        duration_ms: u64,
+        stale_pages: usize,
+        timestamp: String,
+    },
+}
+
+fn now_iso() -> String {
+    chrono::Utc::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string()
+}
+
+fn emit_json(event: &BuildEvent) {
+    if let Ok(line) = serde_json::to_string(event) {
+        println!("{}", line);
+    }
+}
+
+pub fn run(
+    dir: &Path,
+    out: &Path,
+    release: bool,
+    allow_orphans: bool,
+    json: bool,
+    no_manifest: bool,
+    no_search: bool,
+) -> Result<()> {
+    let start = std::time::Instant::now();
     let config = load_config(dir)?;
     fs::create_dir_all(out)?;
+
+    if json {
+        emit_json(&BuildEvent::BuildStart {
+            dir: dir.display().to_string(),
+            out: out.display().to_string(),
+            release,
+            timestamp: now_iso(),
+        });
+    }
 
     // Canonicalize the output dir so we can reliably skip walking into it
     // when it lives inside the source dir (e.g. docs/_site under docs/).
@@ -19,6 +100,8 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
     let mut pages = 0;
     let mut assets = 0;
     let mut entries: Vec<PageEntry> = Vec::new();
+    let mut manifest_entries: Vec<PageManifestEntry> = Vec::new();
+    let mut search_entries: Vec<crate::search::SearchEntry> = Vec::new();
     // Collect stale-review pages so we can print a summary at the end
     // of the build. Staleness is evaluated against `KAZAM_TODAY` or the
     // system clock (see `freshness::today_iso`).
@@ -44,8 +127,11 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
             {
                 return false;
             }
-            if e.depth() > 0 && e.file_name() == "_site" && e.file_type().is_dir() {
-                return false;
+            if e.depth() > 0 && e.file_type().is_dir() {
+                let name = e.file_name();
+                if name == "_site" || name == "prompts" {
+                    return false;
+                }
             }
             // Skip hidden entries (.git, .DS_Store, .vscode, etc.) at any depth
             // except the source dir itself, which is often passed as "." and
@@ -79,6 +165,25 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
                 fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
             let page: Page =
                 serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
+
+            // Semantic validation — catches structural/value errors serde can't.
+            let file_str = rel.to_string_lossy().to_string();
+            let val_errors = crate::validate::validate_page(&file_str, &page);
+            if !val_errors.is_empty() {
+                for e in &val_errors {
+                    let loc = if e.path.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" ({})", e.path)
+                    };
+                    eprintln!("  validation error in {}{}: {}", file_str, loc, e.message);
+                }
+                anyhow::bail!(
+                    "{} validation error(s) in {}. Run `kazam validate` for details.",
+                    val_errors.len(),
+                    file_str
+                );
+            }
 
             let base = base_path_for(rel);
             let source_filename = rel
@@ -142,15 +247,54 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
             let yaml_out = out.join(rel);
             fs::copy(path, &yaml_out)?;
 
-            // Collect metadata for llms.txt (unless marked unlisted)
-            if !page.unlisted {
-                let html_path = rel.with_extension("html").to_string_lossy().to_string();
-                let yaml_path = rel.to_string_lossy().to_string();
+            // Collect metadata for llms.txt (unless marked unlisted or archived)
+            let html_path_str = rel.with_extension("html").to_string_lossy().to_string();
+            let yaml_path_str = rel.to_string_lossy().to_string();
+            let archived = page.is_archived(&today);
+            let excluded = page.unlisted || archived || page.draft;
+            if !excluded {
                 entries.push(PageEntry {
                     title: page.title.clone(),
                     subtitle: page.subtitle.clone(),
-                    html_path,
-                    yaml_path,
+                    html_path: html_path_str.clone(),
+                    yaml_path: yaml_path_str.clone(),
+                });
+            }
+
+            // Collect metadata for site.json manifest (all pages, including unlisted)
+            {
+                let page_components = {
+                    let top_level = page.components.as_deref().unwrap_or(&[]);
+                    let mut all = manifest::collect_component_types(top_level);
+                    // For deck pages, also walk slide components.
+                    if let Some(slides) = &page.slides {
+                        for slide in slides {
+                            for name in manifest::collect_component_types(&slide.components) {
+                                if !all.contains(&name) {
+                                    all.push(name);
+                                }
+                            }
+                        }
+                    }
+                    all
+                };
+                let freshness_manifest = page
+                    .freshness
+                    .as_ref()
+                    .and_then(|fv| fv.as_full())
+                    .map(|f| manifest::freshness_manifest(f, &today));
+                manifest_entries.push(PageManifestEntry {
+                    path: html_path_str,
+                    source: yaml_path_str,
+                    title: page.title.clone(),
+                    subtitle: page.subtitle.clone(),
+                    shell: manifest::shell_name(page.shell).to_string(),
+                    components: page_components,
+                    freshness: freshness_manifest,
+                    unlisted: page.unlisted,
+                    archived,
+                    draft: page.draft,
+                    personas: page.personas.clone(),
                 });
             }
 
@@ -161,28 +305,41 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
                 .replace('\\', "/");
             page_links.push(crate::links::collect_page_links(&html_rel_for_links, &page));
 
+            if !no_search && !excluded {
+                search_entries.push(crate::search::entry_for(&html_rel_for_links, &page));
+            }
+
             // Track freshness status for the end-of-build summary. Uses
             // the same computation as the banner inject so the report and
             // the rendered output never disagree. Fresh pages are dropped;
             // DueSoon and Overdue both feed the summary (grouped).
-            if let Some(info) = crate::freshness::info_for(page.freshness.as_ref(), &today) {
+            let freshness_full = page.freshness.as_ref().and_then(|fv| fv.as_full());
+            if let Some(info) = crate::freshness::info_for(freshness_full, &today) {
                 let status = info.status();
                 if !matches!(status, crate::freshness::FreshnessStatus::Fresh) {
                     stale_pages.push(StaleEntry {
                         html_path: rel.with_extension("html").to_string_lossy().to_string(),
                         title: page.title.clone(),
-                        owner: page.freshness.as_ref().and_then(|f| f.owner.clone()),
+                        owner: freshness_full
+                            .and_then(|f| f.owner.clone())
+                            .or_else(|| page.owner.clone()),
                         status,
-                        cadence: page
-                            .freshness
-                            .as_ref()
+                        cadence: freshness_full
                             .and_then(|f| f.review_every.clone())
                             .unwrap_or_default(),
                     });
                 }
             }
 
-            println!("  {}", out_path.display());
+            if json {
+                emit_json(&BuildEvent::PageBuilt {
+                    path: out_path.display().to_string(),
+                    title: page.title.clone(),
+                    timestamp: now_iso(),
+                });
+            } else {
+                println!("  {}", out_path.display());
+            }
             pages += 1;
         } else {
             // Static asset — copy verbatim
@@ -191,6 +348,12 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
                 fs::create_dir_all(parent)?;
             }
             fs::copy(path, &out_path)?;
+            if json {
+                emit_json(&BuildEvent::AssetCopied {
+                    path: out_path.display().to_string(),
+                    timestamp: now_iso(),
+                });
+            }
             assets += 1;
         }
     }
@@ -200,6 +363,16 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
         llms::write(out, &config, &entries)?;
     }
 
+    // Emit site.json manifest (skippable via --no-manifest)
+    if !no_manifest && !manifest_entries.is_empty() {
+        manifest::write(out, &config, &manifest_entries)?;
+    }
+
+    // Emit search.json index (skippable via --no-search)
+    if !no_search && !search_entries.is_empty() {
+        crate::search::write(out, &search_entries)?;
+    }
+
     // Emit sitemap.xml + robots.txt when a canonical URL is configured.
     // Without a URL they'd emit bogus/relative paths, so skip silently.
     if let Some(site_url) = config.url.as_deref() {
@@ -207,21 +380,23 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
         write_robots(out, site_url)?;
     }
 
-    if assets > 0 {
-        println!(
-            "\n✓ {} page(s), {} asset(s) → {}{}",
-            pages,
-            assets,
-            out.display(),
-            if release { " (minified)" } else { "" }
-        );
-    } else {
-        println!(
-            "\n✓ {} page(s) → {}{}",
-            pages,
-            out.display(),
-            if release { " (minified)" } else { "" }
-        );
+    if !json {
+        if assets > 0 {
+            println!(
+                "\n✓ {} page(s), {} asset(s) → {}{}",
+                pages,
+                assets,
+                out.display(),
+                if release { " (minified)" } else { "" }
+            );
+        } else {
+            println!(
+                "\n✓ {} page(s) → {}{}",
+                pages,
+                out.display(),
+                if release { " (minified)" } else { "" }
+            );
+        }
     }
 
     // Generate 404.html. If the source dir contains 404.yaml, render that
@@ -241,7 +416,11 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
     }
     fs::write(out.join("404.html"), html_404)?;
 
-    print_freshness_report(&stale_pages);
+    if json {
+        emit_stale_json(&stale_pages);
+    } else {
+        print_freshness_report(&stale_pages);
+    }
     write_freshness_report_md(out, &stale_pages, &today)?;
 
     // Link-graph analysis runs after every build. Orphans can be silenced
@@ -251,8 +430,30 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
     if allow_orphans {
         report.orphans.clear();
     }
-    crate::links::print_report(&report);
+    if !json {
+        crate::links::print_report(&report);
+    }
     crate::links::write_report_md(out, &report)?;
+
+    if json {
+        let duration_ms = start.elapsed().as_millis() as u64;
+        emit_json(&BuildEvent::BuildComplete {
+            pages,
+            assets,
+            duration_ms,
+            stale_pages: stale_pages.len(),
+            timestamp: now_iso(),
+        });
+    }
+
+    // Re-scan anatomy if the workspace exists. Preserves enriched descriptions.
+    if dir.join(".kazam").is_dir() {
+        if let Ok(store) = crate::ctx::scan::scan(dir) {
+            let flat = dir.join(".kazam/ctx/anatomy.flat.yaml");
+            let _ = crate::workspace::write_yaml(&flat, &store);
+            let _ = crate::ctx::scan::write_layered(dir, &store);
+        }
+    }
 
     Ok(())
 }
@@ -262,11 +463,31 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool) -> Result
 /// it by overdue-ness, not by llms.txt order.
 struct StaleEntry {
     html_path: String,
-    #[allow(dead_code)]
     title: String,
     owner: Option<String>,
     status: crate::freshness::FreshnessStatus,
     cadence: String,
+}
+
+/// Emit one `stale_page` JSON event per stale entry when running in JSON mode.
+fn emit_stale_json(stale: &[StaleEntry]) {
+    use crate::freshness::FreshnessStatus;
+    for e in stale {
+        let (days_overdue, days_until_due) = match e.status {
+            FreshnessStatus::Expired { days_past_expiry } => (Some(days_past_expiry), None),
+            FreshnessStatus::Overdue { days_overdue } => (Some(days_overdue), None),
+            FreshnessStatus::DueSoon { days_until_due } => (None, Some(days_until_due)),
+            FreshnessStatus::Fresh => (None, None),
+        };
+        emit_json(&BuildEvent::StalePage {
+            path: e.html_path.clone(),
+            title: e.title.clone(),
+            days_overdue,
+            days_until_due,
+            owner: e.owner.clone(),
+            timestamp: now_iso(),
+        });
+    }
 }
 
 /// Write the stale-page report to `<out>/stale.md` whenever any page is
@@ -287,13 +508,19 @@ fn write_freshness_report_md(out: &Path, stale: &[StaleEntry], today: &str) -> s
 
     let mut overdue: Vec<&StaleEntry> = stale
         .iter()
-        .filter(|e| matches!(e.status, FreshnessStatus::Overdue { .. }))
+        .filter(|e| {
+            matches!(
+                e.status,
+                FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. }
+            )
+        })
         .collect();
     let mut due_soon: Vec<&StaleEntry> = stale
         .iter()
         .filter(|e| matches!(e.status, FreshnessStatus::DueSoon { .. }))
         .collect();
     overdue.sort_by_key(|e| match e.status {
+        FreshnessStatus::Expired { days_past_expiry } => -days_past_expiry - 10000,
         FreshnessStatus::Overdue { days_overdue } => -days_overdue,
         _ => 0,
     });
@@ -312,6 +539,7 @@ fn write_freshness_report_md(out: &Path, stale: &[StaleEntry], today: &str) -> s
         md.push_str(&format!("## Overdue ({})\n\n", overdue.len()));
         for e in &overdue {
             let days = match e.status {
+                FreshnessStatus::Expired { days_past_expiry } => days_past_expiry,
                 FreshnessStatus::Overdue { days_overdue } => days_overdue,
                 _ => 0,
             };
@@ -359,7 +587,12 @@ fn print_freshness_report(stale: &[StaleEntry]) {
 
     let mut overdue: Vec<&StaleEntry> = stale
         .iter()
-        .filter(|e| matches!(e.status, FreshnessStatus::Overdue { .. }))
+        .filter(|e| {
+            matches!(
+                e.status,
+                FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. }
+            )
+        })
         .collect();
     let mut due_soon: Vec<&StaleEntry> = stale
         .iter()
@@ -372,6 +605,7 @@ fn print_freshness_report(stale: &[StaleEntry]) {
 
     // Most urgent first.
     overdue.sort_by_key(|e| match e.status {
+        FreshnessStatus::Expired { days_past_expiry } => -days_past_expiry - 10000,
         FreshnessStatus::Overdue { days_overdue } => -days_overdue,
         _ => 0,
     });
@@ -385,6 +619,7 @@ fn print_freshness_report(stale: &[StaleEntry]) {
         println!("⚠ {} overdue page(s):", overdue.len());
         for e in overdue {
             let days = match e.status {
+                FreshnessStatus::Expired { days_past_expiry } => days_past_expiry,
                 FreshnessStatus::Overdue { days_overdue } => days_overdue,
                 _ => 0,
             };
@@ -401,9 +636,12 @@ fn print_freshness_report(stale: &[StaleEntry]) {
     }
     if !due_soon.is_empty() {
         if !stale.is_empty()
-            && stale
-                .iter()
-                .any(|e| matches!(e.status, FreshnessStatus::Overdue { .. }))
+            && stale.iter().any(|e| {
+                matches!(
+                    e.status,
+                    FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. }
+                )
+            })
         {
             println!();
         }
@@ -464,11 +702,17 @@ fn base_path_for(rel: &Path) -> String {
     "../".repeat(depth)
 }
 
-fn load_config(dir: &Path) -> Result<SiteConfig> {
+pub fn load_config(dir: &Path) -> Result<SiteConfig> {
     let config_path = dir.join("kazam.yaml");
     if config_path.exists() {
         let content = fs::read_to_string(&config_path)?;
-        serde_yaml::from_str(&content).context("parsing kazam.yaml")
+        let mut cfg: SiteConfig = serde_yaml::from_str(&content).context("parsing kazam.yaml")?;
+        if let Some(ref mut nav) = cfg.nav {
+            for link in nav.iter_mut() {
+                link.normalize_hrefs();
+            }
+        }
+        Ok(cfg)
     } else {
         Ok(SiteConfig::default())
     }

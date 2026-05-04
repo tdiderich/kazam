@@ -1,0 +1,236 @@
+title: MCP Server
+shell: document
+components:
+  - type: section
+    eyebrow: Overview
+    heading: Connect AI agents to your knowledge base
+    components:
+      - type: markdown
+        body: |
+          kazam includes an MCP (Model Context Protocol) server that lets AI agents
+          read, search, and write pages in your site. It works with Claude Code,
+          Claude Desktop, Cursor, and any MCP-compatible client.
+
+          **Tools exposed:**
+
+          | Tool | Description |
+          |------|-------------|
+          | `list_pages` | List all pages or a subdirectory |
+          | `read_page` | Read a page's YAML content and metadata |
+          | `search` | Text search across all page content |
+          | `get_config` | Read the site configuration |
+          | `write_page` | Create or update a page (requires `--allow-writes`) |
+
+  - type: section
+    eyebrow: Local setup
+    heading: "Stdio transport — single user"
+    components:
+      - type: markdown
+        body: |
+          The default stdio transport runs locally. The agent spawns kazam as a
+          child process and communicates over stdin/stdout.
+
+          ### Claude Code
+
+          Add to your project's `.mcp.json`:
+
+      - type: code
+        language: json
+        code: |
+          {
+            "mcpServers": {
+              "my-site": {
+                "command": "kazam",
+                "args": ["mcp", "path/to/site"]
+              }
+            }
+          }
+
+      - type: markdown
+        body: |
+          ### Claude Desktop
+
+          Add to `~/Library/Application Support/Claude/claude_desktop_config.json`
+          (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+      - type: code
+        language: json
+        code: |
+          {
+            "mcpServers": {
+              "my-site": {
+                "command": "kazam",
+                "args": ["mcp", "/absolute/path/to/site"]
+              }
+            }
+          }
+
+      - type: markdown
+        body: |
+          ### Enable writes
+
+          By default, `write_page` is disabled. To let agents create and edit pages:
+
+      - type: code
+        language: bash
+        code: |
+          kazam mcp path/to/site --allow-writes
+
+  - type: section
+    eyebrow: Team setup
+    heading: "HTTP transport — serve your whole team"
+    components:
+      - type: markdown
+        body: |
+          The HTTP transport serves the MCP protocol over the network. Anyone who
+          can reach the endpoint can connect their AI tools to the shared knowledge base.
+
+      - type: code
+        language: bash
+        code: |
+          kazam mcp path/to/site --transport http --port 8090
+
+      - type: markdown
+        body: |
+          This starts an HTTP server on port 8090 that accepts JSON-RPC POST
+          requests with CORS support.
+
+          ### Production deployment
+
+          Run behind a reverse proxy for HTTPS. Example with Caddy:
+
+      - type: code
+        language: text
+        code: |
+          # Caddyfile snippet
+          handle /brain/mcp {
+              reverse_proxy localhost:8090
+          }
+
+      - type: markdown
+        body: |
+          Create a systemd service so it starts on boot:
+
+      - type: code
+        language: ini
+        code: |
+          # /etc/systemd/system/kazam-mcp.service
+          [Unit]
+          Description=Kazam MCP Server
+          After=network.target
+
+          [Service]
+          ExecStart=/usr/local/bin/kazam mcp /opt/my-site --transport http --port 8090
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+
+      - type: markdown
+        body: |
+          ### Connecting clients to the remote endpoint
+
+          **Claude Code** — add to `.mcp.json` using the proxy script (see below):
+
+      - type: code
+        language: json
+        code: |
+          {
+            "mcpServers": {
+              "my-site": {
+                "command": "python3",
+                "args": ["path/to/mcp-proxy.py"]
+              }
+            }
+          }
+
+      - type: markdown
+        body: |
+          **Claude Desktop** — same config in `claude_desktop_config.json`.
+
+          **curl** — test the endpoint directly:
+
+      - type: code
+        language: bash
+        code: |
+          curl -X POST https://your-host/brain/mcp \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+  - type: section
+    eyebrow: Proxy script
+    heading: Stdio-to-HTTP bridge for Claude Desktop
+    components:
+      - type: markdown
+        body: |
+          Claude Desktop only supports stdio-based MCP servers. This small Python
+          script bridges stdio to your remote HTTP endpoint. Save it anywhere and
+          point your Claude Desktop config at it.
+
+          No dependencies beyond Python 3 (pre-installed on macOS and most Linux).
+
+      - type: code
+        language: python
+        code: |
+          #!/usr/bin/env python3
+          """Stdio-to-HTTP proxy for a remote kazam MCP server."""
+          import sys, json, urllib.request
+
+          ENDPOINT = "https://your-host.example.com/brain/mcp"  # ← change this
+
+          while True:
+              line = sys.stdin.readline()
+              if not line:
+                  break
+              line = line.strip()
+              if not line:
+                  continue
+              try:
+                  parsed = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+
+              is_notification = parsed.get("method", "").startswith("notifications/")
+              try:
+                  req = urllib.request.Request(
+                      ENDPOINT,
+                      data=line.encode("utf-8"),
+                      headers={"Content-Type": "application/json"},
+                      method="POST",
+                  )
+                  with urllib.request.urlopen(req) as resp:
+                      response = resp.read().decode("utf-8").strip()
+                  if not is_notification and response:
+                      sys.stdout.write(response + "\n")
+                      sys.stdout.flush()
+              except Exception as e:
+                  if not is_notification and "id" in parsed:
+                      err = json.dumps({
+                          "jsonrpc": "2.0",
+                          "id": parsed["id"],
+                          "error": {"code": -32603, "message": str(e)},
+                      })
+                      sys.stdout.write(err + "\n")
+                      sys.stdout.flush()
+
+      - type: markdown
+        body: |
+          **Setup for non-technical users:**
+
+          1. Save the script above as `mcp-proxy.py` (change the `ENDPOINT` URL)
+          2. Open Claude Desktop → Settings → Developer → Edit Config
+          3. Add the `mcpServers` entry pointing at the script
+          4. Restart Claude Desktop
+          5. Start a new conversation — the MCP tools appear automatically
+
+  - type: section
+    eyebrow: Reference
+    heading: CLI flags
+    components:
+      - type: markdown
+        body: |
+          | Flag | Default | Description |
+          |------|---------|-------------|
+          | `--transport` | `stdio` | Transport protocol: `stdio` or `http` |
+          | `--port` | `8080` | Port for HTTP transport |
+          | `--allow-writes` | off | Enable the `write_page` tool |

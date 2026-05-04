@@ -196,6 +196,14 @@ fn nav_html(config: &SiteConfig, base: &str) -> (String, bool) {
     (out, true)
 }
 
+fn personas_attr(personas: &[String]) -> String {
+    if personas.is_empty() {
+        String::new()
+    } else {
+        format!(r#" data-personas="{}""#, esc(&personas.join(" ")))
+    }
+}
+
 fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
     match &link.children {
         Some(children) if !children.is_empty() => {
@@ -210,9 +218,10 @@ fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
                     .map(|h| resolve_href(h, base))
                     .unwrap_or_default();
                 dd.push_str(&format!(
-                    r#"<a href="{}" class="nav-link">{}</a>"#,
+                    r#"<a href="{}" class="nav-link"{personas}>{}</a>"#,
                     esc(&href),
-                    esc(&child.label)
+                    esc(&child.label),
+                    personas = personas_attr(&child.personas),
                 ));
             }
             dd.push_str("</div>");
@@ -220,9 +229,10 @@ fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
             // the dropdown via Tab + Enter. `focus-within` on the parent
             // keeps the panel open while focus is inside.
             format!(
-                r#"<div class="nav-link-group"><button type="button" class="nav-link nav-link-parent" aria-haspopup="true">{label}<span class="nav-chevron">▾</span></button>{dd}</div>"#,
+                r#"<div class="nav-link-group"{personas}><button type="button" class="nav-link nav-link-parent" aria-haspopup="true">{label}<span class="nav-chevron">▾</span></button>{dd}</div>"#,
                 label = esc(&link.label),
                 dd = dd,
+                personas = personas_attr(&link.personas),
             )
         }
         _ => {
@@ -232,9 +242,10 @@ fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
                 .map(|h| resolve_href(h, base))
                 .unwrap_or_default();
             format!(
-                r#"<a href="{}" class="nav-link">{}</a>"#,
+                r#"<a href="{}" class="nav-link"{personas}>{}</a>"#,
                 esc(&href),
-                esc(&link.label)
+                esc(&link.label),
+                personas = personas_attr(&link.personas),
             )
         }
     }
@@ -255,20 +266,54 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
         match &link.children {
             Some(children) if !children.is_empty() => {
                 out.push_str(&format!(
-                    r#"<div class="sidebar-section"><div class="sidebar-section-label">{}</div>"#,
-                    esc(&link.label)
+                    r#"<div class="sidebar-section"{personas}><div class="sidebar-section-label">{label}</div>"#,
+                    label = esc(&link.label),
+                    personas = personas_attr(&link.personas),
                 ));
+                let section_collapsed = link.collapsed;
                 for child in children {
-                    let href = child
-                        .href
-                        .as_deref()
-                        .map(|h| resolve_href(h, base))
-                        .unwrap_or_default();
-                    out.push_str(&format!(
-                        r#"<a href="{}" class="sidebar-link">{}</a>"#,
-                        esc(&href),
-                        esc(&child.label)
-                    ));
+                    match &child.children {
+                        Some(grandchildren) if !grandchildren.is_empty() => {
+                            let collapsed_attr = if section_collapsed {
+                                " data-collapsed"
+                            } else {
+                                ""
+                            };
+                            out.push_str(&format!(
+                                r#"<div class="sidebar-subsection"{collapsed}{personas}><div class="sidebar-subsection-label" data-sidebar-toggle><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>{label}</div>"#,
+                                label = esc(&child.label),
+                                collapsed = collapsed_attr,
+                                personas = personas_attr(&child.personas),
+                            ));
+                            for gc in grandchildren {
+                                let href = gc
+                                    .href
+                                    .as_deref()
+                                    .map(|h| resolve_href(h, base))
+                                    .unwrap_or_default();
+                                out.push_str(&format!(
+                                    r#"<a href="{}" class="sidebar-link sidebar-link-nested"{personas}>{}</a>"#,
+                                    esc(&href),
+                                    esc(&gc.label),
+                                    personas = personas_attr(&gc.personas),
+                                ));
+                            }
+                            out.push_str("</div>");
+                        }
+                        _ => {
+                            let href = child
+                                .href
+                                .as_deref()
+                                .map(|h| resolve_href(h, base))
+                                .unwrap_or_default();
+                            out.push_str(&format!(
+                                r#"<a href="{}" class="sidebar-link"{personas}>{}</a>"#,
+                                esc(&href),
+                                esc(&child.label),
+                                personas = personas_attr(&child.personas),
+                            ));
+                        }
+                    }
                 }
                 out.push_str("</div>");
             }
@@ -279,15 +324,37 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
                     .map(|h| resolve_href(h, base))
                     .unwrap_or_default();
                 out.push_str(&format!(
-                    r#"<a href="{}" class="sidebar-link sidebar-link-top">{}</a>"#,
+                    r#"<a href="{}" class="sidebar-link sidebar-link-top"{personas}>{}</a>"#,
                     esc(&href),
-                    esc(&link.label)
+                    esc(&link.label),
+                    personas = personas_attr(&link.personas),
                 ));
             }
         }
     }
     out.push_str("</nav></aside>");
     out
+}
+
+fn search_button() -> &'static str {
+    r#"<button type="button" class="site-search-btn" aria-label="Search" title="Search (⌘K)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>"#
+}
+
+fn search_overlay(base: &str) -> String {
+    format!(
+        r#"<div class="site-search-overlay" id="site-search" hidden>
+<div class="site-search-backdrop"></div>
+<div class="site-search-dialog" role="dialog" aria-label="Search">
+<div class="site-search-input-wrap">
+<svg class="site-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+<input type="search" class="site-search-input" id="site-search-input" placeholder="Search pages..." autocomplete="off" data-base="{base}">
+<kbd class="site-search-kbd">esc</kbd>
+</div>
+<div class="site-search-results" id="site-search-results"></div>
+</div>
+</div>"#,
+        base = base,
+    )
 }
 
 fn site_bar(page: &Page, config: &SiteConfig, base: &str, right_html: &str) -> String {
@@ -376,7 +443,9 @@ pub mod standard {
         };
         let mut right = subtitle_span(page);
         right.push_str(&nav_in_bar);
+        right.push_str(search_button());
         let bar = site_bar(page, config, base, &right);
+        let search = search_overlay(base);
 
         let sidebar = if is_sidebar {
             sidebar_html(config, base)
@@ -388,6 +457,7 @@ pub mod standard {
         if has_nav {
             scripts.push("nav");
         }
+        scripts.push("search");
         if !release {
             scripts.push("reload");
         }
@@ -408,6 +478,7 @@ pub mod standard {
 {body}
 </main>
 {view_src}
+{search}
 {scripts}
 </body>
 </html>"#,
@@ -417,6 +488,7 @@ pub mod standard {
             sidebar = sidebar,
             body = body.html,
             view_src = view_src,
+            search = search,
             scripts = collect_scripts(&scripts),
         )
     }
@@ -436,9 +508,13 @@ pub mod document {
         rel_path: &str,
         release: bool,
     ) -> String {
-        let bar = site_bar(page, config, base, &subtitle_span(page));
+        let mut right = subtitle_span(page);
+        right.push_str(search_button());
+        let bar = site_bar(page, config, base, &right);
+        let search = search_overlay(base);
 
         let mut scripts = body.scripts.clone();
+        scripts.push("search");
         if !release {
             scripts.push("reload");
         }
@@ -458,6 +534,7 @@ pub mod document {
 </article>
 </div>
 {view_src}
+{search}
 {scripts}
 </body>
 </html>"#,
@@ -466,6 +543,7 @@ pub mod document {
             bar = bar,
             body = body.html,
             view_src = view_src,
+            search = search,
             scripts = collect_scripts(&scripts),
         )
     }

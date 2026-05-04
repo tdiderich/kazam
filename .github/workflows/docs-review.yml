@@ -1,0 +1,56 @@
+name: Docs Review Agent
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  review-docs:
+    if: github.event.label.name == 'docs-review'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build kazam
+        run: cargo build --release
+
+      - name: Start MCP server
+        run: |
+          ./target/release/kazam mcp docs --transport http --port 8090 --allow-writes &
+          sleep 2
+          curl -s -X POST http://localhost:8090 \
+            -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}' | head -c 100
+          echo ""
+
+      - name: Run docs agent
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_TOKEN }}
+          BASE_REF: ${{ github.base_ref }}
+          MCP_URL: http://localhost:8090
+        run: python3 scripts/docs-agent.py
+
+      - name: Commit doc updates
+        run: |
+          git config user.name "kazam-docs-bot"
+          git config user.email "noreply@kazam.dev"
+          if git diff --quiet docs/; then
+            echo "No doc changes made."
+          else
+            git add docs/
+            git commit -m "docs: auto-update from docs-review agent
+
+          Co-Authored-By: kazam-docs-bot <noreply@kazam.dev>"
+            git push
+          fi

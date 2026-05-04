@@ -1,11 +1,11 @@
-title: Site Guide
+title: Authoring Guide
 shell: standard
 
 components:
   - type: header
-    title: Site Guide
-    eyebrow: 3 minutes
-    subtitle: How a kazam site is shaped — file tree, shells, components, kazam.yaml. Everything you need to start writing real pages.
+    title: Authoring Guide
+    eyebrow: 5 minutes
+    subtitle: How a kazam site is shaped — file tree, shells, components, freshness metadata, kazam.yaml. Everything you need to write real pages.
 
   - type: section
     eyebrow: Anatomy
@@ -35,8 +35,8 @@ components:
       - type: markdown
         body: |
           Every page is three things: a `title`, a `shell`, and an ordered
-          list of `components`. That's it. No routing config, no layout
-          hierarchy, no templates to register.
+          list of `components`. No routing config, no layout hierarchy, no
+          templates to register.
 
       - type: code
         language: yaml
@@ -56,6 +56,50 @@ components:
               variant: success
               title: Done
               body: This page is ready.
+
+  - type: section
+    eyebrow: Freshness
+    heading: Declare ownership and review cadence
+    components:
+      - type: markdown
+        body: |
+          Any page can carry a `freshness:` block. Add it when the page has a
+          real owner and should be reviewed on a schedule. kazam uses it at
+          build time — no runtime, no network calls.
+
+      - type: code
+        language: yaml
+        code: |
+          title: Onboarding Guide
+          shell: standard
+
+          freshness:
+            updated: 2026-05-01              # ISO date of the last content change
+            review_every: 90d                # Nd | Nw | Nm | Ny | weekly | monthly | quarterly | yearly
+            owner: hr@example.com            # free-form — email, Slack handle, team name
+            sources_of_truth:               # bare URL or { label, href }
+              - label: Notion — HR onboarding doc
+                href: https://notion.so/your-page
+              - label: "#onboarding"
+                href: https://company.slack.com/archives/C012345
+
+          components:
+            ...
+
+      - type: markdown
+        body: |
+          Build output: a yellow banner if review is due within 7 days, a red
+          banner if overdue. `_site/stale.md` lists every stale page — hand it
+          to your agent to prioritize what to refresh.
+
+      - type: callout
+        variant: info
+        title: Full freshness reference
+        body: Banner variants, build report format, status computation, and the agent workflow pattern.
+        links:
+          - label: Freshness guide →
+            href: freshness.html
+            variant: secondary
 
   - type: section
     eyebrow: Shells
@@ -177,8 +221,8 @@ components:
             variant: secondary
 
   - type: section
-    eyebrow: Your first real page
-    heading: Three starting points
+    eyebrow: Starting points
+    heading: Three page shapes
     components:
       - type: markdown
         body: |
@@ -290,14 +334,14 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: You've seen the shape. The components reference has every primitive you can drop into a page; the themes page covers palettes; deploy covers shipping.
+    body: The components reference has every primitive you can drop into a page. Freshness covers build-time staleness tracking. Themes covers palettes and deploy covers shipping.
     links:
       - label: Components reference
         href: components/index.html
         variant: primary
-      - label: Pick a theme
-        href: themes.html
+      - label: Freshness
+        href: freshness.html
         variant: secondary
-      - label: Deploy recipes
+      - label: Deploy
         href: deploy.html
         variant: secondary

@@ -83,6 +83,8 @@ pub fn render(c: &Component, base: &str) -> Rendered {
             max_width,
             align,
         } => image(src, alt, caption, *max_width, *align),
+        Component::Embed { src, title, aspect } => embed(src, title, aspect),
+        Component::Resources { items } => resources(items),
         // Phase 1 additions
         Component::Badge { label, color } => badge(label, *color),
         Component::Tag { label, color } => tag(label, *color),
@@ -1206,6 +1208,53 @@ fn image(
         h.push_str(&format!(r#"<figcaption>{}</figcaption>"#, esc(cap)));
     }
     h.push_str("</figure>");
+    Rendered::new(h)
+}
+
+// ── Embed ────────────────────────────────────────
+
+fn embed(src: &str, title: &Option<String>, aspect: &Option<String>) -> Rendered {
+    let ratio = aspect.as_deref().unwrap_or("16/9");
+    let title_attr = title.as_deref().unwrap_or("Embedded video");
+    let h = format!(
+        r#"<div class="c-embed" style="aspect-ratio: {ratio}"><iframe src="{src}" title="{title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>"#,
+        ratio = esc(ratio),
+        src = esc(src),
+        title = esc(title_attr),
+    );
+    Rendered::new(h)
+}
+
+// ── Resources ────────────────────────────────────────
+
+fn resources(items: &[crate::types::ResourceItem]) -> Rendered {
+    let mut h = String::from(r#"<div class="c-resources"><ul class="c-resources-list">"#);
+    for item in items {
+        h.push_str(r#"<li class="c-resources-item">"#);
+        h.push_str(&format!(
+            r#"<a href="{href}" class="c-resources-link" target="_blank" rel="noopener">"#,
+            href = esc(&item.href)
+        ));
+        h.push_str(&format!(
+            r#"<strong class="c-resources-title">{}</strong>"#,
+            esc(&item.title)
+        ));
+        if let Some(desc) = &item.description {
+            h.push_str(&format!(
+                r#"<span class="c-resources-desc">{}</span>"#,
+                esc(desc)
+            ));
+        }
+        h.push_str("</a>");
+        if let Some(owner) = &item.owner {
+            h.push_str(&format!(
+                r#"<span class="c-resources-owner">{}</span>"#,
+                esc(owner)
+            ));
+        }
+        h.push_str("</li>");
+    }
+    h.push_str("</ul></div>");
     Rendered::new(h)
 }
 

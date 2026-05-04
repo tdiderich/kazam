@@ -1,0 +1,35 @@
+name: Refresh stale content
+on:
+  schedule:
+    - cron: "0 10 * * 1"  # Mondays at 10 AM UTC
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install kazam
+
+      - name: Build and detect stale pages
+        run: kazam build .
+
+      - name: Run refresh on stale pages
+        if: ${{ hashFiles('_site/stale.md') != '' }}
+        run: |
+          kazam prompt show refresh | claude -p \
+            "Read _site/stale.md. For each stale page, open its YAML source and check sources_of_truth. Apply updates and bump freshness.updated."
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Open PR with changes
+        if: ${{ hashFiles('_site/stale.md') != '' }}
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: "content: refresh stale pages"
+          body: |
+            Automated refresh triggered by scheduled build.
+            See `_site/stale.md` for the pages that were flagged.
+          branch: refresh/stale-pages
+          commit-message: "content: refresh stale pages"

@@ -40,6 +40,12 @@ pub fn render_source_view(
         glow: None,
         print_flow: None,
         freshness: None,
+        search_terms: Vec::new(),
+        owner: None,
+        references: Vec::new(),
+        personas: Vec::new(),
+        archived: false,
+        draft: false,
     };
 
     render_page(&synthetic, config, base, "", rel_path, release)
@@ -66,6 +72,16 @@ pub fn render_page(
         rendered.html.push_str(&banner);
     }
 
+    if page.draft {
+        rendered.html.push_str(
+            r#"<div class="c-callout c-callout-info c-freshness-banner"><div class="c-callout-title">Draft</div><div class="c-callout-body">This page is a draft and is not yet published. It is excluded from search and navigation.</div></div>"#,
+        );
+    } else if page.archived && freshness_banner(page, base).is_none() {
+        rendered.html.push_str(
+            r#"<div class="c-callout c-callout-warn c-freshness-banner"><div class="c-callout-title">Archived</div><div class="c-callout-body">This page has been archived and is no longer maintained. It is excluded from search and navigation.</div></div>"#,
+        );
+    }
+
     match page.shell {
         Shell::Deck => {
             if let Some(slides) = &page.slides {
@@ -81,6 +97,12 @@ pub fn render_page(
         }
     }
 
+    if !page.references.is_empty() {
+        rendered
+            .html
+            .push_str(&references_section(&page.references));
+    }
+
     match page.shell {
         Shell::Standard => {
             shells::standard::wrap(page, config, rendered, base, source_href, rel_path, release)
@@ -94,6 +116,19 @@ pub fn render_page(
     }
 }
 
+fn references_section(refs: &[crate::types::Reference]) -> String {
+    let mut html = String::from(r#"<section class="c-references"><h3>References</h3><ul>"#);
+    for r in refs {
+        html.push_str("<li><a href=\"");
+        html.push_str(&r.url);
+        html.push_str("\" target=\"_blank\" rel=\"noopener\">");
+        html.push_str(r.note.as_deref().unwrap_or(&r.url));
+        html.push_str("</a></li>");
+    }
+    html.push_str("</ul></section>");
+    html
+}
+
 /// Build the freshness banner HTML for a page, or return `None` when the
 /// page is fresh (or has no freshness metadata). The banner reuses the
 /// existing callout variants so color treatment stays consistent with the
@@ -104,7 +139,8 @@ pub fn render_page(
 fn freshness_banner(page: &Page, base: &str) -> Option<String> {
     use crate::freshness::FreshnessStatus;
 
-    let freshness = page.freshness.as_ref()?;
+    // "never" and absent freshness both skip the banner
+    let freshness = crate::freshness::freshness_struct(page.freshness.as_ref())?;
     let today = crate::freshness::today_iso();
     let info = crate::freshness::info_for(Some(freshness), &today)?;
 
@@ -130,6 +166,15 @@ fn freshness_banner(page: &Page, base: &str) -> Option<String> {
                 "Review is <strong>{} {} overdue</strong>.",
                 days_overdue,
                 if days_overdue == 1 { "day" } else { "days" }
+            ),
+        ),
+        FreshnessStatus::Expired { days_past_expiry } => (
+            "c-callout-danger c-freshness-banner--overdue",
+            "Page expired",
+            format!(
+                "This page expired <strong>{} {}</strong> ago and may no longer be relevant.",
+                days_past_expiry,
+                if days_past_expiry == 1 { "day" } else { "days" }
             ),
         ),
     };
@@ -237,6 +282,12 @@ fn default_404_page() -> Page {
         glow: None,
         print_flow: None,
         freshness: None,
+        search_terms: Vec::new(),
+        owner: None,
+        references: Vec::new(),
+        personas: Vec::new(),
+        archived: false,
+        draft: false,
     }
 }
 

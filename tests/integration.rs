@@ -2414,3 +2414,296 @@ components:
         "non-blocked sibling should be pruned at build time"
     );
 }
+
+// ── kazam validate ───────────────────────────────────
+
+#[test]
+fn validate_kb_example_succeeds() {
+    // The bundled kb example is a well-formed site; `kazam validate` must
+    // exit 0 and output a JSON empty array.
+    let src = repo_root().join("examples/kb");
+    let output = Command::new(bin())
+        .args(["validate"])
+        .arg(&src)
+        .output()
+        .expect("run kazam validate");
+    assert!(
+        output.status.success(),
+        "kazam validate failed on examples/kb: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Default output is JSON.
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("validate output should be valid JSON");
+    assert!(
+        parsed.as_array().map(|a| a.is_empty()).unwrap_or(false),
+        "expected empty JSON array, got: {}",
+        stdout
+    );
+}
+
+#[test]
+fn validate_invalid_yaml_dir_fails_with_json_errors() {
+    // Build a tiny dir with a page that violates structural rules.
+    let dir = tmp_dir("validate-invalid");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
+
+    // Standard page with no components — structural error.
+    std::fs::write(dir.join("bad.yaml"), "title: Bad\nshell: standard\n").unwrap();
+
+    let output = Command::new(bin())
+        .args(["validate"])
+        .arg(&dir)
+        .output()
+        .expect("run kazam validate on invalid dir");
+
+    assert!(
+        !output.status.success(),
+        "kazam validate should exit non-zero for invalid site"
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let errors: serde_json::Value =
+        serde_json::from_str(&stdout).expect("output should be valid JSON even on failure");
+    let arr = errors.as_array().expect("should be a JSON array");
+    assert!(!arr.is_empty(), "expected at least one validation error");
+
+    // Verify error shape: file, path, error_type, message all present.
+    let first = &arr[0];
+    assert!(first.get("file").is_some(), "error should have file field");
+    assert!(
+        first.get("error_type").is_some(),
+        "error should have error_type field"
+    );
+    assert!(
+        first.get("message").is_some(),
+        "error should have message field"
+    );
+}
+
+#[test]
+fn validate_pretty_output_is_human_readable() {
+    let dir = tmp_dir("validate-pretty");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
+    std::fs::write(dir.join("page.yaml"), "title: Bad\nshell: standard\n").unwrap();
+
+    let output = Command::new(bin())
+        .args(["validate", "--pretty"])
+        .arg(&dir)
+        .output()
+        .expect("run kazam validate --pretty");
+
+    // --pretty goes to stderr.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Should contain the file name and a human-readable error marker.
+    assert_contains(&stderr, "page.yaml");
+    // Should NOT be raw JSON.
+    assert!(
+        !stderr.trim_start().starts_with('['),
+        "--pretty output should not be a JSON array"
+    );
+}
+
+#[test]
+fn build_fails_on_structurally_invalid_yaml() {
+    // A page with an empty card_grid (zero cards) should fail the build.
+    let dir = tmp_dir("build-validate-fail");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
+    std::fs::write(
+        dir.join("index.yaml"),
+        "title: Bad\nshell: standard\ncomponents:\n  - type: card_grid\n    cards: []\n",
+    )
+    .unwrap();
+
+    let out = tmp_dir("build-validate-fail-out");
+    let status = Command::new(bin())
+        .args(["build"])
+        .arg(&dir)
+        .arg("--out")
+        .arg(&out)
+        .status()
+        .expect("run kazam build");
+
+    assert!(
+        !status.success(),
+        "build should fail when a page has a validation error"
+    );
+}
+
+// ── JSON output tests ──────────────────────────────────────────────────────
+
+#[test]
+fn build_json_output_is_valid_ndjson() {
+    let out = tmp_dir("kb-json");
+    let src = repo_root().join("examples/kb");
+    let output = Command::new(bin())
+        .args(["build"])
+        .arg(&src)
+        .arg("--out")
+        .arg(&out)
+        .arg("--json")
+        .output()
+        .expect("run kazam build --json");
+    assert!(output.status.success(), "kazam build --json failed");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf-8");
+    // Every non-empty line must be valid JSON
+    for line in stdout.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let val: serde_json::Value = serde_json::from_str(line)
+            .unwrap_or_else(|e| panic!("invalid JSON line {:?}: {}", line, e));
+        assert!(
+            val.get("event").is_some(),
+            "each event must have an 'event' field, got: {}",
+            line
+        );
+    }
+}
+
+#[test]
+fn build_json_first_event_is_build_start() {
+    let out = tmp_dir("kb-json-start");
+    let src = repo_root().join("examples/kb");
+    let output = Command::new(bin())
+        .args(["build"])
+        .arg(&src)
+        .arg("--out")
+        .arg(&out)
+        .arg("--json")
+        .output()
+        .expect("run kazam build --json");
+    assert!(output.status.success(), "kazam build --json failed");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf-8");
+    let first_line = stdout.lines().next().expect("at least one output line");
+    let val: serde_json::Value = serde_json::from_str(first_line).expect("valid JSON");
+    assert_eq!(
+        val["event"].as_str(),
+        Some("build_start"),
+        "first event must be build_start"
+    );
+    assert!(
+        val.get("timestamp").is_some(),
+        "build_start must have timestamp"
+    );
+}
+
+#[test]
+fn build_json_last_event_is_build_complete() {
+    let out = tmp_dir("kb-json-complete");
+    let src = repo_root().join("examples/kb");
+    let output = Command::new(bin())
+        .args(["build"])
+        .arg(&src)
+        .arg("--out")
+        .arg(&out)
+        .arg("--json")
+        .output()
+        .expect("run kazam build --json");
+    assert!(output.status.success(), "kazam build --json failed");
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf-8");
+    let last_line = stdout
+        .lines()
+        .rfind(|l| !l.is_empty())
+        .expect("at least one output line");
+    let val: serde_json::Value = serde_json::from_str(last_line).expect("valid JSON");
+    assert_eq!(
+        val["event"].as_str(),
+        Some("build_complete"),
+        "last event must be build_complete"
+    );
+    assert!(
+        val["pages"].as_u64().is_some(),
+        "build_complete must have 'pages' count"
+    );
+    assert!(
+        val["duration_ms"].as_u64().is_some(),
+        "build_complete must have 'duration_ms'"
+    );
+    assert!(
+        val.get("timestamp").is_some(),
+        "build_complete must have timestamp"
+    );
+}
+
+#[test]
+fn build_json_page_count_matches() {
+    let out_json = tmp_dir("kb-json-count-json");
+    let out_plain = tmp_dir("kb-json-count-plain");
+    let src = repo_root().join("examples/kb");
+
+    // Run with --json to get the build_complete count
+    let json_output = Command::new(bin())
+        .args(["build"])
+        .arg(&src)
+        .arg("--out")
+        .arg(&out_json)
+        .arg("--json")
+        .output()
+        .expect("run kazam build --json");
+    assert!(json_output.status.success());
+
+    let stdout = String::from_utf8(json_output.stdout).expect("stdout is utf-8");
+    let last_line = stdout.lines().rfind(|l| !l.is_empty()).unwrap();
+    let complete: serde_json::Value = serde_json::from_str(last_line).unwrap();
+    let json_pages = complete["pages"].as_u64().expect("pages field");
+
+    // Run without --json; count page_built events from file system
+    let plain_status = Command::new(bin())
+        .args(["build"])
+        .arg(&src)
+        .arg("--out")
+        .arg(&out_plain)
+        .status()
+        .expect("run kazam build");
+    assert!(plain_status.success());
+
+    // Count .html files in output (excluding 404.html and .source.html) to verify page count
+    let html_count = walkdir::WalkDir::new(&out_plain)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy();
+            e.file_type().is_file()
+                && name.ends_with(".html")
+                && name != "404.html"
+                && !name.ends_with(".source.html")
+        })
+        .count() as u64;
+
+    assert_eq!(
+        json_pages, html_count,
+        "build_complete pages count should match HTML files in output"
+    );
+}
+
+#[test]
+fn build_json_human_output_unchanged() {
+    // When --json is NOT passed, stdout should contain human-readable markers,
+    // not JSON lines.
+    let out = tmp_dir("kb-no-json");
+    let src = repo_root().join("examples/kb");
+    let output = Command::new(bin())
+        .args(["build"])
+        .arg(&src)
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .expect("run kazam build");
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).expect("stdout is utf-8");
+    assert_contains(&stdout, "page(s)");
+    // Must not look like NDJSON
+    assert!(
+        !stdout.trim_start().starts_with('{'),
+        "human output should not start with JSON object"
+    );
+}
