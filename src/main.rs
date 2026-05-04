@@ -137,6 +137,12 @@ enum Command {
         /// Allow write operations (write_page tool)
         #[arg(long)]
         allow_writes: bool,
+        /// Transport: stdio (default) or http
+        #[arg(long, default_value = "stdio")]
+        transport: String,
+        /// Port for HTTP transport
+        #[arg(long, default_value = "8080")]
+        port: u16,
     },
     /// Show freshness status for all pages in the site
     Freshness {
@@ -211,7 +217,12 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        Command::Mcp { dir, allow_writes } => mcp::run(&dir, allow_writes),
+        Command::Mcp { dir, allow_writes, transport, port } => {
+            match transport.as_str() {
+                "http" => mcp::run_http(&dir, allow_writes, port),
+                _ => mcp::run(&dir, allow_writes),
+            }
+        }
         Command::Freshness { command, dir } => match command {
             None | Some(FreshnessCommand::Show { .. }) => {
                 let (pretty, threshold) = match command {
