@@ -2117,7 +2117,8 @@ body.shell-document .doc-body strong { color: #fff; }
   position: fixed;
   bottom: 20px;
   right: 20px;
-  z-index: 50;
+  z-index: 200;
+  overflow: visible;
 }
 .source-pill-btn {
   display: inline-flex;
@@ -2148,21 +2149,24 @@ body.shell-document .doc-body strong { color: #fff; }
 }
 .source-pill-menu {
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: 100%;
   right: 0;
+  margin-bottom: 6px;
   min-width: 180px;
   background: var(--bg);
   border: 1px solid var(--card-border);
   border-radius: 10px;
   padding: 4px;
   opacity: 0;
-  transform: translateY(4px);
+  visibility: hidden;
+  transform: translateY(6px);
   pointer-events: none;
-  transition: opacity 0.15s, transform 0.15s;
+  transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
   backdrop-filter: blur(12px);
 }
 .source-pill[data-open] .source-pill-menu {
   opacity: 1;
+  visibility: visible;
   transform: translateY(0);
   pointer-events: auto;
 }
