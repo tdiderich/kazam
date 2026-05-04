@@ -42,8 +42,22 @@ document.addEventListener('DOMContentLoaded', function () {
       var raw = a.getAttribute('href');
       if (!raw) return;
       var target = new URL(a.href).pathname.replace(/\/$/, '/index.html');
-      if (target === here) a.classList.add('nav-link-active');
+      if (target === here) {
+        a.classList.add('nav-link-active');
+        var sub = a.closest('.sidebar-subsection[data-collapsed]');
+        if (sub) sub.removeAttribute('data-collapsed');
+      }
     } catch (e) {}
+  });
+
+  // Sidebar subsection collapse/expand toggle.
+  document.querySelectorAll('[data-sidebar-toggle]').forEach(function (label) {
+    label.addEventListener('click', function () {
+      var sub = label.closest('.sidebar-subsection');
+      if (!sub) return;
+      if (sub.hasAttribute('data-collapsed')) sub.removeAttribute('data-collapsed');
+      else sub.setAttribute('data-collapsed', '');
+    });
   });
 
   // Mobile menu toggle. The button lives inside <nav> and flips `data-open`

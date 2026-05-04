@@ -962,6 +962,11 @@ pub struct NavLink {
     /// filtering via `?role=` query param.
     #[serde(default)]
     pub personas: Vec<String>,
+    /// When true, child subsections render collapsed by default. Users can
+    /// click the subsection label to expand. Only meaningful on section-level
+    /// entries that have children with their own children.
+    #[serde(default)]
+    pub collapsed: bool,
 }
 
 impl NavLink {

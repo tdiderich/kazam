@@ -270,12 +270,19 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
                     label = esc(&link.label),
                     personas = personas_attr(&link.personas),
                 ));
+                let section_collapsed = link.collapsed;
                 for child in children {
                     match &child.children {
                         Some(grandchildren) if !grandchildren.is_empty() => {
+                            let collapsed_attr = if section_collapsed {
+                                " data-collapsed"
+                            } else {
+                                ""
+                            };
                             out.push_str(&format!(
-                                r#"<div class="sidebar-subsection"{personas}><div class="sidebar-subsection-label">{label}</div>"#,
+                                r#"<div class="sidebar-subsection"{collapsed}{personas}><div class="sidebar-subsection-label" data-sidebar-toggle><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>{label}</div>"#,
                                 label = esc(&child.label),
+                                collapsed = collapsed_attr,
                                 personas = personas_attr(&child.personas),
                             ));
                             for gc in grandchildren {
