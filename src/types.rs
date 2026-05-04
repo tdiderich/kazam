@@ -1101,6 +1101,7 @@ pub struct Terminology {
 
 /// One role in the site's persona taxonomy.
 #[derive(Deserialize, Clone)]
+#[allow(dead_code)]
 pub struct Role {
     /// Machine identifier, matches values in page `personas:` fields.
     pub id: String,

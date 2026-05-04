@@ -310,9 +310,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
     let total = results.len();
     let fresh_count = results
         .iter()
-        .filter(|r| {
-            matches!(r.status, FreshnessStatus::Fresh) && !r.is_never && !r.no_freshness
-        })
+        .filter(|r| matches!(r.status, FreshnessStatus::Fresh) && !r.is_never && !r.no_freshness)
         .count();
     let due_soon_count = results
         .iter()
@@ -378,7 +376,11 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     .as_deref()
                     .map(|o| format!("  owner: {}", o))
                     .unwrap_or_default();
-                println!("  [{status}] {path}{owner}", status = status_str, path = r.path);
+                println!(
+                    "  [{status}] {path}{owner}",
+                    status = status_str,
+                    path = r.path
+                );
             }
         }
     } else {
@@ -445,6 +447,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
 
     let today = today_iso();
 
+    #[allow(dead_code)]
     struct ReviewItem {
         path: String,
         title: String,
@@ -543,7 +546,11 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
     });
 
     if json {
-        println!("{{\"date\":\"{}\",\"count\":{},\"items\":[", today, items.len());
+        println!(
+            "{{\"date\":\"{}\",\"count\":{},\"items\":[",
+            today,
+            items.len()
+        );
         for (i, item) in items.iter().enumerate() {
             let status_str = match item.status {
                 FreshnessStatus::Expired { .. } => "expired",
@@ -599,10 +606,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
                 "  [{}] {} → {}",
                 status_label, item.path, item.recommendation
             );
-            println!(
-                "    {}{}{}\n",
-                item.title, owner, updated
-            );
+            println!("    {}{}{}\n", item.title, owner, updated);
         }
         println!("Actions:");
         println!("  kazam freshness act <path> archive   # set archived: true");
@@ -613,11 +617,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
 }
 
 /// `kazam freshness act` — take action on a stale page.
-pub fn run_act(
-    dir: &Path,
-    rel_path: &str,
-    action: &crate::FreshnessAction,
-) -> anyhow::Result<()> {
+pub fn run_act(dir: &Path, rel_path: &str, action: &crate::FreshnessAction) -> anyhow::Result<()> {
     use anyhow::Context;
     use std::fs;
 
@@ -646,19 +646,29 @@ pub fn run_act(
         crate::FreshnessAction::Refresh => {
             let today = today_iso();
             let new_content = if let Some(start) = content.find("  updated:") {
-                let line_end = content[start..].find('\n').map(|p| start + p).unwrap_or(content.len());
-                format!("{}  updated: \"{}\"{}",
+                let line_end = content[start..]
+                    .find('\n')
+                    .map(|p| start + p)
+                    .unwrap_or(content.len());
+                format!(
+                    "{}  updated: \"{}\"{}",
                     &content[..start],
                     today,
-                    &content[line_end..])
+                    &content[line_end..]
+                )
             } else if let Some(start) = content.find("freshness:") {
                 let insert = start + "freshness:".len();
                 let after = &content[insert..];
-                let next_line_end = after.find('\n').map(|p| insert + p + 1).unwrap_or(content.len());
-                format!("{}  updated: \"{}\"\n{}",
+                let next_line_end = after
+                    .find('\n')
+                    .map(|p| insert + p + 1)
+                    .unwrap_or(content.len());
+                format!(
+                    "{}  updated: \"{}\"\n{}",
                     &content[..next_line_end],
                     today,
-                    &content[next_line_end..])
+                    &content[next_line_end..]
+                )
             } else {
                 anyhow::bail!("no freshness metadata in {}", rel_path);
             };

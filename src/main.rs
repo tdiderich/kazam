@@ -189,7 +189,15 @@ fn main() -> Result<()> {
             json,
             no_manifest,
             no_search,
-        } => build::run(&dir, &out, release, allow_orphans, json, no_manifest, no_search),
+        } => build::run(
+            &dir,
+            &out,
+            release,
+            allow_orphans,
+            json,
+            no_manifest,
+            no_search,
+        ),
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),
         Command::Agents => agents::run(),
@@ -217,12 +225,15 @@ fn main() -> Result<()> {
             }
             Ok(())
         }
-        Command::Mcp { dir, allow_writes, transport, port } => {
-            match transport.as_str() {
-                "http" => mcp::run_http(&dir, allow_writes, port),
-                _ => mcp::run(&dir, allow_writes),
-            }
-        }
+        Command::Mcp {
+            dir,
+            allow_writes,
+            transport,
+            port,
+        } => match transport.as_str() {
+            "http" => mcp::run_http(&dir, allow_writes, port),
+            _ => mcp::run(&dir, allow_writes),
+        },
         Command::Freshness { command, dir } => match command {
             None | Some(FreshnessCommand::Show { .. }) => {
                 let (pretty, threshold) = match command {
@@ -232,7 +243,9 @@ fn main() -> Result<()> {
                 freshness::run_command(&dir, pretty, threshold)
             }
             Some(FreshnessCommand::Review { json }) => freshness::run_review(&dir, json),
-            Some(FreshnessCommand::Act { path, action }) => freshness::run_act(&dir, &path, &action),
+            Some(FreshnessCommand::Act { path, action }) => {
+                freshness::run_act(&dir, &path, &action)
+            }
         },
         Command::Voice { dir, json } => voice::run(&dir, json),
         Command::Prompt { command, dir } => prompts::run(command, &dir),

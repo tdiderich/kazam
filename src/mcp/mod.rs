@@ -57,13 +57,20 @@ pub fn run_http(dir: &Path, allow_writes: bool, port: u16) -> Result<()> {
     let server = tiny_http::Server::http(&addr)
         .map_err(|e| anyhow::anyhow!("failed to bind {}: {}", addr, e))?;
 
-    eprintln!("kazam mcp: listening on http://{} (dir={})", addr, dir.display());
+    eprintln!(
+        "kazam mcp: listening on http://{} (dir={})",
+        addr,
+        dir.display()
+    );
 
     for mut request in server.incoming_requests() {
         let cors = tiny_http::Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap();
-        let cors_headers = tiny_http::Header::from_bytes("Access-Control-Allow-Headers", "Content-Type").unwrap();
-        let cors_methods = tiny_http::Header::from_bytes("Access-Control-Allow-Methods", "POST, OPTIONS").unwrap();
-        let content_type = tiny_http::Header::from_bytes("Content-Type", "application/json").unwrap();
+        let cors_headers =
+            tiny_http::Header::from_bytes("Access-Control-Allow-Headers", "Content-Type").unwrap();
+        let cors_methods =
+            tiny_http::Header::from_bytes("Access-Control-Allow-Methods", "POST, OPTIONS").unwrap();
+        let content_type =
+            tiny_http::Header::from_bytes("Content-Type", "application/json").unwrap();
 
         // Handle CORS preflight
         if request.method() == &tiny_http::Method::Options {

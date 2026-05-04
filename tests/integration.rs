@@ -2434,8 +2434,8 @@ fn validate_kb_example_succeeds() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Default output is JSON.
-    let parsed: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("validate output should be valid JSON");
+    let parsed: serde_json::Value =
+        serde_json::from_str(&stdout).expect("validate output should be valid JSON");
     assert!(
         parsed.as_array().map(|a| a.is_empty()).unwrap_or(false),
         "expected empty JSON array, got: {}",
@@ -2451,11 +2451,7 @@ fn validate_invalid_yaml_dir_fails_with_json_errors() {
     std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
 
     // Standard page with no components — structural error.
-    std::fs::write(
-        dir.join("bad.yaml"),
-        "title: Bad\nshell: standard\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("bad.yaml"), "title: Bad\nshell: standard\n").unwrap();
 
     let output = Command::new(bin())
         .args(["validate"])
@@ -2469,16 +2465,22 @@ fn validate_invalid_yaml_dir_fails_with_json_errors() {
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let errors: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("output should be valid JSON even on failure");
+    let errors: serde_json::Value =
+        serde_json::from_str(&stdout).expect("output should be valid JSON even on failure");
     let arr = errors.as_array().expect("should be a JSON array");
     assert!(!arr.is_empty(), "expected at least one validation error");
 
     // Verify error shape: file, path, error_type, message all present.
     let first = &arr[0];
     assert!(first.get("file").is_some(), "error should have file field");
-    assert!(first.get("error_type").is_some(), "error should have error_type field");
-    assert!(first.get("message").is_some(), "error should have message field");
+    assert!(
+        first.get("error_type").is_some(),
+        "error should have error_type field"
+    );
+    assert!(
+        first.get("message").is_some(),
+        "error should have message field"
+    );
 }
 
 #[test]
@@ -2486,11 +2488,7 @@ fn validate_pretty_output_is_human_readable() {
     let dir = tmp_dir("validate-pretty");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
-    std::fs::write(
-        dir.join("page.yaml"),
-        "title: Bad\nshell: standard\n",
-    )
-    .unwrap();
+    std::fs::write(dir.join("page.yaml"), "title: Bad\nshell: standard\n").unwrap();
 
     let output = Command::new(bin())
         .args(["validate", "--pretty"])
@@ -2558,8 +2556,8 @@ fn build_json_output_is_valid_ndjson() {
         if line.is_empty() {
             continue;
         }
-        let val: serde_json::Value =
-            serde_json::from_str(line).unwrap_or_else(|e| panic!("invalid JSON line {:?}: {}", line, e));
+        let val: serde_json::Value = serde_json::from_str(line)
+            .unwrap_or_else(|e| panic!("invalid JSON line {:?}: {}", line, e));
         assert!(
             val.get("event").is_some(),
             "each event must have an 'event' field, got: {}",
@@ -2590,7 +2588,10 @@ fn build_json_first_event_is_build_start() {
         Some("build_start"),
         "first event must be build_start"
     );
-    assert!(val.get("timestamp").is_some(), "build_start must have timestamp");
+    assert!(
+        val.get("timestamp").is_some(),
+        "build_start must have timestamp"
+    );
 }
 
 #[test]
@@ -2608,7 +2609,10 @@ fn build_json_last_event_is_build_complete() {
     assert!(output.status.success(), "kazam build --json failed");
 
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf-8");
-    let last_line = stdout.lines().filter(|l| !l.is_empty()).last().expect("at least one output line");
+    let last_line = stdout
+        .lines()
+        .rfind(|l| !l.is_empty())
+        .expect("at least one output line");
     let val: serde_json::Value = serde_json::from_str(last_line).expect("valid JSON");
     assert_eq!(
         val["event"].as_str(),
@@ -2647,7 +2651,7 @@ fn build_json_page_count_matches() {
     assert!(json_output.status.success());
 
     let stdout = String::from_utf8(json_output.stdout).expect("stdout is utf-8");
-    let last_line = stdout.lines().filter(|l| !l.is_empty()).last().unwrap();
+    let last_line = stdout.lines().rfind(|l| !l.is_empty()).unwrap();
     let complete: serde_json::Value = serde_json::from_str(last_line).unwrap();
     let json_pages = complete["pages"].as_u64().expect("pages field");
 

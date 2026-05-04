@@ -188,15 +188,14 @@ pub fn list_pages(dir: &Path, params: &Value) -> Result<ToolResult> {
                 Err(_) => continue,
             };
 
-            let (title, shell_str, has_freshness) =
-                match serde_yaml::from_str::<Page>(&content) {
-                    Ok(page) => (
-                        page.title.clone(),
-                        shell_name(page.shell).to_string(),
-                        page.freshness.is_some(),
-                    ),
-                    Err(_) => ("(unparseable)".into(), "unknown".into(), false),
-                };
+            let (title, shell_str, has_freshness) = match serde_yaml::from_str::<Page>(&content) {
+                Ok(page) => (
+                    page.title.clone(),
+                    shell_name(page.shell).to_string(),
+                    page.freshness.is_some(),
+                ),
+                Err(_) => ("(unparseable)".into(), "unknown".into(), false),
+            };
 
             pages.push(json!({
                 "path": rel_str,
@@ -229,8 +228,8 @@ pub fn get_config(dir: &Path) -> Result<ToolResult> {
         .map_err(|e| anyhow::anyhow!("reading kazam.yaml: {}", e))?;
 
     // Parse YAML then round-trip through serde_json Value for clean output.
-    let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
-        .map_err(|e| anyhow::anyhow!("parsing kazam.yaml: {}", e))?;
+    let yaml_value: serde_yaml::Value =
+        serde_yaml::from_str(&content).map_err(|e| anyhow::anyhow!("parsing kazam.yaml: {}", e))?;
 
     let json_value = yaml_to_json(yaml_value);
     Ok(ToolResult::text(serde_json::to_string_pretty(&json_value)?))
@@ -335,10 +334,7 @@ pub fn write_page(dir: &Path, params: &Value, allow_writes: bool) -> Result<Tool
 
     // Validate it parses as a Page before writing anything.
     if let Err(e) = serde_yaml::from_str::<Page>(content) {
-        return Ok(ToolResult::error(format!(
-            "invalid Page YAML: {}",
-            e
-        )));
+        return Ok(ToolResult::error(format!("invalid Page YAML: {}", e)));
     }
 
     let full_path = dir.join(path_str);
@@ -570,7 +566,8 @@ mod tests {
     #[test]
     fn write_page_creates_valid_page() {
         let site = make_temp_site();
-        let content = "title: New Page\nshell: document\ncomponents:\n  - type: markdown\n    body: Hello\n";
+        let content =
+            "title: New Page\nshell: document\ncomponents:\n  - type: markdown\n    body: Hello\n";
         let result = write_page(
             site.path(),
             &json!({"path": "new.yaml", "content": content}),
