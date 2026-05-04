@@ -4,7 +4,7 @@ favicon: /assets/favicon.svg
 view_source: true
 texture: dots
 glow: accent
-description: Agent workspace and static site generator. Codebase indexing, task tracking, visual board — one Rust binary, no dependencies.
+description: The AI-native knowledge base. YAML pages, freshness tracking, prompt templates, MCP server — one Rust binary, no dependencies.
 url: https://tdiderich.github.io/kazam
 og_image: /assets/og.svg
 nav:
@@ -12,24 +12,26 @@ nav:
     href: /index.html
   - label: Get Started
     href: /guide.html
+  - label: Content
+    href: /freshness.html
+    children:
+      - label: Freshness
+        href: /freshness.html
+      - label: Prompt Templates
+        href: /workflows.html
+      - label: Wishes
+        href: /wishes.html
   - label: Workspace
     href: /workspace.html
   - label: Sites
     href: /about.html
     children:
-      - label: Site Guide
+      - label: Authoring Guide
         href: /about.html
       - label: Themes
         href: /themes.html
       - label: Deploy
         href: /deploy.html
-  - label: Recipes
-    href: /wishes.html
-    children:
-      - label: Wishes
-        href: /wishes.html
-      - label: Freshness
-        href: /freshness.html
   - label: Components
     href: /components/index.html
     children:

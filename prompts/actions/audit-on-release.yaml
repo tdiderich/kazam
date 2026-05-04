@@ -1,0 +1,29 @@
+name: Content audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.yaml"
+      - "!.github/**"
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install kazam
+
+      - name: Validate structure
+        run: kazam validate .
+
+      - name: Build site
+        run: kazam build .
+
+      - name: Run audit
+        run: |
+          kazam prompt show audit | claude -p \
+            "Run a full voice and structure audit on this kazam site. Report issues grouped by severity."
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

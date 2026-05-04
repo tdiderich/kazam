@@ -1,0 +1,428 @@
+title: Prompt Templates
+shell: standard
+description: Use kazam's built-in prompt templates to migrate, create, refresh, audit, and review content — manually or fully automated.
+freshness:
+  updated: 2026-05-03
+  review_every: 90d
+  owner: tyler@mazehq.com
+  sources_of_truth:
+    - label: Implementation
+      href: https://github.com/tdiderich/kazam/blob/main/src/build.rs
+
+components:
+  - type: header
+    title: Prompt Templates
+    eyebrow: Content lifecycle
+    subtitle: YAML files in your site's `prompts/` directory that give agents the right instructions for each content task.
+
+  # ── What they are ─────────────────────────
+  - type: section
+    eyebrow: What they are
+    heading: Standardized agent instructions
+    components:
+      - type: markdown
+        body: |
+          Each template is a YAML file with a name, description, model recommendation,
+          system prompt, and tool list. They live in `prompts/` inside your site directory
+          and are versioned with your content.
+
+          Templates are not executed by kazam — they're read by your agent. The CLI
+          just makes them easy to inspect and pipe.
+
+      - type: code
+        language: bash
+        code: |
+          # See all templates in the current site
+          kazam prompt list
+
+          # Print a template's system prompt
+          kazam prompt show refresh
+
+          # JSON output for programmatic use
+          kazam prompt show refresh --json
+
+  # ── The 5 built-in templates ──────────────
+  - type: section
+    eyebrow: Built-in templates
+    heading: Five templates, one lifecycle
+    components:
+      - type: card_grid
+        cards:
+          - title: migrate
+            badge:
+              label: sonnet
+            description: Convert existing markdown or docs to kazam YAML. Handles front matter, heading hierarchy, and component mapping. Use when onboarding existing content.
+          - title: add-page
+            badge:
+              label: sonnet
+            description: Scaffold a new page from a topic description. Produces a complete YAML file with shell, freshness block, and components stubbed out. Use when adding new content.
+          - title: refresh
+            badge:
+              label: sonnet
+            description: Review a page against its sources_of_truth, flag stale sections, and propose concrete edits. Use on your regular review cadence.
+          - title: audit
+            badge:
+              label: haiku
+            description: Fast, cheap voice and structure consistency check across the whole site. Compares pages against kazam.yaml voice rules. Use periodically or before releases.
+          - title: review
+            badge:
+              label: opus
+            description: Full content review for accuracy, completeness, and tone. Thorough — costs more, misses less. Use before shipping or after major changes.
+
+  # ── Content lifecycle ─────────────────────
+  - type: section
+    eyebrow: The loop
+    heading: Create → validate → publish → refresh → audit
+    components:
+      - type: markdown
+        body: |
+          The templates map onto a repeating cycle. Pick an entry point based on where you are.
+
+      - type: table
+        columns:
+          - key: stage
+            label: Stage
+          - key: command
+            label: Command
+          - key: template
+            label: Template
+        rows:
+          - stage: Bring in existing content
+            command: kazam prompt show migrate
+            template: migrate
+          - stage: Write something new
+            command: kazam prompt show add-page
+            template: add-page
+          - stage: Check before building
+            command: kazam validate .
+            template: "—"
+          - stage: Publish
+            command: kazam build .
+            template: "—"
+          - stage: Track freshness
+            command: freshness block in page YAML
+            template: "—"
+          - stage: Review stale pages
+            command: kazam prompt show refresh
+            template: refresh
+          - stage: Site-wide consistency
+            command: kazam prompt show audit
+            template: audit
+          - stage: Pre-ship review
+            command: kazam prompt show review
+            template: review
+
+  # ── Decision matrix ───────────────────────
+  - type: section
+    eyebrow: Decision matrix
+    heading: Which template for which situation
+    components:
+      - type: table
+        columns:
+          - key: scenario
+            label: Scenario
+          - key: template
+            label: Template
+          - key: model
+            label: Model
+        rows:
+          - scenario: Importing a Notion export or markdown wiki
+            template: migrate
+            model: sonnet
+          - scenario: Starting a new page from scratch
+            template: add-page
+            model: sonnet
+          - scenario: A freshness banner fired on a page
+            template: refresh
+            model: sonnet
+          - scenario: Auditing tone before a product launch
+            template: audit
+            model: haiku
+          - scenario: Full site review after a rebrand
+            template: audit
+            model: haiku
+          - scenario: Checking accuracy before a release
+            template: review
+            model: opus
+          - scenario: Stakeholder review of a new section
+            template: review
+            model: opus
+
+  # ── How to use ────────────────────────────
+  - type: section
+    eyebrow: Usage modes
+    heading: Manual, semi-automated, or fully automated
+    components:
+      - type: tabs
+        tabs:
+          - label: Manual
+            components:
+              - type: markdown
+                body: |
+                  Copy the system prompt into your agent's context window.
+              - type: code
+                language: bash
+                code: |
+                  kazam prompt show refresh
+                  # copy output → paste into agent's context
+
+          - label: Semi-automated
+            components:
+              - type: markdown
+                body: |
+                  Pipe directly to your agent. The template becomes the system prompt.
+              - type: code
+                language: bash
+                code: |
+                  # Pipe to Claude Code
+                  kazam prompt show refresh | claude -p
+
+                  # Pipe to any CLI-accessible model
+                  kazam prompt show audit | llm -s -
+
+          - label: Automated (GitHub Actions)
+            components:
+              - type: markdown
+                body: |
+                  Schedule a daily or weekly action to run the refresh template on stale pages.
+              - type: code
+                language: yaml
+                code: |
+                  name: refresh-stale-pages
+                  on:
+                    schedule:
+                      - cron: "0 9 * * 1"  # every Monday at 9 AM
+
+                  jobs:
+                    refresh:
+                      runs-on: ubuntu-latest
+                      steps:
+                        - uses: actions/checkout@v4
+
+                        - name: Install kazam
+                          run: cargo install --git https://github.com/tdiderich/kazam
+
+                        - name: Build and collect stale pages
+                          run: kazam build .
+
+                        - name: Run refresh template on stale pages
+                          run: |
+                            kazam prompt show refresh | claude -p \
+                              "Read _site/stale.md. For each stale page, open its YAML source
+                               and sources_of_truth. Propose and apply updates."
+                          env:
+                            ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+                        - name: Open PR with changes
+                          uses: peter-evans/create-pull-request@v6
+                          with:
+                            title: "content: refresh stale pages"
+                            branch: refresh/stale-pages
+
+  # ── MCP integration ───────────────────────
+  - type: section
+    eyebrow: MCP integration
+    heading: End-to-end with the kazam MCP server
+    components:
+      - type: markdown
+        body: |
+          Start the MCP server pointing at your site directory. When an agent has MCP
+          access, templates can work end-to-end — reading pages, fetching sources,
+          writing updates — without manual copy-paste.
+
+      - type: code
+        language: bash
+        code: |
+          # Start the MCP server (stdio transport)
+          kazam mcp ./docs
+
+      - type: markdown
+        body: |
+          Tools the MCP server exposes:
+
+      - type: table
+        columns:
+          - key: tool
+            label: Tool
+          - key: what
+            label: What it does
+        rows:
+          - tool: list_pages
+            what: Enumerate all pages in the site
+          - tool: read_page
+            what: Get a page's full YAML source
+          - tool: search
+            what: Full-text search across page content
+          - tool: write_page
+            what: Update a page's YAML in place
+          - tool: get_config
+            what: Read kazam.yaml site configuration
+
+      - type: callout
+        variant: info
+        title: How templates use MCP
+        body: |
+          The `refresh` template calls `read_page` to get the current content,
+          `get_config` to check voice rules, and `write_page` to commit the update.
+          The `audit` template calls `list_pages` + `read_page` for every page,
+          then `get_config` for the voice baseline. No shell glue required.
+
+  # ── Integration catalog ───────────────────
+  - type: section
+    eyebrow: Integrations
+    heading: Product-specific templates
+    components:
+      - type: markdown
+        body: |
+          Each product template knows the exact tool shapes, authentication patterns,
+          and data-to-component mappings for its product. Pick the ones your team uses.
+
+      - type: tabs
+        tabs:
+          - label: MCP-native
+            components:
+              - type: markdown
+                body: |
+                  These templates use MCP tools directly. Configure the MCP server for
+                  each product, and the agent can read/write data without API keys or
+                  shell scripts.
+              - type: card_grid
+                min_width: 260
+                cards:
+                  - title: Linear
+                    badge:
+                      label: engineering
+                      color: teal
+                    description: "Sprint status, project roadmaps, release notes, team workload. Uses list_issues, list_projects, get_status_updates."
+                  - title: Slack
+                    badge:
+                      label: all teams
+                      color: teal
+                    description: "Decision logs, channel digests, FAQ compilation, runbook extraction. Uses read_channel, search_public, read_thread."
+                  - title: HubSpot
+                    badge:
+                      label: sales
+                      color: yellow
+                    description: "Pipeline reviews, customer health, account overviews, win/loss reports. Uses search_crm_objects, get_crm_objects."
+                  - title: Attention
+                    badge:
+                      label: sales
+                      color: yellow
+                    description: "Customer voice, competitive intel, deal call history, coaching insights. Uses search_calls, ask_attention."
+                  - title: Granola
+                    badge:
+                      label: all teams
+                      color: teal
+                    description: "Meeting recaps, decision logs, action item tracking, stakeholder briefings. Uses query_granola_meetings, get_meetings."
+                  - title: Gmail
+                    badge:
+                      label: ops
+                      color: default
+                    description: "Communication summaries, email-to-doc conversion, thread digests. Uses search_threads, get_thread."
+                  - title: Google Calendar
+                    badge:
+                      label: all teams
+                      color: teal
+                    description: "Meeting prep pages, team schedule overviews, recurring meeting trackers. Uses list_events, get_event."
+
+          - label: By persona
+            components:
+              - type: markdown
+                body: |
+                  Not sure which templates to start with? Find your role.
+              - type: table
+                columns:
+                  - key: persona
+                    label: Role
+                  - key: start_with
+                    label: Start with
+                  - key: also_useful
+                    label: Also useful
+                rows:
+                  - persona: Engineering
+                    start_with: "Linear, GitHub Actions (build-and-check)"
+                    also_useful: "Slack, Granola"
+                  - persona: Sales
+                    start_with: "HubSpot, Attention"
+                    also_useful: "Granola, Gmail, Calendar"
+                  - persona: Product
+                    start_with: "Linear, Granola, Slack"
+                    also_useful: "Attention (customer voice)"
+                  - persona: Ops / Support
+                    start_with: "Slack (runbooks), Gmail"
+                    also_useful: "Calendar, Granola"
+                  - persona: Leadership
+                    start_with: "Granola (decisions), Slack (announcements)"
+                    also_useful: "HubSpot (pipeline), Attention (call insights)"
+
+  # ── GitHub Actions ────────────────────────
+  - type: section
+    eyebrow: Automation
+    heading: GitHub Actions
+    components:
+      - type: markdown
+        body: |
+          Most kazam sites live in a GitHub repo. These workflow templates automate
+          the content lifecycle — copy them to `.github/workflows/` and configure
+          your secrets.
+
+      - type: card_grid
+        min_width: 260
+        cards:
+          - title: build-and-check
+            description: "Build site, detect stale pages and broken links. Runs on push, PR, and weekday schedule."
+          - title: scheduled-refresh
+            description: "Refresh stale pages weekly using the refresh prompt template. Opens a PR with changes."
+          - title: audit-on-release
+            description: "Voice and structure audit on YAML changes. Catches consistency issues before deploy."
+          - title: product-sync
+            description: "Sync content from a product (e.g., Linear sprint status) on a schedule. Adapt for any integration."
+
+      - type: code
+        language: bash
+        code: |
+          # Copy a workflow to your repo
+          cp prompts/actions/scheduled-refresh.yaml .github/workflows/
+
+      - type: callout
+        variant: info
+        title: Required secrets
+        body: "Add `ANTHROPIC_API_KEY` to your repo secrets. Product-specific keys go in MCP config or as additional secrets."
+
+  # ── Custom templates ──────────────────────
+  - type: section
+    eyebrow: Customization
+    heading: Creating custom templates
+    components:
+      - type: markdown
+        body: |
+          Scaffold a new template with `kazam prompt init`. The generated file
+          includes all required fields and placeholder content.
+
+      - type: code
+        language: bash
+        code: |
+          # Scaffold a new template
+          kazam prompt init changelog
+
+          # Scaffolds prompts/changelog.yaml — edit system_prompt and tools
+
+      - type: markdown
+        body: |
+          Common custom templates:
+
+      - type: table
+        columns:
+          - key: name
+            label: Name
+          - key: use
+            label: Use case
+        rows:
+          - name: changelog
+            use: Draft release notes from merged PRs and closed issues
+          - name: api-doc
+            use: Document an endpoint from OpenAPI spec or source code
+          - name: onboarding
+            use: Generate onboarding pages from a role description and team wiki
+          - name: incident
+            use: Capture incident timelines and action items in standard format

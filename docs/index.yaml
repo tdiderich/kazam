@@ -1,31 +1,31 @@
-title: kazam — the tool your coding agent didn't know it needed
+title: kazam — the AI-native knowledge base
 shell: standard
 
 components:
   - type: header
     title: kazam
-    eyebrow: agent workspace + static site generator
-    subtitle: Give your coding agent a persistent codebase index, structured task tracking, and a visual board — one Rust binary, no dependencies.
+    eyebrow: the AI-native knowledge base
+    subtitle: YAML pages with freshness tracking, prompt templates, and an MCP server your agents can read and write. One Rust binary, no dependencies.
 
   - type: section
-    eyebrow: Why
-    heading: Three things your agent is missing
+    eyebrow: What it is
+    heading: Structured content that knows when it's stale
     components:
       - type: columns
         equal_heights: true
         columns:
           - - type: callout
               variant: info
-              title: Tokens
-              body: "Your agent explores with `find`, `grep`, and `ls` — burning hundreds of tokens per turn. kazam's two-tier anatomy index answers \"what's where\" in one read."
+              title: YAML pages
+              body: "Every page is a YAML file — `title`, `shell`, `components`. 30+ built-in components, three shell types, zero runtime JS. No templates to wire up, no routing config."
           - - type: callout
               variant: info
-              title: Tracking
-              body: Work disappears into terminal scroll. kazam gives agents structured tasks that survive sessions, compaction, and handoffs. Close after each commit — no batching.
+              title: Freshness tracking
+              body: "Each page declares an owner, review cadence, and sources of truth. Build-time banners (yellow → red) show up when review is due. Every build writes `_site/stale.md` — hand it to your agent."
           - - type: callout
               variant: info
-              title: Visibility
-              body: You're watching a terminal you can barely follow. kazam's visual board shows live task status, codebase anatomy, and activity at a glance.
+              title: Agent-native workflows
+              body: "Prompt templates for the full content lifecycle: create, refresh, audit, review. An MCP server agents can call directly. A workspace engine that cuts token cost 45% and build time 48%."
 
       - type: stat_grid
         columns: 3
@@ -41,30 +41,47 @@ components:
             color: green
 
   - type: section
-    eyebrow: Setup
-    heading: One command
+    eyebrow: The lifecycle
+    heading: Create → validate → publish → track → refresh
     components:
-      - type: code
-        language: bash
-        code: kazam workspace init --agent claude [--skunkworks]
+      - type: columns
+        equal_heights: true
+        columns:
+          - - type: callout
+              variant: info
+              title: Create
+              body: "Scaffold a new page with `kazam prompt show add-page` or let your agent generate YAML directly from source material with `kazam wish`."
+          - - type: callout
+              variant: info
+              title: Validate
+              body: "`kazam validate` catches orphan pages and broken internal links before you ship. `kazam build` reports freshness status on every run."
+          - - type: callout
+              variant: info
+              title: Publish
+              body: "`kazam build . --out _site` renders every YAML page to HTML. Pure HTML and CSS — no runtime, no hydration, no JS framework."
 
-      - type: markdown
-        body: |
-          That indexes your codebase, writes the agent rules file, and installs git hooks.
-          Your agent picks up context automatically on the next session.
-
-      - type: code
-        language: bash
-        code: kazam board
+      - type: columns
+        equal_heights: true
+        columns:
+          - - type: callout
+              variant: info
+              title: Track
+              body: "Freshness metadata on every page — `updated`, `review_every`, `owner`, `sources_of_truth`. Build-time banners surface stale content automatically."
+          - - type: callout
+              variant: info
+              title: Refresh
+              body: "`kazam prompt show refresh` gives your agent a standard workflow: read the stale page, check the sources of truth, propose updates. Same prompt every time, consistent output."
 
   - type: section
-    eyebrow: Static sites
-    heading: Beautiful artifacts from YAML
+    eyebrow: Content
+    heading: 30+ components, three shells
     components:
       - type: markdown
         body: |
-          kazam also builds static sites — 30+ themed components, three shell types, zero runtime JS.
-          The same binary that runs your workspace renders your docs, decks, and dashboards.
+          Every page picks a shell — `standard` for docs and guides, `document` for
+          print-optimized briefs, `deck` for full-viewport slides. Same component primitives
+          in all three: markdown, tables, tabs, callouts, stat grids, card grids, charts,
+          and more.
 
       - type: card_grid
         cards:
@@ -92,32 +109,53 @@ components:
               - label: See walkthrough →
                 href: examples/hackernews.html
 
-          - title: Landing pages
-            description: Hero, features, stats, CTA — all native components. Ships pure HTML and CSS.
-            links:
-              - label: See example →
-                href: examples/landing.html
-
   - type: section
-    eyebrow: Get started
-    heading: Pick your path
+    eyebrow: Agent workflows
+    heading: Prompts + MCP + workspace
     components:
+      - type: markdown
+        body: |
+          Three layers that make agent-driven content management practical.
+
       - type: columns
         equal_heights: true
         columns:
           - - type: callout
               variant: info
-              title: Agent workspace
-              body: Set up codebase indexing, task tracking, and the visual board in any repo.
-              links:
-                - label: Workspace quickstart →
-                  href: guide.html
-                  variant: primary
+              title: Prompt templates
+              body: "Standardized prompts for every content operation. `kazam prompt show migrate` — move existing content into YAML. `kazam prompt show add-page` — scaffold a new page. `kazam prompt show refresh` — update a stale page. `kazam prompt show audit` — review for accuracy."
           - - type: callout
               variant: info
-              title: Static sites
-              body: Build docs, decks, briefs, and dashboards from YAML — zero runtime JS.
-              links:
-                - label: Site quickstart →
-                  href: guide.html
-                  variant: primary
+              title: MCP server
+              body: "`kazam mcp` starts a stdio MCP server. Agents call `read_page`, `list_pages`, `search`, `write_page`, and `get_config` directly — no file navigation, no token overhead."
+          - - type: callout
+              variant: info
+              title: Agent workspace
+              body: "Codebase indexing, task tracking, and a visual board. The engine that makes agents efficient — 81–94% fewer input tokens per turn, tasks that survive compaction and handoffs."
+
+  - type: section
+    eyebrow: Get started
+    heading: One command
+    components:
+      - type: code
+        language: bash
+        code: |
+          brew install tdiderich/tap/kazam
+          kazam init my-site && cd my-site && kazam dev .
+
+      - type: markdown
+        body: |
+          Edit `index.yaml` — the browser reloads on save. Add freshness metadata when a page
+          has a real owner. Use `kazam prompt show` to see the agent workflows. That's the loop.
+
+      - type: callout
+        variant: info
+        title: Next up
+        body: The get-started guide walks through init, pages, freshness, prompts, and workspace setup in order.
+        links:
+          - label: Get Started →
+            href: guide.html
+            variant: primary
+          - label: Authoring guide →
+            href: about.html
+            variant: secondary
