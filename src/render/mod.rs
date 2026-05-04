@@ -6,6 +6,7 @@ mod slug;
 
 use crate::types::{Component, Page, Shell, SiteConfig};
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_source_view(
     original: &Page,
     config: &SiteConfig,
@@ -80,6 +81,7 @@ pub fn render_source_view(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_page(
     page: &Page,
     config: &SiteConfig,

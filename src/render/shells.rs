@@ -420,6 +420,7 @@ fn subtitle_span(page: &Page) -> String {
 pub mod standard {
     use super::*;
 
+    #[allow(clippy::too_many_arguments)]
     pub fn wrap(
         page: &Page,
         config: &SiteConfig,
@@ -505,6 +506,7 @@ pub mod standard {
 pub mod document {
     use super::*;
 
+    #[allow(clippy::too_many_arguments)]
     pub fn wrap(
         page: &Page,
         config: &SiteConfig,
@@ -599,6 +601,7 @@ pub mod deck {
         out.scripts.push("deck");
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn wrap(
         page: &Page,
         config: &SiteConfig,
