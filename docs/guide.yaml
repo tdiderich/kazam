@@ -250,8 +250,10 @@ components:
     components:
       - type: markdown
         body: |
-          `kazam mcp` starts a stdio MCP server. Configure it in your agent's
-          MCP settings and it can call kazam tools without any file navigation.
+          `kazam mcp` starts an MCP server that exposes your site to AI agents.
+          Five tools: `read_page`, `list_pages`, `search`, `write_page`, `get_config`.
+
+          **Local (stdio)** — for Claude Code, Cursor, or any agent on the same machine:
 
       - type: code
         language: bash
@@ -260,9 +262,20 @@ components:
 
       - type: markdown
         body: |
-          Exposed tools: `read_page`, `list_pages`, `search`, `write_page`,
-          `get_config`. Agents can enumerate your site, search content, and
-          write pages back — all through the MCP protocol.
+          **Remote (HTTP)** — serve over a network so your whole team can connect:
+
+      - type: code
+        language: bash
+        code: |
+          kazam mcp --transport http --port 8090
+
+      - type: markdown
+        body: |
+          The HTTP transport speaks the same JSON-RPC protocol over POST requests
+          with CORS support. Put it behind a reverse proxy (Caddy, nginx) for HTTPS.
+
+          See the [MCP reference](/mcp.html) for Claude Code config, Claude Desktop
+          setup, team deployment, and the proxy script for non-technical users.
 
   - type: callout
     variant: info

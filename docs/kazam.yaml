@@ -21,6 +21,8 @@ nav:
         href: /workflows.html
       - label: Wishes
         href: /wishes.html
+  - label: MCP
+    href: /mcp.html
   - label: Workspace
     href: /workspace.html
   - label: Sites
