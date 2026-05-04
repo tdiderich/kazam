@@ -121,6 +121,7 @@ fn component_type_name(c: &Component) -> String {
         Component::Chart { .. } => "chart",
         Component::Embed { .. } => "embed",
         Component::Resources { .. } => "resources",
+        Component::HeroBanner { .. } => "hero_banner",
     }
     .to_string()
 }

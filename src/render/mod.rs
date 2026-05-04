@@ -6,6 +6,7 @@ mod slug;
 
 use crate::types::{Component, Page, Shell, SiteConfig};
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_source_view(
     original: &Page,
     config: &SiteConfig,
@@ -14,26 +15,44 @@ pub fn render_source_view(
     source_filename: &str,
     rel_path: &str,
     release: bool,
+    yaml_rel_path: &str,
 ) -> String {
+    slug::reset();
+
     let html_href = source_filename
         .strip_suffix(".yaml")
         .map(|s| format!("{}.html", s))
         .unwrap_or_else(|| source_filename.to_string());
+
+    let mut rendered = Rendered::default();
+    rendered.extend(components::render(
+        &Component::Markdown {
+            body: format!("[← Back to rendered page]({})", html_href),
+        },
+        base,
+    ));
+    rendered.extend(components::render(
+        &Component::Code {
+            language: Some("yaml".to_string()),
+            code: yaml_content.to_string(),
+        },
+        base,
+    ));
+
+    if !release {
+        rendered.html.push_str(&format!(
+            r#"<div id="kazam-source-edit" data-path="{}" hidden></div>"#,
+            esc(yaml_rel_path)
+        ));
+        rendered.scripts.push("source_edit");
+    }
 
     let synthetic = Page {
         title: format!("{} — Source", original.title),
         shell: Shell::Standard,
         eyebrow: original.eyebrow.clone(),
         subtitle: Some(source_filename.to_string()),
-        components: Some(vec![
-            Component::Markdown {
-                body: format!("[← Back to rendered page]({})", html_href),
-            },
-            Component::Code {
-                language: Some("yaml".to_string()),
-                code: yaml_content.to_string(),
-            },
-        ]),
+        components: None,
         slides: None,
         unlisted: true,
         texture: None,
@@ -48,9 +67,21 @@ pub fn render_source_view(
         draft: false,
     };
 
-    render_page(&synthetic, config, base, "", rel_path, release)
+    shells::standard::wrap(
+        &synthetic,
+        config,
+        rendered,
+        base,
+        "",
+        rel_path,
+        release,
+        "",
+        &synthetic.title,
+        None,
+    )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_page(
     page: &Page,
     config: &SiteConfig,
@@ -58,6 +89,8 @@ pub fn render_page(
     source_href: &str,
     rel_path: &str,
     release: bool,
+    yaml_path: &str,
+    edit_url: Option<&str>,
 ) -> String {
     // Clear the per-page anchor-id dedup map so slug collisions don't leak
     // between pages in a single build.
@@ -104,15 +137,42 @@ pub fn render_page(
     }
 
     match page.shell {
-        Shell::Standard => {
-            shells::standard::wrap(page, config, rendered, base, source_href, rel_path, release)
-        }
-        Shell::Document => {
-            shells::document::wrap(page, config, rendered, base, source_href, rel_path, release)
-        }
-        Shell::Deck => {
-            shells::deck::wrap(page, config, rendered, base, source_href, rel_path, release)
-        }
+        Shell::Standard => shells::standard::wrap(
+            page,
+            config,
+            rendered,
+            base,
+            source_href,
+            rel_path,
+            release,
+            yaml_path,
+            &page.title,
+            edit_url,
+        ),
+        Shell::Document => shells::document::wrap(
+            page,
+            config,
+            rendered,
+            base,
+            source_href,
+            rel_path,
+            release,
+            yaml_path,
+            &page.title,
+            edit_url,
+        ),
+        Shell::Deck => shells::deck::wrap(
+            page,
+            config,
+            rendered,
+            base,
+            source_href,
+            rel_path,
+            release,
+            yaml_path,
+            &page.title,
+            edit_url,
+        ),
     }
 }
 
@@ -257,7 +317,7 @@ pub fn render_404_page(custom_page: Option<Page>, config: &SiteConfig, release: 
 
     let page = custom_page.unwrap_or_else(default_404_page);
 
-    render_page(&page, config, &base, "", "404.html", release)
+    render_page(&page, config, &base, "", "404.html", release, "", None)
 }
 
 fn default_404_page() -> Page {

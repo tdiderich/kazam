@@ -65,11 +65,13 @@ pub fn run(dir: &Path, out: &Path, port: u16) -> Result<()> {
     println!("\n  ➜ http://localhost:{actual_port}");
     println!("  watching {}\n", dir.display());
 
+    let source_dir = Arc::new(dir.to_path_buf());
     for req in server.incoming_requests() {
         let out_path = out.to_path_buf();
         let ver = version.clone();
+        let src = source_dir.clone();
         thread::spawn(move || {
-            if let Err(e) = handle(req, &out_path, &ver) {
+            if let Err(e) = handle(req, &out_path, &ver, &src) {
                 eprintln!("  request error: {e}");
             }
         });
@@ -140,14 +142,23 @@ fn watch_loop(dir: PathBuf, out: PathBuf, version: Arc<AtomicU64>) {
 
 // ── Request handler ──────────────────────────────
 
-fn handle(req: tiny_http::Request, root: &Path, version: &AtomicU64) -> Result<()> {
+fn handle(
+    req: tiny_http::Request,
+    root: &Path,
+    version: &AtomicU64,
+    source_dir: &Path,
+) -> Result<()> {
+    let url = req.url().split('?').next().unwrap_or("/");
+
+    if req.method() == &Method::Post && url == "/__kazam_write__" {
+        return handle_write(req, source_dir);
+    }
+
     if req.method() != &Method::Get {
         return req
             .respond(Response::from_string("method not allowed").with_status_code(405))
             .context("respond");
     }
-
-    let url = req.url().split('?').next().unwrap_or("/");
 
     // Live-reload version endpoint
     if url == "/__kazam_version__" {
@@ -205,6 +216,40 @@ fn handle(req: tiny_http::Request, root: &Path, version: &AtomicU64) -> Result<(
             }
         }
     }
+}
+
+fn handle_write(mut req: tiny_http::Request, source_dir: &Path) -> Result<()> {
+    let mut body = String::new();
+    req.as_reader()
+        .read_to_string(&mut body)
+        .context("read body")?;
+
+    let parsed: serde_json::Value = serde_json::from_str(&body).context("parse JSON")?;
+
+    let path = parsed["path"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("missing path"))?;
+    let content = parsed["content"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("missing content"))?;
+
+    if path.contains("..") || !path.ends_with(".yaml") {
+        return req
+            .respond(Response::from_string("invalid path").with_status_code(400))
+            .context("respond");
+    }
+
+    let target = source_dir.join(path);
+    if !target.starts_with(source_dir) {
+        return req
+            .respond(Response::from_string("path escape").with_status_code(400))
+            .context("respond");
+    }
+
+    std::fs::write(&target, content).context("write file")?;
+
+    req.respond(Response::from_string("ok").with_status_code(200))
+        .context("respond")
 }
 
 fn hdr(name: &str, value: &str) -> Header {

@@ -176,7 +176,7 @@ fn extract_searchable_text(
                     headings.push(item.name.clone());
                 }
             }
-            Component::BeforeAfter { items } => {
+            Component::BeforeAfter { items, .. } => {
                 for item in items {
                     headings.push(item.title.clone());
                 }
@@ -214,7 +214,8 @@ fn extract_searchable_text(
             | Component::AvatarGroup { .. }
             | Component::ProgressBar { .. }
             | Component::Icon { .. }
-            | Component::Tree { .. } => {}
+            | Component::Tree { .. }
+            | Component::HeroBanner { .. } => {}
         }
     }
 }

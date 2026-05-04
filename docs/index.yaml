@@ -1,141 +1,75 @@
-title: kazam — the AI-native knowledge base
+title: kazam
 shell: standard
 
 components:
-  - type: header
-    title: kazam
-    eyebrow: the AI-native knowledge base
-    subtitle: YAML pages with freshness tracking, prompt templates, and an MCP server your agents can read and write. One Rust binary, no dependencies.
+  - type: hero_banner
+    title: AI Native Knowledge Management
+    eyebrow: kazam
+    subtitle: Finally, content that manages itself.
+    buttons:
+      - label: Get Started
+        href: /guide.html
+        variant: primary
+      - label: GitHub
+        href: https://github.com/tdiderich/kazam
+        variant: secondary
+        external: true
 
   - type: section
-    eyebrow: What it is
-    heading: Structured content that knows when it's stale
+    heading: Sound familiar?
     components:
-      - type: columns
-        equal_heights: true
-        columns:
-          - - type: callout
-              variant: info
-              title: YAML pages
-              body: "Every page is a YAML file — `title`, `shell`, `components`. 30+ built-in components, three shell types, zero runtime JS. No templates to wire up, no routing config."
-          - - type: callout
-              variant: info
-              title: Freshness tracking
-              body: "Each page declares an owner, review cadence, and sources of truth. Build-time banners (yellow → red) show up when review is due. Every build writes `_site/stale.md` — hand it to your agent."
-          - - type: callout
-              variant: info
-              title: Agent-native workflows
-              body: "Prompt templates for the full content lifecycle: create, refresh, audit, review. An MCP server agents can call directly. A workspace engine that cuts token cost 45% and build time 48%."
-
-      - type: stat_grid
-        columns: 3
-        stats:
-          - label: Cost savings
-            value: 45% cheaper
-            color: green
-          - label: Speed gain
-            value: 48% faster
-            color: green
-          - label: Input tokens/turn
-            value: 81–94% fewer
-            color: green
+      - type: before_after
+        before_label: "Current"
+        after_label: "With kazam"
+        items:
+          - title: Ownership
+            before: Nobody owns the onboarding doc. It was last updated by someone who left six months ago.
+            after: Every page declares an owner and review cadence.
+            after_context: Stale content shows up in every build.
+          - title: Staleness
+            before: The API docs say v2 but you shipped v4. A customer files a ticket before anyone notices.
+            after: Build-time banners flag overdue content.
+            after_context: "`stale.md` tells your agent exactly what to fix."
+          - title: Agent access
+            before: Your AI agent burns tokens running `find` and `grep` trying to figure out where content lives.
+            after: MCP server with five tools.
+            after_context: Agents read, search, and write pages directly.
+          - title: Toolchain
+            before: Node, React, MDX, a build pipeline, three config files, and a prayer.
+            after: One Rust binary.
+            after_context: "`brew install`, point at a folder, ship HTML."
 
   - type: section
-    eyebrow: The lifecycle
-    heading: Create → validate → publish → track → refresh
+    heading: See it in action
     components:
-      - type: columns
-        equal_heights: true
-        columns:
-          - - type: callout
-              variant: info
-              title: Create
-              body: "Scaffold a new page with `kazam prompt show add-page` or let your agent generate YAML directly from source material with `kazam wish`."
-          - - type: callout
-              variant: info
-              title: Validate
-              body: "`kazam validate` catches orphan pages and broken internal links before you ship. `kazam build` reports freshness status on every run."
-          - - type: callout
-              variant: info
-              title: Publish
-              body: "`kazam build . --out _site` renders every YAML page to HTML. Pure HTML and CSS — no runtime, no hydration, no JS framework."
-
-      - type: columns
-        equal_heights: true
-        columns:
-          - - type: callout
-              variant: info
-              title: Track
-              body: "Freshness metadata on every page — `updated`, `review_every`, `owner`, `sources_of_truth`. Build-time banners surface stale content automatically."
-          - - type: callout
-              variant: info
-              title: Refresh
-              body: "`kazam prompt show refresh` gives your agent a standard workflow: read the stale page, check the sources of truth, propose updates. Same prompt every time, consistent output."
-
-  - type: section
-    eyebrow: Content
-    heading: 30+ components, three shells
-    components:
-      - type: markdown
-        body: |
-          Every page picks a shell — `standard` for docs and guides, `document` for
-          print-optimized briefs, `deck` for full-viewport slides. Same component primitives
-          in all three: markdown, tables, tabs, callouts, stat grids, card grids, charts,
-          and more.
-
       - type: card_grid
         cards:
-          - title: Documentation sites
-            description: API refs, guides, onboarding docs. Tabs, sortable tables, card grids.
+          - title: Documentation
+            description: API refs, guides, onboarding. Tabs, sortable tables, search.
             links:
               - label: See example →
                 href: examples/doc.html
 
-          - title: Decks & presentations
-            description: Full-viewport slides with keyboard nav and PDF export. QBRs, strategy reviews, pitch decks.
+          - title: Presentations
+            description: Full-viewport slides with keyboard nav. QBRs, strategy decks.
             links:
               - label: See example →
                 href: examples/deck.html
 
           - title: Briefs & agendas
-            description: Centered card layout, print-optimized. Exports cleanly to PDF.
+            description: Print-optimized cards. Meeting prep, renewal syncs, 1-pagers.
             links:
               - label: See example →
                 href: examples/brief.html
 
-          - title: Dashboards from APIs
-            description: Scripts emit YAML, kazam renders. Live-ish data from any JSON source, zero runtime.
+          - title: Live dashboards
+            description: Scripts emit data, kazam renders. Customer health, API status.
             links:
-              - label: See walkthrough →
-                href: examples/hackernews.html
+              - label: See example →
+                href: examples/dashboard.html
 
   - type: section
-    eyebrow: Agent workflows
-    heading: Prompts + MCP + workspace
-    components:
-      - type: markdown
-        body: |
-          Three layers that make agent-driven content management practical.
-
-      - type: columns
-        equal_heights: true
-        columns:
-          - - type: callout
-              variant: info
-              title: Prompt templates
-              body: "Standardized prompts for every content operation. `kazam prompt show migrate` — move existing content into YAML. `kazam prompt show add-page` — scaffold a new page. `kazam prompt show refresh` — update a stale page. `kazam prompt show audit` — review for accuracy."
-          - - type: callout
-              variant: info
-              title: MCP server
-              body: "`kazam mcp` starts a stdio MCP server. Agents call `read_page`, `list_pages`, `search`, `write_page`, and `get_config` directly — no file navigation, no token overhead."
-          - - type: callout
-              variant: info
-              title: Agent workspace
-              body: "Codebase indexing, task tracking, and a visual board. The engine that makes agents efficient — 81–94% fewer input tokens per turn, tasks that survive compaction and handoffs."
-
-  - type: section
-    eyebrow: Get started
-    heading: One command
+    heading: Get started
     components:
       - type: code
         language: bash
@@ -145,17 +79,5 @@ components:
 
       - type: markdown
         body: |
-          Edit `index.yaml` — the browser reloads on save. Add freshness metadata when a page
-          has a real owner. Use `kazam prompt show` to see the agent workflows. That's the loop.
-
-      - type: callout
-        variant: info
-        title: Next up
-        body: The get-started guide walks through init, pages, freshness, prompts, and workspace setup in order.
-        links:
-          - label: Get Started →
-            href: guide.html
-            variant: primary
-          - label: Authoring guide →
-            href: about.html
-            variant: secondary
+          Read the [quickstart guide](/guide.html) or browse the
+          [component catalog](/components/index.html).

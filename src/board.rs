@@ -57,7 +57,9 @@ pub fn run(project: &Path, port: u16) -> Result<()> {
 
 fn generate_html(project: &Path, config: &SiteConfig) -> Result<String> {
     let page = generate_page(project, config)?;
-    Ok(render::render_page(&page, config, "", "", "", false))
+    Ok(render::render_page(
+        &page, config, "", "", "", false, "", None,
+    ))
 }
 
 fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
@@ -641,13 +643,14 @@ fn board_site_config(project: &Path) -> SiteConfig {
         nav: None,
         favicon: None,
         logo: None,
-        view_source: false,
+        view_source: Some(false),
         texture: Texture::Dots,
         glow: Glow::Corner,
         nav_layout: NavLayout::Top,
         mode: Mode::Dark,
         description: None,
         url: None,
+        edit_url: None,
         og_image: None,
         voice: None,
         roles: Vec::new(),
@@ -671,6 +674,7 @@ impl Clone for SiteConfig {
             mode: self.mode,
             description: self.description.clone(),
             url: self.url.clone(),
+            edit_url: self.edit_url.clone(),
             og_image: self.og_image.clone(),
             voice: self.voice.clone(),
             roles: self.roles.clone(),
