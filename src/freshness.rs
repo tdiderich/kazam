@@ -435,6 +435,241 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
     Ok(())
 }
 
+/// `kazam freshness review` — list stale pages with recommended actions.
+/// Each page gets a recommendation: "archive" for expired or 180+ days overdue,
+/// "refresh" for moderately overdue, "review" for recently due.
+pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use std::fs;
+    use walkdir::WalkDir;
+
+    let today = today_iso();
+
+    struct ReviewItem {
+        path: String,
+        title: String,
+        status: FreshnessStatus,
+        days: i64,
+        owner: Option<String>,
+        updated: Option<String>,
+        cadence: Option<String>,
+        recommendation: &'static str,
+        description: Option<String>,
+    }
+
+    let mut items: Vec<ReviewItem> = Vec::new();
+
+    for entry in WalkDir::new(dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() > 0 && e.file_name() == "_site" && e.file_type().is_dir() {
+                return false;
+            }
+            if e.depth() > 0 {
+                if let Some(name) = e.file_name().to_str() {
+                    if name.starts_with('.') {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let fname = path.file_name().unwrap_or_default();
+        if fname == "kazam.yaml" || fname == "404.yaml" {
+            continue;
+        }
+        if !path.extension().map(|e| e == "yaml").unwrap_or(false) {
+            continue;
+        }
+
+        let rel = path.strip_prefix(dir)?;
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        let content = fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
+        let page: crate::types::Page =
+            serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
+
+        let fv = page.freshness.as_ref();
+        if fv.is_none() || fv.map(|v| v.is_never()).unwrap_or(false) {
+            continue;
+        }
+        let f = fv.and_then(|v| v.as_full());
+        let info = match info_for(f, &today) {
+            Some(i) => i,
+            None => continue,
+        };
+        let status = info.status();
+        let (days, recommendation) = match status {
+            FreshnessStatus::Expired { days_past_expiry } => (days_past_expiry, "archive"),
+            FreshnessStatus::Overdue { days_overdue } if days_overdue > 180 => {
+                (days_overdue, "archive")
+            }
+            FreshnessStatus::Overdue { days_overdue } => (days_overdue, "refresh"),
+            FreshnessStatus::DueSoon { days_until_due } => (days_until_due, "review"),
+            FreshnessStatus::Fresh => continue,
+        };
+
+        items.push(ReviewItem {
+            path: rel_str,
+            title: page.title,
+            status,
+            days,
+            owner: f.and_then(|f| f.owner.clone()),
+            updated: f.and_then(|f| f.updated.clone()),
+            cadence: f.and_then(|f| f.review_every.clone()),
+            recommendation,
+            description: page.subtitle,
+        });
+    }
+
+    items.sort_by(|a, b| {
+        fn rank(s: &FreshnessStatus) -> u8 {
+            match s {
+                FreshnessStatus::Expired { .. } => 0,
+                FreshnessStatus::Overdue { .. } => 1,
+                FreshnessStatus::DueSoon { .. } => 2,
+                FreshnessStatus::Fresh => 3,
+            }
+        }
+        rank(&a.status)
+            .cmp(&rank(&b.status))
+            .then(b.days.cmp(&a.days))
+    });
+
+    if json {
+        println!("{{\"date\":\"{}\",\"count\":{},\"items\":[", today, items.len());
+        for (i, item) in items.iter().enumerate() {
+            let status_str = match item.status {
+                FreshnessStatus::Expired { .. } => "expired",
+                FreshnessStatus::Overdue { .. } => "overdue",
+                FreshnessStatus::DueSoon { .. } => "due_soon",
+                FreshnessStatus::Fresh => "fresh",
+            };
+            let owner = item
+                .owner
+                .as_deref()
+                .map(|o| format!("\"{}\"", json_escape(o)))
+                .unwrap_or("null".into());
+            let comma = if i + 1 < items.len() { "," } else { "" };
+            println!(
+                "  {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days\":{},\"owner\":{},\"recommendation\":\"{}\"}}{}",
+                json_escape(&item.path),
+                json_escape(&item.title),
+                status_str,
+                item.days,
+                owner,
+                item.recommendation,
+                comma,
+            );
+        }
+        println!("]}}");
+    } else {
+        println!("Freshness review — {}", today);
+        println!("{} page(s) need attention\n", items.len());
+        for item in &items {
+            let status_label = match item.status {
+                FreshnessStatus::Expired { days_past_expiry } => {
+                    format!("EXPIRED {} day(s)", days_past_expiry)
+                }
+                FreshnessStatus::Overdue { days_overdue } => {
+                    format!("OVERDUE {} day(s)", days_overdue)
+                }
+                FreshnessStatus::DueSoon { days_until_due } => {
+                    format!("DUE in {} day(s)", days_until_due)
+                }
+                FreshnessStatus::Fresh => "FRESH".into(),
+            };
+            let owner = item
+                .owner
+                .as_deref()
+                .map(|o| format!(" — owner: {}", o))
+                .unwrap_or_default();
+            let updated = item
+                .updated
+                .as_deref()
+                .map(|u| format!(" (updated: {})", u))
+                .unwrap_or_default();
+            println!(
+                "  [{}] {} → {}",
+                status_label, item.path, item.recommendation
+            );
+            println!(
+                "    {}{}{}\n",
+                item.title, owner, updated
+            );
+        }
+        println!("Actions:");
+        println!("  kazam freshness act <path> archive   # set archived: true");
+        println!("  kazam freshness act <path> refresh   # update freshness.updated to today");
+    }
+
+    Ok(())
+}
+
+/// `kazam freshness act` — take action on a stale page.
+pub fn run_act(
+    dir: &Path,
+    rel_path: &str,
+    action: &crate::FreshnessAction,
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use std::fs;
+
+    let path = dir.join(rel_path);
+    if !path.exists() {
+        anyhow::bail!("page not found: {}", path.display());
+    }
+
+    let content = fs::read_to_string(&path).with_context(|| format!("reading {:?}", path))?;
+
+    match action {
+        crate::FreshnessAction::Archive => {
+            let new_content = if content.contains("\narchived:") {
+                content.replace("\narchived: false", "\narchived: true")
+            } else {
+                let insert_pos = content.find("\ncomponents:").unwrap_or(content.len());
+                let mut out = String::with_capacity(content.len() + 20);
+                out.push_str(&content[..insert_pos]);
+                out.push_str("\narchived: true");
+                out.push_str(&content[insert_pos..]);
+                out
+            };
+            fs::write(&path, new_content)?;
+            println!("✓ archived {}", rel_path);
+        }
+        crate::FreshnessAction::Refresh => {
+            let today = today_iso();
+            let new_content = if let Some(start) = content.find("  updated:") {
+                let line_end = content[start..].find('\n').map(|p| start + p).unwrap_or(content.len());
+                format!("{}  updated: \"{}\"{}",
+                    &content[..start],
+                    today,
+                    &content[line_end..])
+            } else if let Some(start) = content.find("freshness:") {
+                let insert = start + "freshness:".len();
+                let after = &content[insert..];
+                let next_line_end = after.find('\n').map(|p| insert + p + 1).unwrap_or(content.len());
+                format!("{}  updated: \"{}\"\n{}",
+                    &content[..next_line_end],
+                    today,
+                    &content[next_line_end..])
+            } else {
+                anyhow::bail!("no freshness metadata in {}", rel_path);
+            };
+            fs::write(&path, new_content)?;
+            println!("✓ refreshed {} → updated: {}", rel_path, today);
+        }
+    }
+
+    Ok(())
+}
+
 fn json_escape(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")

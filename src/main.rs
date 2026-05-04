@@ -140,15 +140,11 @@ enum Command {
     },
     /// Show freshness status for all pages in the site
     Freshness {
+        #[command(subcommand)]
+        command: Option<FreshnessCommand>,
         /// Site directory
-        #[arg(default_value = ".")]
+        #[arg(default_value = ".", global = true)]
         dir: PathBuf,
-        /// Human-readable output (default is JSON)
-        #[arg(long)]
-        pretty: bool,
-        /// Only show pages overdue by at least this many days
-        #[arg(long)]
-        threshold: Option<u64>,
     },
     /// Show or manage the site's voice configuration
     Voice {
@@ -216,11 +212,17 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Mcp { dir, allow_writes } => mcp::run(&dir, allow_writes),
-        Command::Freshness {
-            dir,
-            pretty,
-            threshold,
-        } => freshness::run_command(&dir, pretty, threshold),
+        Command::Freshness { command, dir } => match command {
+            None | Some(FreshnessCommand::Show { .. }) => {
+                let (pretty, threshold) = match command {
+                    Some(FreshnessCommand::Show { pretty, threshold }) => (pretty, threshold),
+                    _ => (false, None),
+                };
+                freshness::run_command(&dir, pretty, threshold)
+            }
+            Some(FreshnessCommand::Review { json }) => freshness::run_review(&dir, json),
+            Some(FreshnessCommand::Act { path, action }) => freshness::run_act(&dir, &path, &action),
+        },
         Command::Voice { dir, json } => voice::run(&dir, json),
         Command::Prompt { command, dir } => prompts::run(command, &dir),
         Command::Actions { command, dir } => match command {
@@ -228,6 +230,39 @@ fn main() -> Result<()> {
             ActionsCommand::Init { name } => actions::init(&name, &dir),
         },
     }
+}
+
+#[derive(Subcommand)]
+pub enum FreshnessCommand {
+    /// Show freshness status for all pages (default)
+    Show {
+        #[arg(long)]
+        pretty: bool,
+        #[arg(long)]
+        threshold: Option<u64>,
+    },
+    /// List stale pages for review with recommended actions
+    Review {
+        /// Output as JSON (default is human-readable)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Take action on a stale page: archive, refresh, or skip
+    Act {
+        /// Path to the page YAML file (relative to site dir)
+        path: String,
+        /// Action to take
+        #[arg(value_enum)]
+        action: FreshnessAction,
+    },
+}
+
+#[derive(Clone, clap::ValueEnum)]
+pub enum FreshnessAction {
+    /// Set archived: true on the page
+    Archive,
+    /// Update freshness.updated to today's date
+    Refresh,
 }
 
 #[derive(Subcommand)]
