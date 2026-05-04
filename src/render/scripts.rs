@@ -38,6 +38,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var here = window.location.pathname.replace(/\/$/, '/index.html');
   document.querySelectorAll('.nav-link, .sidebar-link').forEach(function (a) {
     try {
+      var raw = a.getAttribute('href');
+      if (!raw) return;
       var target = new URL(a.href).pathname.replace(/\/$/, '/index.html');
       if (target === here) a.classList.add('nav-link-active');
     } catch (e) {}

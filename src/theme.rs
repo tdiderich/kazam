@@ -574,6 +574,16 @@ body.nav-layout-sidebar .sidebar-section-label {
   padding: 0 12px;
   margin-bottom: 6px;
 }
+body.nav-layout-sidebar .sidebar-subsection { margin-top: 12px; margin-bottom: 2px; }
+body.nav-layout-sidebar .sidebar-subsection-label {
+  font-size: 13px; font-weight: 500;
+  color: rgba(var(--text-rgb), 0.7);
+  padding: 4px 12px 2px 12px;
+}
+body.nav-layout-sidebar .sidebar-link-nested {
+  padding-left: 28px;
+  font-size: 12.5px;
+}
 body.nav-layout-sidebar .sidebar-link {
   display: block;
   padding: 7px 12px;
@@ -1650,6 +1660,18 @@ body.shell-document .doc-body strong { color: #fff; }
   color: var(--muted);
   margin-top: 8px;
   text-align: center;
+}
+.c-embed {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.c-embed iframe {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  border: 0;
 }
 
 /* ──────────────────── Phase 1 additions ──────────────────── */

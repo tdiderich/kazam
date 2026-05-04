@@ -118,7 +118,7 @@ pub fn validate_dir(dir: &Path) -> Vec<ValidationError> {
         .filter_entry(|e| {
             if e.depth() > 0 {
                 if let Some(name) = e.file_name().to_str() {
-                    if name.starts_with('.') || name == "_site" {
+                    if name.starts_with('.') || name == "_site" || name == "prompts" {
                         return false;
                     }
                 }
@@ -662,7 +662,8 @@ fn validate_component(
         | Component::Blockquote { .. }
         | Component::Avatar { .. }
         | Component::EmptyState { .. }
-        | Component::Icon { .. } => {}
+        | Component::Icon { .. }
+        | Component::Embed { .. } => {}
     }
 }
 

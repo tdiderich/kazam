@@ -83,6 +83,7 @@ pub fn render(c: &Component, base: &str) -> Rendered {
             max_width,
             align,
         } => image(src, alt, caption, *max_width, *align),
+        Component::Embed { src, title, aspect } => embed(src, title, aspect),
         // Phase 1 additions
         Component::Badge { label, color } => badge(label, *color),
         Component::Tag { label, color } => tag(label, *color),
@@ -1206,6 +1207,20 @@ fn image(
         h.push_str(&format!(r#"<figcaption>{}</figcaption>"#, esc(cap)));
     }
     h.push_str("</figure>");
+    Rendered::new(h)
+}
+
+// ── Embed ────────────────────────────────────────
+
+fn embed(src: &str, title: &Option<String>, aspect: &Option<String>) -> Rendered {
+    let ratio = aspect.as_deref().unwrap_or("16/9");
+    let title_attr = title.as_deref().unwrap_or("Embedded video");
+    let h = format!(
+        r#"<div class="c-embed" style="aspect-ratio: {ratio}"><iframe src="{src}" title="{title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>"#,
+        ratio = esc(ratio),
+        src = esc(src),
+        title = esc(title_attr),
+    );
     Rendered::new(h)
 }
 

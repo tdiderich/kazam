@@ -259,16 +259,39 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
                     esc(&link.label)
                 ));
                 for child in children {
-                    let href = child
-                        .href
-                        .as_deref()
-                        .map(|h| resolve_href(h, base))
-                        .unwrap_or_default();
-                    out.push_str(&format!(
-                        r#"<a href="{}" class="sidebar-link">{}</a>"#,
-                        esc(&href),
-                        esc(&child.label)
-                    ));
+                    match &child.children {
+                        Some(grandchildren) if !grandchildren.is_empty() => {
+                            out.push_str(&format!(
+                                r#"<div class="sidebar-subsection"><div class="sidebar-subsection-label">{}</div>"#,
+                                esc(&child.label)
+                            ));
+                            for gc in grandchildren {
+                                let href = gc
+                                    .href
+                                    .as_deref()
+                                    .map(|h| resolve_href(h, base))
+                                    .unwrap_or_default();
+                                out.push_str(&format!(
+                                    r#"<a href="{}" class="sidebar-link sidebar-link-nested">{}</a>"#,
+                                    esc(&href),
+                                    esc(&gc.label)
+                                ));
+                            }
+                            out.push_str("</div>");
+                        }
+                        _ => {
+                            let href = child
+                                .href
+                                .as_deref()
+                                .map(|h| resolve_href(h, base))
+                                .unwrap_or_default();
+                            out.push_str(&format!(
+                                r#"<a href="{}" class="sidebar-link">{}</a>"#,
+                                esc(&href),
+                                esc(&child.label)
+                            ));
+                        }
+                    }
                 }
                 out.push_str("</div>");
             }

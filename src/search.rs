@@ -191,6 +191,7 @@ fn extract_searchable_text(
             | Component::Divider { .. }
             | Component::Kbd { .. }
             | Component::Image { .. }
+            | Component::Embed { .. }
             | Component::Badge { .. }
             | Component::Tag { .. }
             | Component::Status { .. }

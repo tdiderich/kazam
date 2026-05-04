@@ -120,8 +120,11 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
             {
                 return false;
             }
-            if e.depth() > 0 && e.file_name() == "_site" && e.file_type().is_dir() {
-                return false;
+            if e.depth() > 0 && e.file_type().is_dir() {
+                let name = e.file_name();
+                if name == "_site" || name == "prompts" {
+                    return false;
+                }
             }
             // Skip hidden entries (.git, .DS_Store, .vscode, etc.) at any depth
             // except the source dir itself, which is often passed as "." and
@@ -431,6 +434,15 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
         });
     }
 
+    // Re-scan anatomy if the workspace exists. Preserves enriched descriptions.
+    if dir.join(".kazam").is_dir() {
+        if let Ok(store) = crate::ctx::scan::scan(dir) {
+            let flat = dir.join(".kazam/ctx/anatomy.flat.yaml");
+            let _ = crate::workspace::write_yaml(&flat, &store);
+            let _ = crate::ctx::scan::write_layered(dir, &store);
+        }
+    }
+
     Ok(())
 }
 
@@ -664,7 +676,14 @@ pub fn load_config(dir: &Path) -> Result<SiteConfig> {
     let config_path = dir.join("kazam.yaml");
     if config_path.exists() {
         let content = fs::read_to_string(&config_path)?;
-        serde_yaml::from_str(&content).context("parsing kazam.yaml")
+        let mut cfg: SiteConfig =
+            serde_yaml::from_str(&content).context("parsing kazam.yaml")?;
+        if let Some(ref mut nav) = cfg.nav {
+            for link in nav.iter_mut() {
+                link.normalize_hrefs();
+            }
+        }
+        Ok(cfg)
     } else {
         Ok(SiteConfig::default())
     }

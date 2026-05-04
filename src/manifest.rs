@@ -114,6 +114,7 @@ fn component_type_name(c: &Component) -> String {
         Component::EmptyState { .. } => "empty_state",
         Component::Icon { .. } => "icon",
         Component::Chart { .. } => "chart",
+        Component::Embed { .. } => "embed",
     }
     .to_string()
 }

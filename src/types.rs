@@ -311,6 +311,12 @@ pub enum Component {
         #[serde(default)]
         align: Align,
     },
+    /// Responsive iframe embed for Loom, YouTube, Vimeo, etc.
+    Embed {
+        src: String,
+        title: Option<String>,
+        aspect: Option<String>,
+    },
     Badge {
         label: String,
         #[serde(default)]
@@ -907,6 +913,24 @@ pub struct NavLink {
     /// entries depending on `SiteConfig.nav_layout`.
     #[serde(default)]
     pub children: Option<Vec<NavLink>>,
+}
+
+impl NavLink {
+    /// Ensure hrefs are root-relative so sidebar links work from any page depth.
+    /// Bare paths like `scanners/wiz.html` become `/scanners/wiz.html`.
+    /// Already-absolute (`/…`) and external (`http…`) hrefs are left alone.
+    pub fn normalize_hrefs(&mut self) {
+        if let Some(ref mut h) = self.href {
+            if !h.starts_with('/') && !h.starts_with("http") {
+                *h = format!("/{h}");
+            }
+        }
+        if let Some(ref mut kids) = self.children {
+            for child in kids.iter_mut() {
+                child.normalize_hrefs();
+            }
+        }
+    }
 }
 
 /// How the sticky nav is laid out on `shell: standard` pages. Other shells
