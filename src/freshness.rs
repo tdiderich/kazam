@@ -34,6 +34,9 @@ pub enum FreshnessStatus {
     DueSoon { days_until_due: i64 },
     /// Red banner — review window has elapsed. `days_overdue` is positive.
     Overdue { days_overdue: i64 },
+    /// Page has passed its hard expiration date. Stronger than Overdue —
+    /// the content is no longer relevant, not just due for review.
+    Expired { days_past_expiry: i64 },
 }
 
 /// Today's date as `YYYY-MM-DD`. Honors `KAZAM_TODAY` for deterministic
@@ -56,6 +59,7 @@ pub fn today_iso() -> String {
 pub struct FreshnessInfo {
     pub updated_days: Option<i64>,
     pub review_days: Option<i64>,
+    pub expires_days: Option<i64>,
     pub today_days: i64,
 }
 
@@ -69,13 +73,21 @@ impl FreshnessInfo {
     /// are never "stale" — they simply have nothing to compare against.
     #[allow(dead_code)]
     pub fn is_stale(&self) -> bool {
-        matches!(self.status(), FreshnessStatus::Overdue { .. })
+        matches!(
+            self.status(),
+            FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. }
+        )
     }
 
-    /// Tri-state freshness state. Fresh = no banner, DueSoon = yellow nudge,
-    /// Overdue = red banner. Pages missing either `updated` or `review_every`
-    /// are always Fresh — there's nothing to compare against.
+    /// Freshness state. Expired takes priority over everything else.
     pub fn status(&self) -> FreshnessStatus {
+        if let Some(exp) = self.expires_days {
+            if self.today_days > exp {
+                return FreshnessStatus::Expired {
+                    days_past_expiry: self.today_days - exp,
+                };
+            }
+        }
         let (elapsed, cadence) = match (self.days_since_update(), self.review_days) {
             (Some(e), Some(c)) => (e, c),
             _ => return FreshnessStatus::Fresh,
@@ -100,10 +112,12 @@ pub fn info_for(f: Option<&Freshness>, today_iso: &str) -> Option<FreshnessInfo>
     let f = f?;
     let today_days = parse_iso_date(today_iso).unwrap_or(0);
     let updated_days = f.updated.as_deref().and_then(parse_iso_date);
+    let expires_days = f.expires.as_deref().and_then(parse_iso_date);
     let review_days = f.review_every.as_deref().and_then(parse_duration_days);
     Some(FreshnessInfo {
         updated_days,
         review_days,
+        expires_days,
         today_days,
     })
 }
@@ -228,6 +242,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     review_every: effective_review_every,
                     owner: f.owner.clone(),
                     sources_of_truth: f.sources_of_truth.clone(),
+                    expires: f.expires.clone(),
                 };
 
                 let status = match info_for(Some(&f_override), &today) {
@@ -236,6 +251,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                 };
 
                 let (days_overdue, days_until_due) = match status {
+                    FreshnessStatus::Expired { days_past_expiry } => (Some(days_past_expiry), None),
                     FreshnessStatus::Overdue { days_overdue } => (Some(days_overdue), None),
                     FreshnessStatus::DueSoon { days_until_due } => (None, Some(days_until_due)),
                     FreshnessStatus::Fresh => (None, None),
@@ -273,6 +289,10 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
         .iter()
         .filter(|r| matches!(r.status, FreshnessStatus::Overdue { .. }))
         .count();
+    let expired_count = results
+        .iter()
+        .filter(|r| matches!(r.status, FreshnessStatus::Expired { .. }))
+        .count();
     let never_count = results.iter().filter(|r| r.is_never).count();
     let no_freshness_count = results.iter().filter(|r| r.no_freshness).count();
 
@@ -282,7 +302,9 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
         .filter(|r| {
             matches!(
                 r.status,
-                FreshnessStatus::DueSoon { .. } | FreshnessStatus::Overdue { .. }
+                FreshnessStatus::DueSoon { .. }
+                    | FreshnessStatus::Overdue { .. }
+                    | FreshnessStatus::Expired { .. }
             )
         })
         .collect();
@@ -291,8 +313,8 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
         // Human-readable table output
         println!("Freshness report — {}", today);
         println!(
-            "  total: {}  fresh: {}  due_soon: {}  overdue: {}  never: {}  no_freshness: {}",
-            total, fresh_count, due_soon_count, overdue_count, never_count, no_freshness_count
+            "  total: {}  fresh: {}  due_soon: {}  overdue: {}  expired: {}  never: {}  no_freshness: {}",
+            total, fresh_count, due_soon_count, overdue_count, expired_count, never_count, no_freshness_count
         );
 
         if non_fresh.is_empty() {
@@ -307,6 +329,9 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
             });
             for r in &sorted {
                 let status_str = match r.status {
+                    FreshnessStatus::Expired { days_past_expiry } => {
+                        format!("EXPIRED ({} days)", days_past_expiry)
+                    }
                     FreshnessStatus::Overdue { days_overdue } => {
                         format!("OVERDUE ({} days)", days_overdue)
                     }
@@ -328,6 +353,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
         let mut pages_json = String::from("[\n");
         for (i, r) in non_fresh.iter().enumerate() {
             let status_str = match r.status {
+                FreshnessStatus::Expired { .. } => "expired",
                 FreshnessStatus::Overdue { .. } => "overdue",
                 FreshnessStatus::DueSoon { .. } => "due_soon",
                 FreshnessStatus::Fresh => "fresh",
@@ -368,8 +394,8 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
         pages_json.push_str("  ]");
 
         println!(
-            "{{\n  \"date\":\"{}\",\n  \"summary\":{{\"total\":{},\"fresh\":{},\"due_soon\":{},\"overdue\":{},\"never\":{},\"no_freshness\":{}}},\n  \"pages\":{}\n}}",
-            today, total, fresh_count, due_soon_count, overdue_count, never_count, no_freshness_count, pages_json
+            "{{\n  \"date\":\"{}\",\n  \"summary\":{{\"total\":{},\"fresh\":{},\"due_soon\":{},\"overdue\":{},\"expired\":{},\"never\":{},\"no_freshness\":{}}},\n  \"pages\":{}\n}}",
+            today, total, fresh_count, due_soon_count, overdue_count, expired_count, never_count, no_freshness_count, pages_json
         );
     }
 
@@ -501,6 +527,7 @@ mod tests {
             review_every: Some("90d".to_string()),
             owner: None,
             sources_of_truth: None,
+            expires: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert_eq!(info.days_since_update(), Some(110));
@@ -514,6 +541,7 @@ mod tests {
             review_every: Some("90d".to_string()),
             owner: None,
             sources_of_truth: None,
+            expires: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
@@ -527,6 +555,7 @@ mod tests {
             review_every: None,
             owner: None,
             sources_of_truth: None,
+            expires: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
@@ -537,9 +566,36 @@ mod tests {
             review_every: Some("90d".to_string()),
             owner: None,
             sources_of_truth: None,
+            expires: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
+    }
+
+    #[test]
+    fn expired_when_past_expiry_date() {
+        let f = Freshness {
+            updated: Some("2026-01-01".to_string()),
+            review_every: Some("90d".to_string()),
+            owner: None,
+            sources_of_truth: None,
+            expires: Some("2026-03-01".to_string()),
+        };
+        let info = info_for(Some(&f), "2026-04-01").unwrap();
+        assert!(matches!(info.status(), FreshnessStatus::Expired { .. }));
+    }
+
+    #[test]
+    fn not_expired_before_expiry_date() {
+        let f = Freshness {
+            updated: Some("2026-01-01".to_string()),
+            review_every: Some("90d".to_string()),
+            owner: None,
+            sources_of_truth: None,
+            expires: Some("2026-12-31".to_string()),
+        };
+        let info = info_for(Some(&f), "2026-05-01").unwrap();
+        assert!(matches!(info.status(), FreshnessStatus::Overdue { .. }));
     }
 
     #[test]

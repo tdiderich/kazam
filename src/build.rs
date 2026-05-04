@@ -283,6 +283,7 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
                     components: page_components,
                     freshness: freshness_manifest,
                     unlisted: page.unlisted,
+                    personas: page.personas.clone(),
                 });
             }
 
@@ -462,6 +463,7 @@ fn emit_stale_json(stale: &[StaleEntry]) {
     use crate::freshness::FreshnessStatus;
     for e in stale {
         let (days_overdue, days_until_due) = match e.status {
+            FreshnessStatus::Expired { days_past_expiry } => (Some(days_past_expiry), None),
             FreshnessStatus::Overdue { days_overdue } => (Some(days_overdue), None),
             FreshnessStatus::DueSoon { days_until_due } => (None, Some(days_until_due)),
             FreshnessStatus::Fresh => (None, None),
@@ -495,13 +497,19 @@ fn write_freshness_report_md(out: &Path, stale: &[StaleEntry], today: &str) -> s
 
     let mut overdue: Vec<&StaleEntry> = stale
         .iter()
-        .filter(|e| matches!(e.status, FreshnessStatus::Overdue { .. }))
+        .filter(|e| {
+            matches!(
+                e.status,
+                FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. }
+            )
+        })
         .collect();
     let mut due_soon: Vec<&StaleEntry> = stale
         .iter()
         .filter(|e| matches!(e.status, FreshnessStatus::DueSoon { .. }))
         .collect();
     overdue.sort_by_key(|e| match e.status {
+        FreshnessStatus::Expired { days_past_expiry } => -days_past_expiry - 10000,
         FreshnessStatus::Overdue { days_overdue } => -days_overdue,
         _ => 0,
     });
@@ -520,6 +528,7 @@ fn write_freshness_report_md(out: &Path, stale: &[StaleEntry], today: &str) -> s
         md.push_str(&format!("## Overdue ({})\n\n", overdue.len()));
         for e in &overdue {
             let days = match e.status {
+                FreshnessStatus::Expired { days_past_expiry } => days_past_expiry,
                 FreshnessStatus::Overdue { days_overdue } => days_overdue,
                 _ => 0,
             };
@@ -567,7 +576,12 @@ fn print_freshness_report(stale: &[StaleEntry]) {
 
     let mut overdue: Vec<&StaleEntry> = stale
         .iter()
-        .filter(|e| matches!(e.status, FreshnessStatus::Overdue { .. }))
+        .filter(|e| {
+            matches!(
+                e.status,
+                FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. }
+            )
+        })
         .collect();
     let mut due_soon: Vec<&StaleEntry> = stale
         .iter()
@@ -580,6 +594,7 @@ fn print_freshness_report(stale: &[StaleEntry]) {
 
     // Most urgent first.
     overdue.sort_by_key(|e| match e.status {
+        FreshnessStatus::Expired { days_past_expiry } => -days_past_expiry - 10000,
         FreshnessStatus::Overdue { days_overdue } => -days_overdue,
         _ => 0,
     });
@@ -593,6 +608,7 @@ fn print_freshness_report(stale: &[StaleEntry]) {
         println!("⚠ {} overdue page(s):", overdue.len());
         for e in overdue {
             let days = match e.status {
+                FreshnessStatus::Expired { days_past_expiry } => days_past_expiry,
                 FreshnessStatus::Overdue { days_overdue } => days_overdue,
                 _ => 0,
             };
@@ -609,9 +625,12 @@ fn print_freshness_report(stale: &[StaleEntry]) {
     }
     if !due_soon.is_empty() {
         if !stale.is_empty()
-            && stale
-                .iter()
-                .any(|e| matches!(e.status, FreshnessStatus::Overdue { .. }))
+            && stale.iter().any(|e| {
+                matches!(
+                    e.status,
+                    FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. }
+                )
+            })
         {
             println!();
         }

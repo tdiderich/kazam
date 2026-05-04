@@ -23,6 +23,8 @@ pub struct SearchEntry {
     pub content_snippets: Vec<String>,
     /// Author-provided aliases / acronyms that don't appear in rendered text.
     pub search_terms: Vec<String>,
+    /// Role-based persona tags. Empty means visible to everyone.
+    pub personas: Vec<String>,
 }
 
 /// Build a `SearchEntry` from a parsed `Page` and its output-relative HTML path.
@@ -47,6 +49,7 @@ pub fn entry_for(path: &str, page: &Page) -> SearchEntry {
         headings,
         content_snippets: snippets,
         search_terms: page.search_terms.clone(),
+        personas: page.personas.clone(),
     }
 }
 
@@ -184,6 +187,14 @@ fn extract_searchable_text(
                     }
                 }
             }
+            Component::Resources { items } => {
+                for item in items {
+                    headings.push(item.title.clone());
+                    if let Some(desc) = &item.description {
+                        push_snippet(snippets, desc);
+                    }
+                }
+            }
             // Code blocks skipped — not useful as search content.
             Component::Code { .. } => {}
             // Purely decorative / non-textual — skip.
@@ -285,6 +296,7 @@ pub fn write(out: &Path, entries: &[SearchEntry]) -> std::io::Result<()> {
                 headings: e.headings.clone(),
                 content_snippets: e.content_snippets.clone(),
                 search_terms: e.search_terms.clone(),
+                personas: e.personas.clone(),
             })
             .collect(),
     };
@@ -313,6 +325,7 @@ mod tests {
             search_terms: Vec::new(),
             owner: None,
             references: Vec::new(),
+            personas: Vec::new(),
         }
     }
 

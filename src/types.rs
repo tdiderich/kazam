@@ -73,6 +73,12 @@ pub struct Page {
     /// Each entry has a URL and an optional note explaining what it references.
     #[serde(default)]
     pub references: Vec<Reference>,
+    /// Role-based persona tags for this page. Values are freeform strings
+    /// matching roles defined in kazam.yaml (e.g. "everyone", "engineering",
+    /// "gtm", "product", "ops"). Pages with no personas default to being
+    /// visible to everyone. Used by nav filtering and role-map components.
+    #[serde(default)]
+    pub personas: Vec<String>,
 }
 
 /// Freshness value: either the bare string `"never"` (explicit opt-out —
@@ -138,6 +144,12 @@ pub struct Freshness {
     /// alongside the href.
     #[serde(default)]
     pub sources_of_truth: Option<Vec<SourceOfTruth>>,
+    /// Hard expiration date (ISO YYYY-MM-DD). Pages past this date are
+    /// treated as expired — excluded from nav/search, rendered with an
+    /// "expired" banner. For time-bound content like event materials or
+    /// campaign pages.
+    #[serde(default)]
+    pub expires: Option<String>,
 }
 
 /// One source-of-truth entry. Either a bare URL or a labeled link.
@@ -316,6 +328,11 @@ pub enum Component {
         src: String,
         title: Option<String>,
         aspect: Option<String>,
+    },
+    /// Structured link collection with per-item metadata. Consolidates
+    /// the "page that's just a few links" pattern into a reviewable list.
+    Resources {
+        items: Vec<ResourceItem>,
     },
     Badge {
         label: String,
@@ -913,6 +930,11 @@ pub struct NavLink {
     /// entries depending on `SiteConfig.nav_layout`.
     #[serde(default)]
     pub children: Option<Vec<NavLink>>,
+    /// Persona filter. When set, this link is only visible to the listed
+    /// roles. Rendered as `data-personas` attributes for client-side
+    /// filtering via `?role=` query param.
+    #[serde(default)]
+    pub personas: Vec<String>,
 }
 
 impl NavLink {
@@ -1011,6 +1033,11 @@ pub struct SiteConfig {
     /// Brand voice rules for consistent content authoring across agents and humans.
     #[serde(default)]
     pub voice: Option<Voice>,
+    /// Persona role taxonomy. Defines the roles that pages can be tagged
+    /// with via their `personas:` field. Order determines display order in
+    /// the role-map component and nav filter.
+    #[serde(default)]
+    pub roles: Vec<Role>,
 }
 
 /// Brand voice configuration — tone, reading level, and terminology preferences.
@@ -1038,6 +1065,30 @@ pub struct Terminology {
     /// Terms to avoid entirely
     #[serde(default)]
     pub avoid: Vec<String>,
+}
+
+/// One role in the site's persona taxonomy.
+#[derive(Deserialize, Clone)]
+pub struct Role {
+    /// Machine identifier, matches values in page `personas:` fields.
+    pub id: String,
+    /// Human-readable label.
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+}
+
+/// One item in a `resources` component.
+#[derive(Deserialize)]
+pub struct ResourceItem {
+    pub title: String,
+    pub href: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub owner: Option<String>,
 }
 
 /// Site-wide background pattern. All variants are subtle by design.
@@ -1212,6 +1263,7 @@ impl Default for SiteConfig {
             url: None,
             og_image: None,
             voice: None,
+            roles: Vec::new(),
         }
     }
 }

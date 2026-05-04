@@ -196,6 +196,14 @@ fn nav_html(config: &SiteConfig, base: &str) -> (String, bool) {
     (out, true)
 }
 
+fn personas_attr(personas: &[String]) -> String {
+    if personas.is_empty() {
+        String::new()
+    } else {
+        format!(r#" data-personas="{}""#, esc(&personas.join(" ")))
+    }
+}
+
 fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
     match &link.children {
         Some(children) if !children.is_empty() => {
@@ -210,9 +218,10 @@ fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
                     .map(|h| resolve_href(h, base))
                     .unwrap_or_default();
                 dd.push_str(&format!(
-                    r#"<a href="{}" class="nav-link">{}</a>"#,
+                    r#"<a href="{}" class="nav-link"{personas}>{}</a>"#,
                     esc(&href),
-                    esc(&child.label)
+                    esc(&child.label),
+                    personas = personas_attr(&child.personas),
                 ));
             }
             dd.push_str("</div>");
@@ -220,9 +229,10 @@ fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
             // the dropdown via Tab + Enter. `focus-within` on the parent
             // keeps the panel open while focus is inside.
             format!(
-                r#"<div class="nav-link-group"><button type="button" class="nav-link nav-link-parent" aria-haspopup="true">{label}<span class="nav-chevron">▾</span></button>{dd}</div>"#,
+                r#"<div class="nav-link-group"{personas}><button type="button" class="nav-link nav-link-parent" aria-haspopup="true">{label}<span class="nav-chevron">▾</span></button>{dd}</div>"#,
                 label = esc(&link.label),
                 dd = dd,
+                personas = personas_attr(&link.personas),
             )
         }
         _ => {
@@ -232,9 +242,10 @@ fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
                 .map(|h| resolve_href(h, base))
                 .unwrap_or_default();
             format!(
-                r#"<a href="{}" class="nav-link">{}</a>"#,
+                r#"<a href="{}" class="nav-link"{personas}>{}</a>"#,
                 esc(&href),
-                esc(&link.label)
+                esc(&link.label),
+                personas = personas_attr(&link.personas),
             )
         }
     }
@@ -255,15 +266,17 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
         match &link.children {
             Some(children) if !children.is_empty() => {
                 out.push_str(&format!(
-                    r#"<div class="sidebar-section"><div class="sidebar-section-label">{}</div>"#,
-                    esc(&link.label)
+                    r#"<div class="sidebar-section"{personas}><div class="sidebar-section-label">{label}</div>"#,
+                    label = esc(&link.label),
+                    personas = personas_attr(&link.personas),
                 ));
                 for child in children {
                     match &child.children {
                         Some(grandchildren) if !grandchildren.is_empty() => {
                             out.push_str(&format!(
-                                r#"<div class="sidebar-subsection"><div class="sidebar-subsection-label">{}</div>"#,
-                                esc(&child.label)
+                                r#"<div class="sidebar-subsection"{personas}><div class="sidebar-subsection-label">{label}</div>"#,
+                                label = esc(&child.label),
+                                personas = personas_attr(&child.personas),
                             ));
                             for gc in grandchildren {
                                 let href = gc
@@ -272,9 +285,10 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
                                     .map(|h| resolve_href(h, base))
                                     .unwrap_or_default();
                                 out.push_str(&format!(
-                                    r#"<a href="{}" class="sidebar-link sidebar-link-nested">{}</a>"#,
+                                    r#"<a href="{}" class="sidebar-link sidebar-link-nested"{personas}>{}</a>"#,
                                     esc(&href),
-                                    esc(&gc.label)
+                                    esc(&gc.label),
+                                    personas = personas_attr(&gc.personas),
                                 ));
                             }
                             out.push_str("</div>");
@@ -286,9 +300,10 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
                                 .map(|h| resolve_href(h, base))
                                 .unwrap_or_default();
                             out.push_str(&format!(
-                                r#"<a href="{}" class="sidebar-link">{}</a>"#,
+                                r#"<a href="{}" class="sidebar-link"{personas}>{}</a>"#,
                                 esc(&href),
-                                esc(&child.label)
+                                esc(&child.label),
+                                personas = personas_attr(&child.personas),
                             ));
                         }
                     }
@@ -302,9 +317,10 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
                     .map(|h| resolve_href(h, base))
                     .unwrap_or_default();
                 out.push_str(&format!(
-                    r#"<a href="{}" class="sidebar-link sidebar-link-top">{}</a>"#,
+                    r#"<a href="{}" class="sidebar-link sidebar-link-top"{personas}>{}</a>"#,
                     esc(&href),
-                    esc(&link.label)
+                    esc(&link.label),
+                    personas = personas_attr(&link.personas),
                 ));
             }
         }

@@ -19,6 +19,7 @@ pub struct PageManifestEntry {
     pub components: Vec<String>,  // component type names used on this page
     pub freshness: Option<FreshnessManifest>,
     pub unlisted: bool,
+    pub personas: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -115,6 +116,7 @@ fn component_type_name(c: &Component) -> String {
         Component::Icon { .. } => "icon",
         Component::Chart { .. } => "chart",
         Component::Embed { .. } => "embed",
+        Component::Resources { .. } => "resources",
     }
     .to_string()
 }
@@ -125,6 +127,7 @@ pub fn freshness_manifest(f: &Freshness, today: &str) -> FreshnessManifest {
     let info = info_for(Some(f), today);
     let days_since_update = info.as_ref().and_then(|i| i.days_since_update());
     let status = match info.as_ref().map(|i| i.status()) {
+        Some(FreshnessStatus::Expired { .. }) => "expired",
         Some(FreshnessStatus::Overdue { .. }) => "overdue",
         Some(FreshnessStatus::DueSoon { .. }) => "due_soon",
         _ => "fresh",
@@ -148,17 +151,37 @@ pub fn write(out: &Path, config: &SiteConfig, entries: &[PageManifestEntry]) -> 
     // Build a thin wrapper struct so we can serialize name/theme/generated_at
     // alongside the borrowed entries slice without cloning all entries.
     #[derive(Serialize)]
+    struct RoleEntry<'a> {
+        id: &'a str,
+        label: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        description: Option<&'a str>,
+    }
+
+    #[derive(Serialize)]
     struct Manifest<'a> {
         name: &'a str,
         theme: Option<&'a str>,
         generated_at: String,
+        roles: Vec<RoleEntry<'a>>,
         pages: &'a [PageManifestEntry],
     }
+
+    let roles: Vec<RoleEntry<'_>> = config
+        .roles
+        .iter()
+        .map(|r| RoleEntry {
+            id: &r.id,
+            label: &r.label,
+            description: r.description.as_deref(),
+        })
+        .collect();
 
     let manifest = Manifest {
         name: &config.name,
         theme: config.theme.as_deref(),
         generated_at,
+        roles,
         pages: entries,
     };
 
@@ -278,6 +301,7 @@ mod tests {
             review_every: Some("30d".to_string()),
             owner: Some("alice".to_string()),
             sources_of_truth: None,
+            expires: None,
         };
         let fm = freshness_manifest(&f, "2026-03-01");
         assert_eq!(fm.status, "overdue");
@@ -293,6 +317,7 @@ mod tests {
             review_every: Some("90d".to_string()),
             owner: None,
             sources_of_truth: None,
+            expires: None,
         };
         let fm = freshness_manifest(&f, "2026-05-02");
         assert_eq!(fm.status, "fresh");
@@ -306,6 +331,7 @@ mod tests {
             review_every: Some("7d".to_string()),
             owner: None,
             sources_of_truth: None,
+            expires: None,
         };
         // Check json contains expected fields
         let fm = freshness_manifest(&f, "2026-04-20");

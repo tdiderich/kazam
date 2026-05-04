@@ -43,6 +43,7 @@ pub fn render_source_view(
         search_terms: Vec::new(),
         owner: None,
         references: Vec::new(),
+        personas: Vec::new(),
     };
 
     render_page(&synthetic, config, base, "", rel_path, release)
@@ -153,6 +154,15 @@ fn freshness_banner(page: &Page, base: &str) -> Option<String> {
                 if days_overdue == 1 { "day" } else { "days" }
             ),
         ),
+        FreshnessStatus::Expired { days_past_expiry } => (
+            "c-callout-danger c-freshness-banner--overdue",
+            "Page expired",
+            format!(
+                "This page expired <strong>{} {}</strong> ago and may no longer be relevant.",
+                days_past_expiry,
+                if days_past_expiry == 1 { "day" } else { "days" }
+            ),
+        ),
     };
 
     let updated_iso = freshness.updated.as_deref().unwrap_or("");
@@ -261,6 +271,7 @@ fn default_404_page() -> Page {
         search_terms: Vec::new(),
         owner: None,
         references: Vec::new(),
+        personas: Vec::new(),
     }
 }
 

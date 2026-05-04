@@ -663,7 +663,8 @@ fn validate_component(
         | Component::Avatar { .. }
         | Component::EmptyState { .. }
         | Component::Icon { .. }
-        | Component::Embed { .. } => {}
+        | Component::Embed { .. }
+        | Component::Resources { .. } => {}
     }
 }
 
@@ -819,6 +820,7 @@ mod tests {
             search_terms: Vec::new(),
             owner: None,
             references: Vec::new(),
+            personas: Vec::new(),
         }
     }
 
@@ -863,6 +865,7 @@ mod tests {
             search_terms: Vec::new(),
             owner: None,
             references: Vec::new(),
+            personas: Vec::new(),
         };
         let errors = validate_page("deck.yaml", &page);
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors.iter().map(|e| &e.message).collect::<Vec<_>>());
@@ -1013,6 +1016,7 @@ mod tests {
             review_every: None,
             owner: None,
             sources_of_truth: None,
+            expires: None,
         }));
         let errors = validate_page("test.yaml", &page);
         assert!(
@@ -1029,6 +1033,7 @@ mod tests {
             review_every: Some("once in a while".into()),
             owner: None,
             sources_of_truth: None,
+            expires: None,
         }));
         let errors = validate_page("test.yaml", &page);
         assert!(
@@ -1045,6 +1050,7 @@ mod tests {
             review_every: Some("quarterly".into()),
             owner: Some("team@example.com".into()),
             sources_of_truth: None,
+            expires: None,
         }));
         let errors = validate_page("test.yaml", &page);
         assert!(errors.is_empty(), "expected no errors for valid freshness");
