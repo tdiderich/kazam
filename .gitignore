@@ -9,3 +9,4 @@
 .gstack/
 .kazam/
 .claude/
+.env

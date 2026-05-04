@@ -13,7 +13,10 @@ import sys
 import urllib.request
 
 MCP_URL = os.environ.get("MCP_URL", "http://localhost:8090")
-OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+if not OPENROUTER_API_KEY:
+    print("Error: OPENROUTER_API_KEY is not set.", file=sys.stderr)
+    sys.exit(1)
 MODEL = os.environ.get("DOCS_MODEL", "anthropic/claude-sonnet-4")
 MAX_TURNS = 15
 
