@@ -670,7 +670,8 @@ fn validate_component(
         | Component::Icon { .. }
         | Component::Embed { .. }
         | Component::Resources { .. }
-        | Component::HeroBanner { .. } => {}
+        | Component::HeroBanner { .. }
+        | Component::RoleMap { .. } => {}
     }
 }
 

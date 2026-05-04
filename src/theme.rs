@@ -879,6 +879,36 @@ body.shell-deck .deck-arrow:hover { color: var(--teal); }
 }
 .c-meta-value { font-size: 15px; font-weight: 500; color: var(--snow); }
 
+/* Role Map */
+.c-role-map { margin: 2rem 0; }
+.c-role-map-title { font-size: 1.5rem; margin-bottom: 1rem; color: var(--text); }
+.c-role-map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+}
+.c-role-map-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--text-rgb), 0.1);
+  background: rgba(var(--text-rgb), 0.03);
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+.c-role-map-card:hover {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+  transform: translateY(-2px);
+}
+.c-role-map-icon { font-size: 1.5rem; }
+.c-role-map-label { font-size: 1.125rem; font-weight: 600; }
+.c-role-map-desc { font-size: 0.875rem; color: var(--text-muted); line-height: 1.4; }
+.c-role-map-empty { color: var(--text-muted); font-style: italic; }
+
 /* Card Grid */
 .c-card-grid { display: grid; gap: 20px; }
 .c-card-grid-arrow { display: flex; flex-direction: row; align-items: stretch; gap: 16px; grid-template-columns: unset !important; }

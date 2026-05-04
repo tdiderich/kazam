@@ -4,7 +4,7 @@ use super::{charts, esc, resolve_href, slug, Rendered};
 use crate::icons;
 use crate::types::*;
 
-pub fn render(c: &Component, base: &str) -> Rendered {
+pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
     match c {
         Component::Header {
             title,
@@ -51,19 +51,27 @@ pub fn render(c: &Component, base: &str) -> Rendered {
             links,
         } => callout(*variant, title, body, links.as_deref(), base),
         Component::Code { language, code } => code_block(language, code),
-        Component::Tabs { tabs } => tabs_component(tabs, base),
+        Component::Tabs { tabs } => tabs_component(tabs, base, config),
         Component::Section {
             heading,
             eyebrow,
             components,
             align,
             id,
-        } => section(heading, eyebrow, components, *align, id.as_deref(), base),
+        } => section(
+            heading,
+            eyebrow,
+            components,
+            *align,
+            id.as_deref(),
+            base,
+            config,
+        ),
         Component::Columns {
             columns,
             equal_heights,
-        } => columns_component(columns, *equal_heights, base),
-        Component::Accordion { items } => accordion(items, base),
+        } => columns_component(columns, *equal_heights, base, config),
+        Component::Accordion { items } => accordion(items, base, config),
         Component::EventTimeline {
             events,
             default_filter,
@@ -144,6 +152,7 @@ pub fn render(c: &Component, base: &str) -> Rendered {
             data,
             series,
         }),
+        Component::RoleMap { title } => role_map(title.as_deref(), config, base),
     }
 }
 
@@ -659,7 +668,7 @@ fn code_block(language: &Option<String>, code: &str) -> Rendered {
 
 // ── Tabs ──────────────────────────────────────────
 
-fn tabs_component(tabs: &[Tab], base: &str) -> Rendered {
+fn tabs_component(tabs: &[Tab], base: &str, config: &SiteConfig) -> Rendered {
     let mut body_html = String::from(r#"<div class="c-tabs" data-tabs>"#);
     body_html.push_str(r#"<div class="c-tab-buttons">"#);
     for tab in tabs {
@@ -674,7 +683,7 @@ fn tabs_component(tabs: &[Tab], base: &str) -> Rendered {
     for tab in tabs {
         body_html.push_str(r#"<div class="tab-panel">"#);
         for c in &tab.components {
-            let r = render(c, base);
+            let r = render(c, base, config);
             body_html.push_str(&r.html);
             scripts.extend(r.scripts);
         }
@@ -695,6 +704,7 @@ fn section(
     align: Align,
     id: Option<&str>,
     base: &str,
+    config: &SiteConfig,
 ) -> Rendered {
     let mut r = Rendered::default();
     let id_attr = match slug::resolve(id, heading.as_deref()) {
@@ -721,7 +731,7 @@ fn section(
         r.html.push_str("</div>");
     }
     for c in comps {
-        r.extend(render(c, base));
+        r.extend(render(c, base, config));
     }
     r.html.push_str("</section>");
     r
@@ -729,7 +739,12 @@ fn section(
 
 // ── Columns ───────────────────────────────────────
 
-fn columns_component(cols: &[Vec<Component>], equal_heights: bool, base: &str) -> Rendered {
+fn columns_component(
+    cols: &[Vec<Component>],
+    equal_heights: bool,
+    base: &str,
+    config: &SiteConfig,
+) -> Rendered {
     let mut r = Rendered::default();
     let class = if equal_heights {
         "c-columns c-columns-stretch"
@@ -743,7 +758,7 @@ fn columns_component(cols: &[Vec<Component>], equal_heights: bool, base: &str) -
     for col in cols {
         r.html.push_str(r#"<div class="c-column">"#);
         for c in col {
-            r.extend(render(c, base));
+            r.extend(render(c, base, config));
         }
         r.html.push_str("</div>");
     }
@@ -753,7 +768,7 @@ fn columns_component(cols: &[Vec<Component>], equal_heights: bool, base: &str) -
 
 // ── Accordion ─────────────────────────────────────
 
-fn accordion(items: &[AccordionItem], base: &str) -> Rendered {
+fn accordion(items: &[AccordionItem], base: &str, config: &SiteConfig) -> Rendered {
     let mut r = Rendered::default();
     r.html.push_str(r#"<div class="c-accordion">"#);
     for item in items {
@@ -765,7 +780,7 @@ fn accordion(items: &[AccordionItem], base: &str) -> Rendered {
         ));
         r.html.push_str(r#"<div class="accordion-body">"#);
         for c in &item.components {
-            r.extend(render(c, base));
+            r.extend(render(c, base, config));
         }
         r.html.push_str("</div></div>");
     }
@@ -1627,6 +1642,54 @@ fn icon_component(name: &str, size: IconSize, color: SemColor) -> Rendered {
         _ => color.hex().to_string(),
     };
     Rendered::new(icons::render(name, px, &color_value))
+}
+
+// ── Role Map ──────────────────────────────────────────
+
+fn role_map(title: Option<&str>, config: &SiteConfig, base: &str) -> Rendered {
+    let mut html = String::from(r#"<div class="c-role-map">"#);
+
+    if let Some(t) = title {
+        html.push_str(&format!(r#"<h2 class="c-role-map-title">{}</h2>"#, esc(t)));
+    }
+
+    html.push_str(r#"<div class="c-role-map-grid">"#);
+
+    if config.roles.is_empty() {
+        html.push_str(r#"<p class="c-role-map-empty">No roles defined. Add a <code>roles:</code> section to kazam.yaml.</p>"#);
+    } else {
+        for role in &config.roles {
+            let href = role
+                .href
+                .as_deref()
+                .map(|h| resolve_href(h, base))
+                .unwrap_or_else(|| format!("?role={}", esc(&role.id)));
+            html.push_str(&format!(
+                r#"<a class="c-role-map-card" href="{}">"#,
+                esc(&href)
+            ));
+            if let Some(icon) = &role.icon {
+                html.push_str(&format!(
+                    r#"<span class="c-role-map-icon">{}</span>"#,
+                    esc(icon)
+                ));
+            }
+            html.push_str(&format!(
+                r#"<span class="c-role-map-label">{}</span>"#,
+                esc(&role.label)
+            ));
+            if let Some(desc) = &role.description {
+                html.push_str(&format!(
+                    r#"<span class="c-role-map-desc">{}</span>"#,
+                    esc(desc)
+                ));
+            }
+            html.push_str("</a>");
+        }
+    }
+
+    html.push_str("</div></div>");
+    Rendered::new(html)
 }
 
 #[cfg(test)]

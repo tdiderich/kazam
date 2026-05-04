@@ -464,6 +464,12 @@ pub enum Component {
         #[serde(default)]
         series: Option<Vec<ChartSeries>>,
     },
+    /// Grid of role cards read from the site's `roles:` config in kazam.yaml.
+    /// Each card links to `?role=<id>` to activate persona filtering.
+    RoleMap {
+        #[serde(default)]
+        title: Option<String>,
+    },
 }
 
 // ── Supporting types ─────────────────────────────────
@@ -1112,7 +1118,6 @@ pub struct Terminology {
 
 /// One role in the site's persona taxonomy.
 #[derive(Deserialize, Clone)]
-#[allow(dead_code)]
 pub struct Role {
     /// Machine identifier, matches values in page `personas:` fields.
     pub id: String,
@@ -1122,6 +1127,10 @@ pub struct Role {
     pub description: Option<String>,
     #[serde(default)]
     pub icon: Option<String>,
+    /// Landing page for this role. Rendered as the card href in the role_map
+    /// component. When unset, the card links to `?role=<id>`.
+    #[serde(default)]
+    pub href: Option<String>,
 }
 
 /// One item in a `resources` component.
