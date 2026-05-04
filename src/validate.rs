@@ -409,7 +409,7 @@ fn validate_component(
             }
         }
 
-        Component::BeforeAfter { items } => {
+        Component::BeforeAfter { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -669,7 +669,8 @@ fn validate_component(
         | Component::EmptyState { .. }
         | Component::Icon { .. }
         | Component::Embed { .. }
-        | Component::Resources { .. } => {}
+        | Component::Resources { .. }
+        | Component::HeroBanner { .. } => {}
     }
 }
 

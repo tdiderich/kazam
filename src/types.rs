@@ -240,6 +240,12 @@ pub enum Component {
         #[serde(default)]
         id: Option<String>,
     },
+    HeroBanner {
+        title: String,
+        eyebrow: Option<String>,
+        subtitle: Option<String>,
+        buttons: Option<Vec<ButtonConfig>>,
+    },
     Meta {
         fields: Vec<MetaField>,
     },
@@ -267,6 +273,10 @@ pub enum Component {
     },
     BeforeAfter {
         items: Vec<BeforeAfterItem>,
+        #[serde(default)]
+        before_label: Option<String>,
+        #[serde(default)]
+        after_label: Option<String>,
     },
     Steps {
         items: Vec<Step>,
@@ -1026,11 +1036,10 @@ pub struct SiteConfig {
     /// from any subfolder page.
     #[serde(default)]
     pub logo: Option<Logo>,
-    /// When true, each page gets a companion `*.source.html` rendering of its
-    /// YAML source, and a "View source" pill links to it. Off by default —
-    /// useful for docs/examples sites, noise for most end-user sites.
+    /// Source pill with edit prompt, GitHub link, and source view. On by
+    /// default. Set `view_source: false` to opt out.
     #[serde(default)]
-    pub view_source: bool,
+    pub view_source: Option<bool>,
     /// Subtle background pattern painted behind every page. Tinted via the
     /// theme's `--text-rgb` so it stays consistent across light/dark.
     /// Defaults to `none`.
@@ -1057,6 +1066,8 @@ pub struct SiteConfig {
     /// about social unfurls.
     #[serde(default)]
     pub url: Option<String>,
+    #[serde(default)]
+    pub edit_url: Option<String>,
     /// Site-wide social card image (Open Graph + Twitter card). Path is
     /// resolved relative to the site root. 1200×630 PNG is the standard;
     /// SVG works on modern platforms. Optional.
@@ -1287,13 +1298,14 @@ impl Default for SiteConfig {
             nav: None,
             favicon: None,
             logo: None,
-            view_source: false,
+            view_source: None,
             texture: Texture::None,
             glow: Glow::None,
             nav_layout: NavLayout::Top,
             mode: Mode::Dark,
             description: None,
             url: None,
+            edit_url: None,
             og_image: None,
             voice: None,
             roles: Vec::new(),

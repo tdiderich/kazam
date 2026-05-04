@@ -824,6 +824,42 @@ body.shell-deck .deck-arrow:hover { color: var(--teal); }
 .c-header-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
 .c-header-subtitle { font-size: 14px; color: var(--light-muted); }
 
+/* Hero banner */
+.c-hero {
+  text-align: center;
+  padding: 64px 0 48px;
+}
+.c-hero-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+.c-hero-title {
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 auto 16px;
+  max-width: 720px;
+}
+.c-hero-subtitle {
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--light-muted);
+  max-width: 600px;
+  margin: 0 auto;
+}
+.c-hero-buttons {
+  margin-top: 32px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
 /* Meta */
 .c-meta {
   display: grid;
@@ -2076,11 +2112,14 @@ body.shell-document .doc-body strong { color: #fff; }
   display: inline-block;
 }
 
-/* View source link (bottom-right floating pill) */
-.view-source {
+/* Source pill (bottom-right floating dropdown) */
+.source-pill {
   position: fixed;
   bottom: 20px;
   right: 20px;
+  z-index: 50;
+}
+.source-pill-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2091,17 +2130,104 @@ body.shell-document .doc-body strong { color: #fff; }
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 100px;
-  text-decoration: none;
   backdrop-filter: blur(8px);
+  cursor: pointer;
   transition: all 0.15s;
-  z-index: 50;
+  font-family: inherit;
 }
-.view-source:hover {
+.source-pill-btn:hover {
   color: var(--teal);
   border-color: var(--card-hover-border);
 }
+.source-pill-btn svg:last-child {
+  width: 12px; height: 12px;
+  transition: transform 0.15s;
+}
+.source-pill[data-open] .source-pill-btn svg:last-child {
+  transform: rotate(180deg);
+}
+.source-pill-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: var(--bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 4px;
+  opacity: 0;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+  backdrop-filter: blur(12px);
+}
+.source-pill[data-open] .source-pill-menu {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.source-pill-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--light-muted);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s;
+}
+.source-pill-item:hover {
+  background: var(--overlay-hover);
+  color: var(--snow);
+}
+.source-pill-item svg { flex-shrink: 0; }
+.source-pill-copied {
+  color: var(--teal) !important;
+}
 @media print {
-  .view-source { display: none !important; }
+  .source-pill { display: none !important; }
+}
+
+/* Source editor (dev mode) */
+.source-edit-wrap { margin-top: 0; }
+.source-edit-textarea {
+  display: block;
+  width: 100%;
+  min-height: 400px;
+  background: var(--card-bg);
+  color: var(--snow);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 16px;
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+  tab-size: 2;
+  white-space: pre;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+.source-edit-textarea:focus {
+  outline: none;
+  border-color: var(--teal);
+}
+.source-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.source-edit-status {
+  font-size: 13px;
+  color: var(--light-muted);
 }
 
 /* ──────────────────── Print ──────────────────── */
@@ -2121,7 +2247,7 @@ body.shell-standard { page: standard-page; }
 
 @media print {
   .no-print { display: none !important; }
-  .view-source { display: none !important; }
+  .source-pill { display: none !important; }
 
   /* ── Shared: preserve accent colors, drop the site bar + sidebar ── */
   *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -2350,6 +2476,10 @@ body.shell-standard { page: standard-page; }
   /* Header type step-down. */
   .c-header-title { font-size: 26px; }
   .c-header-subtitle { font-size: 15px; }
+
+  .c-hero { padding: 40px 0 32px; }
+  .c-hero-title { font-size: 32px; }
+  .c-hero-subtitle { font-size: 15px; }
 
   /* Deck shell on phone: smallest step. Keeps slides legible without
      overflowing the viewport on vertical phone screens. */

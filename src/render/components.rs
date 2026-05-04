@@ -13,6 +13,12 @@ pub fn render(c: &Component, base: &str) -> Rendered {
             align,
             id,
         } => header(title, subtitle, eyebrow, *align, id.as_deref()),
+        Component::HeroBanner {
+            title,
+            eyebrow,
+            subtitle,
+            buttons,
+        } => hero_banner(title, eyebrow, subtitle, buttons.as_deref(), base),
         Component::Meta { fields } => meta(fields),
         Component::CardGrid {
             cards,
@@ -26,7 +32,7 @@ pub fn render(c: &Component, base: &str) -> Rendered {
         } => selectable_grid(cards, *interaction, *connector, base),
         Component::Timeline { items } => timeline(items),
         Component::StatGrid { stats, columns } => stat_grid(stats, *columns),
-        Component::BeforeAfter { items } => before_after(items),
+        Component::BeforeAfter { items, before_label, after_label } => before_after(items, before_label.as_deref(), after_label.as_deref()),
         Component::Steps { items, numbered } => steps(items, *numbered),
         Component::Markdown { body } => markdown(body, base),
         Component::Table {
@@ -167,6 +173,42 @@ fn header(
     ));
     if let Some(s) = subtitle {
         h.push_str(&format!(r#"<p class="c-header-subtitle">{}</p>"#, esc(s)));
+    }
+    h.push_str("</div>");
+    Rendered::new(h)
+}
+
+// ── Hero Banner ───────────────────────────────────
+
+fn hero_banner(
+    title: &str,
+    eyebrow: &Option<String>,
+    subtitle: &Option<String>,
+    buttons: Option<&[ButtonConfig]>,
+    base: &str,
+) -> Rendered {
+    let mut h = String::from(r#"<div class="c-hero">"#);
+    if let Some(e) = eyebrow {
+        h.push_str(&format!(
+            r#"<div class="c-hero-eyebrow">{}</div>"#,
+            esc(e)
+        ));
+    }
+    h.push_str(&format!(
+        r#"<h1 class="c-hero-title">{}</h1>"#,
+        esc(title)
+    ));
+    if let Some(s) = subtitle {
+        h.push_str(&format!(r#"<p class="c-hero-subtitle">{}</p>"#, esc(s)));
+    }
+    if let Some(btns) = buttons {
+        if !btns.is_empty() {
+            let inner = button_group(btns, base);
+            h.push_str(&format!(
+                r#"<div class="c-hero-buttons">{}</div>"#,
+                inner.html
+            ));
+        }
     }
     h.push_str("</div>");
     Rendered::new(h)
@@ -370,7 +412,9 @@ fn stat_grid(stats: &[Stat], columns: u32) -> Rendered {
 
 // ── Before / After ────────────────────────────────
 
-fn before_after(items: &[BeforeAfterItem]) -> Rendered {
+fn before_after(items: &[BeforeAfterItem], before_label: Option<&str>, after_label: Option<&str>) -> Rendered {
+    let bl = before_label.unwrap_or("Before");
+    let al = after_label.unwrap_or("Now");
     let mut h = String::from(r#"<div class="c-before-after">"#);
     for item in items {
         let ctx = item.after_context.as_deref().unwrap_or("");
@@ -382,11 +426,13 @@ fn before_after(items: &[BeforeAfterItem]) -> Rendered {
         h.push_str(&format!(
             r#"<div class="c-ba-card">
   <div class="c-ba-title">{title}</div>
-  <div class="c-ba-before">Before: {before}</div>
-  <div class="c-ba-after">Now: <span class="c-ba-highlight">{after}</span>{ctx}</div>
+  <div class="c-ba-before">{bl}: {before}</div>
+  <div class="c-ba-after">{al}: <span class="c-ba-highlight">{after}</span>{ctx}</div>
 </div>"#,
             title = esc(&item.title),
+            bl = esc(bl),
             before = parse_markdown_inline(&item.before),
+            al = esc(al),
             after = parse_markdown_inline(&item.after),
             ctx = ctx_span,
         ));

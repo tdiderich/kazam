@@ -195,13 +195,19 @@ pub fn run(
                 .map(|f| f.to_string_lossy().into_owned())
                 .unwrap_or_default();
 
-            // The "View source" pill + rendered source-view page are opt-in
-            // via `view_source: true` in kazam.yaml. Most sites don't need it;
-            // docs/examples sites do.
-            let source_view_href = if config.view_source {
-                format!("{}.source.html", source_stem)
-            } else {
+            // The source pill (bottom-right dropdown) is on by default.
+            // Opt out with `view_source: false` in kazam.yaml.
+            // source_view_href is the primary action link; empty = pill hidden.
+            let source_view_href = if config.view_source == Some(false) {
                 String::new()
+            } else if !release {
+                format!("{}.source.html", source_stem)
+            } else if let Some(ref edit_url) = config.edit_url {
+                let base = edit_url.trim_end_matches('/');
+                let yaml_path = rel.to_string_lossy();
+                format!("{}/{}", base, yaml_path)
+            } else {
+                format!("{}.source.html", source_stem)
             };
 
             // URL-shaped relative path for canonical / og:url meta. Always
@@ -212,8 +218,17 @@ pub fn run(
                 .replace('\\', "/");
             let source_rel = format!("{}.source.html", source_stem);
 
-            let mut html =
-                render::render_page(&page, &config, &base, &source_view_href, &html_rel, release);
+            let yaml_rel = rel.to_string_lossy();
+            let mut html = render::render_page(
+                &page,
+                &config,
+                &base,
+                &source_view_href,
+                &html_rel,
+                release,
+                &yaml_rel,
+                config.edit_url.as_deref(),
+            );
             if release {
                 html = minify::minify_html(&html);
             }
@@ -224,7 +239,7 @@ pub fn run(
             }
             fs::write(&out_path, html)?;
 
-            if config.view_source {
+            if config.view_source != Some(false) {
                 let mut source_view = render::render_source_view(
                     &page,
                     &config,
@@ -233,6 +248,7 @@ pub fn run(
                     &source_filename,
                     &source_rel,
                     release,
+                    &rel.to_string_lossy(),
                 );
                 if release {
                     source_view = minify::minify_html(&source_view);

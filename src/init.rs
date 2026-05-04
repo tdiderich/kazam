@@ -33,11 +33,16 @@ pub fn run(path: &str) -> Result<()> {
     fs::write(dir.join("AGENTS.md"), AGENTS_MD)?;
     fs::write(dir.join(".gitignore"), GITIGNORE)?;
 
+    if let Err(e) = crate::workspace::ensure(dir) {
+        eprintln!("  ⚠ workspace setup failed: {e:#}");
+    }
+
     println!("\n  ✓ Created {} with:", path);
     println!("    kazam.yaml       site config (name, theme, nav)");
     println!("    index.yaml       home page");
     println!("    AGENTS.md        LLM authoring guide");
     println!("    .gitignore");
+    println!("    .kazam/          workspace (anatomy index, task tracking)");
     println!();
     println!("  Next:");
     println!("    cd {}", path);
@@ -97,10 +102,14 @@ theme: dark
 #   height: 32               # caps rendered height; defaults to site-bar content
 #   alt: Your Company Name   # defaults to `name:` above
 
-# Opt-in: render a companion `<page>.source.html` for every page and show
-# a floating "View source" pill that links to it. Handy for docs/demo
-# sites. Off by default — most sites don't need it.
-# view_source: true
+# Source pill (bottom-right dropdown) is on by default. It offers
+# "Copy edit prompt" + "View source" for every page. Set to false
+# to hide it entirely.
+# view_source: false
+
+# Link the "Edit on GitHub" option in the source pill to your repo.
+# Each page's YAML path is appended automatically.
+# edit_url: https://github.com/your-org/your-repo/edit/main/docs
 
 # Subtle background pattern painted behind every page. Tinted via the
 # theme's text color so it adapts to dark/light. Off by default.

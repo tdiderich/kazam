@@ -428,6 +428,9 @@ pub mod standard {
         source_href: &str,
         rel_path: &str,
         release: bool,
+        yaml_path: &str,
+        page_title: &str,
+        edit_url: Option<&str>,
     ) -> String {
         let is_sidebar = matches!(config.nav_layout, crate::types::NavLayout::Sidebar);
         // Sidebar layout moves the full nav (including nested children) into
@@ -461,7 +464,10 @@ pub mod standard {
         if !release {
             scripts.push("reload");
         }
-        let view_src = view_source_html(source_href);
+        if !source_href.is_empty() {
+            scripts.push("source_pill");
+        }
+        let view_src = view_source_html(source_href, release, yaml_path, page_title, edit_url);
 
         let body_class = if is_sidebar {
             format!("{} nav-layout-sidebar", Shell::Standard.class())
@@ -507,6 +513,9 @@ pub mod document {
         source_href: &str,
         rel_path: &str,
         release: bool,
+        yaml_path: &str,
+        page_title: &str,
+        edit_url: Option<&str>,
     ) -> String {
         let mut right = subtitle_span(page);
         right.push_str(search_button());
@@ -518,7 +527,10 @@ pub mod document {
         if !release {
             scripts.push("reload");
         }
-        let view_src = view_source_html(source_href);
+        if !source_href.is_empty() {
+            scripts.push("source_pill");
+        }
+        let view_src = view_source_html(source_href, release, yaml_path, page_title, edit_url);
 
         format!(
             r#"<!DOCTYPE html>
@@ -595,6 +607,9 @@ pub mod deck {
         _source_href: &str,
         rel_path: &str,
         release: bool,
+        _yaml_path: &str,
+        _page_title: &str,
+        _edit_url: Option<&str>,
     ) -> String {
         let mut right = subtitle_span(page);
         right.push_str(
@@ -643,15 +658,107 @@ pub mod deck {
     }
 }
 
-fn view_source_html(source_href: &str) -> String {
+fn svg14(inner: &str) -> String {
+    format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{inner}</svg>"#,
+        inner = inner,
+    )
+}
+
+const ICON_PENCIL: &str = r#"<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>"#;
+const ICON_CLIPBOARD: &str = r#"<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>"#;
+const ICON_EXTERNAL: &str = r#"<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>"#;
+const ICON_CODE: &str = r#"<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>"#;
+const ICON_CHEVRON: &str = r#"<polyline points="6 9 12 15 18 9"/>"#;
+
+fn view_source_html(
+    source_href: &str,
+    release: bool,
+    yaml_path: &str,
+    page_title: &str,
+    edit_url: Option<&str>,
+) -> String {
     if source_href.is_empty() {
         return String::new();
     }
+
+    let github_href = edit_url.map(|u| {
+        let base = u.trim_end_matches('/');
+        format!("{}/{}", base, yaml_path)
+    });
+
+    let local_href = if !source_href.starts_with("http") {
+        Some(source_href)
+    } else {
+        None
+    };
+
+    let primary_label = if !release || github_href.is_some() {
+        "Edit"
+    } else {
+        "Source"
+    };
+
+    let prompt = format!(
+        "Edit the kazam page \u{201c}{}\u{201d} ({}): ",
+        esc(page_title),
+        esc(yaml_path),
+    );
+
+    let mut items = String::new();
+
+    // Copy edit prompt — always first
+    items.push_str(&format!(
+        r#"<button class="source-pill-item" role="menuitem" data-copy-prompt="{prompt}">{icon} Copy edit prompt</button>"#,
+        prompt = esc(&prompt),
+        icon = svg14(ICON_CLIPBOARD),
+    ));
+
+    // Edit on GitHub
+    if let Some(ref href) = github_href {
+        items.push_str(&format!(
+            r#"<a class="source-pill-item" role="menuitem" href="{href}" target="_blank" rel="noopener">{icon} Edit on GitHub</a>"#,
+            href = esc(href),
+            icon = svg14(ICON_EXTERNAL),
+        ));
+    }
+
+    // Edit page (dev mode local editor)
+    if !release {
+        if let Some(href) = local_href {
+            items.push_str(&format!(
+                r#"<a class="source-pill-item" role="menuitem" href="{href}">{icon} Edit page</a>"#,
+                href = esc(href),
+                icon = svg14(ICON_PENCIL),
+            ));
+        }
+    }
+
+    // View source (release mode, local .source.html)
+    if release {
+        if let Some(href) = local_href {
+            items.push_str(&format!(
+                r#"<a class="source-pill-item" role="menuitem" href="{href}">{icon} View source</a>"#,
+                href = esc(href),
+                icon = svg14(ICON_CODE),
+            ));
+        }
+    }
+
     format!(
-        r##"<a class="view-source" href="{src}" title="View raw YAML source">
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-  <span>View source</span>
-</a>"##,
-        src = esc(source_href)
+        r##"<div class="source-pill">
+<button class="source-pill-btn" aria-expanded="false" aria-haspopup="true">
+  {icon}
+  <span>{label}</span>
+  {caret}
+</button>
+<div class="source-pill-menu" role="menu">
+{items}
+</div>
+</div>"##,
+        icon = svg14(ICON_PENCIL),
+        label = primary_label,
+        caret = svg14(ICON_CHEVRON),
+        items = items,
     )
 }

@@ -66,9 +66,9 @@ fn build_docs_site() {
     assert_contains(&llms, "Content components");
     assert_contains(&llms, "Why kazam");
 
-    // Each page has a View source link
+    // Each page has the source pill
     let index = read(&out.join("index.html"));
-    assert_contains(&index, r#"class="view-source""#);
+    assert_contains(&index, r#"class="source-pill""#);
 
     // Source YAMLs copied next to rendered HTML
     assert!(out.join("components/content.yaml").exists());

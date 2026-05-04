@@ -10,6 +10,8 @@ pub fn get(name: &str) -> Option<&'static str> {
         "nav" => Some(NAV),
         "search" => Some(SEARCH),
         "reload" => Some(RELOAD),
+        "source_edit" => Some(SOURCE_EDIT),
+        "source_pill" => Some(SOURCE_PILL),
         _ => None,
     }
 }
@@ -418,5 +420,133 @@ const DECK: &str = r#"
   }
   window.addEventListener('load', fit);
   setTimeout(fit, 100);
+})();
+"#;
+
+const SOURCE_EDIT: &str = r#"
+(function () {
+  var marker = document.getElementById('kazam-source-edit');
+  if (!marker) return;
+  var path = marker.dataset.path;
+  var codeBlock = document.querySelector('.c-code');
+  if (!codeBlock) return;
+  var code = codeBlock.querySelector('code');
+  var yaml = code ? code.textContent : '';
+
+  var wrap = document.createElement('div');
+  wrap.className = 'source-edit-wrap';
+
+  var textarea = document.createElement('textarea');
+  textarea.className = 'source-edit-textarea';
+  textarea.value = yaml;
+  textarea.spellcheck = false;
+  textarea.setAttribute('autocorrect', 'off');
+  textarea.setAttribute('autocapitalize', 'off');
+
+  var bar = document.createElement('div');
+  bar.className = 'source-edit-bar';
+
+  var saveBtn = document.createElement('button');
+  saveBtn.className = 'c-button c-button-primary';
+  saveBtn.textContent = 'Save';
+
+  var status = document.createElement('span');
+  status.className = 'source-edit-status';
+
+  bar.appendChild(saveBtn);
+  bar.appendChild(status);
+  wrap.appendChild(bar);
+  wrap.appendChild(textarea);
+  codeBlock.parentNode.replaceChild(wrap, codeBlock);
+
+  function save() {
+    status.textContent = 'Saving…';
+    saveBtn.disabled = true;
+    fetch('/__kazam_write__', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: path, content: textarea.value })
+    })
+    .then(function (r) {
+      if (r.ok) { status.textContent = 'Saved'; }
+      else { r.text().then(function (t) { status.textContent = 'Error: ' + t; }); }
+      saveBtn.disabled = false;
+    })
+    .catch(function (e) {
+      status.textContent = 'Error: ' + e.message;
+      saveBtn.disabled = false;
+    });
+  }
+
+  saveBtn.addEventListener('click', save);
+
+  textarea.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+      e.preventDefault();
+      save();
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var start = textarea.selectionStart;
+      var end = textarea.selectionEnd;
+      textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
+      textarea.selectionStart = textarea.selectionEnd = start + 2;
+    }
+  });
+
+  function resize() {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.max(400, textarea.scrollHeight) + 'px';
+  }
+  textarea.addEventListener('input', resize);
+  resize();
+})();
+"#;
+
+const SOURCE_PILL: &str = r#"
+(function () {
+  var pill = document.querySelector('.source-pill');
+  if (!pill) return;
+  var btn = pill.querySelector('.source-pill-btn');
+
+  function toggle(open) {
+    if (open) {
+      pill.setAttribute('data-open', '');
+      btn.setAttribute('aria-expanded', 'true');
+    } else {
+      pill.removeAttribute('data-open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  }
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    toggle(!pill.hasAttribute('data-open'));
+  });
+
+  document.addEventListener('click', function (e) {
+    if (!pill.contains(e.target)) toggle(false);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') toggle(false);
+  });
+
+  pill.querySelectorAll('[data-copy-prompt]').forEach(function (item) {
+    var label = item.lastChild;
+    var origText = label.textContent;
+    item.addEventListener('click', function () {
+      var text = item.getAttribute('data-copy-prompt');
+      navigator.clipboard.writeText(text).then(function () {
+        item.classList.add('source-pill-copied');
+        label.textContent = ' Copied!';
+        setTimeout(function () {
+          label.textContent = origText;
+          item.classList.remove('source-pill-copied');
+        }, 1500);
+      });
+      toggle(false);
+    });
+  });
 })();
 "#;

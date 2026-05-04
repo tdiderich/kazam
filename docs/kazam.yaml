@@ -1,19 +1,27 @@
 name: kazam
 mode: dark
 favicon: /assets/favicon.svg
-view_source: true
+edit_url: https://github.com/tdiderich/kazam/edit/main/docs
 texture: dots
 glow: accent
+nav_layout: sidebar
 description: The AI-native knowledge base. YAML pages, freshness tracking, prompt templates, MCP server — one Rust binary, no dependencies.
 url: https://tdiderich.github.io/kazam
 og_image: /assets/og.svg
 nav:
   - label: Home
     href: /index.html
-  - label: Get Started
-    href: /guide.html
+  - label: Getting Started
+    children:
+      - label: Quickstart
+        href: /guide.html
+      - label: Authoring Guide
+        href: /about.html
+      - label: Themes
+        href: /themes.html
+      - label: Deploy
+        href: /deploy.html
   - label: Content
-    href: /freshness.html
     children:
       - label: Freshness
         href: /freshness.html
@@ -21,23 +29,15 @@ nav:
         href: /workflows.html
       - label: Wishes
         href: /wishes.html
-  - label: MCP
-    href: /mcp.html
-  - label: Workspace
-    href: /workspace.html
-  - label: Sites
-    href: /about.html
+  - label: Agent Tools
     children:
-      - label: Authoring Guide
-        href: /about.html
-      - label: Themes
-        href: /themes.html
-      - label: Deploy
-        href: /deploy.html
+      - label: MCP Server
+        href: /mcp.html
+      - label: Workspace
+        href: /workspace.html
   - label: Components
-    href: /components/index.html
     children:
-      - label: All components
+      - label: All Components
         href: /components/index.html
       - label: Content
         href: /components/content.html
@@ -53,3 +53,16 @@ nav:
         href: /components/layout.html
       - label: Navigation
         href: /components/navigation.html
+  - label: Examples
+    collapsed: true
+    children:
+      - label: Documentation
+        href: /examples/doc.html
+      - label: Deck
+        href: /examples/deck.html
+      - label: Brief
+        href: /examples/brief.html
+      - label: Dashboard
+        href: /examples/dashboard.html
+      - label: API from JSON
+        href: /examples/hackernews.html
