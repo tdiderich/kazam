@@ -50,7 +50,7 @@ pub fn tool_definitions() -> Vec<super::protocol::Tool> {
         },
         super::protocol::Tool {
             name: "search".into(),
-            description: "Simple text search across page YAML content. Returns an array of matches with file path, title, and matching line context.".into(),
+            description: "Text search across page YAML content (case-insensitive, literal match). Returns matches with file path, title, and line context. If a query returns no results, try synonyms or broader terms (e.g. 'family leave' instead of 'maternity', 'PTO' instead of 'vacation'). Also try list_pages to browse by directory.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
