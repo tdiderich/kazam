@@ -405,6 +405,8 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
         owner: None,
         references: Vec::new(),
         personas: Vec::new(),
+        archived: false,
+        draft: false,
     })
 }
 

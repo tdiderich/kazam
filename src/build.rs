@@ -240,10 +240,12 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
             let yaml_out = out.join(rel);
             fs::copy(path, &yaml_out)?;
 
-            // Collect metadata for llms.txt (unless marked unlisted)
+            // Collect metadata for llms.txt (unless marked unlisted or archived)
             let html_path_str = rel.with_extension("html").to_string_lossy().to_string();
             let yaml_path_str = rel.to_string_lossy().to_string();
-            if !page.unlisted {
+            let archived = page.is_archived(&today);
+            let excluded = page.unlisted || archived || page.draft;
+            if !excluded {
                 entries.push(PageEntry {
                     title: page.title.clone(),
                     subtitle: page.subtitle.clone(),
@@ -283,6 +285,8 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
                     components: page_components,
                     freshness: freshness_manifest,
                     unlisted: page.unlisted,
+                    archived,
+                    draft: page.draft,
                     personas: page.personas.clone(),
                 });
             }
@@ -294,7 +298,7 @@ pub fn run(dir: &Path, out: &Path, release: bool, allow_orphans: bool, json: boo
                 .replace('\\', "/");
             page_links.push(crate::links::collect_page_links(&html_rel_for_links, &page));
 
-            if !no_search && !page.unlisted {
+            if !no_search && !excluded {
                 search_entries.push(crate::search::entry_for(&html_rel_for_links, &page));
             }
 

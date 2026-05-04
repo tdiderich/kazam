@@ -19,6 +19,8 @@ pub struct PageManifestEntry {
     pub components: Vec<String>,  // component type names used on this page
     pub freshness: Option<FreshnessManifest>,
     pub unlisted: bool,
+    pub archived: bool,
+    pub draft: bool,
     pub personas: Vec<String>,
 }
 

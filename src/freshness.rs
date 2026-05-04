@@ -128,6 +128,39 @@ pub fn freshness_struct(fv: Option<&FreshnessValue>) -> Option<&Freshness> {
     fv?.as_full()
 }
 
+const DRAFT_STALE_DAYS: i64 = 30;
+
+/// True when the page's freshness metadata has an `expires` date that is
+/// in the past relative to `today_iso`. Used by `Page::is_archived()`.
+pub fn is_expired(f: Option<&Freshness>, today_iso: &str) -> bool {
+    let f = match f {
+        Some(f) => f,
+        None => return false,
+    };
+    let expires = match f.expires.as_deref().and_then(parse_iso_date) {
+        Some(d) => d,
+        None => return false,
+    };
+    let today = parse_iso_date(today_iso).unwrap_or(0);
+    today > expires
+}
+
+/// True when a draft page has gone 30+ days without an update. Drafts
+/// without an `updated` date are never auto-archived (they're timeless
+/// until someone sets a date).
+pub fn is_stale_draft(f: Option<&Freshness>, today_iso: &str) -> bool {
+    let f = match f {
+        Some(f) => f,
+        None => return false,
+    };
+    let updated = match f.updated.as_deref().and_then(parse_iso_date) {
+        Some(d) => d,
+        None => return false,
+    };
+    let today = parse_iso_date(today_iso).unwrap_or(0);
+    today - updated >= DRAFT_STALE_DAYS
+}
+
 // ── `kazam freshness` command ──────────────────────────────────────────────
 
 /// Run the `kazam freshness` command — walk `dir`, evaluate staleness for
@@ -596,6 +629,45 @@ mod tests {
         };
         let info = info_for(Some(&f), "2026-05-01").unwrap();
         assert!(matches!(info.status(), FreshnessStatus::Overdue { .. }));
+    }
+
+    #[test]
+    fn stale_draft_after_30_days() {
+        let f = Freshness {
+            updated: Some("2026-01-01".to_string()),
+            review_every: None,
+            owner: None,
+            sources_of_truth: None,
+            expires: None,
+        };
+        assert!(is_stale_draft(Some(&f), "2026-02-01"));
+        assert!(!is_stale_draft(Some(&f), "2026-01-20"));
+    }
+
+    #[test]
+    fn stale_draft_without_updated_is_not_stale() {
+        let f = Freshness {
+            updated: None,
+            review_every: None,
+            owner: None,
+            sources_of_truth: None,
+            expires: None,
+        };
+        assert!(!is_stale_draft(Some(&f), "2026-06-01"));
+    }
+
+    #[test]
+    fn is_expired_helper() {
+        let f = Freshness {
+            updated: None,
+            review_every: None,
+            owner: None,
+            sources_of_truth: None,
+            expires: Some("2026-03-01".to_string()),
+        };
+        assert!(is_expired(Some(&f), "2026-04-01"));
+        assert!(!is_expired(Some(&f), "2026-02-01"));
+        assert!(!is_expired(None, "2026-04-01"));
     }
 
     #[test]

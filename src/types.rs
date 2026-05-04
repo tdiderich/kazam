@@ -79,6 +79,33 @@ pub struct Page {
     /// visible to everyone. Used by nav filtering and role-map components.
     #[serde(default)]
     pub personas: Vec<String>,
+    /// Manually archive this page. Archived pages are still rendered (accessible
+    /// via direct URL) but excluded from nav, search, llms.txt, and sitemap.
+    /// A banner is injected at build time. Pages past their `freshness.expires`
+    /// date are auto-archived without needing this flag.
+    #[serde(default)]
+    pub archived: bool,
+    /// Mark this page as a draft. Drafts are excluded from nav, search,
+    /// llms.txt, and sitemap and get a "Draft" banner at build time.
+    /// Drafts that sit unchanged for 30+ days are auto-archived.
+    #[serde(default)]
+    pub draft: bool,
+}
+
+impl Page {
+    pub fn is_archived(&self, today: &str) -> bool {
+        if self.archived {
+            return true;
+        }
+        let freshness = self.freshness.as_ref().and_then(|fv| fv.as_full());
+        if crate::freshness::is_expired(freshness, today) {
+            return true;
+        }
+        if self.draft {
+            return crate::freshness::is_stale_draft(freshness, today);
+        }
+        false
+    }
 }
 
 /// Freshness value: either the bare string `"never"` (explicit opt-out —

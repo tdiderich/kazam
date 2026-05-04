@@ -326,6 +326,8 @@ mod tests {
             owner: None,
             references: Vec::new(),
             personas: Vec::new(),
+            archived: false,
+            draft: false,
         }
     }
 

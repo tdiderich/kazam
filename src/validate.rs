@@ -821,6 +821,8 @@ mod tests {
             owner: None,
             references: Vec::new(),
             personas: Vec::new(),
+            archived: false,
+            draft: false,
         }
     }
 
@@ -866,6 +868,8 @@ mod tests {
             owner: None,
             references: Vec::new(),
             personas: Vec::new(),
+            archived: false,
+            draft: false,
         };
         let errors = validate_page("deck.yaml", &page);
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors.iter().map(|e| &e.message).collect::<Vec<_>>());

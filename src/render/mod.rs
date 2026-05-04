@@ -44,6 +44,8 @@ pub fn render_source_view(
         owner: None,
         references: Vec::new(),
         personas: Vec::new(),
+        archived: false,
+        draft: false,
     };
 
     render_page(&synthetic, config, base, "", rel_path, release)
@@ -68,6 +70,16 @@ pub fn render_page(
     // at build time against `KAZAM_TODAY` or the system clock.
     if let Some(banner) = freshness_banner(page, base) {
         rendered.html.push_str(&banner);
+    }
+
+    if page.draft {
+        rendered.html.push_str(
+            r#"<div class="c-callout c-callout-info c-freshness-banner"><div class="c-callout-title">Draft</div><div class="c-callout-body">This page is a draft and is not yet published. It is excluded from search and navigation.</div></div>"#,
+        );
+    } else if page.archived && freshness_banner(page, base).is_none() {
+        rendered.html.push_str(
+            r#"<div class="c-callout c-callout-warn c-freshness-banner"><div class="c-callout-title">Archived</div><div class="c-callout-body">This page has been archived and is no longer maintained. It is excluded from search and navigation.</div></div>"#,
+        );
     }
 
     match page.shell {
@@ -272,6 +284,8 @@ fn default_404_page() -> Page {
         owner: None,
         references: Vec::new(),
         personas: Vec::new(),
+        archived: false,
+        draft: false,
     }
 }
 
