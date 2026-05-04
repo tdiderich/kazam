@@ -416,6 +416,52 @@ a.site-bar-brand:hover { opacity: 1; }
 }
 .site-bar-print-btn:hover { background: rgba(var(--accent-rgb), 0.08); border-color: rgba(var(--accent-rgb), 0.6); }
 
+.site-search-btn {
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid rgba(var(--text-rgb), 0.15);
+  border-radius: 6px; padding: 5px 8px; cursor: pointer;
+  color: rgba(var(--text-rgb), 0.5); transition: all 0.15s;
+}
+.site-search-btn:hover { color: var(--snow); border-color: rgba(var(--text-rgb), 0.3); background: rgba(var(--text-rgb), 0.06); }
+.site-search-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: min(20vh, 120px);
+}
+.site-search-overlay[hidden] { display: none; }
+.site-search-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.5); }
+.site-search-dialog {
+  position: relative; width: 90%; max-width: 560px;
+  background: var(--bg); border: 1px solid rgba(var(--text-rgb), 0.15);
+  border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+.site-search-input-wrap {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid rgba(var(--text-rgb), 0.1);
+}
+.site-search-icon { flex-shrink: 0; color: rgba(var(--text-rgb), 0.4); }
+.site-search-input {
+  flex: 1; background: none; border: none; outline: none;
+  font: inherit; font-size: 15px; color: var(--snow);
+}
+.site-search-input::placeholder { color: rgba(var(--text-rgb), 0.35); }
+.site-search-kbd {
+  font-size: 11px; font-family: inherit; color: rgba(var(--text-rgb), 0.35);
+  border: 1px solid rgba(var(--text-rgb), 0.15); border-radius: 4px;
+  padding: 2px 6px; flex-shrink: 0;
+}
+.site-search-results { max-height: 360px; overflow-y: auto; padding: 6px 0; }
+.site-search-hit {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 16px; text-decoration: none; color: var(--snow);
+  transition: background 0.1s;
+}
+.site-search-hit:hover, .site-search-hit-active { background: rgba(var(--accent-rgb), 0.1); }
+.site-search-hit-title { font-size: 14px; font-weight: 500; }
+.site-search-hit-desc { font-size: 12px; color: rgba(var(--text-rgb), 0.5); line-height: 1.4; }
+.site-search-empty { padding: 24px 16px; text-align: center; font-size: 13px; color: rgba(var(--text-rgb), 0.4); }
+
 .site-bar nav { display: flex; align-items: center; gap: 4px; }
 .site-bar .site-nav-links { display: flex; align-items: center; gap: 4px; }
 .site-bar .nav-menu-toggle {

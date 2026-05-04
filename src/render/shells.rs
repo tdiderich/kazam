@@ -329,6 +329,27 @@ fn sidebar_html(config: &SiteConfig, base: &str) -> String {
     out
 }
 
+fn search_button() -> &'static str {
+    r#"<button type="button" class="site-search-btn" aria-label="Search" title="Search (⌘K)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>"#
+}
+
+fn search_overlay(base: &str) -> String {
+    format!(
+        r#"<div class="site-search-overlay" id="site-search" hidden>
+<div class="site-search-backdrop"></div>
+<div class="site-search-dialog" role="dialog" aria-label="Search">
+<div class="site-search-input-wrap">
+<svg class="site-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+<input type="search" class="site-search-input" id="site-search-input" placeholder="Search pages..." autocomplete="off" data-base="{base}">
+<kbd class="site-search-kbd">esc</kbd>
+</div>
+<div class="site-search-results" id="site-search-results"></div>
+</div>
+</div>"#,
+        base = base,
+    )
+}
+
 fn site_bar(page: &Page, config: &SiteConfig, base: &str, right_html: &str) -> String {
     let home_href = resolve_href("/index.html", base);
     let eyebrow_html = page.eyebrow.as_deref()
@@ -415,7 +436,9 @@ pub mod standard {
         };
         let mut right = subtitle_span(page);
         right.push_str(&nav_in_bar);
+        right.push_str(search_button());
         let bar = site_bar(page, config, base, &right);
+        let search = search_overlay(base);
 
         let sidebar = if is_sidebar {
             sidebar_html(config, base)
@@ -427,6 +450,7 @@ pub mod standard {
         if has_nav {
             scripts.push("nav");
         }
+        scripts.push("search");
         if !release {
             scripts.push("reload");
         }
@@ -447,6 +471,7 @@ pub mod standard {
 {body}
 </main>
 {view_src}
+{search}
 {scripts}
 </body>
 </html>"#,
@@ -456,6 +481,7 @@ pub mod standard {
             sidebar = sidebar,
             body = body.html,
             view_src = view_src,
+            search = search,
             scripts = collect_scripts(&scripts),
         )
     }
@@ -475,9 +501,13 @@ pub mod document {
         rel_path: &str,
         release: bool,
     ) -> String {
-        let bar = site_bar(page, config, base, &subtitle_span(page));
+        let mut right = subtitle_span(page);
+        right.push_str(search_button());
+        let bar = site_bar(page, config, base, &right);
+        let search = search_overlay(base);
 
         let mut scripts = body.scripts.clone();
+        scripts.push("search");
         if !release {
             scripts.push("reload");
         }
@@ -497,6 +527,7 @@ pub mod document {
 </article>
 </div>
 {view_src}
+{search}
 {scripts}
 </body>
 </html>"#,
@@ -505,6 +536,7 @@ pub mod document {
             bar = bar,
             body = body.html,
             view_src = view_src,
+            search = search,
             scripts = collect_scripts(&scripts),
         )
     }
