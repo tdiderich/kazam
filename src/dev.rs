@@ -142,7 +142,12 @@ fn watch_loop(dir: PathBuf, out: PathBuf, version: Arc<AtomicU64>) {
 
 // ── Request handler ──────────────────────────────
 
-fn handle(req: tiny_http::Request, root: &Path, version: &AtomicU64, source_dir: &Path) -> Result<()> {
+fn handle(
+    req: tiny_http::Request,
+    root: &Path,
+    version: &AtomicU64,
+    source_dir: &Path,
+) -> Result<()> {
     let url = req.url().split('?').next().unwrap_or("/");
 
     if req.method() == &Method::Post && url == "/__kazam_write__" {
@@ -219,8 +224,7 @@ fn handle_write(mut req: tiny_http::Request, source_dir: &Path) -> Result<()> {
         .read_to_string(&mut body)
         .context("read body")?;
 
-    let parsed: serde_json::Value =
-        serde_json::from_str(&body).context("parse JSON")?;
+    let parsed: serde_json::Value = serde_json::from_str(&body).context("parse JSON")?;
 
     let path = parsed["path"]
         .as_str()

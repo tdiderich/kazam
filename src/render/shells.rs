@@ -665,10 +665,12 @@ fn svg14(inner: &str) -> String {
     )
 }
 
-const ICON_PENCIL: &str = r#"<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>"#;
+const ICON_PENCIL: &str =
+    r#"<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>"#;
 const ICON_CLIPBOARD: &str = r#"<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>"#;
 const ICON_EXTERNAL: &str = r#"<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>"#;
-const ICON_CODE: &str = r#"<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>"#;
+const ICON_CODE: &str =
+    r#"<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>"#;
 const ICON_CHEVRON: &str = r#"<polyline points="6 9 12 15 18 9"/>"#;
 
 fn view_source_html(

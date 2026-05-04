@@ -32,7 +32,11 @@ pub fn render(c: &Component, base: &str) -> Rendered {
         } => selectable_grid(cards, *interaction, *connector, base),
         Component::Timeline { items } => timeline(items),
         Component::StatGrid { stats, columns } => stat_grid(stats, *columns),
-        Component::BeforeAfter { items, before_label, after_label } => before_after(items, before_label.as_deref(), after_label.as_deref()),
+        Component::BeforeAfter {
+            items,
+            before_label,
+            after_label,
+        } => before_after(items, before_label.as_deref(), after_label.as_deref()),
         Component::Steps { items, numbered } => steps(items, *numbered),
         Component::Markdown { body } => markdown(body, base),
         Component::Table {
@@ -189,15 +193,9 @@ fn hero_banner(
 ) -> Rendered {
     let mut h = String::from(r#"<div class="c-hero">"#);
     if let Some(e) = eyebrow {
-        h.push_str(&format!(
-            r#"<div class="c-hero-eyebrow">{}</div>"#,
-            esc(e)
-        ));
+        h.push_str(&format!(r#"<div class="c-hero-eyebrow">{}</div>"#, esc(e)));
     }
-    h.push_str(&format!(
-        r#"<h1 class="c-hero-title">{}</h1>"#,
-        esc(title)
-    ));
+    h.push_str(&format!(r#"<h1 class="c-hero-title">{}</h1>"#, esc(title)));
     if let Some(s) = subtitle {
         h.push_str(&format!(r#"<p class="c-hero-subtitle">{}</p>"#, esc(s)));
     }
@@ -412,7 +410,11 @@ fn stat_grid(stats: &[Stat], columns: u32) -> Rendered {
 
 // ── Before / After ────────────────────────────────
 
-fn before_after(items: &[BeforeAfterItem], before_label: Option<&str>, after_label: Option<&str>) -> Rendered {
+fn before_after(
+    items: &[BeforeAfterItem],
+    before_label: Option<&str>,
+    after_label: Option<&str>,
+) -> Rendered {
     let bl = before_label.unwrap_or("Before");
     let al = after_label.unwrap_or("Now");
     let mut h = String::from(r#"<div class="c-before-after">"#);

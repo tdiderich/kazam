@@ -57,7 +57,9 @@ pub fn run(project: &Path, port: u16) -> Result<()> {
 
 fn generate_html(project: &Path, config: &SiteConfig) -> Result<String> {
     let page = generate_page(project, config)?;
-    Ok(render::render_page(&page, config, "", "", "", false, "", None))
+    Ok(render::render_page(
+        &page, config, "", "", "", false, "", None,
+    ))
 }
 
 fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {

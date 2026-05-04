@@ -66,7 +66,18 @@ pub fn render_source_view(
         draft: false,
     };
 
-    shells::standard::wrap(&synthetic, config, rendered, base, "", rel_path, release, "", &synthetic.title, None)
+    shells::standard::wrap(
+        &synthetic,
+        config,
+        rendered,
+        base,
+        "",
+        rel_path,
+        release,
+        "",
+        &synthetic.title,
+        None,
+    )
 }
 
 pub fn render_page(
