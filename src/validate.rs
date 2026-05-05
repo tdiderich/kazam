@@ -831,6 +831,8 @@ mod tests {
             personas: Vec::new(),
             archived: false,
             draft: false,
+            nav_layout: None,
+            nav: None,
         }
     }
 
@@ -882,6 +884,8 @@ mod tests {
             personas: Vec::new(),
             archived: false,
             draft: false,
+            nav_layout: None,
+            nav: None,
         };
         let errors = validate_page("deck.yaml", &page);
         assert!(
