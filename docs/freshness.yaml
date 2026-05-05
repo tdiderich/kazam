@@ -203,6 +203,62 @@ components:
           stale pages will produce the file; a clean build leaves it absent.
 
   - type: section
+    eyebrow: Health dashboard
+    heading: "_health.html — site-wide freshness at a glance"
+    components:
+      - type: markdown
+        body: |
+          `kazam build` generates `_health.html` alongside your site pages. It's an operational
+          summary of freshness state across the entire site — not a content page, not in nav,
+          not in search, not in `llms.txt`.
+
+      - type: stat_grid
+        columns: 4
+        stats:
+          - label: Total pages
+            value: Count
+            detail: Every page built in the last run.
+          - label: Fresh
+            value: Green
+            detail: Past the review deadline by more than 7 days.
+          - label: Due soon
+            value: Yellow
+            detail: Within 7 days of the deadline.
+          - label: Overdue
+            value: Red
+            detail: Past the deadline.
+
+      - type: markdown
+        body: |
+          The dashboard contains:
+
+          - **Stat grid** — total pages, fresh, due soon, overdue counts
+          - **Progress bar** — percentage of pages that carry any freshness metadata at all
+          - **Overdue table** — sorted by days overdue, filterable; each row links to the page
+          - **Due-soon table** — same shape, lighter urgency
+          - **Ownership summary** — pages per owner grouped by status, so you can see whose
+            section of the KB is drifting
+
+          The page is assembled programmatically during the build using the same component
+          system as any kazam page — stat grids, tables, the works.
+
+      - type: code
+        language: bash
+        code: |
+          kazam build . --out _site
+          # _site/_health.html — freshness dashboard
+          # _site/stale.md — machine-readable staleness manifest
+
+      - type: markdown
+        body: |
+          To opt out:
+
+      - type: code
+        language: bash
+        code: |
+          kazam build . --out _site --no-health
+
+  - type: section
     eyebrow: Sibling check
     heading: The link graph
     components:

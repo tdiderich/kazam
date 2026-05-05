@@ -288,6 +288,42 @@ components:
               - term: SLA
                 definition: Service level agreement.
 
+  # ── role_map ───────────────────────────────
+  - type: section
+    eyebrow: role_map
+    heading: Persona jump-point grid
+    components:
+      - type: markdown
+        body: |
+          Renders the `roles:` config from `kazam.yaml` as a grid of clickable cards.
+          Each role becomes a card with label, description, and optional icon. Add `href`
+          to each role in your site config to make the cards link to section landing pages.
+          No per-page configuration needed — it reads directly from the site config.
+
+      - type: code
+        language: yaml
+        code: |
+          - type: role_map
+            title: Browse by team    # optional heading above the grid
+
+      - type: markdown
+        body: "What the roles look like in `kazam.yaml`:"
+
+      - type: code
+        language: yaml
+        code: |
+          # In kazam.yaml
+          roles:
+            - id: engineering
+              label: Engineering
+              description: "Dev setup, infrastructure, workflows"
+              icon: code          # optional
+              href: /engineering  # optional — makes the card clickable
+            - id: ops
+              label: Ops
+              description: "People ops, hiring, admin"
+              href: /ops
+
   - type: callout
     variant: info
     title: Next up

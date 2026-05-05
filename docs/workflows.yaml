@@ -426,3 +426,31 @@ components:
             use: Generate onboarding pages from a role description and team wiki
           - name: incident
             use: Capture incident timelines and action items in standard format
+
+  # ── sync-roles ────────────────────────────
+  - type: section
+    eyebrow: sync-roles
+    heading: Sync roles from your team directory
+    components:
+      - type: markdown
+        body: |
+          The `sync-roles` prompt reads your team directory via Gmail + Slack MCPs (or a
+          Google Directory MCP) and updates the `roles:` block in `kazam.yaml` to match
+          your actual org. It also generates an org chart page using the Tree component.
+
+          **Requires:** Gmail MCP and Slack MCP (or Google Directory MCP). The template
+          will not run with partial data sources — both must be configured and accessible.
+
+      - type: code
+        language: bash
+        code: |
+          kazam prompt show sync-roles | claude -p
+
+      - type: markdown
+        body: |
+          The command produces two outputs:
+
+          - **Updated roles config** — overwrites the `roles:` block in `kazam.yaml` with
+            ids, labels, descriptions, and hrefs derived from your directory.
+          - **Org chart page** — generates or refreshes a YAML page using the Tree component
+            so the structure is immediately browsable on your site.

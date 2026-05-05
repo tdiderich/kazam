@@ -22,22 +22,41 @@ components:
         before_label: "Current"
         after_label: "With kazam"
         items:
-          - title: Ownership
-            before: Nobody owns the onboarding doc. It was last updated by someone who left six months ago.
+          - title: Nobody owns the onboarding doc
+            before: It was last updated by someone who left six months ago.
             after: Every page declares an owner and review cadence.
             after_context: Stale content shows up in every build.
-          - title: Staleness
-            before: The API docs say v2 but you shipped v4. A customer files a ticket before anyone notices.
+          - title: Your API docs say v2 but you shipped v4
+            before: A customer files a ticket before anyone notices.
             after: Build-time banners flag overdue content.
             after_context: "`stale.md` tells your agent exactly what to fix."
-          - title: Agent access
-            before: Your AI agent burns tokens running `find` and `grep` trying to figure out where content lives.
+          - title: Your AI agent burns tokens just finding content
+            before: Running `find` and `grep` across a wiki export, parsing HTML, guessing at structure.
             after: MCP server with five tools.
             after_context: Agents read, search, and write pages directly.
-          - title: Toolchain
-            before: Node, React, MDX, a build pipeline, three config files, and a prayer.
+          - title: Node, React, MDX, three config files, and a prayer
+            before: Your static site toolchain has more dependencies than your product.
             after: One Rust binary.
             after_context: "`brew install`, point at a folder, ship HTML."
+
+  - type: section
+    heading: Built for your role
+    components:
+      - type: columns
+        equal_heights: true
+        columns:
+          - - type: callout
+              variant: info
+              title: Engineering lead
+              body: "Your team just hit 30 and the onboarding guide was last verified by someone who left in Q2. kazam gives you a health dashboard that shows exactly which docs are decaying and who owns them — so you manage knowledge debt the same way you manage tech debt."
+          - - type: callout
+              variant: info
+              title: Ops / People lead
+              body: "You maintain 50 policy docs and have no idea which ones are still current. kazam tracks owners and review cadence per page, then generates a stale report every build. Monday morning, you know exactly what needs a refresh."
+          - - type: callout
+              variant: info
+              title: Technical founder
+              body: "You're building an AI-native company and your agents can't read your wiki. kazam ships a native MCP server — your coding agents get structured access to your knowledge base instead of scraping HTML and guessing at structure."
 
   - type: section
     heading: See it in action
@@ -67,6 +86,24 @@ components:
             links:
               - label: See example →
                 href: examples/dashboard.html
+
+  - type: section
+    heading: Audit your docs in 30 seconds
+    components:
+      - type: markdown
+        body: |
+          Already have a kazam site? Run `freshness show` to see what's stale
+          right now — no build needed.
+
+      - type: code
+        language: bash
+        code: |
+          kazam freshness show path/to/site
+
+      - type: markdown
+        body: |
+          You'll get a list of every overdue and due-soon page, grouped by owner.
+          Hand the output to your agent or use it to prioritize your next review cycle.
 
   - type: section
     heading: Get started

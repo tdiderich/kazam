@@ -8,9 +8,9 @@ YAML pages with freshness tracking, prompt templates, and an MCP server — so y
 
 ## Why
 
-Docs go stale. Nobody knows which ones. Refreshing them is manual work that doesn't happen.
+Every company has docs that were true when someone wrote them. Nobody owns them now. Nobody knows which ones are wrong. Your AI agent can't read your wiki without burning tokens on `find` and `grep`. Your doc toolchain has more dependencies than your product.
 
-kazam treats content as structured data: YAML pages with explicit owners, review cadence, and sources of truth. Freshness metadata travels with the content. Build-time banners surface stale pages. Prompt templates give agents a standardized way to create, review, and refresh — so "keep docs current" becomes a workflow, not a wish.
+kazam fixes this with structured YAML pages, not wiki pages. Every page can declare an owner, review cadence, and sources of truth. The build flags what's overdue — yellow banners for due-soon, red for stale, a `stale.md` manifest your agent can act on, and a `_health.html` dashboard showing freshness across the whole site. An MCP server gives agents direct read/search/write access to your knowledge base. Prompt templates standardize the content lifecycle. One Rust binary, static HTML out, host anywhere.
 
 ## Capabilities
 
