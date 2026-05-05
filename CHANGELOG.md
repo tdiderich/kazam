@@ -6,6 +6,33 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-05-04
+
+### Added
+- **`role_map` component** — renders `roles:` from kazam.yaml as clickable
+  jump-point cards. Roles gain an optional `href` field for navigation.
+- **Health dashboard** — `kazam build` now generates `_health.html` with
+  freshness stats (StatGrid, ProgressBar), overdue/due-soon tables, and
+  ownership summary. Opt out with `--no-health`.
+- **`sync-roles` prompt template** — reusable prompt that syncs roles and
+  generates an org chart from Gmail+Slack or Google Directory MCPs.
+- **Template variables in prompts** — `kazam prompt show` expands `{{config}}`
+  and other variables before output.
+
+### Changed
+- **Search scoring overhaul** — word-boundary detection, tiered field bonuses
+  (title +10, search_terms +8, headings +5, description +3), match context
+  snippets shown in results instead of default description.
+- **Freshness-aware search ranking** — overdue pages penalized (-3), expired
+  pages penalized (-5). New `freshness_status` field in search.json.
+- **Persona-aware search filtering** — `?role=X` URL param filters results
+  to pages matching that persona.
+
+### Fixed
+- **Tree collapse** — toggle JS now loads for all trees with children, not
+  only those with filter toggles. Fixes non-functional chevrons on plain
+  trees like org charts.
+
 ## [1.3.1] — 2026-05-01
 
 ### Changed
