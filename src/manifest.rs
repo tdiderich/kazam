@@ -123,6 +123,7 @@ fn component_type_name(c: &Component) -> String {
         Component::Resources { .. } => "resources",
         Component::HeroBanner { .. } => "hero_banner",
         Component::RoleMap { .. } => "role_map",
+        Component::SplitCompare { .. } => "split_compare",
     }
     .to_string()
 }

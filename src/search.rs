@@ -221,7 +221,8 @@ fn extract_searchable_text(
             | Component::Icon { .. }
             | Component::Tree { .. }
             | Component::HeroBanner { .. }
-            | Component::RoleMap { .. } => {}
+            | Component::RoleMap { .. }
+            | Component::SplitCompare { .. } => {}
         }
     }
 }

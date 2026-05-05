@@ -278,6 +278,10 @@ pub enum Component {
         #[serde(default)]
         after_label: Option<String>,
     },
+    SplitCompare {
+        left: ComparePanel,
+        right: ComparePanel,
+    },
     Steps {
         items: Vec<Step>,
         #[serde(default = "default_true")]
@@ -596,6 +600,22 @@ pub struct BeforeAfterItem {
     pub before: String,
     pub after: String,
     pub after_context: Option<String>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct ComparePanel {
+    #[serde(default)]
+    pub eyebrow: Option<String>,
+    pub title: String,
+    pub stats: Vec<CompareStat>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct CompareStat {
+    pub label: String,
+    pub value: String,
+    #[serde(default)]
+    pub color: SemColor,
 }
 
 #[derive(Deserialize)]

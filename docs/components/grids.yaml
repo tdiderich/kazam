@@ -13,7 +13,7 @@ components:
   - type: header
     title: Grid components
     eyebrow: Reference
-    subtitle: card_grid, stat_grid, selectable_grid, before_after, avatar_group, definition_list
+    subtitle: card_grid, stat_grid, selectable_grid, before_after, split_compare, avatar_group, definition_list, role_map
 
   # ── card_grid ─────────────────────────────
   - type: section
@@ -228,6 +228,65 @@ components:
             src: /avatars/sarah.png   # optional image
             size: md                  # sm | md | lg | xl
             subtitle: VP Engineering  # optional inline text
+
+  # ── split_compare ────────────────────────────
+  - type: section
+    eyebrow: split_compare
+    heading: Side-by-side comparison panel
+    components:
+      - type: markdown
+        body: |
+          Two panels side by side — left for the current/bad state, right for the
+          improved state. Each panel has an optional eyebrow, a headline, and a list
+          of stat rows with colored values. Good for landing pages, before/after
+          comparisons, and competitive positioning.
+
+      - type: split_compare
+        left:
+          eyebrow: BEFORE
+          title: Manual review cycles
+          stats:
+            - label: Freshness tracking
+              value: hope-based
+              color: red
+            - label: Ownership
+              value: unclear
+              color: yellow
+            - label: Agent access
+              value: scrape HTML
+              color: red
+        right:
+          eyebrow: AFTER
+          title: Deterministic audits
+          stats:
+            - label: Freshness tracking
+              value: build-time checks
+              color: green
+            - label: Ownership
+              value: declared per page
+              color: green
+            - label: Agent access
+              value: MCP server
+              color: teal
+
+      - type: code
+        language: yaml
+        code: |
+          - type: split_compare
+            left:
+              eyebrow: BEFORE       # optional — uppercase label above title
+              title: Manual review cycles
+              stats:
+                - label: Freshness tracking
+                  value: hope-based
+                  color: red        # default | green | yellow | red | teal
+            right:
+              eyebrow: AFTER
+              title: Deterministic audits
+              stats:
+                - label: Freshness tracking
+                  value: build-time checks
+                  color: green
 
   # ── avatar_group ───────────────────────────
   - type: section

@@ -671,7 +671,8 @@ fn validate_component(
         | Component::Embed { .. }
         | Component::Resources { .. }
         | Component::HeroBanner { .. }
-        | Component::RoleMap { .. } => {}
+        | Component::RoleMap { .. }
+        | Component::SplitCompare { .. } => {}
     }
 }
 

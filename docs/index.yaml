@@ -18,26 +18,73 @@ components:
   - type: section
     heading: Sound familiar?
     components:
-      - type: before_after
-        before_label: "Current"
-        after_label: "With kazam"
-        items:
-          - title: Nobody owns the onboarding doc
-            before: It was last updated by someone who left six months ago.
-            after: Every page declares an owner and review cadence.
-            after_context: Stale content shows up in every build.
-          - title: Your API docs say v2 but you shipped v4
-            before: A customer files a ticket before anyone notices.
-            after: Build-time banners flag overdue content.
-            after_context: "`stale.md` tells your agent exactly what to fix."
-          - title: Your AI agent burns tokens just finding content
-            before: Running `find` and `grep` across a wiki export, parsing HTML, guessing at structure.
-            after: MCP server with five tools.
-            after_context: Agents read, search, and write pages directly.
-          - title: Node, React, MDX, three config files, and a prayer
-            before: Your static site toolchain has more dependencies than your product.
-            after: One Rust binary.
-            after_context: "`brew install`, point at a folder, ship HTML."
+      - type: split_compare
+        left:
+          eyebrow: TODAY
+          title: Nobody owns the onboarding doc
+          stats:
+            - label: Last verified
+              value: 6 months ago
+              color: red
+            - label: Owner
+              value: "someone who left"
+              color: red
+            - label: Review cadence
+              value: none
+              color: yellow
+            - label: Staleness detection
+              value: hope-based
+              color: red
+        right:
+          eyebrow: WITH KAZAM
+          title: Freshness is a first-class primitive
+          stats:
+            - label: Last verified
+              value: build-time check
+              color: green
+            - label: Owner
+              value: declared per page
+              color: green
+            - label: Review cadence
+              value: 30d / 90d / quarterly
+              color: green
+            - label: Staleness detection
+              value: deterministic
+              color: teal
+
+      - type: split_compare
+        left:
+          eyebrow: TODAY
+          title: Your agent burns tokens finding content
+          stats:
+            - label: Access method
+              value: scrape HTML
+              color: red
+            - label: Content model
+              value: freeform blocks
+              color: yellow
+            - label: Agent workflows
+              value: ad-hoc prompting
+              color: yellow
+            - label: Toolchain
+              value: Node + React + MDX
+              color: red
+        right:
+          eyebrow: WITH KAZAM
+          title: Agents read structured YAML directly
+          stats:
+            - label: Access method
+              value: MCP server — 5 tools
+              color: green
+            - label: Content model
+              value: typed YAML components
+              color: green
+            - label: Agent workflows
+              value: prompt templates
+              color: green
+            - label: Toolchain
+              value: one Rust binary
+              color: teal
 
   - type: section
     heading: Built for your role
