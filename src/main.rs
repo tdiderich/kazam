@@ -59,6 +59,9 @@ enum Command {
         /// Skip emitting search.json index
         #[arg(long)]
         no_search: bool,
+        /// Skip emitting _health.html health dashboard
+        #[arg(long)]
+        no_health: bool,
     },
     /// Watch source, rebuild on change, serve at localhost:PORT
     Dev {
@@ -189,6 +192,7 @@ fn main() -> Result<()> {
             json,
             no_manifest,
             no_search,
+            no_health,
         } => build::run(
             &dir,
             &out,
@@ -197,6 +201,7 @@ fn main() -> Result<()> {
             json,
             no_manifest,
             no_search,
+            no_health,
         ),
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),

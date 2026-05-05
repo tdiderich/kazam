@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
@@ -7,7 +8,9 @@ use crate::llms::{self, PageEntry};
 use crate::manifest::{self, PageManifestEntry};
 use crate::minify;
 use crate::render;
-use crate::types::{Page, SiteConfig};
+use crate::types::{
+    Align, CalloutVariant, Component, Page, SemColor, Shell, SiteConfig, Stat, TableColumn,
+};
 
 #[derive(serde::Serialize)]
 #[serde(tag = "event")]
@@ -71,6 +74,7 @@ fn emit_json(event: &BuildEvent) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     dir: &Path,
     out: &Path,
@@ -79,6 +83,7 @@ pub fn run(
     json: bool,
     no_manifest: bool,
     no_search: bool,
+    no_health: bool,
 ) -> Result<()> {
     let start = std::time::Instant::now();
     let config = load_config(dir)?;
@@ -464,6 +469,17 @@ pub fn run(
     }
     crate::links::write_report_md(out, &report)?;
 
+    if !no_health {
+        generate_health_page(
+            out,
+            &config,
+            &stale_pages,
+            &manifest_entries,
+            &today,
+            release,
+        )?;
+    }
+
     if json {
         let duration_ms = start.elapsed().as_millis() as u64;
         emit_json(&BuildEvent::BuildComplete {
@@ -691,6 +707,376 @@ fn print_freshness_report(stale: &[StaleEntry]) {
             );
         }
     }
+}
+
+fn generate_health_page(
+    out: &Path,
+    config: &SiteConfig,
+    stale_pages: &[StaleEntry],
+    manifest_entries: &[PageManifestEntry],
+    today: &str,
+    release: bool,
+) -> Result<()> {
+    use crate::freshness::FreshnessStatus;
+
+    let total = manifest_entries.len();
+    let pages_with_freshness = manifest_entries
+        .iter()
+        .filter(|e| e.freshness.is_some())
+        .count();
+    let freshness_pct = if total > 0 {
+        ((pages_with_freshness as f64 / total as f64) * 100.0).round() as u8
+    } else {
+        0
+    };
+
+    let overdue_entries: Vec<&StaleEntry> = stale_pages
+        .iter()
+        .filter(|e| {
+            matches!(
+                e.status,
+                FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. }
+            )
+        })
+        .collect();
+    let due_soon_entries: Vec<&StaleEntry> = stale_pages
+        .iter()
+        .filter(|e| matches!(e.status, FreshnessStatus::DueSoon { .. }))
+        .collect();
+
+    let overdue_count = overdue_entries.len();
+    let due_soon_count = due_soon_entries.len();
+    let fresh_count = total.saturating_sub(overdue_count + due_soon_count);
+
+    let mut components: Vec<Component> = Vec::new();
+
+    // 1. StatGrid: Total / Fresh / Due soon / Overdue
+    components.push(Component::StatGrid {
+        stats: vec![
+            Stat {
+                label: "Total pages".into(),
+                value: total.to_string(),
+                detail: None,
+                color: SemColor::Default,
+            },
+            Stat {
+                label: "Fresh".into(),
+                value: fresh_count.to_string(),
+                detail: None,
+                color: SemColor::Green,
+            },
+            Stat {
+                label: "Due soon".into(),
+                value: due_soon_count.to_string(),
+                detail: None,
+                color: if due_soon_count > 0 {
+                    SemColor::Yellow
+                } else {
+                    SemColor::Default
+                },
+            },
+            Stat {
+                label: "Overdue".into(),
+                value: overdue_count.to_string(),
+                detail: None,
+                color: if overdue_count > 0 {
+                    SemColor::Red
+                } else {
+                    SemColor::Default
+                },
+            },
+        ],
+        columns: 4,
+    });
+
+    // 2. ProgressBar: Freshness coverage
+    components.push(Component::ProgressBar {
+        value: freshness_pct,
+        label: Some("Freshness coverage".into()),
+        color: if freshness_pct >= 80 {
+            SemColor::Green
+        } else if freshness_pct >= 50 {
+            SemColor::Yellow
+        } else {
+            SemColor::Red
+        },
+        detail: Some(format!(
+            "{} of {} pages have freshness metadata",
+            pages_with_freshness, total
+        )),
+    });
+
+    // 3. Overdue table (if any)
+    if !overdue_entries.is_empty() {
+        let mut sorted_overdue = overdue_entries;
+        sorted_overdue.sort_by_key(|e| match e.status {
+            FreshnessStatus::Expired { days_past_expiry } => -(days_past_expiry + 10000),
+            FreshnessStatus::Overdue { days_overdue } => -days_overdue,
+            _ => 0,
+        });
+        let overdue_rows: Vec<HashMap<String, serde_yaml::Value>> = sorted_overdue
+            .iter()
+            .map(|e| {
+                let days = match e.status {
+                    FreshnessStatus::Expired { days_past_expiry } => days_past_expiry,
+                    FreshnessStatus::Overdue { days_overdue } => days_overdue,
+                    _ => 0,
+                };
+                let mut row = HashMap::new();
+                row.insert("page".into(), serde_yaml::Value::String(e.title.clone()));
+                row.insert(
+                    "path".into(),
+                    serde_yaml::Value::String(e.html_path.clone()),
+                );
+                row.insert(
+                    "days_overdue".into(),
+                    serde_yaml::Value::Number(days.into()),
+                );
+                row.insert(
+                    "cadence".into(),
+                    serde_yaml::Value::String(e.cadence.clone()),
+                );
+                row.insert(
+                    "owner".into(),
+                    serde_yaml::Value::String(e.owner.clone().unwrap_or_else(|| "—".into())),
+                );
+                row
+            })
+            .collect();
+        components.push(Component::Table {
+            columns: vec![
+                TableColumn {
+                    key: "page".into(),
+                    label: "Page".into(),
+                    sortable: true,
+                    align: Align::Left,
+                },
+                TableColumn {
+                    key: "days_overdue".into(),
+                    label: "Days overdue".into(),
+                    sortable: true,
+                    align: Align::Left,
+                },
+                TableColumn {
+                    key: "cadence".into(),
+                    label: "Cadence".into(),
+                    sortable: false,
+                    align: Align::Left,
+                },
+                TableColumn {
+                    key: "owner".into(),
+                    label: "Owner".into(),
+                    sortable: true,
+                    align: Align::Left,
+                },
+            ],
+            rows: overdue_rows,
+            filterable: true,
+        });
+    }
+
+    // 4. Due soon table (if any)
+    if !due_soon_entries.is_empty() {
+        let mut sorted_due_soon = due_soon_entries;
+        sorted_due_soon.sort_by_key(|e| match e.status {
+            FreshnessStatus::DueSoon { days_until_due } => days_until_due,
+            _ => 0,
+        });
+        let due_soon_rows: Vec<HashMap<String, serde_yaml::Value>> = sorted_due_soon
+            .iter()
+            .map(|e| {
+                let days = match e.status {
+                    FreshnessStatus::DueSoon { days_until_due } => days_until_due,
+                    _ => 0,
+                };
+                let mut row = HashMap::new();
+                row.insert("page".into(), serde_yaml::Value::String(e.title.clone()));
+                row.insert(
+                    "path".into(),
+                    serde_yaml::Value::String(e.html_path.clone()),
+                );
+                row.insert("due_in".into(), serde_yaml::Value::Number(days.into()));
+                row.insert(
+                    "cadence".into(),
+                    serde_yaml::Value::String(e.cadence.clone()),
+                );
+                row.insert(
+                    "owner".into(),
+                    serde_yaml::Value::String(e.owner.clone().unwrap_or_else(|| "—".into())),
+                );
+                row
+            })
+            .collect();
+        components.push(Component::Table {
+            columns: vec![
+                TableColumn {
+                    key: "page".into(),
+                    label: "Page".into(),
+                    sortable: true,
+                    align: Align::Left,
+                },
+                TableColumn {
+                    key: "due_in".into(),
+                    label: "Due in".into(),
+                    sortable: true,
+                    align: Align::Left,
+                },
+                TableColumn {
+                    key: "cadence".into(),
+                    label: "Cadence".into(),
+                    sortable: false,
+                    align: Align::Left,
+                },
+                TableColumn {
+                    key: "owner".into(),
+                    label: "Owner".into(),
+                    sortable: true,
+                    align: Align::Left,
+                },
+            ],
+            rows: due_soon_rows,
+            filterable: true,
+        });
+    }
+
+    // 5. Ownership summary
+    {
+        // Aggregate per-owner counts from stale_pages and manifest_entries.
+        // Use a BTreeMap so output is deterministic.
+        let mut owner_map: std::collections::BTreeMap<String, (usize, usize, usize, usize)> =
+            std::collections::BTreeMap::new();
+
+        // Count totals from manifest_entries
+        for entry in manifest_entries {
+            let owner_key = entry
+                .freshness
+                .as_ref()
+                .and_then(|f| f.owner.clone())
+                .unwrap_or_else(|| "—".into());
+            let e = owner_map.entry(owner_key).or_insert((0, 0, 0, 0));
+            e.0 += 1; // total
+        }
+
+        // Now overlay fresh / due_soon / overdue from stale_pages
+        for stale in stale_pages {
+            let owner_key = stale.owner.clone().unwrap_or_else(|| "—".into());
+            match stale.status {
+                FreshnessStatus::DueSoon { .. } => {
+                    owner_map.entry(owner_key.clone()).or_insert((0, 0, 0, 0)).2 += 1;
+                }
+                FreshnessStatus::Overdue { .. } | FreshnessStatus::Expired { .. } => {
+                    owner_map.entry(owner_key.clone()).or_insert((0, 0, 0, 0)).3 += 1;
+                }
+                FreshnessStatus::Fresh => {}
+            }
+        }
+
+        // Compute fresh = total - due_soon - overdue for each owner
+        let ownership_rows: Vec<HashMap<String, serde_yaml::Value>> = owner_map
+            .iter()
+            .map(|(owner, &(total_o, _, due_soon_o, overdue_o))| {
+                let fresh_o = total_o.saturating_sub(due_soon_o + overdue_o);
+                let mut row = HashMap::new();
+                row.insert("owner".into(), serde_yaml::Value::String(owner.clone()));
+                row.insert("total".into(), serde_yaml::Value::Number(total_o.into()));
+                row.insert("fresh".into(), serde_yaml::Value::Number(fresh_o.into()));
+                row.insert(
+                    "due_soon".into(),
+                    serde_yaml::Value::Number(due_soon_o.into()),
+                );
+                row.insert(
+                    "overdue".into(),
+                    serde_yaml::Value::Number(overdue_o.into()),
+                );
+                row
+            })
+            .collect();
+
+        if !ownership_rows.is_empty() {
+            components.push(Component::Table {
+                columns: vec![
+                    TableColumn {
+                        key: "owner".into(),
+                        label: "Owner".into(),
+                        sortable: true,
+                        align: Align::Left,
+                    },
+                    TableColumn {
+                        key: "total".into(),
+                        label: "Total".into(),
+                        sortable: true,
+                        align: Align::Left,
+                    },
+                    TableColumn {
+                        key: "fresh".into(),
+                        label: "Fresh".into(),
+                        sortable: true,
+                        align: Align::Left,
+                    },
+                    TableColumn {
+                        key: "due_soon".into(),
+                        label: "Due soon".into(),
+                        sortable: true,
+                        align: Align::Left,
+                    },
+                    TableColumn {
+                        key: "overdue".into(),
+                        label: "Overdue".into(),
+                        sortable: true,
+                        align: Align::Left,
+                    },
+                ],
+                rows: ownership_rows,
+                filterable: false,
+            });
+        }
+    }
+
+    // 6. Callout if pages lack freshness metadata
+    let no_freshness_count = total.saturating_sub(pages_with_freshness);
+    if no_freshness_count > 0 {
+        components.push(Component::Callout {
+            variant: CalloutVariant::Info,
+            title: None,
+            body: format!(
+                "{} page{} no freshness metadata. Add `freshness:` to your page YAML to track their health.",
+                no_freshness_count,
+                if no_freshness_count == 1 {
+                    " has".to_string()
+                } else {
+                    "s have".to_string()
+                }
+            ),
+            links: None,
+        });
+    }
+
+    let page = Page {
+        title: "Site Health".to_string(),
+        shell: Shell::Standard,
+        eyebrow: Some(format!("Snapshot — {}", today)),
+        subtitle: None,
+        components: Some(components),
+        slides: None,
+        unlisted: true,
+        texture: None,
+        glow: None,
+        print_flow: None,
+        freshness: None,
+        search_terms: Vec::new(),
+        owner: None,
+        references: Vec::new(),
+        personas: Vec::new(),
+        archived: false,
+        draft: false,
+    };
+
+    let mut html = render::render_page(&page, config, "", "", "", false, "", None);
+    if release {
+        html = minify::minify_html(&html);
+    }
+    fs::write(out.join("_health.html"), html)?;
+    Ok(())
 }
 
 fn write_sitemap(out: &Path, site_url: &str, entries: &[PageEntry]) -> Result<()> {

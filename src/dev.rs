@@ -43,7 +43,7 @@ fn bind_next_available(start: u16) -> Result<(Server, u16)> {
 pub fn run(dir: &Path, out: &Path, port: u16) -> Result<()> {
     // Dev builds silence the orphan check — work-in-progress pages show up
     // as orphans until you wire them into nav, and that'd be noisy.
-    build::run(dir, out, false, true, false, false, false)?;
+    build::run(dir, out, false, true, false, false, false, false)?;
 
     let version = Arc::new(AtomicU64::new(1));
 
@@ -128,7 +128,7 @@ fn watch_loop(dir: PathBuf, out: PathBuf, version: Arc<AtomicU64>) {
         last_build = Instant::now();
 
         print!("  rebuild…");
-        match build::run(&dir, &out, false, true, false, false, false) {
+        match build::run(&dir, &out, false, true, false, false, false, false) {
             Ok(_) => {
                 version.fetch_add(1, Ordering::SeqCst);
                 println!(" ✓");
