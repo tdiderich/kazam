@@ -409,6 +409,8 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
         personas: Vec::new(),
         archived: false,
         draft: false,
+        nav_layout: None,
+        nav: None,
     })
 }
 

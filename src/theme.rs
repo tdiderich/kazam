@@ -1390,9 +1390,13 @@ body.shell-document .doc-body strong { color: #fff; }
 
 /* Section */
 .c-section { }
-.c-section.align-center { text-align: center; }
+.c-section.align-center { text-align: center; display: flex; flex-direction: column; align-items: center; }
+.c-section.align-center > * { width: 100%; max-width: 800px; }
 .c-section.align-center .c-section-header { align-items: center; }
-.c-section.align-right { text-align: right; }
+.c-section.align-center ul, .c-section.align-center ol, .c-section.align-center .c-code, .c-section.align-center pre, .c-section.align-center .c-card, .c-section.align-center .c-callout { text-align: left; }
+.c-section.align-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+.c-section.align-right > * { width: 100%; max-width: 800px; }
+.c-section.align-right .c-section-header { align-items: flex-end; }
 .c-section-header { margin-bottom: 24px; }
 .c-section-eyebrow {
   font-size: 11px;

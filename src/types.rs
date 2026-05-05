@@ -90,6 +90,12 @@ pub struct Page {
     /// Drafts that sit unchanged for 30+ days are auto-archived.
     #[serde(default)]
     pub draft: bool,
+    /// Override the site-wide `nav_layout` on this page. Unset = inherit.
+    #[serde(default)]
+    pub nav_layout: Option<NavLayout>,
+    /// Override the site-wide `nav` on this page. Unset = inherit.
+    #[serde(default)]
+    pub nav: Option<Vec<NavLink>>,
 }
 
 impl Page {
