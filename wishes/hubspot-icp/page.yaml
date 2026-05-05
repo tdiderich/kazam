@@ -1,0 +1,22 @@
+title: Ideal Customer Profile (ICP)
+shell: standard
+eyebrow: GTM
+personas:
+  - gtm
+freshness:
+  updated: "2025-01-01"
+  review_every: quarterly
+  owner: changeme@company.com
+  refresh:
+    mode: assisted
+    steps:
+      - run: scripts/generate-icp-data.py
+      - prompt: "Read scripts/icp-prompt.md and scripts/icp-data.csv. Analyze customer DNA, pipeline validation, and closed-lost patterns. Update this page with data-backed tier definitions."
+      - review: owner
+components:
+  - type: section
+    heading: "Metrics"
+    components:
+      - type: markdown
+        body: |
+          Run the data pipeline to populate this page. See the refresh block above for instructions.

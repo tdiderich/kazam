@@ -1,0 +1,7 @@
+name: hubspot-icp
+description: "Data-driven ICP from HubSpot deals + Apollo enrichment"
+tags: [gtm, hubspot, apollo, icp]
+env:
+  - HUBSPOT_API_TOKEN
+  - APOLLO_API_KEY
+data_sources: [hubspot, apollo]
