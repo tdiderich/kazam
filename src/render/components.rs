@@ -988,7 +988,7 @@ fn tree(
     render_tree_level(&render_nodes, &mut r.html, "c-tree-root");
     r.html.push_str("</div>");
 
-    if show_filter_toggle {
+    if show_filter_toggle || nodes.iter().any(|n| !n.children.is_empty()) {
         r.scripts.push("tree");
     }
     r

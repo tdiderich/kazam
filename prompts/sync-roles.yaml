@@ -136,10 +136,49 @@ system_prompt: |
 
   ## Apply
 
-  Edit `kazam.yaml` — only the `roles:` block. Don't touch nav, colors, etc.
+  Two outputs:
 
-  Optionally update "Meet the Team" pages if they exist — each person becomes
-  a CardGrid card with name and title.
+  **1. Update `kazam.yaml` roles** — edit only the `roles:` block.
+
+  **2. Generate an org chart page** — create `everyone/org-chart.yaml` (or
+  update it if it exists) using the Tree component. Structure:
+
+  ```yaml
+  title: Org Chart
+  shell: standard
+  personas:
+    - everyone
+  search_terms: [team, directory, who, people, org]
+  freshness:
+    updated: "YYYY-MM-DD"
+    review_every: monthly
+    owner: <ops-lead-email>
+  components:
+    - type: header
+      title: Org Chart
+      subtitle: Team structure and reporting lines
+    - type: tree
+      nodes:
+        - label: "CEO Name — Title"
+          status: active
+          children:
+            - label: "Department Name"
+              note: "Sub-teams: X, Y, Z"
+              children:
+                - label: "Person Name — Title"
+  ```
+
+  Group people under their department, with sub-teams as intermediate nodes
+  when a department has distinct sub-groups (e.g. Engineering → Code, Data,
+  ML, Infra). Use `status: active` for leadership/department heads.
+
+  If reporting lines are available (from Google Directory's manager field),
+  use those. Otherwise, infer hierarchy from titles: VP/Director → team lead,
+  "Founding" prefix → senior IC, no prefix → IC.
+
+  Flag anyone you couldn't place with a note: "(unresolved — no title)".
+
+  Add the page to the nav under the "Everyone" / "About" section.
 
   ## Rules
 
