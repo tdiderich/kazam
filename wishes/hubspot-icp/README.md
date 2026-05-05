@@ -25,7 +25,7 @@ Build a data-driven Ideal Customer Profile page from your HubSpot CRM deals and 
 
 ## How to run
 
-1. Copy `script.py` to your site's `scripts/` directory
+1. Copy `script.py` to your site's `scripts/generate-icp-data.py` (the refresh step in page.yaml expects this name)
 2. Copy `page.yaml` to your site's `site/` directory (rename as needed)
 3. Set `HUBSPOT_API_TOKEN` and optionally `APOLLO_API_KEY` in your `.env`
 4. Run: `uv run --with requests python3 scripts/generate-icp-data.py`
