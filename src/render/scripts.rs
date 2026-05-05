@@ -141,7 +141,7 @@ const SEARCH: &str = r#"
     var html = '';
     for (var i = 0; i < hits.length && i < 20; i++) {
       var h = hits[i];
-      var desc = h.description || (h.content_snippets && h.content_snippets[0]) || '';
+      var desc = h._matchSnippet || h.description || (h.content_snippets && h.content_snippets[0]) || '';
       if (desc.length > 120) desc = desc.slice(0, 120) + '...';
       html += '<a class="site-search-hit" href="' + base + h.path + '" data-idx="' + i + '">';
       html += '<span class="site-search-hit-title">' + esc(h.title) + '</span>';
@@ -157,25 +157,74 @@ const SEARCH: &str = r#"
     return d.innerHTML;
   }
 
+  function wordBoundary(hay, term) {
+    var i = hay.indexOf(term);
+    if (i < 0) return -1;
+    if (i === 0 || /\W/.test(hay[i - 1])) return 2;
+    return 1;
+  }
+
+  function findMatchSnippet(snippets, terms) {
+    if (!snippets) return null;
+    for (var i = 0; i < snippets.length; i++) {
+      var low = snippets[i].toLowerCase();
+      var all = true;
+      for (var t = 0; t < terms.length; t++) {
+        if (low.indexOf(terms[t]) < 0) { all = false; break; }
+      }
+      if (all) return snippets[i];
+    }
+    for (var i = 0; i < snippets.length; i++) {
+      var low = snippets[i].toLowerCase();
+      for (var t = 0; t < terms.length; t++) {
+        if (low.indexOf(terms[t]) >= 0) return snippets[i];
+      }
+    }
+    return null;
+  }
+
+  var roleFilter = (new URLSearchParams(location.search)).get('role');
+
   function search(q) {
     if (!index) { render([]); return; }
-    if (!q) { render(index.slice(0, 10)); return; }
+    var pool = index;
+    if (roleFilter) {
+      pool = pool.filter(function (p) {
+        return !p.personas || p.personas.length === 0 || p.personas.indexOf(roleFilter) >= 0;
+      });
+    }
+    if (!q) { render(pool.slice(0, 10)); return; }
     var terms = q.toLowerCase().split(/\s+/).filter(Boolean);
     var scored = [];
-    for (var i = 0; i < index.length; i++) {
-      var p = index[i];
-      var hay = (p.title + ' ' + (p.description || '') + ' ' +
-        (p.headings || []).join(' ') + ' ' +
-        (p.search_terms || []).join(' ') + ' ' +
-        (p.content_snippets || []).join(' ')).toLowerCase();
+    for (var i = 0; i < pool.length; i++) {
+      var p = pool[i];
+      var titleL = p.title.toLowerCase();
+      var headingsL = (p.headings || []).join(' ').toLowerCase();
+      var searchTermsL = (p.search_terms || []).join(' ').toLowerCase();
+      var descL = (p.description || '').toLowerCase();
+      var snippetsL = (p.content_snippets || []).join(' ').toLowerCase();
+      var hay = titleL + ' ' + descL + ' ' + headingsL + ' ' + searchTermsL + ' ' + snippetsL;
       var score = 0;
       var miss = false;
       for (var t = 0; t < terms.length; t++) {
-        var ti = hay.indexOf(terms[t]);
-        if (ti < 0) { miss = true; break; }
-        score += (p.title.toLowerCase().indexOf(terms[t]) >= 0) ? 10 : 1;
+        var term = terms[t];
+        if (hay.indexOf(term) < 0) { miss = true; break; }
+        var wb = wordBoundary(titleL, term);
+        if (wb > 0) { score += wb > 1 ? 10 : 8; }
+        else if (wordBoundary(searchTermsL, term) > 0) { score += 8; }
+        else if (wordBoundary(headingsL, term) > 0) { score += 5; }
+        else if (wordBoundary(descL, term) > 0) { score += 3; }
+        else { score += 1; }
       }
-      if (!miss) scored.push({ page: p, score: score });
+      if (!miss) {
+        var fs = p.freshness_status;
+        if (fs === 'overdue') score -= 3;
+        else if (fs === 'expired') score -= 5;
+        var hit = Object.assign({}, p);
+        var snap = findMatchSnippet(p.content_snippets, terms);
+        if (snap) hit._matchSnippet = snap;
+        scored.push({ page: hit, score: score });
+      }
     }
     scored.sort(function (a, b) { return b.score - a.score; });
     render(scored.map(function (s) { return s.page; }));

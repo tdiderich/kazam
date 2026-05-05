@@ -30,6 +30,7 @@ pub fn render_source_view(
             body: format!("[← Back to rendered page]({})", html_href),
         },
         base,
+        config,
     ));
     rendered.extend(components::render(
         &Component::Code {
@@ -37,6 +38,7 @@ pub fn render_source_view(
             code: yaml_content.to_string(),
         },
         base,
+        config,
     ));
 
     if !release {
@@ -124,7 +126,7 @@ pub fn render_page(
         _ => {
             if let Some(comps) = &page.components {
                 for c in comps {
-                    rendered.extend(components::render(c, base));
+                    rendered.extend(components::render(c, base, config));
                 }
             }
         }

@@ -2674,6 +2674,7 @@ fn build_json_page_count_matches() {
             e.file_type().is_file()
                 && name.ends_with(".html")
                 && name != "404.html"
+                && name != "_health.html"
                 && !name.ends_with(".source.html")
         })
         .count() as u64;

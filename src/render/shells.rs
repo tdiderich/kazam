@@ -570,7 +570,7 @@ pub mod deck {
 
     pub fn render(
         _page: &Page,
-        _config: &SiteConfig,
+        config: &SiteConfig,
         slides: &[Slide],
         base: &str,
         out: &mut Rendered,
@@ -593,7 +593,7 @@ pub mod deck {
                 label_html = label_html,
             ));
             for c in &slide.components {
-                out.extend(components::render(c, base));
+                out.extend(components::render(c, base, config));
             }
             out.html.push_str("</div></div>");
         }

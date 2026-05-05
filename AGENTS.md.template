@@ -367,6 +367,28 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         components: [...]
   ```
 
+- **role_map** — grid of role cards read from the site's `roles:` config in kazam.yaml. Each
+  card is a jump point to a role-specific landing page. Renders an empty-state message
+  when no roles are defined.
+  ```yaml
+  - type: role_map
+    title: "Pick your role"    # optional heading
+  ```
+  Roles are defined in kazam.yaml. `href` links the card to a landing page; when
+  omitted it falls back to `?role=<id>`:
+  ```yaml
+  roles:
+    - id: engineering
+      label: Engineering
+      description: Build and ship product.
+      icon: "⚙️"
+      href: /engineering/index.html
+    - id: gtm
+      label: GTM
+      description: Sales, marketing, and customer success.
+      href: /gtm/index.html
+  ```
+
 ### Navigation
 
 - **breadcrumb** — multi-hop trail (last item = current, no href)
