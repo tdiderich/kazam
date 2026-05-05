@@ -321,17 +321,30 @@ pub fn run(
                 .replace('\\', "/");
             page_links.push(crate::links::collect_page_links(&html_rel_for_links, &page));
 
+            // Compute freshness status once — used by both search index and
+            // the stale-page summary so they never disagree.
+            let freshness_full = page.freshness.as_ref().and_then(|fv| fv.as_full());
+            let freshness_status =
+                crate::freshness::info_for(freshness_full, &today).map(|info| info.status());
+
             if !no_search && !excluded {
-                search_entries.push(crate::search::entry_for(&html_rel_for_links, &page));
+                let status_str = freshness_status.as_ref().map(|s| {
+                    use crate::freshness::FreshnessStatus;
+                    match s {
+                        FreshnessStatus::Fresh => "fresh",
+                        FreshnessStatus::DueSoon { .. } => "due_soon",
+                        FreshnessStatus::Overdue { .. } => "overdue",
+                        FreshnessStatus::Expired { .. } => "expired",
+                    }
+                });
+                search_entries.push(crate::search::entry_for(
+                    &html_rel_for_links,
+                    &page,
+                    status_str,
+                ));
             }
 
-            // Track freshness status for the end-of-build summary. Uses
-            // the same computation as the banner inject so the report and
-            // the rendered output never disagree. Fresh pages are dropped;
-            // DueSoon and Overdue both feed the summary (grouped).
-            let freshness_full = page.freshness.as_ref().and_then(|fv| fv.as_full());
-            if let Some(info) = crate::freshness::info_for(freshness_full, &today) {
-                let status = info.status();
+            if let Some(status) = freshness_status {
                 if !matches!(status, crate::freshness::FreshnessStatus::Fresh) {
                     stale_pages.push(StaleEntry {
                         html_path: rel.with_extension("html").to_string_lossy().to_string(),

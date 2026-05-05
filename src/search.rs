@@ -25,10 +25,14 @@ pub struct SearchEntry {
     pub search_terms: Vec<String>,
     /// Role-based persona tags. Empty means visible to everyone.
     pub personas: Vec<String>,
+    /// Freshness status string: "fresh", "due_soon", "overdue", "expired", or null.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub freshness_status: Option<String>,
 }
 
 /// Build a `SearchEntry` from a parsed `Page` and its output-relative HTML path.
-pub fn entry_for(path: &str, page: &Page) -> SearchEntry {
+/// `freshness_status` is an optional string like "fresh", "due_soon", "overdue", "expired".
+pub fn entry_for(path: &str, page: &Page, freshness_status: Option<&str>) -> SearchEntry {
     let (mut headings, mut snippets) = (Vec::new(), Vec::new());
 
     if let Some(comps) = &page.components {
@@ -50,6 +54,7 @@ pub fn entry_for(path: &str, page: &Page) -> SearchEntry {
         content_snippets: snippets,
         search_terms: page.search_terms.clone(),
         personas: page.personas.clone(),
+        freshness_status: freshness_status.map(|s| s.to_string()),
     }
 }
 
@@ -301,6 +306,7 @@ pub fn write(out: &Path, entries: &[SearchEntry]) -> std::io::Result<()> {
                 content_snippets: e.content_snippets.clone(),
                 search_terms: e.search_terms.clone(),
                 personas: e.personas.clone(),
+                freshness_status: e.freshness_status.clone(),
             })
             .collect(),
     };
@@ -344,7 +350,7 @@ mod tests {
             align: Default::default(),
             id: None,
         }]);
-        let entry = entry_for("index.html", &page);
+        let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Hello World".to_string()));
         assert!(entry
             .content_snippets
@@ -357,7 +363,7 @@ mod tests {
         let page = make_page(vec![Component::Markdown {
             body: "# Heading\n**bold** text with [link](http://example.com)".to_string(),
         }]);
-        let entry = entry_for("index.html", &page);
+        let entry = entry_for("index.html", &page, None);
         assert!(!entry.content_snippets.is_empty());
         let snippet = &entry.content_snippets[0];
         assert!(!snippet.contains('#'));
@@ -382,7 +388,7 @@ mod tests {
             ],
             numbered: true,
         }]);
-        let entry = entry_for("index.html", &page);
+        let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Step one".to_string()));
         assert!(entry.headings.contains(&"Step two".to_string()));
         assert!(entry
@@ -402,7 +408,7 @@ mod tests {
                 body: "Inner content here".to_string(),
             }],
         }]);
-        let entry = entry_for("index.html", &page);
+        let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Section Heading".to_string()));
         assert!(entry
             .content_snippets
@@ -414,7 +420,7 @@ mod tests {
     fn search_terms_pass_through() {
         let mut page = make_page(vec![]);
         page.search_terms = vec!["alias1".to_string(), "acronym".to_string()];
-        let entry = entry_for("test.html", &page);
+        let entry = entry_for("test.html", &page, None);
         assert_eq!(entry.search_terms, vec!["alias1", "acronym"]);
     }
 
@@ -422,7 +428,7 @@ mod tests {
     fn content_snippets_truncated() {
         let long_text = "a".repeat(300);
         let page = make_page(vec![Component::Markdown { body: long_text }]);
-        let entry = entry_for("index.html", &page);
+        let entry = entry_for("index.html", &page, None);
         for snippet in &entry.content_snippets {
             assert!(snippet.len() <= 200, "snippet too long: {}", snippet.len());
         }
@@ -434,7 +440,7 @@ mod tests {
             language: Some("rust".to_string()),
             code: "fn main() { println!(\"secret\"); }".to_string(),
         }]);
-        let entry = entry_for("index.html", &page);
+        let entry = entry_for("index.html", &page, None);
         assert!(entry.content_snippets.is_empty());
         assert!(entry.headings.is_empty());
     }
@@ -450,7 +456,7 @@ mod tests {
                 }],
             }],
         }]);
-        let entry = entry_for("index.html", &page);
+        let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Tab A".to_string()));
         assert!(entry
             .content_snippets
@@ -471,7 +477,7 @@ mod tests {
             ],
             equal_heights: false,
         }]);
-        let entry = entry_for("index.html", &page);
+        let entry = entry_for("index.html", &page, None);
         assert!(entry
             .content_snippets
             .iter()
@@ -480,5 +486,19 @@ mod tests {
             .content_snippets
             .iter()
             .any(|s| s.contains("Right column")));
+    }
+
+    #[test]
+    fn freshness_status_included() {
+        let page = make_page(vec![]);
+        let entry = entry_for("index.html", &page, Some("overdue"));
+        assert_eq!(entry.freshness_status.as_deref(), Some("overdue"));
+    }
+
+    #[test]
+    fn freshness_status_none_omitted() {
+        let page = make_page(vec![]);
+        let entry = entry_for("index.html", &page, None);
+        assert!(entry.freshness_status.is_none());
     }
 }
