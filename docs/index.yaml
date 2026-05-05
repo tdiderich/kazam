@@ -1,5 +1,11 @@
 title: kazam
 shell: standard
+nav_layout: top
+nav:
+  - label: Why
+    href: /why.html
+  - label: Docs
+    href: /guide.html
 
 components:
   - type: hero_banner
@@ -16,31 +22,61 @@ components:
         external: true
 
   - type: section
-    heading: Sound familiar?
+    heading: Docs rot. Nobody notices until something breaks.
+    align: center
     components:
-      - type: before_after
-        before_label: "Current"
-        after_label: "With kazam"
-        items:
-          - title: Ownership
-            before: Nobody owns the onboarding doc. It was last updated by someone who left six months ago.
-            after: Every page declares an owner and review cadence.
-            after_context: Stale content shows up in every build.
-          - title: Staleness
-            before: The API docs say v2 but you shipped v4. A customer files a ticket before anyone notices.
-            after: Build-time banners flag overdue content.
-            after_context: "`stale.md` tells your agent exactly what to fix."
-          - title: Agent access
-            before: Your AI agent burns tokens running `find` and `grep` trying to figure out where content lives.
-            after: MCP server with five tools.
-            after_context: Agents read, search, and write pages directly.
-          - title: Toolchain
-            before: Node, React, MDX, a build pipeline, three config files, and a prayer.
-            after: One Rust binary.
-            after_context: "`brew install`, point at a folder, ship HTML."
+      - type: card_grid
+        cards:
+          - title: Ghost ownership
+            description: The onboarding guide was last verified by someone who left in Q2.
+          - title: Version drift
+            description: Your API docs say v2 but you shipped v4 — a customer files a ticket before anyone notices.
+          - title: Agent tax
+            description: Your AI agent burns tokens running find and grep trying to figure out where content lives.
+          - title: Toolchain bloat
+            description: Your doc toolchain has more dependencies than your product.
+
+  - type: section
+    heading: Sound familiar?
+    align: center
+    components:
+      - type: split_compare
+        left:
+          eyebrow: TODAY
+          title: Nobody owns the onboarding doc
+          stats:
+            - label: Last verified
+              value: 6 months ago
+              color: red
+            - label: Owner
+              value: "someone who left"
+              color: red
+            - label: Review cadence
+              value: none
+              color: yellow
+            - label: Staleness detection
+              value: hope-based
+              color: red
+        right:
+          eyebrow: WITH KAZAM
+          title: Freshness is a first-class primitive
+          stats:
+            - label: Last verified
+              value: build-time check
+              color: green
+            - label: Owner
+              value: declared per page
+              color: green
+            - label: Review cadence
+              value: 30d / 90d / quarterly
+              color: green
+            - label: Staleness detection
+              value: deterministic
+              color: teal
 
   - type: section
     heading: See it in action
+    align: center
     components:
       - type: card_grid
         cards:
@@ -69,15 +105,34 @@ components:
                 href: examples/dashboard.html
 
   - type: section
-    heading: Get started
+    heading: Built for your role
+    align: center
     components:
-      - type: code
-        language: bash
-        code: |
-          brew install tdiderich/tap/kazam
-          kazam init my-site && cd my-site && kazam dev .
+      - type: card_grid
+        cards:
+          - title: Engineering lead
+            description: See which onboarding docs are rotting and who owns them. Manage knowledge debt like tech debt.
+          - title: Ops / People lead
+            description: Track owners and review dates across 50+ policy docs. Know what's stale every Monday morning.
+          - title: Product / GTM lead
+            description: Keep sales decks, one-pagers, and competitive docs current. Know when a renewal brief is out of date.
+          - title: Technical founder
+            description: Ship a knowledge base your AI agents can actually read — MCP server, structured YAML, no scraping.
 
-      - type: markdown
-        body: |
-          Read the [quickstart guide](/guide.html) or browse the
-          [component catalog](/components/index.html).
+  - type: section
+    align: center
+    components:
+      - type: callout
+        variant: info
+        title: Get started
+        body: One binary, zero dependencies. Install via Homebrew or Cargo and start building in seconds.
+        links:
+          - label: Quickstart guide
+            href: /guide.html
+            variant: primary
+          - label: Component catalog
+            href: /components/index.html
+            variant: secondary
+          - label: GitHub
+            href: https://github.com/tdiderich/kazam
+            variant: secondary

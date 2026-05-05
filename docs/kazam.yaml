@@ -11,6 +11,8 @@ og_image: /assets/og.svg
 nav:
   - label: Home
     href: /index.html
+  - label: Why kazam
+    href: /why.html
   - label: Getting Started
     children:
       - label: Quickstart

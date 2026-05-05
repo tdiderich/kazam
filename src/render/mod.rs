@@ -67,6 +67,8 @@ pub fn render_source_view(
         personas: Vec::new(),
         archived: false,
         draft: false,
+        nav_layout: None,
+        nav: None,
     };
 
     shells::standard::wrap(
@@ -350,6 +352,8 @@ fn default_404_page() -> Page {
         personas: Vec::new(),
         archived: false,
         draft: false,
+        nav_layout: None,
+        nav: None,
     }
 }
 

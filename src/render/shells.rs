@@ -173,8 +173,8 @@ fn default_favicon(theme: &theme::Theme) -> String {
 /// hover/focus-within dropdown; leaf entries render as a plain link. Returns
 /// `(html, has_any_nav)` so the caller can decide whether to bundle the
 /// nav-related JS.
-fn nav_html(config: &SiteConfig, base: &str) -> (String, bool) {
-    let Some(links) = &config.nav else {
+fn nav_html(links: Option<&Vec<crate::types::NavLink>>, base: &str) -> (String, bool) {
+    let Some(links) = links else {
         return (String::new(), false);
     };
     if links.is_empty() {
@@ -254,8 +254,8 @@ fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
 /// Sidebar nav (vertical, fixed to the left). Renders every `NavLink`. Parent
 /// entries with `children:` become labeled sections; leaf entries at the top
 /// level become standalone links. Only emitted when `nav_layout: sidebar`.
-fn sidebar_html(config: &SiteConfig, base: &str) -> String {
-    let Some(links) = &config.nav else {
+fn sidebar_html(links: Option<&Vec<crate::types::NavLink>>, base: &str) -> String {
+    let Some(links) = links else {
         return String::new();
     };
     if links.is_empty() {
@@ -433,17 +433,19 @@ pub mod standard {
         page_title: &str,
         edit_url: Option<&str>,
     ) -> String {
-        let is_sidebar = matches!(config.nav_layout, crate::types::NavLayout::Sidebar);
+        let effective_nav = page.nav_layout.unwrap_or(config.nav_layout);
+        let is_sidebar = matches!(effective_nav, crate::types::NavLayout::Sidebar);
+        let effective_links = page.nav.as_ref().or(config.nav.as_ref());
         // Sidebar layout moves the full nav (including nested children) into
         // a left-side <aside>; the top bar then only shows site name +
         // subtitle. Top layout keeps the existing inline nav in the bar.
         let (nav_in_bar, has_nav) = if is_sidebar {
             (
                 String::new(),
-                config.nav.as_ref().is_some_and(|n| !n.is_empty()),
+                effective_links.is_some_and(|n| !n.is_empty()),
             )
         } else {
-            nav_html(config, base)
+            nav_html(effective_links, base)
         };
         let mut right = subtitle_span(page);
         right.push_str(&nav_in_bar);
@@ -452,7 +454,7 @@ pub mod standard {
         let search = search_overlay(base);
 
         let sidebar = if is_sidebar {
-            sidebar_html(config, base)
+            sidebar_html(effective_links, base)
         } else {
             String::new()
         };

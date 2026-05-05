@@ -1069,6 +1069,8 @@ fn generate_health_page(
         personas: Vec::new(),
         archived: false,
         draft: false,
+        nav_layout: None,
+        nav: None,
     };
 
     let mut html = render::render_page(&page, config, "", "", "", false, "", None);

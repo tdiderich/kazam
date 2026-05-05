@@ -221,7 +221,8 @@ fn extract_searchable_text(
             | Component::Icon { .. }
             | Component::Tree { .. }
             | Component::HeroBanner { .. }
-            | Component::RoleMap { .. } => {}
+            | Component::RoleMap { .. }
+            | Component::SplitCompare { .. } => {}
         }
     }
 }
@@ -338,6 +339,8 @@ mod tests {
             personas: Vec::new(),
             archived: false,
             draft: false,
+            nav_layout: None,
+            nav: None,
         }
     }
 

@@ -90,6 +90,12 @@ pub struct Page {
     /// Drafts that sit unchanged for 30+ days are auto-archived.
     #[serde(default)]
     pub draft: bool,
+    /// Override the site-wide `nav_layout` on this page. Unset = inherit.
+    #[serde(default)]
+    pub nav_layout: Option<NavLayout>,
+    /// Override the site-wide `nav` on this page. Unset = inherit.
+    #[serde(default)]
+    pub nav: Option<Vec<NavLink>>,
 }
 
 impl Page {
@@ -277,6 +283,10 @@ pub enum Component {
         before_label: Option<String>,
         #[serde(default)]
         after_label: Option<String>,
+    },
+    SplitCompare {
+        left: ComparePanel,
+        right: ComparePanel,
     },
     Steps {
         items: Vec<Step>,
@@ -596,6 +606,22 @@ pub struct BeforeAfterItem {
     pub before: String,
     pub after: String,
     pub after_context: Option<String>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct ComparePanel {
+    #[serde(default)]
+    pub eyebrow: Option<String>,
+    pub title: String,
+    pub stats: Vec<CompareStat>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct CompareStat {
+    pub label: String,
+    pub value: String,
+    #[serde(default)]
+    pub color: SemColor,
 }
 
 #[derive(Deserialize)]

@@ -1,0 +1,217 @@
+title: Why kazam
+shell: standard
+
+components:
+  - type: header
+    eyebrow: Why kazam
+    title: Deterministic audits over vibes
+    subtitle: Most teams know their docs are wrong. kazam gives you the tools to know exactly which ones, and a path to fix them.
+
+  - type: section
+    eyebrow: Problem 1
+    heading: Nobody owns the onboarding doc
+    components:
+      - type: markdown
+        body: |
+          Wiki pages have no check-engine light. A page is created, someone updates it once,
+          then three engineers leave and it sits there accumulating drift. Nobody's sure whether
+          it's current. Nobody wants to be the one to fix it without knowing if it's even their
+          responsibility.
+
+          This is the bystander effect in docs — diffuse ownership means effective ownership of zero.
+
+          kazam makes freshness opt-in per page. When you add it, you get deterministic tracking:
+
+          - `owner:` — free-form field, email, Slack handle, team name
+          - `review_every:` — 30d, 90d, quarterly, yearly — whatever makes sense for the content
+          - `updated:` — the ISO date of the last substantive change
+
+          At build time, kazam computes status. Yellow banner if a review is due within 7 days.
+          Red banner if it's already overdue. `_site/stale.md` written on every build that finds
+          anything stale — one file you can hand an agent and say "fix these."
+
+          No owner? No `review_every`? The page is always Fresh — there's nothing to compare
+          against. You get as much rigor as you opt into, nothing more.
+
+  - type: section
+    eyebrow: Problem 2
+    heading: Your docs are a month out of date
+    components:
+      - type: markdown
+        body: |
+          The context-switch problem is real. If updating docs means leaving the IDE, logging
+          into a browser, navigating a wiki UI, finding the right page, and remembering what
+          the old content said — it won't happen. Engineers are not lazy; they are busy, and
+          the friction is too high.
+
+          kazam lives in the repo. YAML files sit next to the code they document. The CLI builds
+          locally. The same PR that changes behavior can update the doc in one commit.
+
+          One deliberate decision: the build does not fail on stale content. It flags it. The
+          right amount of nudge is a banner and a build report — not a broken CI pipeline that
+          blocks a deploy because someone forgot to update a date field. Blocking deploys on
+          doc staleness would teach engineers to remove the freshness metadata, which is the
+          opposite of what you want.
+
+          If you want stricter enforcement, wire `_site/stale.md` into your own CI gate.
+          That choice belongs to your team.
+
+  - type: section
+    eyebrow: Problem 3
+    heading: Your agent can't read your wiki
+    components:
+      - type: markdown
+        body: |
+          AI agents burn tokens scraping HTML, guessing at structure, handling auth, parsing
+          wiki exports. The output is brittle. The pages have no schema, so the agent invents
+          one and gets it half right.
+
+          kazam ships an MCP server with 5 tools:
+
+          | Tool | What it does |
+          |------|-------------|
+          | `list_pages` | List all pages or a subdirectory |
+          | `read_page` | Read a page's YAML content and metadata |
+          | `search` | Text search across all page content |
+          | `get_config` | Read the site config |
+          | `write_page` | Create or update a page (requires `--allow-writes`) |
+
+          Agents query structured YAML directly — the same source that builds the site. No
+          HTML parsing. No export pipeline. The schema is the file.
+
+          Prompt templates give agents consistent instructions for the content lifecycle:
+          migrate existing docs into kazam format, refresh stale pages from their
+          sources-of-truth, audit a section for gaps, review a page before publishing.
+          Standardized workflows mean you can hand any agent the same template and get
+          predictable results.
+
+  - type: section
+    eyebrow: Problem 4
+    heading: One binary, zero dependencies
+    components:
+      - type: markdown
+        body: |
+          Most documentation toolchains: Node, React, MDX, a build pipeline, webpack or Vite,
+          a handful of config files, version pins, and a `node_modules` that weights 400 MB.
+          Getting a new engineer running takes an afternoon if anything is mismatched.
+
+          kazam is a single Rust binary. Install it once:
+
+      - type: code
+        language: bash
+        code: |
+          brew install kazam
+
+      - type: markdown
+        body: |
+          Point it at a folder, get static HTML:
+
+      - type: code
+        language: bash
+        code: |
+          kazam build docs/
+          # → _site/*.html, ready to serve
+
+      - type: markdown
+        body: |
+          The output is plain HTML and CSS — no runtime JavaScript. Host it anywhere: S3,
+          GitHub Pages, Firebase Hosting, any web server that can serve static files. The
+          binary builds; your host serves. Nothing else in the chain.
+
+  - type: section
+    eyebrow: Trade-offs
+    heading: What we aren't
+    components:
+      - type: markdown
+        body: |
+          Engineers trust docs that admit limitations. Here are kazam's:
+
+          **No WYSIWYG editor.** Content lives in YAML files. If your team can't comfortably
+          edit YAML in VS Code, kazam is not the right tool.
+
+          **No real-time collaboration.** The workflow is Git: branch, edit, PR, merge. If your
+          team needs multiple people editing the same page simultaneously, use Notion or Confluence.
+
+          **No hosted SaaS (yet).** You manage the binary, you own the hosting. For some teams
+          that's a feature; for others it's work they don't want.
+
+          **No ecosystem of templates and integrations.** kazam is a CLI tool, not a platform.
+          There are no third-party plugins, no marketplace, no Zapier connection. What you see
+          in these docs is what exists.
+
+          **The honest framing:** keep using Notion for brainstorming, project management, and
+          freeform collaboration. kazam is for technical truth — the docs that must be right for
+          the system to work. Architecture decision records, runbooks, API references, onboarding
+          guides. The things that go stale and stay stale.
+
+  - type: section
+    eyebrow: Comparison
+    heading: How it compares
+    components:
+      - type: markdown
+        body: |
+          This is a partial picture — all tools have strengths outside this table.
+          The purpose is to show where kazam is differentiated, not to score every dimension.
+
+      - type: table
+        columns:
+          - key: feature
+            label: Feature
+          - key: kazam
+            label: kazam
+          - key: notion
+            label: Notion
+          - key: confluence
+            label: Confluence
+          - key: gitbook
+            label: GitBook
+        rows:
+          - feature: Freshness tracking
+            kazam: Native — owner, cadence, build-time banners
+            notion: None
+            confluence: None
+            gitbook: Analytics only (page views, not content staleness)
+          - feature: Agent access
+            kazam: MCP server — 5 structured tools
+            notion: None native (unofficial integrations exist)
+            confluence: None
+            gitbook: None
+          - feature: Content model
+            kazam: Structured YAML with typed components
+            notion: Freeform blocks
+            confluence: Wiki pages
+            gitbook: Hybrid blocks / Markdown
+          - feature: Deployment
+            kazam: Single binary + static HTML, host anywhere
+            notion: SaaS only
+            confluence: SaaS only (Data Center for self-hosted)
+            gitbook: Managed SaaS
+          - feature: Content lifecycle
+            kazam: Prompt templates for agent workflows
+            notion: Manual
+            confluence: Manual
+            gitbook: Manual
+          - feature: UI polish
+            kazam: CLI only — no admin UI
+            notion: Excellent
+            confluence: Adequate
+            gitbook: Excellent
+          - feature: Real-time collab
+            kazam: None — use Git branches and PRs
+            notion: Yes
+            confluence: Yes
+            gitbook: Limited
+          - feature: Cost
+            kazam: Free + open source
+            notion: Per seat
+            confluence: Per seat
+            gitbook: Per site, scales steeply
+
+  - type: callout
+    variant: info
+    title: Start in under 5 minutes
+    body: Install the binary, scaffold a site, build it locally. The quickstart walks through installation, your first page, and freshness metadata.
+    links:
+      - label: Quickstart guide
+        href: /guide
+        variant: primary
