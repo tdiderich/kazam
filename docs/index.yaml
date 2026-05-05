@@ -18,21 +18,14 @@ components:
   - type: section
     heading: Built for your role
     components:
-      - type: columns
-        equal_heights: true
-        columns:
-          - - type: callout
-              variant: info
-              title: Engineering lead
-              body: "Your team just hit 30 and the onboarding guide was last verified by someone who left in Q2. kazam gives you a health dashboard that shows exactly which docs are decaying and who owns them — so you manage knowledge debt the same way you manage tech debt."
-          - - type: callout
-              variant: info
-              title: Ops / People lead
-              body: "You maintain 50 policy docs and have no idea which ones are still current. kazam tracks owners and review cadence per page, then generates a stale report every build. Monday morning, you know exactly what needs a refresh."
-          - - type: callout
-              variant: info
-              title: Technical founder
-              body: "You're building an AI-native company and your agents can't read your wiki. kazam ships a native MCP server — your coding agents get structured access to your knowledge base instead of scraping HTML and guessing at structure."
+      - type: card_grid
+        cards:
+          - title: Engineering lead
+            description: See which onboarding docs are rotting and who owns them. Manage knowledge debt like tech debt.
+          - title: Ops / People lead
+            description: Track owners and review dates across 50+ policy docs. Know what's stale every Monday morning.
+          - title: Technical founder
+            description: Ship a knowledge base your AI agents can actually read — MCP server, structured YAML, no scraping.
 
   - type: section
     heading: Sound familiar?
