@@ -720,6 +720,181 @@ pub fn run_act(dir: &Path, rel_path: &str, action: &crate::FreshnessAction) -> a
     Ok(())
 }
 
+/// `kazam freshness notify` — stale pages grouped by owner, formatted for
+/// Slack or email. Outputs markdown by default, JSON with `--json`.
+pub fn run_notify(dir: &Path, json: bool) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use std::collections::BTreeMap;
+    use std::fs;
+    use walkdir::WalkDir;
+
+    let today = today_iso();
+
+    struct NotifyItem {
+        path: String,
+        title: String,
+        status: FreshnessStatus,
+        days: i64,
+    }
+
+    let mut by_owner: BTreeMap<String, Vec<NotifyItem>> = BTreeMap::new();
+
+    for entry in WalkDir::new(dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() > 0 && e.file_name() == "_site" && e.file_type().is_dir() {
+                return false;
+            }
+            if e.depth() > 0 {
+                if let Some(name) = e.file_name().to_str() {
+                    if name.starts_with('.') {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let fname = path.file_name().unwrap_or_default();
+        if fname == "kazam.yaml" || fname == "404.yaml" {
+            continue;
+        }
+        if !path.extension().map(|e| e == "yaml").unwrap_or(false) {
+            continue;
+        }
+
+        let rel = path.strip_prefix(dir)?;
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        let content = fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
+        let page: crate::types::Page =
+            serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
+
+        let fv = page.freshness.as_ref();
+        if fv.is_none() || fv.map(|v| v.is_never()).unwrap_or(false) {
+            continue;
+        }
+        let f = fv.and_then(|v| v.as_full());
+        let info = match info_for(f, &today) {
+            Some(i) => i,
+            None => continue,
+        };
+        let status = info.status();
+        let days = match status {
+            FreshnessStatus::Expired { days_past_expiry } => days_past_expiry,
+            FreshnessStatus::Overdue { days_overdue } => days_overdue,
+            FreshnessStatus::DueSoon { days_until_due } => days_until_due,
+            FreshnessStatus::Fresh => continue,
+        };
+
+        let owner = f
+            .and_then(|f| f.owner.clone())
+            .unwrap_or_else(|| "(unowned)".to_string());
+
+        by_owner.entry(owner).or_default().push(NotifyItem {
+            path: rel_str,
+            title: page.title,
+            status,
+            days,
+        });
+    }
+
+    // Sort items within each owner group: expired first, then overdue (most first), then due_soon
+    for items in by_owner.values_mut() {
+        items.sort_by(|a, b| {
+            fn rank(s: &FreshnessStatus) -> u8 {
+                match s {
+                    FreshnessStatus::Expired { .. } => 0,
+                    FreshnessStatus::Overdue { .. } => 1,
+                    FreshnessStatus::DueSoon { .. } => 2,
+                    FreshnessStatus::Fresh => 3,
+                }
+            }
+            rank(&a.status)
+                .cmp(&rank(&b.status))
+                .then(b.days.cmp(&a.days))
+        });
+    }
+
+    let total_items: usize = by_owner.values().map(|v| v.len()).sum();
+
+    if json {
+        let mut owners_json = Vec::new();
+        for (owner, items) in &by_owner {
+            let mut items_json = Vec::new();
+            for item in items {
+                let status_str = match item.status {
+                    FreshnessStatus::Expired { .. } => "expired",
+                    FreshnessStatus::Overdue { .. } => "overdue",
+                    FreshnessStatus::DueSoon { .. } => "due_soon",
+                    FreshnessStatus::Fresh => "fresh",
+                };
+                items_json.push(format!(
+                    "{{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days\":{}}}",
+                    json_escape(&item.path),
+                    json_escape(&item.title),
+                    status_str,
+                    item.days,
+                ));
+            }
+            owners_json.push(format!(
+                "{{\"owner\":\"{}\",\"count\":{},\"pages\":[{}]}}",
+                json_escape(owner),
+                items.len(),
+                items_json.join(","),
+            ));
+        }
+        println!(
+            "{{\"date\":\"{}\",\"total\":{},\"owners\":[{}]}}",
+            today,
+            total_items,
+            owners_json.join(","),
+        );
+    } else {
+        if by_owner.is_empty() {
+            println!("All pages are fresh — nothing to notify.");
+            return Ok(());
+        }
+        println!("**Freshness digest — {}**\n", today);
+        println!(
+            "{} page(s) need attention across {} owner(s)\n",
+            total_items,
+            by_owner.len()
+        );
+        for (owner, items) in &by_owner {
+            println!(
+                "**{}** ({} page{})",
+                owner,
+                items.len(),
+                if items.len() == 1 { "" } else { "s" }
+            );
+            for item in items {
+                let badge = match item.status {
+                    FreshnessStatus::Expired { days_past_expiry } => {
+                        format!("EXPIRED {} days", days_past_expiry)
+                    }
+                    FreshnessStatus::Overdue { days_overdue } => {
+                        format!("OVERDUE {} days", days_overdue)
+                    }
+                    FreshnessStatus::DueSoon { days_until_due } => {
+                        format!("due in {} days", days_until_due)
+                    }
+                    FreshnessStatus::Fresh => "fresh".into(),
+                };
+                println!("  - [{}] {} ({})", badge, item.title, item.path);
+            }
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
 fn json_escape(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")

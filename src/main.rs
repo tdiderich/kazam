@@ -258,6 +258,7 @@ fn main() -> Result<()> {
             Some(FreshnessCommand::Act { path, action }) => {
                 freshness::run_act(&dir, &path, &action)
             }
+            Some(FreshnessCommand::Notify { json }) => freshness::run_notify(&dir, json),
         },
         Command::Voice { dir, json } => voice::run(&dir, json),
         Command::Prompt { command, dir } => prompts::run(command, &dir),
@@ -290,6 +291,12 @@ pub enum FreshnessCommand {
         /// Action to take
         #[arg(value_enum)]
         action: FreshnessAction,
+    },
+    /// Generate a digest of stale pages grouped by owner (for Slack/email)
+    Notify {
+        /// Output as JSON instead of markdown
+        #[arg(long)]
+        json: bool,
     },
 }
 
