@@ -16,16 +16,14 @@ components:
         external: true
 
   - type: section
-    heading: Built for your role
+    heading: Docs rot. Nobody notices until something breaks.
     components:
-      - type: card_grid
-        cards:
-          - title: Engineering lead
-            description: See which onboarding docs are rotting and who owns them. Manage knowledge debt like tech debt.
-          - title: Ops / People lead
-            description: Track owners and review dates across 50+ policy docs. Know what's stale every Monday morning.
-          - title: Technical founder
-            description: Ship a knowledge base your AI agents can actually read — MCP server, structured YAML, no scraping.
+      - type: markdown
+        body: |
+          - The onboarding guide was last verified by someone who left in Q2
+          - Your API docs say v2 but you shipped v4 — a customer files a ticket before anyone notices
+          - Your AI agent burns tokens running `find` and `grep` trying to figure out where content lives
+          - Your doc toolchain has more dependencies than your product
 
   - type: section
     heading: Sound familiar?
@@ -92,6 +90,18 @@ components:
             links:
               - label: See example →
                 href: examples/dashboard.html
+
+  - type: section
+    heading: Built for your role
+    components:
+      - type: card_grid
+        cards:
+          - title: Engineering lead
+            description: See which onboarding docs are rotting and who owns them. Manage knowledge debt like tech debt.
+          - title: Ops / People lead
+            description: Track owners and review dates across 50+ policy docs. Know what's stale every Monday morning.
+          - title: Technical founder
+            description: Ship a knowledge base your AI agents can actually read — MCP server, structured YAML, no scraping.
 
   - type: section
     heading: Audit your docs in 30 seconds
