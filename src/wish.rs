@@ -21,6 +21,11 @@ const REGISTRY_YAML: &str = r#"
   description: "Notify content owners about stale pages via Slack DMs"
   tags: [ops, freshness, slack, notifications]
   path: wishes/freshness-notifier
+
+- name: deal-360
+  description: "Per-deal dossier combining CRM data, call intelligence, and Slack activity"
+  tags: [gtm, hubspot, attention, slack, deals]
+  path: wishes/deal-360
 "#;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

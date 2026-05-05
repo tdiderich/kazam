@@ -1,0 +1,36 @@
+title: Deal 360
+shell: standard
+eyebrow: GTM
+personas:
+  - gtm
+  - sales
+search_terms:
+  - deals
+  - pipeline
+  - accounts
+  - prospects
+freshness:
+  updated: "2025-01-01"
+  review_every: weekly
+  owner: changeme@company.com
+  refresh:
+    mode: assisted
+    steps:
+      - run: scripts/fetch-deal-360.py
+      - prompt: "Read scripts/deal-360-prompt.md and scripts/deal-360-data.json. For each deal, query Attention for call insights and Slack for channel activity. Build the full Deal 360 page."
+      - review: owner
+components:
+  - type: header
+    title: Deal 360
+    subtitle: "Active pipeline — CRM data enriched with call intelligence and Slack activity"
+
+  - type: callout
+    style: info
+    body: "Run the data pipeline to populate this page. The script fetches HubSpot deals, then an agent enriches each with Attention call insights and Slack channel activity."
+
+  - type: section
+    heading: "Pipeline"
+    components:
+      - type: markdown
+        body: |
+          Run the data pipeline to populate. See the refresh block above.
