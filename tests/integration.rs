@@ -461,254 +461,51 @@ fn wish_list_succeeds() {
         .expect("run kazam wish list");
     assert!(output.status.success(), "wish list failed");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_contains(&stdout, "deck");
-    assert_contains(&stdout, "--yolo");
+    assert_contains(&stdout, "hubspot-icp");
 }
 
 #[test]
-fn wish_deck_stdout_prints_markdown() {
+fn wish_list_json_returns_valid_json() {
     let output = Command::new(bin())
-        .args(["wish", "deck", "--stdout"])
+        .args(["wish", "list", "--json"])
         .output()
-        .expect("run kazam wish deck --stdout");
-    assert!(output.status.success());
+        .expect("run kazam wish list --json");
+    assert!(output.status.success(), "wish list --json failed");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // Portable spec mentions the new workspace flow + agent prompt shape.
-    assert_contains(&stdout, "# kazam wish: deck");
-    assert_contains(&stdout, "wish-deck");
-    assert_contains(&stdout, "shell: deck");
-    assert_contains(&stdout, "Slide plan");
+    let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
+    assert!(parsed.get("registry").is_some(), "should have registry key");
 }
 
 #[test]
-fn wish_deck_scaffolds_workspace() {
-    // First run: no workspace → kazam should scaffold ./wish-deck/ with
-    // questions.md, README.md, and reference/ files. It should NOT try to
-    // run an agent on first invocation.
-    let dir = tmp_dir("wish-deck-scaffold");
-    std::fs::create_dir_all(&dir).unwrap();
-
-    let status = Command::new(bin())
-        .args(["wish", "deck"])
-        .current_dir(&dir)
-        .status()
-        .expect("run kazam wish deck (scaffold)");
-    assert!(status.success(), "scaffold run should succeed");
-
-    let ws = dir.join("wish-deck");
-    assert!(ws.is_dir(), "wish-deck/ not created");
-    assert!(ws.join("questions.md").exists(), "questions.md missing");
-    assert!(ws.join("README.md").exists(), "README.md missing");
-    assert!(
-        ws.join("reference").is_dir(),
-        "reference/ subdirectory missing"
-    );
-    assert!(
-        ws.join("reference/kazam-schema.md").exists(),
-        "reference/kazam-schema.md missing"
-    );
-    assert!(
-        ws.join("reference/example-deck.yaml").exists(),
-        "reference/example-deck.yaml missing"
-    );
-
-    // Questions template includes the expected structured sections.
-    // (Generic deck shape — not QBR-specific.)
-    let questions = read(&ws.join("questions.md"));
-    for heading in [
-        "## Topic",
-        "## Purpose",
-        "## Audience",
-        "## Key messages",
-        "## Supporting evidence",
-        "## The ask",
-    ] {
-        assert_contains(&questions, heading);
-    }
-
-    // Scaffold should not have written deck.yaml yet.
-    assert!(
-        !dir.join("deck.yaml").exists(),
-        "scaffold run must not write deck.yaml"
-    );
-}
-
-#[test]
-fn wish_deck_dry_run_prints_prompt() {
-    // After scaffolding, --dry-run should print the grant prompt to stdout.
-    let dir = tmp_dir("wish-deck-dry-run");
-    std::fs::create_dir_all(&dir).unwrap();
-
-    // Scaffold first.
-    Command::new(bin())
-        .args(["wish", "deck"])
-        .current_dir(&dir)
-        .status()
-        .expect("scaffold");
-
-    // Dry-run grant.
+fn wish_init_rejects_unknown_name() {
     let output = Command::new(bin())
-        .args(["wish", "deck", "--dry-run"])
-        .current_dir(&dir)
+        .args(["wish", "init", "nope-does-not-exist"])
         .output()
-        .expect("run kazam wish deck --dry-run");
-    assert!(output.status.success(), "dry-run failed");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // The prompt should reference the workspace layout + slide plan.
-    assert_contains(&stdout, "questions.md");
-    assert_contains(&stdout, "reference/kazam-schema.md");
-    assert_contains(&stdout, "reference/example-deck.yaml");
-    assert_contains(&stdout, "shell: deck");
-    assert_contains(&stdout, "Slide plan");
-
-    // Dry-run must NOT write deck.yaml.
-    assert!(
-        !dir.join("deck.yaml").exists(),
-        "dry-run must not write deck.yaml"
-    );
+        .expect("run kazam wish init <bogus>");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_contains(&stderr, "not found in registry");
 }
 
 #[test]
-fn wish_deck_yolo_dry_run_includes_topic() {
-    // --yolo with a topic: dry-run should print an invent-it prompt that
-    // mentions the topic and does NOT require a workspace.
-    let dir = tmp_dir("wish-deck-yolo");
-    std::fs::create_dir_all(&dir).unwrap();
-
-    let output = Command::new(bin())
-        .args([
-            "wish",
-            "deck",
-            "--yolo",
-            "history of tiny rust CLIs",
-            "--dry-run",
-        ])
-        .current_dir(&dir)
-        .output()
-        .expect("run kazam wish deck --yolo ... --dry-run");
-    assert!(output.status.success(), "yolo dry-run failed");
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_contains(&stdout, "history of tiny rust CLIs");
-    assert_contains(&stdout, "YOLO");
-    assert_contains(&stdout, "shell: deck");
-
-    // No workspace should have been created — yolo bypasses it.
-    assert!(
-        !dir.join("wish-deck").exists(),
-        "yolo must not scaffold a workspace"
-    );
-}
-
-#[test]
-fn wish_deck_yolo_bare_asks_agent_to_surprise() {
-    // Bare `--yolo` (no topic): prompt should still compile and mention
-    // "surprise" (the invent-anything fallback).
-    let dir = tmp_dir("wish-deck-yolo-bare");
-    std::fs::create_dir_all(&dir).unwrap();
-
-    let output = Command::new(bin())
-        .args(["wish", "deck", "--yolo", "--dry-run"])
-        .current_dir(&dir)
-        .output()
-        .expect("run kazam wish deck --yolo --dry-run");
-    assert!(output.status.success());
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert_contains(&stdout, "surprise");
-    assert_contains(&stdout, "shell: deck");
-}
-
-#[test]
-fn wish_deck_refuses_existing_output_on_grant() {
-    // When the workspace exists AND deck.yaml already exists, grant should
-    // refuse rather than overwrite. Use --dry-run to sidestep the agent.
-    // The existence check happens before the dry-run early-return... wait,
-    // actually dry-run short-circuits first. Test this with a real grant
-    // attempt by stubbing $PATH so no agent is found — that should also
-    // error, but before the existing-file check. So we can't cleanly test
-    // this without a mock agent. Leave this as a smoke test of the scaffold
-    // path + out-path validation via a separate flow.
-    //
-    // Instead: verify that re-running scaffold (workspace exists) falls
-    // through to grant mode and, with --dry-run, succeeds.
-    let dir = tmp_dir("wish-deck-reruns");
-    std::fs::create_dir_all(&dir).unwrap();
-
-    for _ in 0..2 {
-        let output = Command::new(bin())
-            .args(["wish", "deck", "--dry-run"])
-            .current_dir(&dir)
-            .output()
-            .expect("run wish deck");
-        // First iteration: scaffold mode (no workspace yet) — --dry-run is
-        // ignored and scaffold runs. Second iteration: workspace exists, so
-        // --dry-run prints the prompt.
-        assert!(output.status.success());
-    }
-
-    let ws = dir.join("wish-deck");
-    assert!(ws.is_dir());
-}
-
-#[test]
-fn wish_auto_creates_kazam_yaml_in_empty_dir() {
-    // Running `kazam wish deck` in a fresh empty directory should auto-create
-    // a minimal kazam.yaml so the user can immediately follow up with
-    // `kazam dev .` — no hand-authoring required.
-    let dir = tmp_dir("wish-auto-config");
-    std::fs::create_dir_all(&dir).unwrap();
-    assert!(!dir.join("kazam.yaml").exists());
-
-    let status = Command::new(bin())
-        .args(["wish", "deck"])
-        .current_dir(&dir)
-        .status()
-        .expect("run kazam wish deck");
-    assert!(status.success());
-
-    // kazam.yaml should exist with a name derived from the CWD basename.
-    let cfg = dir.join("kazam.yaml");
-    assert!(cfg.exists(), "kazam.yaml auto-create failed");
-    let content = read(&cfg);
-    assert_contains(&content, "name:");
-    assert_contains(&content, "theme: dark");
-
-    // And the subsequent build works cleanly — proves the generated config
-    // is valid for kazam build.
-    let out = dir.join("_site");
-    let build_status = Command::new(bin())
-        .args(["build"])
-        .arg(&dir)
-        .arg("--out")
-        .arg(&out)
-        .status()
-        .expect("build after auto-config");
-    assert!(build_status.success(), "build failed after auto-config");
-}
-
-#[test]
-fn wish_does_not_overwrite_existing_kazam_yaml() {
-    // If the user already has a kazam.yaml (even with custom settings),
-    // `kazam wish` must not clobber it.
-    let dir = tmp_dir("wish-keep-config");
-    std::fs::create_dir_all(&dir).unwrap();
+fn wish_list_shows_local_after_install() {
+    let dir = tmp_dir("wish-local-list");
+    std::fs::create_dir_all(dir.join("wishes/test-wish")).unwrap();
     std::fs::write(
-        dir.join("kazam.yaml"),
-        "name: Custom\ntheme: blue\ntexture: grid\n",
+        dir.join("wishes/test-wish/wish.yaml"),
+        "name: test-wish\ndescription: A test wish\ntags: [test]\n",
     )
     .unwrap();
 
-    let status = Command::new(bin())
-        .args(["wish", "deck"])
+    let output = Command::new(bin())
+        .args(["wish", "list"])
         .current_dir(&dir)
-        .status()
-        .expect("run kazam wish deck");
-    assert!(status.success());
-
-    let content = read(&dir.join("kazam.yaml"));
-    assert_contains(&content, "name: Custom");
-    assert_contains(&content, "theme: blue");
-    assert_contains(&content, "texture: grid");
+        .output()
+        .expect("run kazam wish list with local wish");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_contains(&stdout, "LOCAL");
+    assert_contains(&stdout, "test-wish");
 }
 
 #[test]
@@ -1110,14 +907,23 @@ fn freshness_page_without_metadata_is_silent() {
 }
 
 #[test]
-fn wish_unknown_name_errors() {
+fn wish_init_rejects_duplicate_without_force() {
+    let dir = tmp_dir("wish-dup-reject");
+    std::fs::create_dir_all(dir.join("wishes/hubspot-icp")).unwrap();
+    std::fs::write(
+        dir.join("wishes/hubspot-icp/wish.yaml"),
+        "name: hubspot-icp\ndescription: Already here\ntags: []\n",
+    )
+    .unwrap();
+
     let output = Command::new(bin())
-        .args(["wish", "nope-this-does-not-exist"])
+        .args(["wish", "init", "hubspot-icp"])
+        .current_dir(&dir)
         .output()
-        .expect("run kazam wish <bogus>");
+        .expect("run kazam wish init hubspot-icp (dup)");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_contains(&stderr, "unknown wish");
+    assert_contains(&stderr, "already exists");
 }
 
 #[test]

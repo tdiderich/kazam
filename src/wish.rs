@@ -194,3 +194,35 @@ pub fn init(name: &str, dir: Option<PathBuf>, force: bool) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registry_parses() {
+        let entries = load_registry().unwrap();
+        assert!(!entries.is_empty());
+        assert!(entries.iter().any(|e| e.name == "hubspot-icp"));
+    }
+
+    #[test]
+    fn registry_entries_have_required_fields() {
+        for entry in load_registry().unwrap() {
+            assert!(!entry.name.is_empty());
+            assert!(!entry.description.is_empty());
+            assert!(!entry.path.is_empty());
+            assert!(entry.path.starts_with("wishes/"));
+        }
+    }
+
+    #[test]
+    fn init_rejects_unknown_wish() {
+        let result = init("nonexistent-wish", None, false);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not found in registry"));
+    }
+}
