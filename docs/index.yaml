@@ -16,6 +16,25 @@ components:
         external: true
 
   - type: section
+    heading: Built for your role
+    components:
+      - type: columns
+        equal_heights: true
+        columns:
+          - - type: callout
+              variant: info
+              title: Engineering lead
+              body: "Your team just hit 30 and the onboarding guide was last verified by someone who left in Q2. kazam gives you a health dashboard that shows exactly which docs are decaying and who owns them — so you manage knowledge debt the same way you manage tech debt."
+          - - type: callout
+              variant: info
+              title: Ops / People lead
+              body: "You maintain 50 policy docs and have no idea which ones are still current. kazam tracks owners and review cadence per page, then generates a stale report every build. Monday morning, you know exactly what needs a refresh."
+          - - type: callout
+              variant: info
+              title: Technical founder
+              body: "You're building an AI-native company and your agents can't read your wiki. kazam ships a native MCP server — your coding agents get structured access to your knowledge base instead of scraping HTML and guessing at structure."
+
+  - type: section
     heading: Sound familiar?
     components:
       - type: split_compare
@@ -51,59 +70,6 @@ components:
             - label: Staleness detection
               value: deterministic
               color: teal
-
-      - type: split_compare
-        left:
-          eyebrow: TODAY
-          title: Your agent burns tokens finding content
-          stats:
-            - label: Access method
-              value: scrape HTML
-              color: red
-            - label: Content model
-              value: freeform blocks
-              color: yellow
-            - label: Agent workflows
-              value: ad-hoc prompting
-              color: yellow
-            - label: Toolchain
-              value: Node + React + MDX
-              color: red
-        right:
-          eyebrow: WITH KAZAM
-          title: Agents read structured YAML directly
-          stats:
-            - label: Access method
-              value: MCP server — 5 tools
-              color: green
-            - label: Content model
-              value: typed YAML components
-              color: green
-            - label: Agent workflows
-              value: prompt templates
-              color: green
-            - label: Toolchain
-              value: one Rust binary
-              color: teal
-
-  - type: section
-    heading: Built for your role
-    components:
-      - type: columns
-        equal_heights: true
-        columns:
-          - - type: callout
-              variant: info
-              title: Engineering lead
-              body: "Your team just hit 30 and the onboarding guide was last verified by someone who left in Q2. kazam gives you a health dashboard that shows exactly which docs are decaying and who owns them — so you manage knowledge debt the same way you manage tech debt."
-          - - type: callout
-              variant: info
-              title: Ops / People lead
-              body: "You maintain 50 policy docs and have no idea which ones are still current. kazam tracks owners and review cadence per page, then generates a stale report every build. Monday morning, you know exactly what needs a refresh."
-          - - type: callout
-              variant: info
-              title: Technical founder
-              body: "You're building an AI-native company and your agents can't read your wiki. kazam ships a native MCP server — your coding agents get structured access to your knowledge base instead of scraping HTML and guessing at structure."
 
   - type: section
     heading: See it in action
