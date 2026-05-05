@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 use std::path::Path;
 use walkdir::WalkDir;
 
-use crate::types::{Page, Shell, SiteConfig};
+use crate::types::{Page, RefreshMode, RefreshStep, RefreshValue, Shell, SiteConfig};
 
 use super::protocol::ToolResult;
 
@@ -83,6 +83,36 @@ pub fn tool_definitions() -> Vec<super::protocol::Tool> {
     ]
 }
 
+// ── Helpers ───────────────────────────────────────────────
+
+fn serialize_refresh(refresh: &Option<RefreshValue>) -> serde_json::Value {
+    use serde_json::json;
+    match refresh {
+        None => serde_json::Value::Null,
+        Some(RefreshValue::Prompt(s)) => json!(s),
+        Some(RefreshValue::Full(config)) => {
+            let mode = match config.mode {
+                RefreshMode::Human => "human",
+                RefreshMode::Auto => "auto",
+                RefreshMode::Assisted => "assisted",
+            };
+            let steps: Vec<serde_json::Value> = config
+                .steps
+                .iter()
+                .map(|s| match s {
+                    RefreshStep::Run(v) => json!({"run": v}),
+                    RefreshStep::Prompt(v) => json!({"prompt": v}),
+                    RefreshStep::Review(v) => json!({"review": v}),
+                })
+                .collect();
+            json!({
+                "mode": mode,
+                "steps": steps,
+            })
+        }
+    }
+}
+
 // ── Tool implementations ─────────────────────────────────
 
 pub fn read_page(dir: &Path, params: &Value) -> Result<ToolResult> {
@@ -116,6 +146,7 @@ pub fn read_page(dir: &Path, params: &Value) -> Result<ToolResult> {
                 "owner": f.owner,
                 "updated": f.updated,
                 "review_every": f.review_every,
+                "refresh": serialize_refresh(&f.refresh),
             })),
         }),
         Err(e) => json!({ "parse_error": e.to_string() }),

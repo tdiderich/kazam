@@ -161,6 +161,35 @@ pub fn is_stale_draft(f: Option<&Freshness>, today_iso: &str) -> bool {
     today - updated >= DRAFT_STALE_DAYS
 }
 
+// ── Refresh serialization helper ──────────────────────────────────────────
+
+/// Serialize an `Option<RefreshValue>` to a JSON string fragment.
+/// Used by both the `freshness show` and `freshness review` JSON outputs.
+fn serialize_refresh_json(refresh: &Option<crate::types::RefreshValue>) -> String {
+    use crate::types::{RefreshMode, RefreshStep, RefreshValue};
+    match refresh {
+        None => "null".to_string(),
+        Some(RefreshValue::Prompt(s)) => format!("\"{}\"", json_escape(s)),
+        Some(RefreshValue::Full(config)) => {
+            let mode = match config.mode {
+                RefreshMode::Human => "human",
+                RefreshMode::Auto => "auto",
+                RefreshMode::Assisted => "assisted",
+            };
+            let steps: Vec<String> = config
+                .steps
+                .iter()
+                .map(|step| match step {
+                    RefreshStep::Run(v) => format!("{{\"run\":\"{}\"}}", json_escape(v)),
+                    RefreshStep::Prompt(v) => format!("{{\"prompt\":\"{}\"}}", json_escape(v)),
+                    RefreshStep::Review(v) => format!("{{\"review\":\"{}\"}}", json_escape(v)),
+                })
+                .collect();
+            format!("{{\"mode\":\"{}\",\"steps\":[{}]}}", mode, steps.join(","))
+        }
+    }
+}
+
 // ── `kazam freshness` command ──────────────────────────────────────────────
 
 /// Run the `kazam freshness` command — walk `dir`, evaluate staleness for
@@ -185,6 +214,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
         review_every: Option<String>,
         is_never: bool,
         no_freshness: bool,
+        refresh: Option<crate::types::RefreshValue>,
     }
 
     let mut results: Vec<PageResult> = Vec::new();
@@ -245,6 +275,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     review_every: None,
                     is_never: false,
                     no_freshness: true,
+                    refresh: None,
                 });
             }
             Some(fv) if fv.is_never() => {
@@ -259,6 +290,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     review_every: None,
                     is_never: true,
                     no_freshness: false,
+                    refresh: None,
                 });
             }
             Some(fv) => {
@@ -276,6 +308,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     owner: f.owner.clone(),
                     sources_of_truth: f.sources_of_truth.clone(),
                     expires: f.expires.clone(),
+                    refresh: f.refresh.clone(),
                 };
 
                 let status = match info_for(Some(&f_override), &today) {
@@ -301,6 +334,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     review_every: f.review_every.clone(),
                     is_never: false,
                     no_freshness: false,
+                    refresh: f.refresh.clone(),
                 });
             }
         }
@@ -412,10 +446,11 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                 .as_deref()
                 .map(|rv| format!("\"{}\"", json_escape(rv)))
                 .unwrap_or_else(|| "null".to_string());
+            let refresh_str = serialize_refresh_json(&r.refresh);
 
             let comma = if i + 1 < non_fresh.len() { "," } else { "" };
             pages_json.push_str(&format!(
-                "    {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days_overdue\":{},\"owner\":{},\"updated\":{},\"review_every\":{}}}{}\n",
+                "    {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days_overdue\":{},\"owner\":{},\"updated\":{},\"review_every\":{},\"refresh\":{}}}{}\n",
                 json_escape(&r.path),
                 json_escape(&r.title),
                 status_str,
@@ -423,6 +458,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                 owner_str,
                 updated_str,
                 review_every_str,
+                refresh_str,
                 comma,
             ));
         }
@@ -458,6 +494,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
         cadence: Option<String>,
         recommendation: &'static str,
         description: Option<String>,
+        refresh: Option<crate::types::RefreshValue>,
     }
 
     let mut items: Vec<ReviewItem> = Vec::new();
@@ -528,6 +565,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
             cadence: f.and_then(|f| f.review_every.clone()),
             recommendation,
             description: page.subtitle,
+            refresh: f.and_then(|f| f.refresh.clone()),
         });
     }
 
@@ -563,15 +601,17 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
                 .as_deref()
                 .map(|o| format!("\"{}\"", json_escape(o)))
                 .unwrap_or("null".into());
+            let refresh_str = serialize_refresh_json(&item.refresh);
             let comma = if i + 1 < items.len() { "," } else { "" };
             println!(
-                "  {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days\":{},\"owner\":{},\"recommendation\":\"{}\"}}{}",
+                "  {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days\":{},\"owner\":{},\"recommendation\":\"{}\",\"refresh\":{}}}{}",
                 json_escape(&item.path),
                 json_escape(&item.title),
                 status_str,
                 item.days,
                 owner,
                 item.recommendation,
+                refresh_str,
                 comma,
             );
         }
@@ -806,6 +846,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert_eq!(info.days_since_update(), Some(110));
@@ -820,6 +861,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
@@ -834,6 +876,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
@@ -845,6 +888,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
@@ -858,6 +902,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: Some("2026-03-01".to_string()),
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-01").unwrap();
         assert!(matches!(info.status(), FreshnessStatus::Expired { .. }));
@@ -871,6 +916,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: Some("2026-12-31".to_string()),
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-05-01").unwrap();
         assert!(matches!(info.status(), FreshnessStatus::Overdue { .. }));
@@ -884,6 +930,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         assert!(is_stale_draft(Some(&f), "2026-02-01"));
         assert!(!is_stale_draft(Some(&f), "2026-01-20"));
@@ -897,6 +944,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         assert!(!is_stale_draft(Some(&f), "2026-06-01"));
     }
@@ -909,6 +957,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: Some("2026-03-01".to_string()),
+            refresh: None,
         };
         assert!(is_expired(Some(&f), "2026-04-01"));
         assert!(!is_expired(Some(&f), "2026-02-01"));
