@@ -11,6 +11,11 @@ const REGISTRY_YAML: &str = r#"
   description: "Data-driven ICP from HubSpot deals + Apollo enrichment"
   tags: [gtm, hubspot, apollo, icp]
   path: wishes/hubspot-icp
+
+- name: linear-team-map
+  description: "Map people to teams, projects, and ownership from Linear activity"
+  tags: [ops, linear, people, ownership]
+  path: wishes/linear-team-map
 "#;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -204,6 +209,7 @@ mod tests {
         let entries = load_registry().unwrap();
         assert!(!entries.is_empty());
         assert!(entries.iter().any(|e| e.name == "hubspot-icp"));
+        assert!(entries.iter().any(|e| e.name == "linear-team-map"));
     }
 
     #[test]

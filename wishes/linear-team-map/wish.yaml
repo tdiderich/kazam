@@ -1,0 +1,6 @@
+name: linear-team-map
+description: "Map people to teams, projects, and ownership from Linear activity"
+tags: [ops, linear, people, ownership]
+env:
+  - LINEAR_API_KEY
+data_sources: [linear]
