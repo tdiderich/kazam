@@ -183,6 +183,10 @@ pub struct Freshness {
     /// campaign pages.
     #[serde(default)]
     pub expires: Option<String>,
+    /// How this page gets refreshed — bare string (prompt shorthand) or
+    /// full config with mode + steps. Not used by the build.
+    #[serde(default)]
+    pub refresh: Option<RefreshValue>,
 }
 
 /// One source-of-truth entry. Either a bare URL or a labeled link.
@@ -206,6 +210,50 @@ impl SourceOfTruth {
             SourceOfTruth::Full { label, .. } => label,
         }
     }
+}
+
+/// How a page gets refreshed: human-only, fully automated, or
+/// script + LLM + human review.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum RefreshValue {
+    /// Bare string shorthand — assisted mode with a single prompt step.
+    Prompt(String),
+    /// Full refresh configuration with mode and steps.
+    Full(RefreshConfig),
+}
+
+/// Full refresh configuration.
+#[derive(Debug, Deserialize, Clone)]
+pub struct RefreshConfig {
+    /// human | auto | assisted. Defaults to assisted.
+    #[serde(default)]
+    pub mode: RefreshMode,
+    /// Ordered recipe: run (shell), prompt (LLM), review (human checkpoint).
+    #[serde(default)]
+    pub steps: Vec<RefreshStep>,
+}
+
+/// Refresh mode.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RefreshMode {
+    Human,
+    Auto,
+    #[default]
+    Assisted,
+}
+
+/// One step in a refresh recipe.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum RefreshStep {
+    /// Shell command to run (e.g. a data-gathering script).
+    Run(String),
+    /// Prompt for an LLM agent.
+    Prompt(String),
+    /// Human review checkpoint. Value is who reviews (e.g. "owner").
+    Review(String),
 }
 
 #[derive(Deserialize, Clone, Copy, Default)]

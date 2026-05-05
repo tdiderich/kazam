@@ -313,6 +313,7 @@ mod tests {
             owner: Some("alice".to_string()),
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let fm = freshness_manifest(&f, "2026-03-01");
         assert_eq!(fm.status, "overdue");
@@ -329,6 +330,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let fm = freshness_manifest(&f, "2026-05-02");
         assert_eq!(fm.status, "fresh");
@@ -343,6 +345,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         // Check json contains expected fields
         let fm = freshness_manifest(&f, "2026-04-20");

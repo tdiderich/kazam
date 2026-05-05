@@ -1045,6 +1045,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         }));
         let errors = validate_page("test.yaml", &page);
         assert!(
@@ -1064,6 +1065,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         }));
         let errors = validate_page("test.yaml", &page);
         assert!(
@@ -1083,6 +1085,7 @@ mod tests {
             owner: Some("team@example.com".into()),
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         }));
         let errors = validate_page("test.yaml", &page);
         assert!(errors.is_empty(), "expected no errors for valid freshness");
