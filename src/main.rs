@@ -76,20 +76,10 @@ enum Command {
     Init { name: String },
     /// Print the LLM authoring guide (full AGENTS.md to stdout)
     Agents,
-    /// Grant a wish — populated YAML from a workspace full of your context.
+    /// Grant a wish — install a recipe for self-refreshing docs
     Wish {
-        /// Name of the wish (e.g., "deck", or "list" to see all)
-        name: String,
-        #[arg(short, long)]
-        out: Option<PathBuf>,
-        #[arg(long, value_enum)]
-        agent: Option<wish::Agent>,
-        #[arg(long)]
-        stdout: bool,
-        #[arg(long)]
-        dry_run: bool,
-        #[arg(long, value_name = "TOPIC", num_args = 0..=1, default_missing_value = "")]
-        yolo: Option<String>,
+        #[command(subcommand)]
+        command: WishCommand,
     },
     /// Manage the work graph — tasks, dependencies, activity log.
     Track {
@@ -182,6 +172,27 @@ enum Command {
     },
 }
 
+#[derive(Subcommand)]
+enum WishCommand {
+    /// List available wishes (local + registry)
+    List {
+        /// Machine-readable JSON output
+        #[arg(long)]
+        json: bool,
+    },
+    /// Install a wish from the registry into local wishes/
+    Init {
+        /// Name of the wish to install
+        name: String,
+        /// Install to a specific directory instead of wishes/
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        /// Overwrite existing local wish
+        #[arg(long)]
+        force: bool,
+    },
+}
+
 fn main() -> Result<()> {
     match Cli::parse().command {
         Command::Build {
@@ -206,14 +217,10 @@ fn main() -> Result<()> {
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),
         Command::Agents => agents::run(),
-        Command::Wish {
-            name,
-            out,
-            agent,
-            stdout,
-            dry_run,
-            yolo,
-        } => wish::run(&name, out, agent, stdout, dry_run, yolo),
+        Command::Wish { command } => match command {
+            WishCommand::List { json } => wish::list(json),
+            WishCommand::Init { name, dir, force } => wish::init(&name, dir, force),
+        },
         Command::Track { command, dir } => track::run(command, &dir),
         Command::Ctx { command, dir } => ctx::run(command, &dir),
         Command::Board { dir, port } => board::run(&dir, port),
