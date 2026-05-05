@@ -1,5 +1,5 @@
 name: sync-roles
-description: Sync the roles config in kazam.yaml from a team directory — Slack profiles, Google Directory, or a manual CSV
+description: Sync the roles config in kazam.yaml from a team directory — Gmail all@ alias, Google Directory, Slack profiles, or a manual list
 model: claude-sonnet-4-6
 system_prompt: |
   You are a role-map sync agent. Your job is to read the current team directory
@@ -31,14 +31,32 @@ system_prompt: |
   1. **Read current config**: Use the Read tool to read `kazam.yaml` and note
      existing roles.
 
-  2. **Gather team data**: Use one of these sources (in order of preference):
-     - **Google Directory** (if available): Use `list_users` or `directory_users`
-       MCP tools to get all users with their department, title, and manager.
-       This is the most reliable source — departments are structured data.
-     - **Slack**: Use `slack_search_users` with broad terms (engineer, sales,
-       product, ops, marketing, design, etc.) and `slack_read_user_profile`
-       for each user. Department is inferred from title — less reliable but
-       works when Google Directory isn't available.
+  2. **Gather team data**: Use the first available source (in order of preference):
+
+     - **Google Directory** (if `list_users` or `directory_users` MCP tools exist):
+       Query all users — returns structured department, title, and manager fields.
+       Most reliable source. Requires admin-level Google Workspace scopes.
+
+     - **Gmail all@ alias** (if Gmail MCP is connected):
+       Search for `to:COMPANY-all@domain.com newer_than:90d` — company-wide
+       calendar invites (all-hands, weekly wrap) expand the alias into every
+       individual @domain.com email. Extract unique recipients, strip the domain,
+       and you have the full roster. Then use Slack `slack_read_user_profile`
+       to get titles, or infer from email prefix + meeting context.
+
+       Also search for team-specific aliases to refine role mapping:
+       - `to:eng-all@` or `to:engineering@` → engineering role
+       - `to:sales-all@` or `to:gtm@` → gtm role
+       - `to:product@` → product role
+       These aliases vary by company — check the first all-hands thread for
+       patterns, or ask the user.
+
+     - **Slack** (if Slack MCP is connected):
+       Use `slack_search_users` with broad terms (engineer, sales, product,
+       ops, marketing, design, CEO, VP, etc.) and `slack_read_user_profile`
+       for each user. Department is inferred from title — less reliable and
+       may miss quiet members whose profiles lack keywords.
+
      - **Manual list**: The user may paste or point to a CSV/spreadsheet.
        Parse names, titles, and departments from that.
 
