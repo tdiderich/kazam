@@ -1,0 +1,14 @@
+title: Freshness Notifications
+shell: standard
+eyebrow: Ops
+personas:
+  - everyone
+freshness:
+  updated: "2025-01-01"
+  review_every: weekly
+  owner: changeme@company.com
+  refresh:
+    mode: auto
+    steps:
+      - run: "kazam freshness notify --json > scripts/freshness-digest.json"
+      - prompt: "Read scripts/freshness-digest.json. For each owner, send a Slack DM listing their stale pages with status, days, and title. Use the Slack MCP to look up users by email and send messages. See scripts/freshness-notifier-prompt.md for message format."

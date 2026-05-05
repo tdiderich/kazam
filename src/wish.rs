@@ -16,6 +16,11 @@ const REGISTRY_YAML: &str = r#"
   description: "Map people to teams, projects, and ownership from Linear activity"
   tags: [ops, linear, people, ownership]
   path: wishes/linear-team-map
+
+- name: freshness-notifier
+  description: "Notify content owners about stale pages via Slack DMs"
+  tags: [ops, freshness, slack, notifications]
+  path: wishes/freshness-notifier
 "#;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

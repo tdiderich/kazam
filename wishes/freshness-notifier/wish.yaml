@@ -1,0 +1,6 @@
+name: freshness-notifier
+description: "Notify content owners about stale pages via Slack DMs"
+tags: [ops, freshness, slack, notifications]
+env:
+  - SLACK_BOT_TOKEN
+data_sources: [kazam, slack]
