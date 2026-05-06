@@ -7,6 +7,7 @@
 use std::path::Path;
 
 use crate::freshness::{info_for, json_escape, today_iso, FreshnessStatus};
+use crate::types::SourceOfTruth;
 
 /// Severity order for sorting issues (lower = more severe).
 fn issue_severity(issue: &str) -> u8 {
@@ -22,12 +23,30 @@ fn issue_severity(issue: &str) -> u8 {
     }
 }
 
+fn sources_to_json(sources: &[SourceOfTruth]) -> String {
+    if sources.is_empty() {
+        return "[]".to_string();
+    }
+    let entries: Vec<String> = sources
+        .iter()
+        .map(|s| {
+            format!(
+                "{{\"label\":\"{}\",\"href\":\"{}\"}}",
+                json_escape(s.label()),
+                json_escape(s.href()),
+            )
+        })
+        .collect();
+    format!("[{}]", entries.join(","))
+}
+
 struct IssueEntry {
     path: String,
     title: String,
     owner: Option<String>,
     issue: &'static str,
     detail: String,
+    sources_of_truth: Vec<SourceOfTruth>,
 }
 
 /// Run `kazam audit`: walk `dir`, emit a JSON or human-readable health report.
@@ -78,7 +97,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
         }
 
         let fname = path.file_name().unwrap_or_default();
-        if fname == "kazam.yaml" || fname == "404.yaml" {
+        if fname == "kazam.yaml" || fname == "404.yaml" || fname == "index.yaml" {
             continue;
         }
 
@@ -111,6 +130,14 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
 
         let mut page_issues: Vec<IssueEntry> = Vec::new();
 
+        // Extract sources_of_truth for this page (shared across all issues)
+        let page_sources: Vec<SourceOfTruth> = page
+            .freshness
+            .as_ref()
+            .and_then(|fv| fv.as_full())
+            .and_then(|f| f.sources_of_truth.clone())
+            .unwrap_or_default();
+
         // ── Freshness issues ──────────────────────────────────────────────
         match page.freshness.as_ref() {
             None => {
@@ -122,6 +149,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                     owner: page.owner.clone(),
                     issue: "missing_freshness",
                     detail: "Page has no freshness metadata".to_string(),
+                    sources_of_truth: page_sources.clone(),
                 });
             }
             Some(fv) => {
@@ -152,6 +180,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                                 "Review due in {} days (review_every: {}, updated: {})",
                                 days_until_due, review_every, updated
                             ),
+                            sources_of_truth: page_sources.clone(),
                         });
                     }
                     FreshnessStatus::Overdue { days_overdue } => {
@@ -167,6 +196,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                                 "{} days overdue (review_every: {}, updated: {})",
                                 days_overdue, review_every, updated
                             ),
+                            sources_of_truth: page_sources.clone(),
                         });
                     }
                     FreshnessStatus::Expired { days_past_expiry } => {
@@ -181,6 +211,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                                 "{} days past expiry (expires: {})",
                                 days_past_expiry, expires
                             ),
+                            sources_of_truth: page_sources.clone(),
                         });
                     }
                 }
@@ -201,6 +232,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                         owner: None,
                         issue: "missing_owner",
                         detail: "Page has freshness metadata but no owner assigned".to_string(),
+                        sources_of_truth: page_sources.clone(),
                     });
                 }
 
@@ -220,6 +252,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                         detail:
                             "No sources_of_truth entries — drift detection won't cover this page"
                                 .to_string(),
+                        sources_of_truth: vec![],
                     });
                 }
             }
@@ -247,6 +280,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                     .or_else(|| page.owner.clone()),
                 issue: "empty_content",
                 detail: "Page has no components — content is empty".to_string(),
+                sources_of_truth: page_sources.clone(),
             });
         }
 
@@ -323,12 +357,13 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                     .map(|o| format!("\"{}\"", json_escape(o)))
                     .unwrap_or_else(|| "null".to_string());
                 format!(
-                    "    {{\"path\":\"{}\",\"title\":\"{}\",\"owner\":{},\"issue\":\"{}\",\"detail\":\"{}\"}}",
+                    "    {{\"path\":\"{}\",\"title\":\"{}\",\"owner\":{},\"issue\":\"{}\",\"detail\":\"{}\",\"sources_of_truth\":{}}}",
                     json_escape(&e.path),
                     json_escape(&e.title),
                     owner_json,
                     e.issue,
                     json_escape(&e.detail),
+                    sources_to_json(&e.sources_of_truth),
                 )
             })
             .collect();
