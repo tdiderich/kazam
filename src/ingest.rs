@@ -26,8 +26,20 @@ fn resolve_token(cli_token: &Option<String>) -> anyhow::Result<String> {
             }
         }
     }
-    std::env::var("NOTION_TOKEN")
-        .map_err(|_| anyhow::anyhow!("No Notion token — pass --token or set NOTION_TOKEN"))
+    std::env::var("NOTION_TOKEN").map_err(|_| {
+        anyhow::anyhow!(
+            "No Notion token found.\n\n\
+             Setup:\n\
+             1. Go to https://www.notion.so/profile/integrations/internal\n\
+             2. Create a new integration and copy the secret (starts with ntn_)\n\
+             3. Add to .env in your project root:\n\
+                NOTION_TOKEN=ntn_...\n\
+                NOTION_WORKSPACE_ID=...  (workspace name → Settings → General)\n\
+             \n\
+             Then share pages with the integration:\n\
+             Open a page in Notion → ··· → Connections → add your integration"
+        )
+    })
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
@@ -1118,6 +1130,112 @@ fn run_page(token: &str, page_id: &str, out: &Path, dry_run: bool) -> anyhow::Re
     Ok(())
 }
 
+// ── search API (--all mode) ──────────────────────────────────────────────────
+
+fn search_all_pages(token: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+    let mut pages = Vec::new();
+    let mut cursor: Option<String> = None;
+    loop {
+        let mut body = serde_json::json!({
+            "filter": { "value": "page", "property": "object" },
+            "page_size": 100
+        });
+        if let Some(c) = &cursor {
+            body["start_cursor"] = serde_json::Value::String(c.clone());
+        }
+        let resp = notion_post(token, "https://api.notion.com/v1/search", &body)?;
+        if let Some(results) = resp["results"].as_array() {
+            pages.extend(results.clone());
+        }
+        if resp["has_more"].as_bool().unwrap_or(false) {
+            cursor = resp["next_cursor"].as_str().map(String::from);
+        } else {
+            break;
+        }
+    }
+    Ok(pages)
+}
+
+fn find_root_pages(pages: &[serde_json::Value]) -> Vec<&serde_json::Value> {
+    let all_ids: std::collections::HashSet<String> = pages
+        .iter()
+        .filter_map(|p| p["id"].as_str().map(String::from))
+        .collect();
+
+    pages
+        .iter()
+        .filter(|p| {
+            let parent = &p["parent"];
+            match parent["type"].as_str() {
+                Some("page_id") => {
+                    let pid = parent["page_id"].as_str().unwrap_or("");
+                    !all_ids.contains(pid)
+                }
+                Some("workspace") => true,
+                _ => true,
+            }
+        })
+        .collect()
+}
+
+fn run_all(token: &str, out: &Path, dry_run: bool) -> anyhow::Result<()> {
+    println!("\n  Notion → kazam (discovering all accessible pages)\n");
+
+    let all_pages = search_all_pages(token)?;
+    println!("  found {} page(s) via search API", all_pages.len());
+
+    let roots = find_root_pages(&all_pages);
+    println!("  {} root page(s) to ingest\n", roots.len());
+
+    let mut stats = RunStats::new();
+
+    for (i, page) in roots.iter().enumerate() {
+        let page_id = page["id"].as_str().unwrap_or("");
+        if page_id.is_empty() {
+            continue;
+        }
+
+        if i > 0 && i % 5 == 0 {
+            thread::sleep(Duration::from_millis(350));
+        }
+
+        let blocks = fetch_all_blocks(token, page_id)?;
+        let title = extract_page_title(page);
+        let slug = slugify(&title);
+        let file_path = out.join(format!("{}.yaml", slug));
+        let display_path = file_path.display().to_string();
+
+        let result = page_to_yaml(token, page, &blocks, out, dry_run)?;
+
+        if dry_run {
+            println!("  [dry-run] {}", display_path);
+        } else {
+            println!("  {}", display_path);
+            if let Some(parent) = file_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&file_path, &result.yaml)?;
+        }
+
+        stats.accumulate(&result);
+        stats.record_page(page);
+
+        for (child_id, child_path) in &result.child_pages {
+            write_page_tree(token, child_id, child_path, out, dry_run, &mut stats)?;
+        }
+    }
+
+    print_run_summary(&stats, out, dry_run);
+    Ok(())
+}
+
+fn stats_all(token: &str) -> anyhow::Result<()> {
+    let pages = search_all_pages(token)?;
+    let metas = collect_page_meta(&pages);
+    print_stats(&metas, "all accessible pages");
+    Ok(())
+}
+
 fn print_run_summary(stats: &RunStats, out: &Path, dry_run: bool) {
     println!();
     if dry_run {
@@ -1205,12 +1323,22 @@ pub fn notion(
     token: &Option<String>,
     out: &Path,
     dry_run: bool,
+    all: bool,
 ) -> anyhow::Result<()> {
+    if all {
+        let tok = resolve_token(token)?;
+        return run_all(&tok, out, dry_run);
+    }
     match (database, page) {
         (None, None) => {
             anyhow::bail!(
-                "Specify --database <id> or --page <id>. \
-                 Find IDs in the Notion URL after the workspace name."
+                "Specify --database <id>, --page <id>, or --all.\n\n\
+                 --all discovers every page the integration can access.\n\n\
+                 Finding IDs:\n  \
+                 Page: notion.so/My-Page-abc123def456 → --page abc123de-f456-...\n  \
+                 DB:   notion.so/abc123?v=...         → --database abc123...\n  \
+                 The 32-char hex at the end of the URL is the ID.\n\n\
+                 Run `kazam ingest notion --help` for full setup instructions."
             );
         }
         (Some(db_id), _) => {
@@ -1462,13 +1590,22 @@ pub fn notion_stats(
     database: &Option<String>,
     page: &Option<String>,
     token: &Option<String>,
+    all: bool,
 ) -> anyhow::Result<()> {
     let tok = resolve_token(token)?;
+    if all {
+        return stats_all(&tok);
+    }
     match (database, page) {
         (None, None) => {
             anyhow::bail!(
-                "Specify --database <id> or --page <id>. \
-                 Find IDs in the Notion URL after the workspace name."
+                "Specify --database <id>, --page <id>, or --all.\n\n\
+                 --all discovers every page the integration can access.\n\n\
+                 Finding IDs:\n  \
+                 Page: notion.so/My-Page-abc123def456 → --page abc123de-f456-...\n  \
+                 DB:   notion.so/abc123?v=...         → --database abc123...\n  \
+                 The 32-char hex at the end of the URL is the ID.\n\n\
+                 Run `kazam ingest notion --help` for full setup instructions."
             );
         }
         (Some(db_id), _) => stats_database(&tok, db_id),

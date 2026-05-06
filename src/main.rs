@@ -294,11 +294,12 @@ fn main() -> Result<()> {
                 out,
                 dry_run,
                 stats,
+                all,
             } => {
                 if stats {
-                    ingest::notion_stats(&database, &page, &token)
+                    ingest::notion_stats(&database, &page, &token, all)
                 } else {
-                    ingest::notion(&database, &page, &token, &out, dry_run)
+                    ingest::notion(&database, &page, &token, &out, dry_run, all)
                 }
             }
         },
@@ -366,7 +367,24 @@ pub enum ActionsCommand {
 
 #[derive(Subcommand)]
 pub enum IngestCommand {
-    /// Import pages from a Notion workspace
+    /// Import pages from a Notion workspace.
+    ///
+    /// Setup (one-time):
+    ///   1. Go to https://www.notion.so/profile/integrations/internal
+    ///   2. Click "New integration", name it (e.g. "kazam"), submit
+    ///   3. Copy the Internal Integration Secret (starts with ntn_)
+    ///   4. Set NOTION_TOKEN in .env or export NOTION_TOKEN=ntn_...
+    ///   5. Find your workspace ID: click workspace name (top-left) → Settings → General
+    ///      (workspace ID is at the bottom of the page)
+    ///   6. Set NOTION_WORKSPACE_ID in .env (optional, for --all discovery)
+    ///   7. In Notion, open the page/database you want to import
+    ///   8. Click ··· → Connections → add your integration (gives it access to content)
+    ///      (child pages inherit access from parent)
+    ///
+    /// Finding IDs:
+    ///   Page URL:  notion.so/My-Page-abc123def456 → --page abc123de-f456-...
+    ///   DB URL:    notion.so/abc123?v=...         → --database abc123...
+    ///   The 32-char hex string in the URL is the ID (add dashes for UUID format)
     Notion {
         /// Notion database ID — each row becomes a page
         #[arg(long)]
@@ -374,7 +392,7 @@ pub enum IngestCommand {
         /// Notion page ID — import a single page and its children
         #[arg(long)]
         page: Option<String>,
-        /// Notion API token (default: NOTION_TOKEN env var)
+        /// Notion API token (default: .env NOTION_TOKEN or env var)
         #[arg(long)]
         token: Option<String>,
         /// Output directory for generated YAML files (default: current dir)
@@ -386,6 +404,9 @@ pub enum IngestCommand {
         /// Show staleness stats without ingesting (metadata only, fast)
         #[arg(long)]
         stats: bool,
+        /// Discover and ingest all pages the integration can access
+        #[arg(long)]
+        all: bool,
     },
 }
 
