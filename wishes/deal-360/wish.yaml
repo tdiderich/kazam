@@ -1,6 +1,6 @@
 name: deal-360
-description: "Per-deal dossier combining CRM data, call intelligence, and Slack activity"
-tags: [gtm, hubspot, attention, slack, deals]
+description: "Per-deal dossier combining CRM data, call intelligence, and messaging activity"
+tags: [gtm, hubspot, attention, slack, teams, deals]
 env:
   - HUBSPOT_API_TOKEN
-data_sources: [hubspot, attention, slack]
+data_sources: [hubspot, attention, slack, teams]

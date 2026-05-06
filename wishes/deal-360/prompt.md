@@ -15,11 +15,11 @@ For each deal, search Attention for calls mentioning the company name:
 - For deals with calls, use `ask_attention` (up to 25 call IDs) asking: "Summarize pain points, competitive landscape, objections raised, next steps, and risk signals for this deal"
 - If no calls found, note "No call data"
 
-### 3. Slack channel activity (query via MCP)
-For each deal, check if the guessed Slack channel exists:
+### 3. Messaging channel activity (query via MCP)
+For each deal, check if the guessed channel exists in the available messaging platform (Slack or Teams):
 - Search for the channel name from `slack_channel_guess`
 - If found, read recent messages for blockers, scoping notes, and POV progress
-- If no channel found, note "No Slack channel"
+- If no channel found, note "No deal channel"
 
 ### Output format
 
