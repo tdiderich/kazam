@@ -974,6 +974,7 @@ fn run_database(token: &str, database_id: &str, out: &Path, dry_run: bool) -> an
         }
 
         stats.accumulate(&result);
+        stats.record_page(page);
 
         // Recurse into child pages
         for (child_id, child_path) in &result.child_pages {
@@ -981,36 +982,33 @@ fn run_database(token: &str, database_id: &str, out: &Path, dry_run: bool) -> an
         }
     }
 
-    println!();
-    if dry_run {
-        println!(
-            "  [dry-run] {} page(s) would be written to {}/",
-            stats.files_written,
-            out.display()
-        );
-    } else {
-        println!("  ✓ {} page(s) → {}/", stats.files_written, out.display());
-    }
-    if stats.images_downloaded > 0 {
-        println!(
-            "  ⚠ {} image(s) downloaded to {}/assets/images/",
-            stats.images_downloaded,
-            out.display()
-        );
-    }
-    if stats.dbs_skipped > 0 {
-        println!("  ⚠ {} child database(s) skipped", stats.dbs_skipped);
-    }
-
+    print_run_summary(&stats, out, dry_run);
     Ok(())
 }
 
 // ── page tree mode ────────────────────────────────────────────────────────────
 
+struct PageMeta {
+    title: String,
+    last_edited: String,
+    days_stale: i64,
+    editor: String,
+}
+
+fn days_since(date_str: &str) -> i64 {
+    let today = chrono::Utc::now().date_naive();
+    if let Ok(d) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+        (today - d).num_days()
+    } else {
+        -1
+    }
+}
+
 struct RunStats {
     images_downloaded: usize,
     dbs_skipped: usize,
     files_written: usize,
+    page_metas: Vec<PageMeta>,
 }
 
 impl RunStats {
@@ -1019,6 +1017,7 @@ impl RunStats {
             images_downloaded: 0,
             dbs_skipped: 0,
             files_written: 0,
+            page_metas: Vec::new(),
         }
     }
 
@@ -1026,6 +1025,19 @@ impl RunStats {
         self.images_downloaded += result.images_downloaded;
         self.dbs_skipped += result.child_databases_skipped;
         self.files_written += 1;
+    }
+
+    fn record_page(&mut self, page: &serde_json::Value) {
+        let title = extract_page_title(page);
+        let last_edited = extract_page_updated(page);
+        let days_stale = days_since(&last_edited);
+        let editor = extract_page_owner(page);
+        self.page_metas.push(PageMeta {
+            title,
+            last_edited,
+            days_stale,
+            editor,
+        });
     }
 }
 
@@ -1057,6 +1069,7 @@ fn write_page_tree(
     }
 
     stats.accumulate(&result);
+    stats.record_page(&page);
 
     // Recurse into children
     for (child_id, child_path) in &result.child_pages {
@@ -1091,11 +1104,9 @@ fn run_page(token: &str, page_id: &str, out: &Path, dry_run: bool) -> anyhow::Re
         std::fs::write(&file_path, &result.yaml)?;
     }
 
-    let mut stats = RunStats {
-        files_written: 1,
-        images_downloaded: result.images_downloaded,
-        dbs_skipped: result.child_databases_skipped,
-    };
+    let mut stats = RunStats::new();
+    stats.accumulate(&result);
+    stats.record_page(&page);
 
     // Recurse child pages
     for (child_id, child_path) in &result.child_pages {
@@ -1103,6 +1114,11 @@ fn run_page(token: &str, page_id: &str, out: &Path, dry_run: bool) -> anyhow::Re
         write_page_tree(token, child_id, child_path, out, dry_run, &mut stats)?;
     }
 
+    print_run_summary(&stats, out, dry_run);
+    Ok(())
+}
+
+fn print_run_summary(stats: &RunStats, out: &Path, dry_run: bool) {
     println!();
     if dry_run {
         println!(
@@ -1115,16 +1131,70 @@ fn run_page(token: &str, page_id: &str, out: &Path, dry_run: bool) -> anyhow::Re
     }
     if stats.images_downloaded > 0 {
         println!(
-            "  ⚠ {} image(s) downloaded to {}/assets/images/",
+            "    {} image(s) downloaded to {}/assets/images/",
             stats.images_downloaded,
             out.display()
         );
     }
     if stats.dbs_skipped > 0 {
-        println!("  ⚠ {} child database(s) skipped", stats.dbs_skipped);
+        println!("    {} child database(s) skipped", stats.dbs_skipped);
     }
 
-    Ok(())
+    if stats.page_metas.is_empty() {
+        return;
+    }
+
+    // Staleness breakdown
+    let total = stats.page_metas.len();
+    let fresh = stats
+        .page_metas
+        .iter()
+        .filter(|m| staleness_bucket(m.days_stale) == "fresh (≤90d)")
+        .count();
+    let stale = stats
+        .page_metas
+        .iter()
+        .filter(|m| staleness_bucket(m.days_stale) == "stale (91–180d)")
+        .count();
+    let very_stale = stats
+        .page_metas
+        .iter()
+        .filter(|m| staleness_bucket(m.days_stale) == "very stale (>180d)")
+        .count();
+    let freshness_pct = if total > 0 {
+        (fresh as f64 / total as f64 * 100.0).round() as usize
+    } else {
+        0
+    };
+
+    println!(
+        "\n  Staleness: {}% fresh — {} fresh, {} stale, {} very stale",
+        freshness_pct, fresh, stale, very_stale
+    );
+
+    // Next steps
+    println!("\n  Next steps:");
+    println!("    1. Review the generated YAML files and build your site:");
+    println!("         kazam build {}", out.display());
+    println!("    2. Run an audit to see what needs attention:");
+    println!("         kazam audit {}", out.display());
+    if very_stale > 0 {
+        println!(
+            "    3. {} page(s) haven't been touched in 6+ months.",
+            very_stale
+        );
+        println!("       Consider archiving or refreshing with an agent:");
+        println!("         kazam audit {} --pretty", out.display());
+    }
+    if fresh < total {
+        let step = if very_stale > 0 { 4 } else { 3 };
+        println!(
+            "    {}. Set owners on pages so freshness reminders reach the right people:",
+            step
+        );
+        println!("         # Edit freshness.owner in each YAML file");
+    }
+    println!();
 }
 
 // ── public entry point ────────────────────────────────────────────────────────
@@ -1155,22 +1225,6 @@ pub fn notion(
 }
 
 // ── stats mode ───────────────────────────────────────────────────────────────
-
-struct PageMeta {
-    title: String,
-    last_edited: String,
-    days_stale: i64,
-    editor: String,
-}
-
-fn days_since(date_str: &str) -> i64 {
-    let today = chrono::Utc::now().date_naive();
-    if let Ok(d) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-        (today - d).num_days()
-    } else {
-        -1
-    }
-}
 
 fn staleness_bucket(days: i64) -> &'static str {
     if days < 0 {
