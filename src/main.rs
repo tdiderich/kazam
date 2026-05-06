@@ -12,6 +12,7 @@ mod dev;
 mod freshness;
 mod icons;
 mod id;
+mod ingest;
 mod init;
 mod links;
 mod llms;
@@ -180,6 +181,11 @@ enum Command {
         #[arg(long)]
         pretty: bool,
     },
+    /// Ingest content from external platforms into kazam pages
+    Ingest {
+        #[command(subcommand)]
+        command: IngestCommand,
+    },
 }
 
 #[derive(Subcommand)]
@@ -280,6 +286,22 @@ fn main() -> Result<()> {
             ActionsCommand::Init { name } => actions::init(&name, &dir),
         },
         Command::Audit { dir, pretty } => audit::run(&dir, pretty),
+        Command::Ingest { command } => match command {
+            IngestCommand::Notion {
+                database,
+                page,
+                token,
+                out,
+                dry_run,
+                stats,
+            } => {
+                if stats {
+                    ingest::notion_stats(&database, &page, &token)
+                } else {
+                    ingest::notion(&database, &page, &token, &out, dry_run)
+                }
+            }
+        },
     }
 }
 
@@ -339,6 +361,31 @@ pub enum ActionsCommand {
     Init {
         /// Template name (validate, freshness, build)
         name: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum IngestCommand {
+    /// Import pages from a Notion workspace
+    Notion {
+        /// Notion database ID — each row becomes a page
+        #[arg(long)]
+        database: Option<String>,
+        /// Notion page ID — import a single page and its children
+        #[arg(long)]
+        page: Option<String>,
+        /// Notion API token (default: NOTION_TOKEN env var)
+        #[arg(long)]
+        token: Option<String>,
+        /// Output directory for generated YAML files (default: current dir)
+        #[arg(long, default_value = ".")]
+        out: PathBuf,
+        /// Preview what would be created without writing files
+        #[arg(long)]
+        dry_run: bool,
+        /// Show staleness stats without ingesting (metadata only, fast)
+        #[arg(long)]
+        stats: bool,
     },
 }
 
