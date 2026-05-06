@@ -1,0 +1,63 @@
+title: Debrief Log
+shell: standard
+eyebrow: Ops
+personas:
+  - everyone
+freshness:
+  updated: "2025-01-01"
+  review_every: weekly
+  owner: changeme@company.com
+  refresh:
+    mode: assisted
+    steps:
+      - prompt: "Read wishes/debrief/prompt.md. Ask the user for meeting notes (paste, file, or Granola ID) and which page(s) to update. Extract data and update pages in place."
+      - review: owner
+components:
+  - type: header
+    title: Debrief Log
+    subtitle: "Meeting-driven updates to report pages"
+
+  - type: callout
+    style: info
+    body: "Run the refresh pipeline after any meeting that changes report data. Paste notes or provide a Granola meeting ID — the agent updates the relevant pages in place."
+
+  - type: section
+    heading: "How it works"
+    components:
+      - type: markdown
+        body: |
+          1. Paste meeting notes, a transcript file path, or a Granola meeting ID
+          2. Tell the agent which page(s) to update (or let it search)
+          3. Agent extracts data points, decisions, and corrections
+          4. Updates are made in place — reports read as current, not as changelogs
+          5. Review the diff and confirm
+
+  - type: section
+    heading: "Good candidates for debrief updates"
+    components:
+      - type: table
+        columns:
+          - Meeting type
+          - Target page(s)
+          - What to extract
+        rows:
+          - cells:
+              - Pipeline review
+              - Deal 360
+              - Stage changes, amount revisions, new deals, lost deals
+          - cells:
+              - Sprint review
+              - Project status
+              - Shipped features, revised timelines, blockers resolved
+          - cells:
+              - Hiring sync
+              - Who Owns What / Org chart
+              - New hires, role changes, open headcount updates
+          - cells:
+              - Customer call
+              - Deal 360 / Customer health
+              - Sentiment shifts, expansion signals, churn risk
+          - cells:
+              - Leadership sync
+              - Strategy / OKR pages
+              - Priority changes, new initiatives, killed projects
