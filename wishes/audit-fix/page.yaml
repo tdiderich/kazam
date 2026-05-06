@@ -1,0 +1,57 @@
+title: Audit Fix Report
+shell: standard
+eyebrow: Ops
+personas:
+  - everyone
+freshness:
+  updated: "2025-01-01"
+  review_every: weekly
+  owner: changeme@company.com
+  refresh:
+    mode: assisted
+    steps:
+      - run: "kazam audit > scripts/audit-results.json"
+      - prompt: "Read scripts/audit-results.json and prompt.md. Ask the user for PR strategy (single/per-owner/per-page), fix scope, and notification preference. Then fix issues and open PRs."
+      - review: owner
+components:
+  - type: header
+    title: Audit Fix Report
+    subtitle: "Last audit run — issues found, PRs opened, owner notifications sent"
+
+  - type: callout
+    style: info
+    body: "Run the refresh pipeline to audit the site and open fix PRs. The agent will ask you how to group PRs and which issues to fix."
+
+  - type: section
+    heading: "Sample Run"
+    components:
+      - type: markdown
+        body: |
+          Below is an example of a completed audit-fix run:
+
+          ### Configuration
+          - **PR strategy:** per-owner
+          - **Fix scope:** all
+          - **Notification:** both (Slack DM + PR review request)
+
+          ### Results
+          | Metric | Value |
+          |---|---|
+          | Issues found | 12 |
+          | Auto-fixed | 8 |
+          | Flagged for human | 4 |
+          | PRs opened | 3 |
+          | Owners notified | 3 |
+          | Health score | 85% → 96% |
+
+          ### PRs opened
+          - `audit/fix-docs-team` — 5 issues (3 overdue bumps, 2 missing sources)
+          - `audit/fix-eng-team` — 2 issues (1 overdue bump, 1 missing owner)
+          - `audit/fix-archive-review` — 1 expired page flagged for archive
+
+  - type: section
+    heading: "Last Run"
+    components:
+      - type: markdown
+        body: |
+          Run the data pipeline to populate. See the refresh block above for instructions.
