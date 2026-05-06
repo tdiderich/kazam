@@ -14,6 +14,32 @@ freshness:
       - prompt: "Read scripts/icp-prompt.md and scripts/icp-data.csv. Analyze customer DNA, pipeline validation, and closed-lost patterns. Update this page with data-backed tier definitions."
       - review: owner
 components:
+  - type: header
+    title: Ideal Customer Profile (ICP)
+    subtitle: "Data-backed tier definitions from CRM deals and enrichment"
+
+  - type: section
+    heading: "Sample Tier Definitions"
+    components:
+      - type: markdown
+        body: |
+          Below is an example of a populated ICP analysis:
+
+          #### Tier 1 — Best fit
+          | Attribute | Value |
+          |---|---|
+          | Company size | 200–2,000 employees |
+          | Industry | SaaS, Fintech |
+          | Tech stack | AWS, Kubernetes |
+          | Avg deal size | $72,000 |
+          | Win rate | 38% |
+
+          **DNA signals:** Series B+, dedicated security team, SOC 2 in progress or complete.
+
+          #### Closed-Lost Patterns
+          - 60% of losses had < 200 employees (budget constraint)
+          - No champion identified in 45% of lost deals
+
   - type: section
     heading: "Metrics"
     components:

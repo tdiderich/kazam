@@ -12,3 +12,33 @@ freshness:
     steps:
       - run: "kazam freshness notify --json > scripts/freshness-digest.json"
       - prompt: "Read scripts/freshness-digest.json. For each owner, send a Slack DM listing their stale pages with status, days, and title. Use the Slack MCP to look up users by email and send messages. See scripts/freshness-notifier-prompt.md for message format."
+components:
+  - type: header
+    title: Freshness Notifications
+    subtitle: "Stale page digest — grouped by owner, delivered via Slack DM"
+
+  - type: callout
+    style: info
+    body: "This page shows the last notification run. The refresh pipeline generates the digest and sends Slack DMs to each owner."
+
+  - type: section
+    heading: "Sample Notification"
+    components:
+      - type: markdown
+        body: |
+          Below is an example of the Slack DM each owner receives:
+
+          > **3 pages need your attention:**
+          >
+          > | Page | Status | Days stale |
+          > |---|---|---|
+          > | API Reference | 🔴 stale | 45 |
+          > | Deployment Guide | 🟡 due soon | 28 |
+          > | SSO Configuration | 🟢 fresh | 5 |
+
+  - type: section
+    heading: "Last Run"
+    components:
+      - type: markdown
+        body: |
+          Run the data pipeline to populate. See the refresh block above for instructions.

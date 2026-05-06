@@ -29,6 +29,24 @@ components:
     body: "Run the data pipeline to populate this page. The script fetches HubSpot deals, then an agent enriches each with Attention call insights and Slack channel activity."
 
   - type: section
+    heading: "Sample Deal"
+    components:
+      - type: markdown
+        body: |
+          Below is an example of a populated deal dossier:
+
+          ### Acme Corp — Series B expansion
+          **Stage:** Negotiation &nbsp; **Amount:** $85,000 &nbsp; **Close date:** 2025-03-15
+
+          | Signal | Source | Detail |
+          |---|---|---|
+          | Champion confirmed | Attention | VP Eng said "we're moving forward" on 2/12 call |
+          | Legal review started | HubSpot | Deal moved to Legal Review on 2/14 |
+          | Slack activity | #acme-deal | 23 messages this week, last: AE shared proposal v2 |
+
+          **Open risks:** No technical validation call scheduled. Budget holder hasn't joined a call yet.
+
+  - type: section
     heading: "Pipeline"
     components:
       - type: markdown

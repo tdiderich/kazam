@@ -29,6 +29,25 @@ components:
     body: "This page maps people to what they actually work on, derived from Linear issue assignments and project membership. Run the data pipeline to populate."
 
   - type: section
+    heading: "Sample Team Map"
+    components:
+      - type: markdown
+        body: |
+          Below is an example of a populated team ownership map:
+
+          #### Platform Team
+          **Lead:** Jane Smith &nbsp; **Members:** 6
+
+          | Member | Role | Active projects |
+          |---|---|---|
+          | Jane Smith | Lead | Auth v2, API Gateway |
+          | Alex Chen | Senior | API Gateway, Billing |
+          | Pat Lee | IC | Auth v2 |
+
+          **Owns:** Authentication, API infrastructure, billing service
+          **Current cycle:** 12 issues in progress, 8 completed, 3 blocked
+
+  - type: section
     heading: "Teams"
     components:
       - type: markdown
