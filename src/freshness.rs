@@ -1190,7 +1190,7 @@ pub fn run_drift(dir: &Path, pretty: bool, cli_repos: Vec<String>) -> anyhow::Re
     Ok(())
 }
 
-fn json_escape(s: &str) -> String {
+pub fn json_escape(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")

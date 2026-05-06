@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 mod actions;
 mod agents;
+mod audit;
 mod board;
 mod build;
 mod ctx;
@@ -170,6 +171,15 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
+    /// Audit site health — freshness, structural quality, and completeness
+    Audit {
+        /// Site directory
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+        /// Human-readable output (default is JSON)
+        #[arg(long)]
+        pretty: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -269,6 +279,7 @@ fn main() -> Result<()> {
             ActionsCommand::List => actions::list(),
             ActionsCommand::Init { name } => actions::init(&name, &dir),
         },
+        Command::Audit { dir, pretty } => audit::run(&dir, pretty),
     }
 }
 
