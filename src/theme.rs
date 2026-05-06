@@ -1222,7 +1222,7 @@ a.c-card { color: inherit; }
   color: var(--light-muted);
 }
 .c-markdown tr:last-child td { border-bottom: none; }
-.c-markdown img { max-width: 100%; height: auto; border-radius: 8px; display: block; }
+.c-markdown img { max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 1.5em 0; }
 .c-markdown a { color: var(--teal); }
 .c-markdown a:hover { text-decoration: underline; }
 .c-markdown blockquote {
@@ -1811,7 +1811,7 @@ body.shell-document .doc-body strong { color: #fff; }
 }
 
 /* Image */
-.c-image { margin: 0; }
+.c-image { margin: 1.5em 0; }
 .c-image.align-center { margin-left: auto; margin-right: auto; align-self: center; }
 .c-image.align-right { margin-left: auto; margin-right: 0; align-self: flex-end; }
 .c-image img { width: 100%; height: auto; border-radius: 8px; display: block; }
