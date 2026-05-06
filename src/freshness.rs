@@ -895,6 +895,301 @@ pub fn run_notify(dir: &Path, json: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// `kazam freshness drift` — check git history for source-of-truth files to
+/// detect when upstream code has changed since a documentation page was last
+/// reviewed.
+pub fn run_drift(dir: &Path, pretty: bool, cli_repos: Vec<String>) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use std::fs;
+    use std::process::Command;
+    use walkdir::WalkDir;
+
+    let today = today_iso();
+
+    // Load config drift repos
+    let config_path = dir.join("kazam.yaml");
+    let mut repos: Vec<(String, String)> = Vec::new(); // (prefix, local)
+    if config_path.exists() {
+        let config_content = fs::read_to_string(&config_path)
+            .with_context(|| format!("reading {:?}", config_path))?;
+        let site: crate::types::SiteConfig = serde_yaml::from_str(&config_content)
+            .with_context(|| format!("parsing {:?}", config_path))?;
+        if let Some(drift) = site.drift {
+            for repo in drift.repos {
+                repos.push((repo.prefix, repo.local));
+            }
+        }
+    }
+
+    // Parse CLI --repo flags (PREFIX=LOCAL) and prepend (CLI takes precedence)
+    let mut cli_repo_pairs: Vec<(String, String)> = Vec::new();
+    for r in &cli_repos {
+        if let Some(eq) = r.find('=') {
+            let prefix = r[..eq].to_string();
+            let local = r[eq + 1..].to_string();
+            cli_repo_pairs.push((prefix, local));
+        }
+    }
+    // CLI repos go first so they match before config repos
+    let all_repos: Vec<(String, String)> = cli_repo_pairs.into_iter().chain(repos).collect();
+
+    // Expand ~ in local paths
+    let home = std::env::var("HOME").unwrap_or_default();
+    let expand_tilde = |p: &str| -> String {
+        if let Some(stripped) = p.strip_prefix("~/") {
+            format!("{}/{}", home, stripped)
+        } else if p == "~" {
+            home.clone()
+        } else {
+            p.to_string()
+        }
+    };
+
+    struct DriftSource {
+        label: String,
+        href: String,
+        commits: usize,
+        latest: String,
+    }
+
+    struct DriftPage {
+        path: String,
+        title: String,
+        updated: String,
+        owner: Option<String>,
+        sources: Vec<DriftSource>,
+    }
+
+    let mut drifted: Vec<DriftPage> = Vec::new();
+    let mut unmapped: Vec<String> = Vec::new();
+    let mut total = 0usize;
+    let mut clean = 0usize;
+
+    for entry in WalkDir::new(dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() > 0 && e.file_name() == "_site" && e.file_type().is_dir() {
+                return false;
+            }
+            if e.depth() > 0 {
+                if let Some(name) = e.file_name().to_str() {
+                    if name.starts_with('.') {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let fname = path.file_name().unwrap_or_default();
+        if fname == "kazam.yaml" || fname == "404.yaml" {
+            continue;
+        }
+        if !path.extension().map(|e| e == "yaml").unwrap_or(false) {
+            continue;
+        }
+
+        let rel = path.strip_prefix(dir)?;
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        let content = fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
+        let page: crate::types::Page =
+            serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
+
+        // Skip pages with no freshness, freshness: never, or no sources_of_truth
+        let fv = page.freshness.as_ref();
+        if fv.is_none() || fv.map(|v| v.is_never()).unwrap_or(false) {
+            continue;
+        }
+        let f = match fv.and_then(|v| v.as_full()) {
+            Some(f) => f,
+            None => continue,
+        };
+        let updated = match f.updated.as_deref() {
+            Some(u) => u,
+            None => continue,
+        };
+        let sources = match f.sources_of_truth.as_ref() {
+            Some(s) if !s.is_empty() => s,
+            _ => continue,
+        };
+
+        total += 1;
+
+        let owner = f.owner.clone();
+        let title = page.title.clone();
+
+        let mut page_drifted_sources: Vec<DriftSource> = Vec::new();
+
+        for sot in sources {
+            let href = sot.href();
+            let label = sot.label();
+
+            // Find matching repo prefix
+            let matched = all_repos
+                .iter()
+                .find(|(prefix, _)| href.starts_with(prefix.as_str()));
+
+            match matched {
+                None => {
+                    // Unmapped source — not an error, just collect unique ones
+                    if !unmapped.contains(&href.to_string()) {
+                        unmapped.push(href.to_string());
+                    }
+                }
+                Some((prefix, local)) => {
+                    let relative_path = &href[prefix.len()..];
+                    // Strip leading slash if present
+                    let relative_path = relative_path.trim_start_matches('/');
+                    let local_expanded = expand_tilde(local);
+
+                    let output = Command::new("git")
+                        .arg("-C")
+                        .arg(&local_expanded)
+                        .arg("log")
+                        .arg(format!("--since={}", updated))
+                        .arg("--oneline")
+                        .arg("--")
+                        .arg(relative_path)
+                        .output();
+
+                    match output {
+                        Err(_) => {
+                            // git not available or repo not found — skip silently
+                        }
+                        Ok(out) => {
+                            let stdout = String::from_utf8_lossy(&out.stdout);
+                            let lines: Vec<&str> =
+                                stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+                            let commit_count = lines.len();
+                            if commit_count > 0 {
+                                let latest = lines[0].to_string();
+                                page_drifted_sources.push(DriftSource {
+                                    label: label.to_string(),
+                                    href: href.to_string(),
+                                    commits: commit_count,
+                                    latest,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if page_drifted_sources.is_empty() {
+            clean += 1;
+        } else {
+            drifted.push(DriftPage {
+                path: rel_str,
+                title,
+                updated: updated.to_string(),
+                owner,
+                sources: page_drifted_sources,
+            });
+        }
+    }
+
+    // Sort drifted pages by total commit count descending
+    drifted.sort_by(|a, b| {
+        let a_total: usize = a.sources.iter().map(|s| s.commits).sum();
+        let b_total: usize = b.sources.iter().map(|s| s.commits).sum();
+        b_total.cmp(&a_total)
+    });
+
+    let unmapped_count = unmapped.len();
+    let drifted_count = drifted.len();
+
+    if pretty {
+        println!("Freshness drift — {}", today);
+        println!(
+            "  {} pages, {} drifted, {} clean, {} unmapped sources",
+            total, drifted_count, clean, unmapped_count
+        );
+        if !drifted.is_empty() {
+            println!();
+            for page in &drifted {
+                let owner_str = page
+                    .owner
+                    .as_deref()
+                    .map(|o| format!("  owner: {}", o))
+                    .unwrap_or_default();
+                println!("  [DRIFTED] {}", page.path);
+                println!(
+                    "    \"{}\"{}  updated: {}",
+                    page.title, owner_str, page.updated
+                );
+                for src in &page.sources {
+                    println!(
+                        "    → {}: {} commits (latest: {})",
+                        src.label, src.commits, src.latest
+                    );
+                }
+                println!();
+            }
+        }
+        if !unmapped.is_empty() {
+            println!("  Unmapped sources (no repo prefix matched):");
+            for u in &unmapped {
+                println!("    {}", u);
+            }
+        }
+    } else {
+        // JSON output
+        let mut drifted_json = String::from("[\n");
+        for (i, page) in drifted.iter().enumerate() {
+            let owner_str = page
+                .owner
+                .as_deref()
+                .map(|o| format!("\"{}\"", json_escape(o)))
+                .unwrap_or_else(|| "null".to_string());
+            let mut sources_json = String::from("[");
+            for (j, src) in page.sources.iter().enumerate() {
+                let src_comma = if j + 1 < page.sources.len() { "," } else { "" };
+                sources_json.push_str(&format!(
+                    "{{\"label\":\"{}\",\"href\":\"{}\",\"commits\":{},\"latest\":\"{}\"}}{}",
+                    json_escape(&src.label),
+                    json_escape(&src.href),
+                    src.commits,
+                    json_escape(&src.latest),
+                    src_comma,
+                ));
+            }
+            sources_json.push(']');
+            let page_comma = if i + 1 < drifted.len() { "," } else { "" };
+            drifted_json.push_str(&format!(
+                "    {{\"page\":\"{}\",\"title\":\"{}\",\"updated\":\"{}\",\"owner\":{},\"sources\":{}}}{}\n",
+                json_escape(&page.path),
+                json_escape(&page.title),
+                json_escape(&page.updated),
+                owner_str,
+                sources_json,
+                page_comma,
+            ));
+        }
+        drifted_json.push_str("  ]");
+
+        let mut unmapped_json = String::from("[");
+        for (i, u) in unmapped.iter().enumerate() {
+            let comma = if i + 1 < unmapped.len() { "," } else { "" };
+            unmapped_json.push_str(&format!("\"{}\"{}", json_escape(u), comma));
+        }
+        unmapped_json.push(']');
+
+        println!(
+            "{{\n  \"date\":\"{}\",\n  \"summary\":{{\"total\":{},\"drifted\":{},\"clean\":{},\"unmapped\":{}}},\n  \"drifted\":{},\n  \"unmapped\":{}\n}}",
+            today, total, drifted_count, clean, unmapped_count, drifted_json, unmapped_json
+        );
+    }
+
+    Ok(())
+}
+
 fn json_escape(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")

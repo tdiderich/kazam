@@ -1161,6 +1161,10 @@ pub struct SiteConfig {
     /// the role-map component and nav filter.
     #[serde(default)]
     pub roles: Vec<Role>,
+    /// Mapping from source-of-truth URL prefixes to local repo paths.
+    /// Used by `kazam freshness drift` to check git history.
+    #[serde(default)]
+    pub drift: Option<DriftConfig>,
 }
 
 /// Brand voice configuration — tone, reading level, and terminology preferences.
@@ -1188,6 +1192,23 @@ pub struct Terminology {
     /// Terms to avoid entirely
     #[serde(default)]
     pub avoid: Vec<String>,
+}
+
+/// Mapping from source-of-truth URL prefixes to local repo paths.
+/// Used by `kazam freshness drift` to check git history.
+#[derive(Deserialize, Clone, Default)]
+pub struct DriftConfig {
+    #[serde(default)]
+    pub repos: Vec<DriftRepo>,
+}
+
+/// One repo mapping entry for drift detection.
+#[derive(Deserialize, Clone)]
+pub struct DriftRepo {
+    /// URL prefix to match against sources_of_truth hrefs
+    pub prefix: String,
+    /// Local filesystem path to the git repo
+    pub local: String,
 }
 
 /// One role in the site's persona taxonomy.
@@ -1392,6 +1413,7 @@ impl Default for SiteConfig {
             og_image: None,
             voice: None,
             roles: Vec::new(),
+            drift: None,
         }
     }
 }

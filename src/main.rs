@@ -259,6 +259,9 @@ fn main() -> Result<()> {
                 freshness::run_act(&dir, &path, &action)
             }
             Some(FreshnessCommand::Notify { json }) => freshness::run_notify(&dir, json),
+            Some(FreshnessCommand::Drift { pretty, repos }) => {
+                freshness::run_drift(&dir, pretty, repos)
+            }
         },
         Command::Voice { dir, json } => voice::run(&dir, json),
         Command::Prompt { command, dir } => prompts::run(command, &dir),
@@ -297,6 +300,15 @@ pub enum FreshnessCommand {
         /// Output as JSON instead of markdown
         #[arg(long)]
         json: bool,
+    },
+    /// Check if source-of-truth files have changed since pages were last updated
+    Drift {
+        /// Human-readable table output (default is JSON)
+        #[arg(long)]
+        pretty: bool,
+        /// Additional repo mapping: PREFIX=LOCAL (can repeat)
+        #[arg(long = "repo", value_name = "PREFIX=LOCAL")]
+        repos: Vec<String>,
     },
 }
 
