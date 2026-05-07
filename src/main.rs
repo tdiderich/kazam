@@ -204,6 +204,27 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
+    /// Output the kazam CSS theme for use in external apps
+    Theme {
+        #[command(subcommand)]
+        command: ThemeCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum ThemeCommand {
+    /// Print the full CSS stylesheet to stdout
+    Css {
+        /// Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet)
+        #[arg(long, default_value = "dark")]
+        theme: String,
+        /// Enable texture overlay (none, dots, grid, diagonal)
+        #[arg(long, default_value = "none")]
+        texture: String,
+        /// Enable glow effect (none, accent, corner)
+        #[arg(long, default_value = "none")]
+        glow: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -395,6 +416,33 @@ fn main() -> Result<()> {
                 let slug = annotations::page_slug_from_path(&page);
                 let count = annotations::clear_annotations(&dir, &slug)?;
                 println!("✓ cleared {} annotation(s) from {}", count, page);
+                Ok(())
+            }
+        },
+        Command::Theme { command } => match command {
+            ThemeCommand::Css {
+                theme: theme_name,
+                texture,
+                glow,
+            } => {
+                let mode = if theme_name == "light" {
+                    types::Mode::Light
+                } else {
+                    types::Mode::Dark
+                };
+                let t = theme::Theme::named(&theme_name, mode);
+                let tex = match texture.as_str() {
+                    "dots" => types::Texture::Dots,
+                    "grid" => types::Texture::Grid,
+                    "diagonal" => types::Texture::Diagonal,
+                    _ => types::Texture::None,
+                };
+                let g = match glow.as_str() {
+                    "accent" => types::Glow::Accent,
+                    "corner" => types::Glow::Corner,
+                    _ => types::Glow::None,
+                };
+                print!("{}", theme::render_css(&t, tex, g));
                 Ok(())
             }
         },
