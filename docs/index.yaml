@@ -9,9 +9,9 @@ nav:
 
 components:
   - type: hero_banner
-    title: AI Native Knowledge Management
+    title: AI Native Knowledge Base
     eyebrow: kazam
-    subtitle: Finally, content that manages itself.
+    subtitle: Structured pages, sidecar annotations, and an MCP server — so your agents can manage your knowledge base the same way your team does.
     buttons:
       - label: Get Started
         href: /guide.html
@@ -22,7 +22,7 @@ components:
         external: true
 
   - type: section
-    heading: Docs rot. Nobody notices until something breaks.
+    heading: Docs rot. Context gets lost. Nobody notices until something breaks.
     align: center
     components:
       - type: card_grid
@@ -31,10 +31,10 @@ components:
             description: The onboarding guide was last verified by someone who left in Q2.
           - title: Version drift
             description: Your API docs say v2 but you shipped v4 — a customer files a ticket before anyone notices.
+          - title: Lost context
+            description: Someone mentions a competitive threat on a call. It lives in Granola notes and nowhere else. The customer page never gets updated.
           - title: Agent tax
             description: Your AI agent burns tokens running find and grep trying to figure out where content lives.
-          - title: Toolchain bloat
-            description: Your doc toolchain has more dependencies than your product.
 
   - type: section
     heading: Sound familiar?
@@ -72,6 +72,44 @@ components:
               color: green
             - label: Staleness detection
               value: deterministic
+              color: teal
+
+  - type: section
+    heading: Annotations close the loop
+    align: center
+    components:
+      - type: markdown
+        body: |
+          Drop context from a call, a Slack thread, or your own notes — right onto the page that matters.
+          Annotations live as sidecar files, not embedded in content. When an agent refreshes the page,
+          it reads your annotations first and incorporates what's relevant.
+
+      - type: split_compare
+        left:
+          eyebrow: YOU ANNOTATE
+          title: "kazam annotate customers/acme.yaml"
+          stats:
+            - label: Context
+              value: "evaluating Wiz"
+              color: yellow
+            - label: Section
+              value: competitive
+              color: default
+            - label: Source
+              value: customer call
+              color: default
+        right:
+          eyebrow: AGENT REFRESHES
+          title: Annotations drive the update
+          stats:
+            - label: Priority
+              value: annotations first
+              color: green
+            - label: Resolution
+              value: overrides stale CRM data
+              color: green
+            - label: After refresh
+              value: marked incorporated
               color: teal
 
   - type: section

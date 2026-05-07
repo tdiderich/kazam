@@ -78,9 +78,21 @@ src/
     scripts.rs            Bundled inline JS (deck nav, tabs, etc.)
   theme.rs                Theme tokens + STATIC_CSS
   types.rs                All YAML-facing types (serde structs)
+  annotations.rs          Sidecar annotation system (load, save, decay)
+  audit.rs                Site health auditing
+  freshness.rs            Freshness tracking + drift + notify
+  ingest.rs               Notion (and future) content ingestion
+  mcp/
+    mod.rs                MCP server dispatch (stdio + HTTP transports)
+    protocol.rs           JSON-RPC types
+    tools.rs              MCP tool implementations (8 tools)
+  workspace.rs            Agent workspace init + status
+  track.rs / ctx.rs       Task tracking + context intelligence
+  wish.rs                 Wish registry (list, init from recipes)
   llms.rs                 llms.txt emission
   init.rs / agents.rs     `kazam init` / `kazam agents` scaffolding
   minify.rs               Release-mode HTML/CSS/JS minification
+wishes/                   Portable agent recipes (deal-360, debrief, etc.)
 docs/                     The hosted docs site (itself a kazam site)
 AGENTS.md.template        Authoring guide bundled into the binary
 tests/                    Integration tests

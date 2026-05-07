@@ -2,7 +2,7 @@
 
 **The AI-native knowledge base.**
 
-YAML pages with freshness tracking, prompt templates, and an MCP server — so your agents can create, review, and refresh content the same way your team does.
+Structured YAML pages with freshness tracking, sidecar annotations, and an MCP server — so your agents can create, review, annotate, and refresh content the same way your team does.
 
 ---
 
@@ -10,16 +10,19 @@ YAML pages with freshness tracking, prompt templates, and an MCP server — so y
 
 Every company has docs that were true when someone wrote them. Nobody owns them now. Nobody knows which ones are wrong. Your AI agent can't read your wiki without burning tokens on `find` and `grep`. Your doc toolchain has more dependencies than your product.
 
-kazam fixes this with structured YAML pages, not wiki pages. Every page can declare an owner, review cadence, and sources of truth. The build flags what's overdue — yellow banners for due-soon, red for stale, a `stale.md` manifest your agent can act on, and a `_health.html` dashboard showing freshness across the whole site. An MCP server gives agents direct read/search/write access to your knowledge base. Prompt templates standardize the content lifecycle. One Rust binary, static HTML out, host anywhere.
+kazam fixes this with structured YAML pages, not wiki pages. Every page can declare an owner, review cadence, and sources of truth. The build flags what's overdue — yellow banners for due-soon, red for stale, a `stale.md` manifest your agent can act on, and a `_health.html` dashboard showing freshness across the whole site. An MCP server gives agents direct read/search/write/annotate access to your knowledge base. Sidecar annotations capture human context that data sources can't — corrections, competitive intel, meeting notes — and feed it back into the next refresh cycle. One Rust binary, static HTML out, host anywhere.
 
 ## Capabilities
 
 - **YAML content** — 30+ components, three shells (standard, document, deck), zero runtime JS, theme-aware via CSS vars
 - **Freshness tracking** — owner, review cadence, sources of truth, stale banners at build time
-- **Prompt templates** — standardized agent workflows: `migrate`, `add-page`, `refresh`, `audit`, `review`
-- **MCP server** — agents read and write content directly without shell roundtrips
-- **Agent workspace** — codebase anatomy index, task tracking, visual board (see below)
-- **Wishes** — agent-generated content scaffolding (decks, briefs, pages)
+- **Sidecar annotations** — human context stored as YAML files in `.kazam/annotations/`, with 14-day decay, status tracking, and build-time rendering
+- **MCP server** — 8 tools: agents read, search, write, annotate, and update content directly. stdio + HTTP transports with bearer token auth for remote access
+- **Annotation-aware refresh** — prompt templates read annotations as highest-priority source; agents update annotation status after each cycle
+- **Wishes** — portable agent recipes: deal-360, debrief, audit-fix, freshness-notifier, and more
+- **Notion ingest** — import databases, pages, and child pages with `--all` discovery mode
+- **Audit** — structural quality checks: freshness compliance, component validation, annotation health
+- **Agent workspace** — codebase anatomy index, task tracking, visual board
 - **Validation** — structure checks, orphan detection, broken internal links
 
 ## Install
@@ -48,6 +51,26 @@ kazam prompt show refresh | claude -p    # agent refreshes stale pages
 ```
 
 **[Docs + live examples](https://tdiderich.github.io/kazam/)** · **[Components](https://tdiderich.github.io/kazam/components/index.html)** · **[Themes](https://tdiderich.github.io/kazam/themes.html)** · **[Deploy recipes](https://tdiderich.github.io/kazam/deploy.html)**
+
+## Annotations
+
+Annotations are human context that data sources can't capture. They live as sidecar YAML files — not embedded in page content — so agents and humans can write them without collisions.
+
+```bash
+# Add an annotation from a call
+kazam annotate customers/acme.yaml "evaluating Wiz alongside us" \
+  --section competitive --author tyler
+
+# List annotations on a page
+kazam mcp   # then: list_annotations { "page": "customers/acme.yaml" }
+
+# Annotations render inline at build time with age indicators and status badges
+kazam build .
+```
+
+Annotations feed into the refresh cycle. When an agent refreshes a page, it reads pending annotations first, incorporates what's relevant, and marks them as `incorporated`. The 14-day decay window ensures stale annotations surface for review.
+
+**MCP tools:** `annotate_page`, `list_annotations`, `update_annotation` — available over stdio and HTTP (`--local` / `--remote --token`).
 
 ## Agent workspace
 
@@ -79,7 +102,7 @@ Tested with Sonnet 4.6, identical prompts, git worktrees — kazam-equipped vs v
 | React/TS app | 89 | Add loading skeleton | **46% cheaper** | **47% faster** |
 | Python service | 233 | Cross-cutting model change | **45% cheaper** | **44% faster** |
 
-Input tokens per turn dropped 81–94% across the board.
+Input tokens per turn dropped 81-94% across the board.
 
 ### Task tracking
 
@@ -100,22 +123,29 @@ kazam board
 
 Auto-refreshing local dashboard — task status, codebase anatomy, activity log. Built with kazam's own rendering engine.
 
-### Corrections
+## MCP server
 
 ```bash
-kazam ctx correction "assumed Express middleware" "it's custom Koa" --file src/auth.rs
-kazam ctx corrections --json
+# Local — stdio transport for Claude Code, Cursor, etc.
+kazam mcp
+
+# Remote — HTTP transport with bearer token auth
+kazam mcp --transport http --remote --token $KAZAM_MCP_TOKEN --port 8080
 ```
 
-Record when an agent gets something wrong. Corrections surface in workspace rules so future sessions don't repeat the mistake.
+8 tools: `read_page`, `list_pages`, `search`, `get_config`, `write_page`, `annotate_page`, `list_annotations`, `update_annotation`.
 
-### Hooks
+The `--local` flag (default) binds to 127.0.0.1. The `--remote` flag binds to 0.0.0.0 and requires a bearer token via `--token` or `KAZAM_MCP_TOKEN` env var.
 
-`kazam workspace init --agent claude` installs three Claude Code hooks: session start (surfaces anatomy drift and ready tasks), post-write (logs file modifications), session stop (rescans anatomy). They fire silently and only surface output when something is actionable.
+## curata
+
+[curata.ai](https://curata.ai) is the BYOA (Bring Your Own Agent) knowledge platform built on kazam. Customers bring their own AI agents; curata provides the web annotation view, hosted sites, merge pipeline, and notifications. kazam is the free OSS engine that curata maintains.
+
+See [PRODUCT.md](PRODUCT.md) for the full product plan.
 
 ## Security
 
-~10 direct Rust crates, `Cargo.lock` committed, `cargo-audit` in CI, protected main, signed release tags. Full scope: [`SECURITY.md`](SECURITY.md). Report vulnerabilities privately via the [GitHub advisory form](https://github.com/tdiderich/kazam/security/advisories/new).
+~10 direct Rust crates, `Cargo.lock` committed, `cargo-audit` in CI, protected main, signed release tags. Remote MCP transport requires bearer token auth when binding to non-localhost interfaces. Full scope: [`SECURITY.md`](SECURITY.md). Report vulnerabilities privately via the [GitHub advisory form](https://github.com/tdiderich/kazam/security/advisories/new).
 
 ## Contributing
 
