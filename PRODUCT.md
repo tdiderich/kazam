@@ -1,186 +1,115 @@
-# kazam Product Plan
+# kazam + curata — Product Plan
 
-## Tiers
+## Model
 
-### Free — Self-Hosted (OSS CLI)
-**Price:** Free forever
-**What they get:** The full kazam binary. Build sites, track freshness, run audits, ingest from Notion/Confluence, scaffold wishes, MCP server — everything in the repo today.
-**How they use it:** `cargo install`, run locally or in CI. They own everything.
-**Moat:** The CLI is the top of the funnel. Every user starts here.
+**kazam** is the free, open-source engine. **curata** (curata.ai) is the paid BYOA platform built on top. ProjectDiscovery/Nuclei model: the OSS tool is the top of the funnel, the platform is the business.
 
-### Self-Managed — Hosted Site + Queued Updates
-**Price:** ~$100/month, unlimited users/pages (up to a KB size limit)
-**What they get:**
-- Hosted site — we build and serve their `_site/` on a CDN with auth (SSO/magic link)
-- Queued updates feed — activity feed showing every agent change with rendered before/after diffs; optional hold-for-review gate on sensitive pages
-- Notifications — Slack/email/Teams nudges for stale pages, pending approvals, audit summaries
-- Freshness dashboard — live _health.html, not just build-time static
+### kazam (OSS CLI) — free forever
 
-**What they provide:**
-- Their own AI tool (Claude Code, Gemini CLI, Cursor, etc.) for agent work
-- Their own API keys for MCP integrations (Notion, Slack, HubSpot, etc.)
-- They run `kazam audit`, `kazam ingest`, wishes, etc. locally or in CI
-- Agent pushes changes → queued updates feed shows what landed and what's pending review
+The full Rust binary. Build sites, track freshness, run audits, ingest from Notion, scaffold wishes, MCP server with annotation tools, agent workspace — everything in this repo.
 
-**Why $100/mo works at ~100% margin:**
-- Infra = static site CDN + lightweight approval service + notification webhooks
+Users install via `cargo install` or Homebrew, run locally or in CI, own everything. Every curata customer starts here.
+
+### curata (BYOA Platform) — paid
+
+Bring Your Own Agent. Customers bring their own AI agents with company-specific skills and MCP servers. curata provides:
+
+- **Web annotation view** — rich UI for commenting on rendered pages (text selection, section-level notes, status tracking)
+- **Hosted site** — CDN-served `_site/` output with auth (SSO/magic link)
+- **Queued updates feed** — activity feed showing agent changes with rendered before/after diffs
+- **Merge pipeline** — linear queue with push/approval/queued modes per page
+- **Notifications** — Slack/email/Teams nudges for stale pages, pending approvals, audit summaries
+
+Customers provide their own AI tool (Claude Code, Cursor, Gemini CLI) and their own API keys for integrations. curata never runs LLMs on the customer's behalf in the base product.
+
+**BYOA is the whole product, not a tier.** "Managed" (curata runs agents for you) is speculative/future — only pursue if demand proves out.
+
+### Why this works
+
+- Near-zero marginal cost: static site CDN + lightweight approval service + notification webhooks
 - No LLM costs (customer's keys)
 - No data pipeline costs (customer runs locally)
-- Scale concern: very large KBs (1000+ pages) might need build compute limits → tier by page count or build minutes
-
-**Pricing risk:** KB size. Options:
-- Flat $100/mo up to 500 pages, $200/mo up to 2000, custom above
-- Or flat unlimited — most startups won't hit 500 pages for years
-
-### Self-Driving — We Run the Agents
-**Price:** $300-1000/month depending on tier
-**What they get:**
-- Everything in Self-Managed
-- We run the agent loops (freshness refresh, audit-fix, debrief digests)
-- Token budget included per tier
-- Observer hooks — auto-capture from Slack/GitHub (decisions, PRs → page updates)
-- Inline annotation UX — cmd+K on any section to flag corrections, digest pass updates pages
-- Scheduled refresh runs (weekly/daily depending on tier)
-
-**Tiers by token budget:**
-- Starter ($300/mo): up to 200 pages, weekly refresh, 500k tokens/mo
-- Growth ($500/mo): up to 1000 pages, daily refresh, 2M tokens/mo  
-- Enterprise ($1000/mo): unlimited pages, continuous refresh, 10M tokens/mo, custom integrations
-
-**Why this tier exists:** Some companies want the value but don't want to set up Claude Code / manage agent workflows. They want to point kazam at their Notion, connect Slack, and have it just work.
+- The annotation bridge: annotations are written via kazam CLI/MCP (free) but the rich web annotation UI is curata (paid). Clean OSS/paid boundary.
 
 ---
 
-## What Needs Building — By Tier
+## Architecture — the annotation bridge
 
-### Free (OSS CLI) — ship now, mostly done
-| Feature | Status | Notes |
-|---------|--------|-------|
-| kazam build/dev/init | ✅ Done | |
-| Freshness tracking + audit | ✅ Done | |
-| MCP server | ✅ Done | |
-| Notion ingest | ✅ Done | |
-| Wishes (audit-fix, debrief, deal-360, etc.) | ✅ Done | |
-| GitHub Action: freshness CI gate | 🔲 TODO | Viral hook — fails build if overdue pages exceed threshold |
-| GitHub Action: PR staleness bot | 🔲 TODO | Comments on PRs that touch stale page sources |
-| Confluence ingest | 🔲 TODO | Lower priority, messier API |
-| `kazam init --from-notion` one-liner | 🔲 TODO | Chains ingest → build → dev for 5-min demo |
+Annotations are the key primitive that connects kazam and curata. They're human context that data sources can't capture: "customer is evaluating Wiz," "timeline moved to Q3," "this section is wrong."
 
-### Self-Managed ($100/mo) — the product
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Hosted build + CDN | 🔲 TODO | Accept git push, run kazam build, deploy to CDN |
-| Auth (SSO / magic link) | 🔲 TODO | Who can view the site |
-| Queued updates feed | 🔲 TODO | Activity feed of all changes; optional hold-for-review on sensitive pages |
-| Merge pipeline | 🔲 TODO | Linear queue: one merge at a time, reject-on-conflict |
-| Notification service | 🔲 TODO | Slack/email webhooks for stale pages + pending approvals |
-| Live health dashboard | 🔲 TODO | _health.html but dynamic, not build-time |
-| Billing / subscription | 🔲 TODO | Stripe integration |
-| Onboarding flow | 🔲 TODO | Connect repo → first build → invite team |
+**In kazam (OSS):**
+- Sidecar YAML files in `.kazam/annotations/<page-slug>/`
+- CLI: `kazam annotate <page> "text" --section competitive --author tyler`
+- MCP tools: `annotate_page`, `list_annotations`, `update_annotation`
+- Build renders annotations inline with age indicators and status badges
+- 14-day decay tracking; annotation-aware refresh prompts
 
-### Self-Driving ($300-1000/mo) — the vision
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Managed agent loops | 🔲 TODO | Run refresh/audit/debrief on schedule with our keys |
-| Token metering + limits | 🔲 TODO | Track usage per customer, enforce tier limits |
-| Observer hooks | 🔲 TODO | GitHub webhook + Slack listener for auto-capture |
-| Inline annotation UX | 🔲 TODO | cmd+K on rendered pages, digest pass |
-| Custom integration setup | 🔲 TODO | Enterprise onboarding for bespoke data sources |
+**In curata (paid):**
+- Rich web annotation view (TypeScript/React, separate repo)
+- Text selection, comment anchoring, interactive status updates
+- Talks to kazam's HTTP MCP API (`--remote --token`)
 
 ---
 
-## Go-To-Market Sequence
+## Phases
 
-1. **Now:** Ship the two GitHub Actions. These are the viral hooks that get kazam into repos and make freshness visible in PR workflows.
-2. **Next:** Build the hosted site + queued updates feed (self-managed tier). This is the revenue unlock. Target: AI-native startups who already use Claude Code / Cursor and have docs in Notion.
-3. **Then:** Add the self-driving tier for companies who want turnkey. This is where the real margin is but also the most complex to operate.
+### Done (kazam 1.5.0)
 
-## Target Customer
-AI-native startups (10-200 people) who:
-- Already use an AI coding tool (Claude Code, Cursor, Gemini CLI)
-- Have docs scattered across Notion/Confluence/Google Docs
-- Know their docs are stale but don't have a process to fix it
-- Would pay $100/mo to never think about doc freshness again
+| Phase | What | Status |
+|-------|------|--------|
+| 0 | Manual validation — comment blocks on 3-5 deals | Done |
+| 1 | Sidecar annotation schema + CLI + MCP + build rendering | Done |
+| 2 | Annotation-aware refresh — deal-360 prompt reads annotations | Done |
+| 3 | HTTP MCP hardening — `--local`/`--remote`, bearer token auth | Done |
 
-## Merge Pipeline (Self-Managed + Self-Driving)
+### Next (curata repo)
+
+| Phase | What | Status |
+|-------|------|--------|
+| 4 | Web annotation view — rich UI in curata repo (TypeScript/React) | Next |
+| 5 | Deploy on 5 Maze deals + extend annotations to debrief/call-prep | Open |
+| 6 | curata platform — auth/RBAC, hosted CDN, BYOA API, diff review UI | Open |
+
+---
+
+## Merge Pipeline (curata)
 
 Every agent change goes through one of three modes. The page owner (or site default) picks which.
 
 ### Mode 1: Push (default)
-Changes land immediately. Conflicts block — the agent must resolve locally and retry.
-
-1. Agent pushes to main
-2. System runs `kazam build` + `kazam validate`
-3. Build passes → deploy, update appears in the activity feed
-4. Build fails → reject, notify agent/owner with error
-5. Conflict → reject, agent re-runs against latest main
-
-This is the right default. Most agent changes — freshness bumps, metric refreshes, ingest runs — don't need a human in the loop. The activity feed gives visibility after the fact; owners can revert from the feed if something looks wrong.
+Changes land immediately. Conflicts block — the agent must resolve and retry.
 
 ### Mode 2: Request Approval
-Changes queue for assigned reviewers before going live. For pages where auto-push isn't appropriate.
+Changes queue for assigned reviewers before going live.
 
 ```yaml
-freshness:
-  merge: approval       # changes queue for review before going live
-  reviewers:            # who can approve
-    - legal@company.com
-    - alice@company.com
-```
-
-1. Agent pushes changes → they appear in the feed as **pending**
-2. Feed shows a **rendered before/after** (not raw YAML diffs)
-3. Assigned reviewer approves → changes go live
-4. Reviewer rejects → changes discarded, agent notified with reason
-5. Pending changes unreviewed for 7d → reminder notification
-
-Good for: policies, compliance docs, external-facing content, new pages.
-
-### Mode 3: Queue for Release
-Changes are staged and deploy on a schedule or manual trigger. For teams that want batched, predictable updates.
-
-```yaml
-freshness:
-  merge: queued         # changes stage until released
-  release: weekly       # or: manual, daily, "2026-06-01"
-```
-
-1. Agent pushes changes → they stage in the release queue
-2. Queue shows all pending changes with rendered diffs
-3. On release trigger (schedule or manual button) → all staged changes deploy at once
-4. Conflicts within the queue are resolved at release time, not push time
-
-Good for: teams that want a "documentation release" cadence, regulated environments, sites where changes should batch (e.g., weekly knowledge base refresh).
-
-### Site-level default + per-page override
-
-```yaml
-# site.yaml — site-wide default
-merge:
-  default: push         # push | approval | queued
-  release: weekly       # only applies when default is queued
-
-# page.yaml — per-page override
 freshness:
   merge: approval
-  reviewers: [legal@company.com]
+  reviewers:
+    - legal@company.com
 ```
 
-### Merge mechanics
-- Linear queue, one merge at a time — simple, no locking
-- Reject on conflict (push/approval modes) — agent re-runs, it's cheap
-- Build validation on every merge — broken pages never deploy
+### Mode 3: Queue for Release
+Changes stage and deploy on a schedule or manual trigger.
 
-### What this replaces
-- GitHub PR review (too technical for non-eng page owners)
-- Slack "hey can you approve this" threads (no audit trail, easy to miss)
-- Manual git merges (customers shouldn't think about git)
+```yaml
+freshness:
+  merge: queued
+  release: weekly
+```
 
-### Future
-- Batch approvals ("approve all 8 pending changes at once")
-- Confidence scoring (high-confidence auto-pushes even on approval pages)
-- One-click revert from the activity feed
-- Release notes auto-generated from staged queue
+---
+
+## Target Customer
+
+AI-native startups (10-200 people) who:
+- Already use an AI coding tool (Claude Code, Cursor, Gemini CLI)
+- Have docs scattered across Notion/Confluence/Google Docs
+- Know their docs are stale but don't have a process to fix it
+- Would pay to never think about doc freshness again
+
+GTM teams are the entry point — they feel the pain most acutely (deal pages, competitive docs, customer briefs) and the annotation pattern maps directly to their workflow.
 
 ## Key Insight
-The self-managed tier is the sweet spot. Customer brings their own AI, we just host the output and provide the queued updates feed. Near-zero marginal cost, high perceived value ("my docs update themselves"), natural upsell to self-driving when they want to stop running agents manually.
+
+BYOA means curata is a convergence layer, not an AI product. Customers' agents already know their business; curata provides the structured surface where those agents' outputs meet. The value isn't the AI — it's the meeting point.

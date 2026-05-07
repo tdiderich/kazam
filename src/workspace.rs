@@ -40,7 +40,7 @@ pub fn root(project: &Path) -> PathBuf {
 
 pub fn ensure(project: &Path) -> Result<PathBuf> {
     let r = root(project);
-    for sub in ["track", "ctx", "ctx/anatomy", "hooks"] {
+    for sub in ["track", "ctx", "ctx/anatomy", "hooks", "annotations"] {
         fs::create_dir_all(r.join(sub)).with_context(|| format!("create .kazam/{sub}"))?;
     }
 
