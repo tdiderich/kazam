@@ -1,0 +1,5 @@
+name: notion-ingest
+description: "Migrate a Notion workspace to kazam — ingest, audit, and triage stale content"
+tags: [ingest, notion, migration, onboarding]
+env: [NOTION_TOKEN, NOTION_WORKSPACE_ID]
+data_sources: [notion, kazam]

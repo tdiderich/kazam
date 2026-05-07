@@ -1,0 +1,23 @@
+title: Sources of Truth Map
+shell: standard
+freshness:
+  updated: "2025-01-01"
+  review_every: quarterly
+  owner: changeme@company.com
+  sources_of_truth:
+  - label: Example — API endpoint handlers
+    href: https://github.com/your-org/your-repo/src/api/endpoints/
+  - label: Example — Terraform deployment module
+    href: https://github.com/your-org/infra-repo/terraform/modules/deploy/
+  refresh:
+    mode: assisted
+    steps:
+      - prompt: "Read prompt.md and follow the source-of-truth mapping process. Use the kazam MCP to list and read pages. Scan the configured source repos. Output updated sources_of_truth YAML for each page."
+components:
+- type: header
+  title: Sources of Truth Map
+  eyebrow: Freshness
+- type: markdown
+  body: |
+    This page tracks the mapping between documentation pages and their source code files.
+    Run the refresh prompt to regenerate the mapping when repos or pages change.

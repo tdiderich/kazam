@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 mod actions;
 mod agents;
+mod annotations;
+mod audit;
 mod board;
 mod build;
 mod ctx;
@@ -11,6 +13,7 @@ mod dev;
 mod freshness;
 mod icons;
 mod id;
+mod ingest;
 mod init;
 mod links;
 mod llms;
@@ -76,20 +79,10 @@ enum Command {
     Init { name: String },
     /// Print the LLM authoring guide (full AGENTS.md to stdout)
     Agents,
-    /// Grant a wish — populated YAML from a workspace full of your context.
+    /// Grant a wish — install a recipe for self-refreshing docs
     Wish {
-        /// Name of the wish (e.g., "deck", or "list" to see all)
-        name: String,
-        #[arg(short, long)]
-        out: Option<PathBuf>,
-        #[arg(long, value_enum)]
-        agent: Option<wish::Agent>,
-        #[arg(long)]
-        stdout: bool,
-        #[arg(long)]
-        dry_run: bool,
-        #[arg(long, value_name = "TOPIC", num_args = 0..=1, default_missing_value = "")]
-        yolo: Option<String>,
+        #[command(subcommand)]
+        command: WishCommand,
     },
     /// Manage the work graph — tasks, dependencies, activity log.
     Track {
@@ -137,7 +130,7 @@ enum Command {
         /// Site directory to serve
         #[arg(default_value = ".")]
         dir: PathBuf,
-        /// Allow write operations (write_page tool)
+        /// Allow write operations (write_page, annotate_page, update_annotation)
         #[arg(long)]
         allow_writes: bool,
         /// Transport: stdio (default) or http
@@ -146,6 +139,15 @@ enum Command {
         /// Port for HTTP transport
         #[arg(long, default_value = "8080")]
         port: u16,
+        /// Bind to localhost only (default for http). Mutually exclusive with --remote.
+        #[arg(long, conflicts_with = "remote")]
+        local: bool,
+        /// Bind to all interfaces (0.0.0.0) for remote access. Requires --token or KAZAM_MCP_TOKEN.
+        #[arg(long, conflicts_with = "local")]
+        remote: bool,
+        /// Bearer token for remote HTTP auth. Also reads KAZAM_MCP_TOKEN env var.
+        #[arg(long)]
+        token: Option<String>,
     },
     /// Show freshness status for all pages in the site
     Freshness {
@@ -180,6 +182,60 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
+    /// Audit site health — freshness, structural quality, and completeness
+    Audit {
+        /// Site directory
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+        /// Human-readable output (default is JSON)
+        #[arg(long)]
+        pretty: bool,
+    },
+    /// Ingest content from external platforms into kazam pages
+    Ingest {
+        #[command(subcommand)]
+        command: IngestCommand,
+    },
+    /// Add an annotation to a page (sidecar file in .kazam/annotations/)
+    Annotate {
+        /// Page path relative to site root (e.g. 'deals/acme.yaml')
+        page: String,
+        /// Annotation text
+        text: String,
+        /// Section this annotation applies to (e.g. 'competitive', 'timeline')
+        #[arg(long)]
+        section: Option<String>,
+        /// Author name
+        #[arg(long, default_value = "anonymous")]
+        author: String,
+        /// Source: cli, agent, or web
+        #[arg(long, default_value = "cli")]
+        source: String,
+        /// Site directory
+        #[arg(short, long, default_value = ".")]
+        dir: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum WishCommand {
+    /// List available wishes (local + registry)
+    List {
+        /// Machine-readable JSON output
+        #[arg(long)]
+        json: bool,
+    },
+    /// Install a wish from the registry into local wishes/
+    Init {
+        /// Name of the wish to install
+        name: String,
+        /// Install to a specific directory instead of wishes/
+        #[arg(long)]
+        dir: Option<PathBuf>,
+        /// Overwrite existing local wish
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -206,14 +262,10 @@ fn main() -> Result<()> {
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),
         Command::Agents => agents::run(),
-        Command::Wish {
-            name,
-            out,
-            agent,
-            stdout,
-            dry_run,
-            yolo,
-        } => wish::run(&name, out, agent, stdout, dry_run, yolo),
+        Command::Wish { command } => match command {
+            WishCommand::List { json } => wish::list(json),
+            WishCommand::Init { name, dir, force } => wish::init(&name, dir, force),
+        },
         Command::Track { command, dir } => track::run(command, &dir),
         Command::Ctx { command, dir } => ctx::run(command, &dir),
         Command::Board { dir, port } => board::run(&dir, port),
@@ -235,8 +287,29 @@ fn main() -> Result<()> {
             allow_writes,
             transport,
             port,
+            local,
+            remote,
+            token,
         } => match transport.as_str() {
-            "http" => mcp::run_http(&dir, allow_writes, port),
+            "http" => {
+                let bind_addr = if remote { "0.0.0.0" } else { "127.0.0.1" };
+                let resolved_token = token.or_else(|| std::env::var("KAZAM_MCP_TOKEN").ok());
+                if remote && resolved_token.is_none() {
+                    anyhow::bail!(
+                        "--remote requires a bearer token: pass --token <TOKEN> or set KAZAM_MCP_TOKEN"
+                    );
+                }
+                if local && resolved_token.is_some() {
+                    eprintln!("kazam mcp: note: --token is ignored in local mode");
+                }
+                mcp::run_http(
+                    &dir,
+                    allow_writes,
+                    port,
+                    bind_addr,
+                    resolved_token.as_deref(),
+                )
+            }
             _ => mcp::run(&dir, allow_writes),
         },
         Command::Freshness { command, dir } => match command {
@@ -251,12 +324,68 @@ fn main() -> Result<()> {
             Some(FreshnessCommand::Act { path, action }) => {
                 freshness::run_act(&dir, &path, &action)
             }
+            Some(FreshnessCommand::Notify { json }) => freshness::run_notify(&dir, json),
+            Some(FreshnessCommand::Drift { pretty, repos }) => {
+                freshness::run_drift(&dir, pretty, repos)
+            }
         },
         Command::Voice { dir, json } => voice::run(&dir, json),
         Command::Prompt { command, dir } => prompts::run(command, &dir),
         Command::Actions { command, dir } => match command {
             ActionsCommand::List => actions::list(),
             ActionsCommand::Init { name } => actions::init(&name, &dir),
+        },
+        Command::Audit { dir, pretty } => audit::run(&dir, pretty),
+        Command::Annotate {
+            page,
+            text,
+            section,
+            author,
+            source,
+            dir,
+        } => {
+            let page_path = dir.join(&page);
+            if !page_path.exists() {
+                anyhow::bail!("page not found: {}", page);
+            }
+            let source_enum: types::AnnotationSource = match source.as_str() {
+                "cli" => types::AnnotationSource::Cli,
+                "agent" => types::AnnotationSource::Agent,
+                "web" => types::AnnotationSource::Web,
+                other => anyhow::bail!("invalid source '{}': expected cli, agent, or web", other),
+            };
+            let today = freshness::today_iso();
+            let id = annotations::generate_id(&today);
+            let ann = types::Annotation {
+                id: id.clone(),
+                text,
+                author,
+                section,
+                added: today,
+                status: types::AnnotationStatus::Pending,
+                source: source_enum,
+            };
+            let slug = annotations::page_slug_from_path(&page);
+            let path = annotations::save_annotation(&dir, &slug, &ann)?;
+            println!("✓ annotation {} → {}", id, path.display());
+            Ok(())
+        }
+        Command::Ingest { command } => match command {
+            IngestCommand::Notion {
+                database,
+                page,
+                token,
+                out,
+                dry_run,
+                stats,
+                all,
+            } => {
+                if stats {
+                    ingest::notion_stats(&database, &page, &token, all)
+                } else {
+                    ingest::notion(&database, &page, &token, &out, dry_run, all)
+                }
+            }
         },
     }
 }
@@ -284,6 +413,21 @@ pub enum FreshnessCommand {
         #[arg(value_enum)]
         action: FreshnessAction,
     },
+    /// Generate a digest of stale pages grouped by owner (for Slack/email)
+    Notify {
+        /// Output as JSON instead of markdown
+        #[arg(long)]
+        json: bool,
+    },
+    /// Check if source-of-truth files have changed since pages were last updated
+    Drift {
+        /// Human-readable table output (default is JSON)
+        #[arg(long)]
+        pretty: bool,
+        /// Additional repo mapping: PREFIX=LOCAL (can repeat)
+        #[arg(long = "repo", value_name = "PREFIX=LOCAL")]
+        repos: Vec<String>,
+    },
 }
 
 #[derive(Clone, clap::ValueEnum)]
@@ -302,6 +446,51 @@ pub enum ActionsCommand {
     Init {
         /// Template name (validate, freshness, build)
         name: String,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum IngestCommand {
+    /// Import pages from a Notion workspace.
+    ///
+    /// Setup (one-time):
+    ///   1. Go to https://www.notion.so/profile/integrations/internal
+    ///   2. Click "New integration", name it (e.g. "kazam"), submit
+    ///   3. Copy the Internal Integration Secret (starts with ntn_)
+    ///   4. Set NOTION_TOKEN in .env or export NOTION_TOKEN=ntn_...
+    ///   5. Find your workspace ID: click workspace name (top-left) → Settings → General
+    ///      (workspace ID is at the bottom of the page)
+    ///   6. Set NOTION_WORKSPACE_ID in .env (optional, for --all discovery)
+    ///   7. In Notion, open the page/database you want to import
+    ///   8. Click ··· → Connections → add your integration (gives it access to content)
+    ///      (child pages inherit access from parent)
+    ///
+    /// Finding IDs:
+    ///   Page URL:  notion.so/My-Page-abc123def456 → --page abc123de-f456-...
+    ///   DB URL:    notion.so/abc123?v=...         → --database abc123...
+    ///   The 32-char hex string in the URL is the ID (add dashes for UUID format)
+    Notion {
+        /// Notion database ID — each row becomes a page
+        #[arg(long)]
+        database: Option<String>,
+        /// Notion page ID — import a single page and its children
+        #[arg(long)]
+        page: Option<String>,
+        /// Notion API token (default: .env NOTION_TOKEN or env var)
+        #[arg(long)]
+        token: Option<String>,
+        /// Output directory for generated YAML files (default: current dir)
+        #[arg(long, default_value = ".")]
+        out: PathBuf,
+        /// Preview what would be created without writing files
+        #[arg(long)]
+        dry_run: bool,
+        /// Show staleness stats without ingesting (metadata only, fast)
+        #[arg(long)]
+        stats: bool,
+        /// Discover and ingest all pages the integration can access
+        #[arg(long)]
+        all: bool,
     },
 }
 

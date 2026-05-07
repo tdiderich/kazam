@@ -1,0 +1,5 @@
+name: debrief
+description: "Paste meeting notes or transcript, agent updates the relevant report page with new data"
+tags: [reporting, meetings, granola, refresh]
+env: []
+data_sources: [granola, kazam]

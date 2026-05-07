@@ -161,6 +161,35 @@ pub fn is_stale_draft(f: Option<&Freshness>, today_iso: &str) -> bool {
     today - updated >= DRAFT_STALE_DAYS
 }
 
+// ── Refresh serialization helper ──────────────────────────────────────────
+
+/// Serialize an `Option<RefreshValue>` to a JSON string fragment.
+/// Used by both the `freshness show` and `freshness review` JSON outputs.
+fn serialize_refresh_json(refresh: &Option<crate::types::RefreshValue>) -> String {
+    use crate::types::{RefreshMode, RefreshStep, RefreshValue};
+    match refresh {
+        None => "null".to_string(),
+        Some(RefreshValue::Prompt(s)) => format!("\"{}\"", json_escape(s)),
+        Some(RefreshValue::Full(config)) => {
+            let mode = match config.mode {
+                RefreshMode::Human => "human",
+                RefreshMode::Auto => "auto",
+                RefreshMode::Assisted => "assisted",
+            };
+            let steps: Vec<String> = config
+                .steps
+                .iter()
+                .map(|step| match step {
+                    RefreshStep::Run(v) => format!("{{\"run\":\"{}\"}}", json_escape(v)),
+                    RefreshStep::Prompt(v) => format!("{{\"prompt\":\"{}\"}}", json_escape(v)),
+                    RefreshStep::Review(v) => format!("{{\"review\":\"{}\"}}", json_escape(v)),
+                })
+                .collect();
+            format!("{{\"mode\":\"{}\",\"steps\":[{}]}}", mode, steps.join(","))
+        }
+    }
+}
+
 // ── `kazam freshness` command ──────────────────────────────────────────────
 
 /// Run the `kazam freshness` command — walk `dir`, evaluate staleness for
@@ -185,6 +214,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
         review_every: Option<String>,
         is_never: bool,
         no_freshness: bool,
+        refresh: Option<crate::types::RefreshValue>,
     }
 
     let mut results: Vec<PageResult> = Vec::new();
@@ -245,6 +275,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     review_every: None,
                     is_never: false,
                     no_freshness: true,
+                    refresh: None,
                 });
             }
             Some(fv) if fv.is_never() => {
@@ -259,6 +290,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     review_every: None,
                     is_never: true,
                     no_freshness: false,
+                    refresh: None,
                 });
             }
             Some(fv) => {
@@ -276,6 +308,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     owner: f.owner.clone(),
                     sources_of_truth: f.sources_of_truth.clone(),
                     expires: f.expires.clone(),
+                    refresh: f.refresh.clone(),
                 };
 
                 let status = match info_for(Some(&f_override), &today) {
@@ -301,6 +334,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                     review_every: f.review_every.clone(),
                     is_never: false,
                     no_freshness: false,
+                    refresh: f.refresh.clone(),
                 });
             }
         }
@@ -412,10 +446,11 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                 .as_deref()
                 .map(|rv| format!("\"{}\"", json_escape(rv)))
                 .unwrap_or_else(|| "null".to_string());
+            let refresh_str = serialize_refresh_json(&r.refresh);
 
             let comma = if i + 1 < non_fresh.len() { "," } else { "" };
             pages_json.push_str(&format!(
-                "    {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days_overdue\":{},\"owner\":{},\"updated\":{},\"review_every\":{}}}{}\n",
+                "    {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days_overdue\":{},\"owner\":{},\"updated\":{},\"review_every\":{},\"refresh\":{}}}{}\n",
                 json_escape(&r.path),
                 json_escape(&r.title),
                 status_str,
@@ -423,6 +458,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
                 owner_str,
                 updated_str,
                 review_every_str,
+                refresh_str,
                 comma,
             ));
         }
@@ -458,6 +494,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
         cadence: Option<String>,
         recommendation: &'static str,
         description: Option<String>,
+        refresh: Option<crate::types::RefreshValue>,
     }
 
     let mut items: Vec<ReviewItem> = Vec::new();
@@ -528,6 +565,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
             cadence: f.and_then(|f| f.review_every.clone()),
             recommendation,
             description: page.subtitle,
+            refresh: f.and_then(|f| f.refresh.clone()),
         });
     }
 
@@ -563,15 +601,17 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
                 .as_deref()
                 .map(|o| format!("\"{}\"", json_escape(o)))
                 .unwrap_or("null".into());
+            let refresh_str = serialize_refresh_json(&item.refresh);
             let comma = if i + 1 < items.len() { "," } else { "" };
             println!(
-                "  {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days\":{},\"owner\":{},\"recommendation\":\"{}\"}}{}",
+                "  {{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days\":{},\"owner\":{},\"recommendation\":\"{}\",\"refresh\":{}}}{}",
                 json_escape(&item.path),
                 json_escape(&item.title),
                 status_str,
                 item.days,
                 owner,
                 item.recommendation,
+                refresh_str,
                 comma,
             );
         }
@@ -680,7 +720,477 @@ pub fn run_act(dir: &Path, rel_path: &str, action: &crate::FreshnessAction) -> a
     Ok(())
 }
 
-fn json_escape(s: &str) -> String {
+/// `kazam freshness notify` — stale pages grouped by owner, formatted for
+/// Slack or email. Outputs markdown by default, JSON with `--json`.
+pub fn run_notify(dir: &Path, json: bool) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use std::collections::BTreeMap;
+    use std::fs;
+    use walkdir::WalkDir;
+
+    let today = today_iso();
+
+    struct NotifyItem {
+        path: String,
+        title: String,
+        status: FreshnessStatus,
+        days: i64,
+    }
+
+    let mut by_owner: BTreeMap<String, Vec<NotifyItem>> = BTreeMap::new();
+
+    for entry in WalkDir::new(dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() > 0 && e.file_name() == "_site" && e.file_type().is_dir() {
+                return false;
+            }
+            if e.depth() > 0 {
+                if let Some(name) = e.file_name().to_str() {
+                    if name.starts_with('.') {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let fname = path.file_name().unwrap_or_default();
+        if fname == "kazam.yaml" || fname == "404.yaml" {
+            continue;
+        }
+        if !path.extension().map(|e| e == "yaml").unwrap_or(false) {
+            continue;
+        }
+
+        let rel = path.strip_prefix(dir)?;
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        let content = fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
+        let page: crate::types::Page =
+            serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
+
+        let fv = page.freshness.as_ref();
+        if fv.is_none() || fv.map(|v| v.is_never()).unwrap_or(false) {
+            continue;
+        }
+        let f = fv.and_then(|v| v.as_full());
+        let info = match info_for(f, &today) {
+            Some(i) => i,
+            None => continue,
+        };
+        let status = info.status();
+        let days = match status {
+            FreshnessStatus::Expired { days_past_expiry } => days_past_expiry,
+            FreshnessStatus::Overdue { days_overdue } => days_overdue,
+            FreshnessStatus::DueSoon { days_until_due } => days_until_due,
+            FreshnessStatus::Fresh => continue,
+        };
+
+        let owner = f
+            .and_then(|f| f.owner.clone())
+            .unwrap_or_else(|| "(unowned)".to_string());
+
+        by_owner.entry(owner).or_default().push(NotifyItem {
+            path: rel_str,
+            title: page.title,
+            status,
+            days,
+        });
+    }
+
+    // Sort items within each owner group: expired first, then overdue (most first), then due_soon
+    for items in by_owner.values_mut() {
+        items.sort_by(|a, b| {
+            fn rank(s: &FreshnessStatus) -> u8 {
+                match s {
+                    FreshnessStatus::Expired { .. } => 0,
+                    FreshnessStatus::Overdue { .. } => 1,
+                    FreshnessStatus::DueSoon { .. } => 2,
+                    FreshnessStatus::Fresh => 3,
+                }
+            }
+            rank(&a.status)
+                .cmp(&rank(&b.status))
+                .then(b.days.cmp(&a.days))
+        });
+    }
+
+    let total_items: usize = by_owner.values().map(|v| v.len()).sum();
+
+    if json {
+        let mut owners_json = Vec::new();
+        for (owner, items) in &by_owner {
+            let mut items_json = Vec::new();
+            for item in items {
+                let status_str = match item.status {
+                    FreshnessStatus::Expired { .. } => "expired",
+                    FreshnessStatus::Overdue { .. } => "overdue",
+                    FreshnessStatus::DueSoon { .. } => "due_soon",
+                    FreshnessStatus::Fresh => "fresh",
+                };
+                items_json.push(format!(
+                    "{{\"path\":\"{}\",\"title\":\"{}\",\"status\":\"{}\",\"days\":{}}}",
+                    json_escape(&item.path),
+                    json_escape(&item.title),
+                    status_str,
+                    item.days,
+                ));
+            }
+            owners_json.push(format!(
+                "{{\"owner\":\"{}\",\"count\":{},\"pages\":[{}]}}",
+                json_escape(owner),
+                items.len(),
+                items_json.join(","),
+            ));
+        }
+        println!(
+            "{{\"date\":\"{}\",\"total\":{},\"owners\":[{}]}}",
+            today,
+            total_items,
+            owners_json.join(","),
+        );
+    } else {
+        if by_owner.is_empty() {
+            println!("All pages are fresh — nothing to notify.");
+            return Ok(());
+        }
+        println!("**Freshness digest — {}**\n", today);
+        println!(
+            "{} page(s) need attention across {} owner(s)\n",
+            total_items,
+            by_owner.len()
+        );
+        for (owner, items) in &by_owner {
+            println!(
+                "**{}** ({} page{})",
+                owner,
+                items.len(),
+                if items.len() == 1 { "" } else { "s" }
+            );
+            for item in items {
+                let badge = match item.status {
+                    FreshnessStatus::Expired { days_past_expiry } => {
+                        format!("EXPIRED {} days", days_past_expiry)
+                    }
+                    FreshnessStatus::Overdue { days_overdue } => {
+                        format!("OVERDUE {} days", days_overdue)
+                    }
+                    FreshnessStatus::DueSoon { days_until_due } => {
+                        format!("due in {} days", days_until_due)
+                    }
+                    FreshnessStatus::Fresh => "fresh".into(),
+                };
+                println!("  - [{}] {} ({})", badge, item.title, item.path);
+            }
+            println!();
+        }
+    }
+
+    Ok(())
+}
+
+/// `kazam freshness drift` — check git history for source-of-truth files to
+/// detect when upstream code has changed since a documentation page was last
+/// reviewed.
+pub fn run_drift(dir: &Path, pretty: bool, cli_repos: Vec<String>) -> anyhow::Result<()> {
+    use anyhow::Context;
+    use std::fs;
+    use std::process::Command;
+    use walkdir::WalkDir;
+
+    let today = today_iso();
+
+    // Load config drift repos
+    let config_path = dir.join("kazam.yaml");
+    let mut repos: Vec<(String, String)> = Vec::new(); // (prefix, local)
+    if config_path.exists() {
+        let config_content = fs::read_to_string(&config_path)
+            .with_context(|| format!("reading {:?}", config_path))?;
+        let site: crate::types::SiteConfig = serde_yaml::from_str(&config_content)
+            .with_context(|| format!("parsing {:?}", config_path))?;
+        if let Some(drift) = site.drift {
+            for repo in drift.repos {
+                repos.push((repo.prefix, repo.local));
+            }
+        }
+    }
+
+    // Parse CLI --repo flags (PREFIX=LOCAL) and prepend (CLI takes precedence)
+    let mut cli_repo_pairs: Vec<(String, String)> = Vec::new();
+    for r in &cli_repos {
+        if let Some(eq) = r.find('=') {
+            let prefix = r[..eq].to_string();
+            let local = r[eq + 1..].to_string();
+            cli_repo_pairs.push((prefix, local));
+        }
+    }
+    // CLI repos go first so they match before config repos
+    let all_repos: Vec<(String, String)> = cli_repo_pairs.into_iter().chain(repos).collect();
+
+    // Expand ~ in local paths
+    let home = std::env::var("HOME").unwrap_or_default();
+    let expand_tilde = |p: &str| -> String {
+        if let Some(stripped) = p.strip_prefix("~/") {
+            format!("{}/{}", home, stripped)
+        } else if p == "~" {
+            home.clone()
+        } else {
+            p.to_string()
+        }
+    };
+
+    struct DriftSource {
+        label: String,
+        href: String,
+        commits: usize,
+        latest: String,
+    }
+
+    struct DriftPage {
+        path: String,
+        title: String,
+        updated: String,
+        owner: Option<String>,
+        sources: Vec<DriftSource>,
+    }
+
+    let mut drifted: Vec<DriftPage> = Vec::new();
+    let mut unmapped: Vec<String> = Vec::new();
+    let mut total = 0usize;
+    let mut clean = 0usize;
+
+    for entry in WalkDir::new(dir)
+        .follow_links(true)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() > 0 && e.file_name() == "_site" && e.file_type().is_dir() {
+                return false;
+            }
+            if e.depth() > 0 {
+                if let Some(name) = e.file_name().to_str() {
+                    if name.starts_with('.') {
+                        return false;
+                    }
+                }
+            }
+            true
+        })
+    {
+        let entry = entry?;
+        let path = entry.path();
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let fname = path.file_name().unwrap_or_default();
+        if fname == "kazam.yaml" || fname == "404.yaml" {
+            continue;
+        }
+        if !path.extension().map(|e| e == "yaml").unwrap_or(false) {
+            continue;
+        }
+
+        let rel = path.strip_prefix(dir)?;
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        let content = fs::read_to_string(path).with_context(|| format!("reading {:?}", path))?;
+        let page: crate::types::Page =
+            serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
+
+        // Skip pages with no freshness, freshness: never, or no sources_of_truth
+        let fv = page.freshness.as_ref();
+        if fv.is_none() || fv.map(|v| v.is_never()).unwrap_or(false) {
+            continue;
+        }
+        let f = match fv.and_then(|v| v.as_full()) {
+            Some(f) => f,
+            None => continue,
+        };
+        let updated = match f.updated.as_deref() {
+            Some(u) => u,
+            None => continue,
+        };
+        let sources = match f.sources_of_truth.as_ref() {
+            Some(s) if !s.is_empty() => s,
+            _ => continue,
+        };
+
+        total += 1;
+
+        let owner = f.owner.clone();
+        let title = page.title.clone();
+
+        let mut page_drifted_sources: Vec<DriftSource> = Vec::new();
+
+        for sot in sources {
+            let href = sot.href();
+            let label = sot.label();
+
+            // Find matching repo prefix
+            let matched = all_repos
+                .iter()
+                .find(|(prefix, _)| href.starts_with(prefix.as_str()));
+
+            match matched {
+                None => {
+                    // Unmapped source — not an error, just collect unique ones
+                    if !unmapped.contains(&href.to_string()) {
+                        unmapped.push(href.to_string());
+                    }
+                }
+                Some((prefix, local)) => {
+                    let relative_path = &href[prefix.len()..];
+                    // Strip leading slash if present
+                    let relative_path = relative_path.trim_start_matches('/');
+                    let local_expanded = expand_tilde(local);
+
+                    let output = Command::new("git")
+                        .arg("-C")
+                        .arg(&local_expanded)
+                        .arg("log")
+                        .arg(format!("--since={}", updated))
+                        .arg("--oneline")
+                        .arg("--")
+                        .arg(relative_path)
+                        .output();
+
+                    match output {
+                        Err(_) => {
+                            // git not available or repo not found — skip silently
+                        }
+                        Ok(out) => {
+                            let stdout = String::from_utf8_lossy(&out.stdout);
+                            let lines: Vec<&str> =
+                                stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+                            let commit_count = lines.len();
+                            if commit_count > 0 {
+                                let latest = lines[0].to_string();
+                                page_drifted_sources.push(DriftSource {
+                                    label: label.to_string(),
+                                    href: href.to_string(),
+                                    commits: commit_count,
+                                    latest,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if page_drifted_sources.is_empty() {
+            clean += 1;
+        } else {
+            drifted.push(DriftPage {
+                path: rel_str,
+                title,
+                updated: updated.to_string(),
+                owner,
+                sources: page_drifted_sources,
+            });
+        }
+    }
+
+    // Sort drifted pages by total commit count descending
+    drifted.sort_by(|a, b| {
+        let a_total: usize = a.sources.iter().map(|s| s.commits).sum();
+        let b_total: usize = b.sources.iter().map(|s| s.commits).sum();
+        b_total.cmp(&a_total)
+    });
+
+    let unmapped_count = unmapped.len();
+    let drifted_count = drifted.len();
+
+    if pretty {
+        println!("Freshness drift — {}", today);
+        println!(
+            "  {} pages, {} drifted, {} clean, {} unmapped sources",
+            total, drifted_count, clean, unmapped_count
+        );
+        if !drifted.is_empty() {
+            println!();
+            for page in &drifted {
+                let owner_str = page
+                    .owner
+                    .as_deref()
+                    .map(|o| format!("  owner: {}", o))
+                    .unwrap_or_default();
+                println!("  [DRIFTED] {}", page.path);
+                println!(
+                    "    \"{}\"{}  updated: {}",
+                    page.title, owner_str, page.updated
+                );
+                for src in &page.sources {
+                    println!(
+                        "    → {}: {} commits (latest: {})",
+                        src.label, src.commits, src.latest
+                    );
+                }
+                println!();
+            }
+        }
+        if !unmapped.is_empty() {
+            println!("  Unmapped sources (no repo prefix matched):");
+            for u in &unmapped {
+                println!("    {}", u);
+            }
+        }
+    } else {
+        // JSON output
+        let mut drifted_json = String::from("[\n");
+        for (i, page) in drifted.iter().enumerate() {
+            let owner_str = page
+                .owner
+                .as_deref()
+                .map(|o| format!("\"{}\"", json_escape(o)))
+                .unwrap_or_else(|| "null".to_string());
+            let mut sources_json = String::from("[");
+            for (j, src) in page.sources.iter().enumerate() {
+                let src_comma = if j + 1 < page.sources.len() { "," } else { "" };
+                sources_json.push_str(&format!(
+                    "{{\"label\":\"{}\",\"href\":\"{}\",\"commits\":{},\"latest\":\"{}\"}}{}",
+                    json_escape(&src.label),
+                    json_escape(&src.href),
+                    src.commits,
+                    json_escape(&src.latest),
+                    src_comma,
+                ));
+            }
+            sources_json.push(']');
+            let page_comma = if i + 1 < drifted.len() { "," } else { "" };
+            drifted_json.push_str(&format!(
+                "    {{\"page\":\"{}\",\"title\":\"{}\",\"updated\":\"{}\",\"owner\":{},\"sources\":{}}}{}\n",
+                json_escape(&page.path),
+                json_escape(&page.title),
+                json_escape(&page.updated),
+                owner_str,
+                sources_json,
+                page_comma,
+            ));
+        }
+        drifted_json.push_str("  ]");
+
+        let mut unmapped_json = String::from("[");
+        for (i, u) in unmapped.iter().enumerate() {
+            let comma = if i + 1 < unmapped.len() { "," } else { "" };
+            unmapped_json.push_str(&format!("\"{}\"{}", json_escape(u), comma));
+        }
+        unmapped_json.push(']');
+
+        println!(
+            "{{\n  \"date\":\"{}\",\n  \"summary\":{{\"total\":{},\"drifted\":{},\"clean\":{},\"unmapped\":{}}},\n  \"drifted\":{},\n  \"unmapped\":{}\n}}",
+            today, total, drifted_count, clean, unmapped_count, drifted_json, unmapped_json
+        );
+    }
+
+    Ok(())
+}
+
+pub fn json_escape(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")
         .replace('\n', "\\n")
@@ -806,6 +1316,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert_eq!(info.days_since_update(), Some(110));
@@ -820,6 +1331,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
@@ -834,6 +1346,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
@@ -845,6 +1358,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-21").unwrap();
         assert!(!info.is_stale());
@@ -858,6 +1372,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: Some("2026-03-01".to_string()),
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-04-01").unwrap();
         assert!(matches!(info.status(), FreshnessStatus::Expired { .. }));
@@ -871,6 +1386,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: Some("2026-12-31".to_string()),
+            refresh: None,
         };
         let info = info_for(Some(&f), "2026-05-01").unwrap();
         assert!(matches!(info.status(), FreshnessStatus::Overdue { .. }));
@@ -884,6 +1400,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         assert!(is_stale_draft(Some(&f), "2026-02-01"));
         assert!(!is_stale_draft(Some(&f), "2026-01-20"));
@@ -897,6 +1414,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: None,
+            refresh: None,
         };
         assert!(!is_stale_draft(Some(&f), "2026-06-01"));
     }
@@ -909,6 +1427,7 @@ mod tests {
             owner: None,
             sources_of_truth: None,
             expires: Some("2026-03-01".to_string()),
+            refresh: None,
         };
         assert!(is_expired(Some(&f), "2026-04-01"));
         assert!(!is_expired(Some(&f), "2026-02-01"));

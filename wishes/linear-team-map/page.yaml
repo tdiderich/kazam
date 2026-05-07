@@ -1,0 +1,55 @@
+title: Who Owns What
+shell: standard
+eyebrow: Ops
+personas:
+  - everyone
+search_terms:
+  - ownership
+  - who owns
+  - teams
+  - projects
+  - responsible
+freshness:
+  updated: "2025-01-01"
+  review_every: monthly
+  owner: changeme@company.com
+  refresh:
+    mode: assisted
+    steps:
+      - run: scripts/fetch-team-map.py
+      - prompt: "Read scripts/team-map-prompt.md and scripts/team-map-data.json. Map people to teams and projects. Update this page with current ownership data."
+      - review: owner
+components:
+  - type: header
+    title: Who Owns What
+    subtitle: "Team capabilities and project ownership — derived from Linear activity"
+
+  - type: callout
+    style: info
+    body: "This page maps people to what they actually work on, derived from Linear issue assignments and project membership. Run the data pipeline to populate."
+
+  - type: section
+    heading: "Sample Team Map"
+    components:
+      - type: markdown
+        body: |
+          Below is an example of a populated team ownership map:
+
+          #### Platform Team
+          **Lead:** Jane Smith &nbsp; **Members:** 6
+
+          | Member | Role | Active projects |
+          |---|---|---|
+          | Jane Smith | Lead | Auth v2, API Gateway |
+          | Alex Chen | Senior | API Gateway, Billing |
+          | Pat Lee | IC | Auth v2 |
+
+          **Owns:** Authentication, API infrastructure, billing service
+          **Current cycle:** 12 issues in progress, 8 completed, 3 blocked
+
+  - type: section
+    heading: "Teams"
+    components:
+      - type: markdown
+        body: |
+          Run the data pipeline to populate this page. See the refresh block above for instructions.

@@ -1,0 +1,5 @@
+name: sources-map
+description: "Map source code files to documentation pages as sources_of_truth"
+tags: [freshness, code, mapping, sources-of-truth]
+env: []
+data_sources: [kazam, github]

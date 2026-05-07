@@ -656,6 +656,7 @@ fn board_site_config(project: &Path) -> SiteConfig {
         og_image: None,
         voice: None,
         roles: Vec::new(),
+        drift: None,
     }
 }
 
@@ -680,6 +681,7 @@ impl Clone for SiteConfig {
             og_image: self.og_image.clone(),
             voice: self.voice.clone(),
             roles: self.roles.clone(),
+            drift: self.drift.clone(),
         }
     }
 }

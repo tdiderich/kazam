@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // ── Shell ────────────────────────────────────────────
@@ -183,6 +183,10 @@ pub struct Freshness {
     /// campaign pages.
     #[serde(default)]
     pub expires: Option<String>,
+    /// How this page gets refreshed — bare string (prompt shorthand) or
+    /// full config with mode + steps. Not used by the build.
+    #[serde(default)]
+    pub refresh: Option<RefreshValue>,
 }
 
 /// One source-of-truth entry. Either a bare URL or a labeled link.
@@ -206,6 +210,50 @@ impl SourceOfTruth {
             SourceOfTruth::Full { label, .. } => label,
         }
     }
+}
+
+/// How a page gets refreshed: human-only, fully automated, or
+/// script + LLM + human review.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum RefreshValue {
+    /// Bare string shorthand — assisted mode with a single prompt step.
+    Prompt(String),
+    /// Full refresh configuration with mode and steps.
+    Full(RefreshConfig),
+}
+
+/// Full refresh configuration.
+#[derive(Debug, Deserialize, Clone)]
+pub struct RefreshConfig {
+    /// human | auto | assisted. Defaults to assisted.
+    #[serde(default)]
+    pub mode: RefreshMode,
+    /// Ordered recipe: run (shell), prompt (LLM), review (human checkpoint).
+    #[serde(default)]
+    pub steps: Vec<RefreshStep>,
+}
+
+/// Refresh mode.
+#[derive(Debug, Deserialize, Clone, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RefreshMode {
+    Human,
+    Auto,
+    #[default]
+    Assisted,
+}
+
+/// One step in a refresh recipe.
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum RefreshStep {
+    /// Shell command to run (e.g. a data-gathering script).
+    Run(String),
+    /// Prompt for an LLM agent.
+    Prompt(String),
+    /// Human review checkpoint. Value is who reviews (e.g. "owner").
+    Review(String),
 }
 
 #[derive(Deserialize, Clone, Copy, Default)]
@@ -1113,6 +1161,10 @@ pub struct SiteConfig {
     /// the role-map component and nav filter.
     #[serde(default)]
     pub roles: Vec<Role>,
+    /// Mapping from source-of-truth URL prefixes to local repo paths.
+    /// Used by `kazam freshness drift` to check git history.
+    #[serde(default)]
+    pub drift: Option<DriftConfig>,
 }
 
 /// Brand voice configuration — tone, reading level, and terminology preferences.
@@ -1140,6 +1192,23 @@ pub struct Terminology {
     /// Terms to avoid entirely
     #[serde(default)]
     pub avoid: Vec<String>,
+}
+
+/// Mapping from source-of-truth URL prefixes to local repo paths.
+/// Used by `kazam freshness drift` to check git history.
+#[derive(Deserialize, Clone, Default)]
+pub struct DriftConfig {
+    #[serde(default)]
+    pub repos: Vec<DriftRepo>,
+}
+
+/// One repo mapping entry for drift detection.
+#[derive(Deserialize, Clone)]
+pub struct DriftRepo {
+    /// URL prefix to match against sources_of_truth hrefs
+    pub prefix: String,
+    /// Local filesystem path to the git repo
+    pub local: String,
 }
 
 /// One role in the site's persona taxonomy.
@@ -1344,6 +1413,7 @@ impl Default for SiteConfig {
             og_image: None,
             voice: None,
             roles: Vec::new(),
+            drift: None,
         }
     }
 }
@@ -1358,6 +1428,41 @@ fn default_true() -> bool {
 }
 fn default_avatar_max() -> usize {
     5
+}
+
+// ── Annotations ─────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Annotation {
+    pub id: String,
+    pub text: String,
+    pub author: String,
+    #[serde(default)]
+    pub section: Option<String>,
+    pub added: String,
+    #[serde(default)]
+    pub status: AnnotationStatus,
+    #[serde(default)]
+    pub source: AnnotationSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnotationStatus {
+    #[default]
+    Pending,
+    Incorporated,
+    Ignored,
+    Stale,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnotationSource {
+    #[default]
+    Cli,
+    Agent,
+    Web,
 }
 
 pub fn value_to_string(v: &serde_yaml::Value) -> String {

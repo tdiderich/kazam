@@ -1,0 +1,5 @@
+name: freshness-notifier
+description: "Notify content owners about stale pages via messaging (Slack, Teams, or email)"
+tags: [ops, freshness, notifications, slack, teams]
+env: []
+data_sources: [kazam, slack, teams]
