@@ -91,6 +91,55 @@ pub fn annotation_freshness(ann: &Annotation, today: &str) -> FreshnessStatus {
     }
 }
 
+pub fn clear_annotations(site_dir: &Path, page_slug: &str) -> Result<usize> {
+    let dir = annotations_dir(site_dir, page_slug);
+    if !dir.exists() {
+        return Ok(0);
+    }
+    let entries: Vec<_> = std::fs::read_dir(&dir)
+        .with_context(|| format!("reading annotation dir {:?}", dir))?
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path()
+                .extension()
+                .map(|ext| ext == "yaml" || ext == "yml")
+                .unwrap_or(false)
+        })
+        .collect();
+    let count = entries.len();
+    for entry in entries {
+        std::fs::remove_file(entry.path())
+            .with_context(|| format!("removing {:?}", entry.path()))?;
+    }
+    Ok(count)
+}
+
+pub fn resolve_annotation(site_dir: &Path, id: &str) -> Result<()> {
+    let ann_dir = site_dir.join(".kazam").join("annotations");
+    if !ann_dir.exists() {
+        anyhow::bail!("annotation not found: {}", id);
+    }
+    let filename = format!("{}.yaml", id);
+    for entry in std::fs::read_dir(&ann_dir).context("reading annotations dir")? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let candidate = entry.path().join(&filename);
+        if candidate.exists() {
+            let content = std::fs::read_to_string(&candidate)
+                .with_context(|| format!("reading {:?}", candidate))?;
+            let mut ann: Annotation = serde_yaml::from_str(&content)
+                .with_context(|| format!("parsing {:?}", candidate))?;
+            ann.status = AnnotationStatus::Incorporated;
+            let yaml = serde_yaml::to_string(&ann).context("serializing annotation")?;
+            std::fs::write(&candidate, yaml).with_context(|| format!("writing {:?}", candidate))?;
+            return Ok(());
+        }
+    }
+    anyhow::bail!("annotation not found: {}", id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,5 +307,86 @@ source: slack
         let ann = make_annotation("2026-01-01", AnnotationStatus::Ignored);
         let status = annotation_freshness(&ann, "2026-05-07");
         assert!(matches!(status, FreshnessStatus::Fresh));
+    }
+
+    #[test]
+    fn clear_annotations_removes_all() {
+        let tmp = std::env::temp_dir().join(format!("kazam-test-clear-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        let ann1 = Annotation {
+            id: "ann-20260507-0001".into(),
+            text: "first".into(),
+            author: "tyler".into(),
+            section: None,
+            added: "2026-05-07".into(),
+            status: AnnotationStatus::Pending,
+            source: AnnotationSource::Cli,
+        };
+        let ann2 = Annotation {
+            id: "ann-20260507-0002".into(),
+            text: "second".into(),
+            author: "tyler".into(),
+            section: None,
+            added: "2026-05-07".into(),
+            status: AnnotationStatus::Pending,
+            source: AnnotationSource::Cli,
+        };
+        save_annotation(&tmp, "test--page", &ann1).unwrap();
+        save_annotation(&tmp, "test--page", &ann2).unwrap();
+        assert_eq!(load_annotations(&tmp, "test--page").unwrap().len(), 2);
+
+        let count = clear_annotations(&tmp, "test--page").unwrap();
+        assert_eq!(count, 2);
+        assert!(load_annotations(&tmp, "test--page").unwrap().is_empty());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn clear_annotations_empty_returns_zero() {
+        let tmp =
+            std::env::temp_dir().join(format!("kazam-test-clear-empty-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let count = clear_annotations(&tmp, "nonexistent").unwrap();
+        assert_eq!(count, 0);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn resolve_annotation_sets_incorporated() {
+        let tmp = std::env::temp_dir().join(format!("kazam-test-resolve-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+
+        let ann = Annotation {
+            id: "ann-20260507-cafe".into(),
+            text: "resolve me".into(),
+            author: "tyler".into(),
+            section: None,
+            added: "2026-05-07".into(),
+            status: AnnotationStatus::Pending,
+            source: AnnotationSource::Cli,
+        };
+        save_annotation(&tmp, "test--page", &ann).unwrap();
+
+        resolve_annotation(&tmp, "ann-20260507-cafe").unwrap();
+
+        let loaded = load_annotations(&tmp, "test--page").unwrap();
+        assert_eq!(loaded[0].status, AnnotationStatus::Incorporated);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn resolve_annotation_not_found() {
+        let tmp =
+            std::env::temp_dir().join(format!("kazam-test-resolve-nf-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join(".kazam/annotations/empty")).unwrap();
+
+        let result = resolve_annotation(&tmp, "ann-20260507-0000");
+        assert!(result.is_err());
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

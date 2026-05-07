@@ -196,23 +196,12 @@ enum Command {
         #[command(subcommand)]
         command: IngestCommand,
     },
-    /// Add an annotation to a page (sidecar file in .kazam/annotations/)
+    /// Manage annotations on pages (sidecar files in .kazam/annotations/)
     Annotate {
-        /// Page path relative to site root (e.g. 'deals/acme.yaml')
-        page: String,
-        /// Annotation text
-        text: String,
-        /// Section this annotation applies to (e.g. 'competitive', 'timeline')
-        #[arg(long)]
-        section: Option<String>,
-        /// Author name
-        #[arg(long, default_value = "anonymous")]
-        author: String,
-        /// Source: cli, agent, or web
-        #[arg(long, default_value = "cli")]
-        source: String,
+        #[command(subcommand)]
+        command: AnnotateCommand,
         /// Site directory
-        #[arg(short, long, default_value = ".")]
+        #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
 }
@@ -336,40 +325,79 @@ fn main() -> Result<()> {
             ActionsCommand::Init { name } => actions::init(&name, &dir),
         },
         Command::Audit { dir, pretty } => audit::run(&dir, pretty),
-        Command::Annotate {
-            page,
-            text,
-            section,
-            author,
-            source,
-            dir,
-        } => {
-            let page_path = dir.join(&page);
-            if !page_path.exists() {
-                anyhow::bail!("page not found: {}", page);
-            }
-            let source_enum: types::AnnotationSource = match source.as_str() {
-                "cli" => types::AnnotationSource::Cli,
-                "agent" => types::AnnotationSource::Agent,
-                "web" => types::AnnotationSource::Web,
-                other => anyhow::bail!("invalid source '{}': expected cli, agent, or web", other),
-            };
-            let today = freshness::today_iso();
-            let id = annotations::generate_id(&today);
-            let ann = types::Annotation {
-                id: id.clone(),
+        Command::Annotate { command, dir } => match command {
+            AnnotateCommand::Add {
+                page,
                 text,
-                author,
                 section,
-                added: today,
-                status: types::AnnotationStatus::Pending,
-                source: source_enum,
-            };
-            let slug = annotations::page_slug_from_path(&page);
-            let path = annotations::save_annotation(&dir, &slug, &ann)?;
-            println!("✓ annotation {} → {}", id, path.display());
-            Ok(())
-        }
+                author,
+                source,
+            } => {
+                let page_path = dir.join(&page);
+                if !page_path.exists() {
+                    anyhow::bail!("page not found: {}", page);
+                }
+                let source_enum: types::AnnotationSource = match source.as_str() {
+                    "cli" => types::AnnotationSource::Cli,
+                    "agent" => types::AnnotationSource::Agent,
+                    "web" => types::AnnotationSource::Web,
+                    other => {
+                        anyhow::bail!("invalid source '{}': expected cli, agent, or web", other)
+                    }
+                };
+                let today = freshness::today_iso();
+                let id = annotations::generate_id(&today);
+                let ann = types::Annotation {
+                    id: id.clone(),
+                    text,
+                    author,
+                    section,
+                    added: today,
+                    status: types::AnnotationStatus::Pending,
+                    source: source_enum,
+                };
+                let slug = annotations::page_slug_from_path(&page);
+                let path = annotations::save_annotation(&dir, &slug, &ann)?;
+                println!("✓ annotation {} → {}", id, path.display());
+                Ok(())
+            }
+            AnnotateCommand::List { page, json } => {
+                let slug = annotations::page_slug_from_path(&page);
+                let anns = annotations::load_annotations(&dir, &slug)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&anns)?);
+                } else if anns.is_empty() {
+                    println!("no annotations on {}", page);
+                } else {
+                    for ann in &anns {
+                        let status = match ann.status {
+                            types::AnnotationStatus::Pending => "pending",
+                            types::AnnotationStatus::Incorporated => "incorporated",
+                            types::AnnotationStatus::Ignored => "ignored",
+                            types::AnnotationStatus::Stale => "stale",
+                        };
+                        let section = ann.section.as_deref().unwrap_or("-");
+                        println!(
+                            "  {} [{}] ({}, {}) {}",
+                            ann.id, status, ann.author, section, ann.text
+                        );
+                    }
+                    println!("\n{} annotation(s)", anns.len());
+                }
+                Ok(())
+            }
+            AnnotateCommand::Resolve { id } => {
+                annotations::resolve_annotation(&dir, &id)?;
+                println!("✓ {} → incorporated", id);
+                Ok(())
+            }
+            AnnotateCommand::Clear { page } => {
+                let slug = annotations::page_slug_from_path(&page);
+                let count = annotations::clear_annotations(&dir, &slug)?;
+                println!("✓ cleared {} annotation(s) from {}", count, page);
+                Ok(())
+            }
+        },
         Command::Ingest { command } => match command {
             IngestCommand::Notion {
                 database,
@@ -491,6 +519,44 @@ pub enum IngestCommand {
         /// Discover and ingest all pages the integration can access
         #[arg(long)]
         all: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum AnnotateCommand {
+    /// Add an annotation to a page
+    Add {
+        /// Page path relative to site root (e.g. 'deals/acme.yaml')
+        page: String,
+        /// Annotation text
+        text: String,
+        /// Section this annotation applies to (e.g. 'competitive', 'timeline')
+        #[arg(long)]
+        section: Option<String>,
+        /// Author name
+        #[arg(long, default_value = "anonymous")]
+        author: String,
+        /// Source: cli, agent, or web
+        #[arg(long, default_value = "cli")]
+        source: String,
+    },
+    /// List annotations on a page
+    List {
+        /// Page path relative to site root
+        page: String,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+    /// Mark an annotation as incorporated
+    Resolve {
+        /// Annotation ID (e.g. 'ann-20260507-e708')
+        id: String,
+    },
+    /// Remove all annotations for a page
+    Clear {
+        /// Page path relative to site root
+        page: String,
     },
 }
 
