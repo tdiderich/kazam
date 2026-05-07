@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // ── Shell ────────────────────────────────────────────
@@ -1428,6 +1428,41 @@ fn default_true() -> bool {
 }
 fn default_avatar_max() -> usize {
     5
+}
+
+// ── Annotations ─────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Annotation {
+    pub id: String,
+    pub text: String,
+    pub author: String,
+    #[serde(default)]
+    pub section: Option<String>,
+    pub added: String,
+    #[serde(default)]
+    pub status: AnnotationStatus,
+    #[serde(default)]
+    pub source: AnnotationSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnotationStatus {
+    #[default]
+    Pending,
+    Incorporated,
+    Ignored,
+    Stale,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AnnotationSource {
+    #[default]
+    Cli,
+    Agent,
+    Web,
 }
 
 pub fn value_to_string(v: &serde_yaml::Value) -> String {

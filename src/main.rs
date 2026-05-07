@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 mod actions;
 mod agents;
+mod annotations;
 mod audit;
 mod board;
 mod build;
@@ -129,7 +130,7 @@ enum Command {
         /// Site directory to serve
         #[arg(default_value = ".")]
         dir: PathBuf,
-        /// Allow write operations (write_page tool)
+        /// Allow write operations (write_page, annotate_page, update_annotation)
         #[arg(long)]
         allow_writes: bool,
         /// Transport: stdio (default) or http
@@ -138,6 +139,15 @@ enum Command {
         /// Port for HTTP transport
         #[arg(long, default_value = "8080")]
         port: u16,
+        /// Bind to localhost only (default for http). Mutually exclusive with --remote.
+        #[arg(long, conflicts_with = "remote")]
+        local: bool,
+        /// Bind to all interfaces (0.0.0.0) for remote access. Requires --token or KAZAM_MCP_TOKEN.
+        #[arg(long, conflicts_with = "local")]
+        remote: bool,
+        /// Bearer token for remote HTTP auth. Also reads KAZAM_MCP_TOKEN env var.
+        #[arg(long)]
+        token: Option<String>,
     },
     /// Show freshness status for all pages in the site
     Freshness {
@@ -185,6 +195,25 @@ enum Command {
     Ingest {
         #[command(subcommand)]
         command: IngestCommand,
+    },
+    /// Add an annotation to a page (sidecar file in .kazam/annotations/)
+    Annotate {
+        /// Page path relative to site root (e.g. 'deals/acme.yaml')
+        page: String,
+        /// Annotation text
+        text: String,
+        /// Section this annotation applies to (e.g. 'competitive', 'timeline')
+        #[arg(long)]
+        section: Option<String>,
+        /// Author name
+        #[arg(long, default_value = "anonymous")]
+        author: String,
+        /// Source: cli, agent, or web
+        #[arg(long, default_value = "cli")]
+        source: String,
+        /// Site directory
+        #[arg(short, long, default_value = ".")]
+        dir: PathBuf,
     },
 }
 
@@ -258,8 +287,29 @@ fn main() -> Result<()> {
             allow_writes,
             transport,
             port,
+            local,
+            remote,
+            token,
         } => match transport.as_str() {
-            "http" => mcp::run_http(&dir, allow_writes, port),
+            "http" => {
+                let bind_addr = if remote { "0.0.0.0" } else { "127.0.0.1" };
+                let resolved_token = token.or_else(|| std::env::var("KAZAM_MCP_TOKEN").ok());
+                if remote && resolved_token.is_none() {
+                    anyhow::bail!(
+                        "--remote requires a bearer token: pass --token <TOKEN> or set KAZAM_MCP_TOKEN"
+                    );
+                }
+                if local && resolved_token.is_some() {
+                    eprintln!("kazam mcp: note: --token is ignored in local mode");
+                }
+                mcp::run_http(
+                    &dir,
+                    allow_writes,
+                    port,
+                    bind_addr,
+                    resolved_token.as_deref(),
+                )
+            }
             _ => mcp::run(&dir, allow_writes),
         },
         Command::Freshness { command, dir } => match command {
@@ -286,6 +336,40 @@ fn main() -> Result<()> {
             ActionsCommand::Init { name } => actions::init(&name, &dir),
         },
         Command::Audit { dir, pretty } => audit::run(&dir, pretty),
+        Command::Annotate {
+            page,
+            text,
+            section,
+            author,
+            source,
+            dir,
+        } => {
+            let page_path = dir.join(&page);
+            if !page_path.exists() {
+                anyhow::bail!("page not found: {}", page);
+            }
+            let source_enum: types::AnnotationSource = match source.as_str() {
+                "cli" => types::AnnotationSource::Cli,
+                "agent" => types::AnnotationSource::Agent,
+                "web" => types::AnnotationSource::Web,
+                other => anyhow::bail!("invalid source '{}': expected cli, agent, or web", other),
+            };
+            let today = freshness::today_iso();
+            let id = annotations::generate_id(&today);
+            let ann = types::Annotation {
+                id: id.clone(),
+                text,
+                author,
+                section,
+                added: today,
+                status: types::AnnotationStatus::Pending,
+                source: source_enum,
+            };
+            let slug = annotations::page_slug_from_path(&page);
+            let path = annotations::save_annotation(&dir, &slug, &ann)?;
+            println!("✓ annotation {} → {}", id, path.display());
+            Ok(())
+        }
         Command::Ingest { command } => match command {
             IngestCommand::Notion {
                 database,

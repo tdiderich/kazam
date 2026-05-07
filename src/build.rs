@@ -234,6 +234,17 @@ pub fn run(
                 &yaml_rel,
                 config.edit_url.as_deref(),
             );
+
+            let page_slug = crate::annotations::page_slug_from_path(&rel.to_string_lossy());
+            if let Ok(anns) = crate::annotations::load_annotations(dir, &page_slug) {
+                if !anns.is_empty() {
+                    let section = render_annotations_section(&anns, &today);
+                    if let Some(pos) = html.rfind("</main>") {
+                        html.insert_str(pos, &section);
+                    }
+                }
+            }
+
             if release {
                 html = minify::minify_html(&html);
             }
@@ -1135,6 +1146,64 @@ pub fn load_config(dir: &Path) -> Result<SiteConfig> {
     }
 }
 
+fn render_annotations_section(anns: &[crate::types::Annotation], today: &str) -> String {
+    use crate::annotations::annotation_freshness;
+    use crate::freshness::FreshnessStatus;
+
+    let mut html = String::from(
+        r#"<section class="c-annotations"><h3>Annotations</h3><div class="c-annotations-list">"#,
+    );
+    for ann in anns {
+        let status = annotation_freshness(ann, today);
+        let age_class = match status {
+            FreshnessStatus::Overdue { .. } => "c-annotation--stale",
+            FreshnessStatus::DueSoon { .. } => "c-annotation--due-soon",
+            _ => "c-annotation--fresh",
+        };
+        let age_label = {
+            let added = crate::freshness::parse_iso_date(&ann.added).unwrap_or(0);
+            let today_d = crate::freshness::parse_iso_date(today).unwrap_or(0);
+            let days = today_d - added;
+            if days == 0 {
+                "today".to_string()
+            } else if days == 1 {
+                "1 day ago".to_string()
+            } else {
+                format!("{} days ago", days)
+            }
+        };
+        let status_badge = match ann.status {
+            crate::types::AnnotationStatus::Incorporated => {
+                r#" <span class="c-annotation-badge c-annotation-badge--incorporated">incorporated</span>"#
+            }
+            crate::types::AnnotationStatus::Ignored => {
+                r#" <span class="c-annotation-badge c-annotation-badge--ignored">ignored</span>"#
+            }
+            crate::types::AnnotationStatus::Stale => {
+                r#" <span class="c-annotation-badge c-annotation-badge--stale">stale</span>"#
+            }
+            crate::types::AnnotationStatus::Pending => "",
+        };
+        let section_tag = ann
+            .section
+            .as_deref()
+            .map(|s| format!(r#" <span class="c-annotation-section">{}</span>"#, s))
+            .unwrap_or_default();
+
+        html.push_str(&format!(
+            r#"<div class="c-annotation {age_class}"><div class="c-annotation-meta"><span class="c-annotation-author">{author}</span>{section}{badge} <span class="c-annotation-age">{age}</span></div><div class="c-annotation-text">{text}</div></div>"#,
+            age_class = age_class,
+            author = ann.author,
+            section = section_tag,
+            badge = status_badge,
+            age = age_label,
+            text = ann.text,
+        ));
+    }
+    html.push_str("</div></section>");
+    html
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1152,5 +1221,64 @@ mod tests {
     #[test]
     fn base_path_two_levels_deep() {
         assert_eq!(base_path_for(Path::new("a/b/c.yaml")), "../../");
+    }
+
+    #[test]
+    fn render_annotations_section_with_annotations() {
+        let anns = vec![crate::types::Annotation {
+            id: "ann-20260501-0001".into(),
+            text: "Push close date to Q3".into(),
+            author: "tyler".into(),
+            section: Some("timeline".into()),
+            added: "2026-05-01".into(),
+            status: crate::types::AnnotationStatus::Pending,
+            source: crate::types::AnnotationSource::Cli,
+        }];
+        let html = render_annotations_section(&anns, "2026-05-07");
+        assert!(html.contains("c-annotations"));
+        assert!(html.contains("Push close date to Q3"));
+        assert!(html.contains("tyler"));
+        assert!(html.contains("timeline"));
+        assert!(html.contains("6 days ago"));
+        assert!(html.contains("c-annotation--fresh"));
+    }
+
+    #[test]
+    fn render_annotations_section_stale() {
+        let anns = vec![crate::types::Annotation {
+            id: "ann-20260401-0001".into(),
+            text: "Old note".into(),
+            author: "tyler".into(),
+            section: None,
+            added: "2026-04-01".into(),
+            status: crate::types::AnnotationStatus::Pending,
+            source: crate::types::AnnotationSource::Cli,
+        }];
+        let html = render_annotations_section(&anns, "2026-05-07");
+        assert!(html.contains("c-annotation--stale"));
+    }
+
+    #[test]
+    fn render_annotations_section_incorporated_badge() {
+        let anns = vec![crate::types::Annotation {
+            id: "ann-20260501-0001".into(),
+            text: "Used note".into(),
+            author: "tyler".into(),
+            section: None,
+            added: "2026-05-01".into(),
+            status: crate::types::AnnotationStatus::Incorporated,
+            source: crate::types::AnnotationSource::Agent,
+        }];
+        let html = render_annotations_section(&anns, "2026-05-07");
+        assert!(html.contains("c-annotation-badge--incorporated"));
+        assert!(html.contains("c-annotation--fresh"));
+    }
+
+    #[test]
+    fn no_annotations_produces_no_section() {
+        let anns: Vec<crate::types::Annotation> = vec![];
+        let html = render_annotations_section(&anns, "2026-05-07");
+        assert!(html.contains("c-annotations"));
+        assert!(!html.contains("c-annotation-text"));
     }
 }

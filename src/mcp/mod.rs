@@ -52,21 +52,42 @@ pub fn run(dir: &Path, allow_writes: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn run_http(dir: &Path, allow_writes: bool, port: u16) -> Result<()> {
-    let addr = format!("0.0.0.0:{}", port);
+pub fn run_http(
+    dir: &Path,
+    allow_writes: bool,
+    port: u16,
+    bind_host: &str,
+    token: Option<&str>,
+) -> Result<()> {
+    let addr = format!("{}:{}", bind_host, port);
     let server = tiny_http::Server::http(&addr)
         .map_err(|e| anyhow::anyhow!("failed to bind {}: {}", addr, e))?;
 
+    let mode = if bind_host == "127.0.0.1" {
+        "local"
+    } else {
+        "remote"
+    };
+    let auth_status = if token.is_some() {
+        "bearer-token"
+    } else {
+        "none"
+    };
     eprintln!(
-        "kazam mcp: listening on http://{} (dir={})",
+        "kazam mcp: listening on http://{} (dir={}, mode={}, auth={})",
         addr,
-        dir.display()
+        dir.display(),
+        mode,
+        auth_status,
     );
 
     for mut request in server.incoming_requests() {
         let cors = tiny_http::Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap();
-        let cors_headers =
-            tiny_http::Header::from_bytes("Access-Control-Allow-Headers", "Content-Type").unwrap();
+        let cors_headers = tiny_http::Header::from_bytes(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Authorization",
+        )
+        .unwrap();
         let cors_methods =
             tiny_http::Header::from_bytes("Access-Control-Allow-Methods", "POST, OPTIONS").unwrap();
         let content_type =
@@ -81,6 +102,27 @@ pub fn run_http(dir: &Path, allow_writes: bool, port: u16) -> Result<()> {
                 .with_header(cors_methods.clone());
             let _ = request.respond(response);
             continue;
+        }
+
+        // Bearer token check (when configured)
+        if let Some(expected) = token {
+            let auth_ok = request.headers().iter().any(|h| {
+                h.field.as_str().to_ascii_lowercase() == "authorization"
+                    && h.value
+                        .as_str()
+                        .strip_prefix("Bearer ")
+                        .map(|t| t == expected)
+                        .unwrap_or(false)
+            });
+            if !auth_ok {
+                let body = r#"{"jsonrpc":"2.0","error":{"code":-32000,"message":"unauthorized: missing or invalid bearer token"},"id":null}"#;
+                let response = tiny_http::Response::from_string(body)
+                    .with_status_code(401)
+                    .with_header(content_type.clone())
+                    .with_header(cors.clone());
+                let _ = request.respond(response);
+                continue;
+            }
         }
 
         // Only accept POST
@@ -194,6 +236,9 @@ fn dispatch(req: &JsonRpcRequest, dir: &Path, allow_writes: bool) -> JsonRpcResp
                 "get_config" => tools::get_config(dir),
                 "search" => tools::search(dir, &args),
                 "write_page" => tools::write_page(dir, &args, allow_writes),
+                "annotate_page" => tools::annotate_page(dir, &args, allow_writes),
+                "update_annotation" => tools::update_annotation(dir, &args, allow_writes),
+                "list_annotations" => tools::list_annotations(dir, &args),
                 other => Ok(ToolResult::error(format!("unknown tool: {}", other))),
             };
 

@@ -3,7 +3,11 @@ use serde_json::{json, Value};
 use std::path::Path;
 use walkdir::WalkDir;
 
-use crate::types::{Page, RefreshMode, RefreshStep, RefreshValue, Shell, SiteConfig};
+use crate::annotations;
+use crate::types::{
+    Annotation, AnnotationSource, AnnotationStatus, Page, RefreshMode, RefreshStep, RefreshValue,
+    Shell, SiteConfig,
+};
 
 use super::protocol::ToolResult;
 
@@ -78,6 +82,74 @@ pub fn tool_definitions() -> Vec<super::protocol::Tool> {
                     }
                 },
                 "required": ["path", "content"]
+            }),
+        },
+        super::protocol::Tool {
+            name: "annotate_page".into(),
+            description: "Add an annotation to a page. Creates a sidecar YAML file in .kazam/annotations/<page-slug>/. Requires --allow-writes.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "string",
+                        "description": "Relative path to the page YAML file (e.g. 'deals/acme.yaml')"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Annotation text"
+                    },
+                    "author": {
+                        "type": "string",
+                        "description": "Who is writing this annotation"
+                    },
+                    "section": {
+                        "type": "string",
+                        "description": "Optional section this annotation applies to (e.g. 'competitive', 'timeline')"
+                    },
+                    "source": {
+                        "type": "string",
+                        "enum": ["cli", "agent", "web"],
+                        "description": "Where this annotation came from (default: agent)"
+                    }
+                },
+                "required": ["page", "text", "author"]
+            }),
+        },
+        super::protocol::Tool {
+            name: "update_annotation".into(),
+            description: "Update an annotation's status (e.g. after a refresh incorporates or ignores it). Requires --allow-writes.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "string",
+                        "description": "Relative path to the page YAML file (e.g. 'deals/acme.yaml')"
+                    },
+                    "annotation_id": {
+                        "type": "string",
+                        "description": "Annotation ID (e.g. 'ann-20260507-a3f2')"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "incorporated", "ignored", "stale"],
+                        "description": "New status for the annotation"
+                    }
+                },
+                "required": ["page", "annotation_id", "status"]
+            }),
+        },
+        super::protocol::Tool {
+            name: "list_annotations".into(),
+            description: "List all annotations for a page. Returns an array of annotation objects from .kazam/annotations/<page-slug>/.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "string",
+                        "description": "Relative path to the page YAML file (e.g. 'deals/acme.yaml')"
+                    }
+                },
+                "required": ["page"]
             }),
         },
     ]
@@ -383,6 +455,170 @@ pub fn write_page(dir: &Path, params: &Value, allow_writes: bool) -> Result<Tool
     )))
 }
 
+pub fn annotate_page(dir: &Path, params: &Value, allow_writes: bool) -> Result<ToolResult> {
+    if !allow_writes {
+        return Ok(ToolResult::error(
+            "annotate_page is disabled; restart kazam mcp with --allow-writes to enable it",
+        ));
+    }
+
+    let page = params
+        .get("page")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("missing required parameter: page"))?;
+    let text = params
+        .get("text")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("missing required parameter: text"))?;
+    let author = params
+        .get("author")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("missing required parameter: author"))?;
+
+    if page.contains("..") {
+        return Ok(ToolResult::error("page path must not contain '..'"));
+    }
+
+    let full_path = dir.join(page);
+    if !full_path.exists() {
+        return Ok(ToolResult::error(format!("page not found: {}", page)));
+    }
+
+    let section = params
+        .get("section")
+        .and_then(Value::as_str)
+        .map(String::from);
+    let source = match params.get("source").and_then(Value::as_str) {
+        Some("cli") => AnnotationSource::Cli,
+        Some("web") => AnnotationSource::Web,
+        Some("agent") | None => AnnotationSource::Agent,
+        Some(other) => {
+            return Ok(ToolResult::error(format!(
+                "invalid source '{}': expected cli, agent, or web",
+                other
+            )));
+        }
+    };
+
+    let today = crate::freshness::today_iso();
+    let id = annotations::generate_id(&today);
+    let ann = Annotation {
+        id: id.clone(),
+        text: text.to_string(),
+        author: author.to_string(),
+        section,
+        added: today,
+        status: AnnotationStatus::Pending,
+        source,
+    };
+
+    let slug = annotations::page_slug_from_path(page);
+    let path = annotations::save_annotation(dir, &slug, &ann)?;
+
+    let output = json!({
+        "ok": true,
+        "id": id,
+        "path": path.strip_prefix(dir).unwrap_or(&path).to_string_lossy(),
+    });
+    Ok(ToolResult::text(serde_json::to_string_pretty(&output)?))
+}
+
+pub fn update_annotation(dir: &Path, params: &Value, allow_writes: bool) -> Result<ToolResult> {
+    if !allow_writes {
+        return Ok(ToolResult::error(
+            "update_annotation is disabled; restart kazam mcp with --allow-writes to enable it",
+        ));
+    }
+
+    let page = params
+        .get("page")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("missing required parameter: page"))?;
+    let annotation_id = params
+        .get("annotation_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("missing required parameter: annotation_id"))?;
+    let status_str = params
+        .get("status")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("missing required parameter: status"))?;
+
+    if page.contains("..") {
+        return Ok(ToolResult::error("page path must not contain '..'"));
+    }
+
+    let new_status = match status_str {
+        "pending" => AnnotationStatus::Pending,
+        "incorporated" => AnnotationStatus::Incorporated,
+        "ignored" => AnnotationStatus::Ignored,
+        "stale" => AnnotationStatus::Stale,
+        other => {
+            return Ok(ToolResult::error(format!(
+                "invalid status '{}': expected pending, incorporated, ignored, or stale",
+                other
+            )));
+        }
+    };
+
+    let slug = annotations::page_slug_from_path(page);
+    let ann_dir = annotations::annotations_dir(dir, &slug);
+    let ann_path = ann_dir.join(format!("{}.yaml", annotation_id));
+
+    if !ann_path.exists() {
+        return Ok(ToolResult::error(format!(
+            "annotation not found: {}",
+            annotation_id
+        )));
+    }
+
+    let content = std::fs::read_to_string(&ann_path)
+        .map_err(|e| anyhow::anyhow!("reading annotation: {}", e))?;
+    let mut ann: Annotation =
+        serde_yaml::from_str(&content).map_err(|e| anyhow::anyhow!("parsing annotation: {}", e))?;
+
+    ann.status = new_status;
+    let yaml = serde_yaml::to_string(&ann).map_err(|e| anyhow::anyhow!("serializing: {}", e))?;
+    std::fs::write(&ann_path, yaml).map_err(|e| anyhow::anyhow!("writing annotation: {}", e))?;
+
+    let output = json!({
+        "ok": true,
+        "id": annotation_id,
+        "status": status_str,
+    });
+    Ok(ToolResult::text(serde_json::to_string_pretty(&output)?))
+}
+
+pub fn list_annotations(dir: &Path, params: &Value) -> Result<ToolResult> {
+    let page = params
+        .get("page")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("missing required parameter: page"))?;
+
+    if page.contains("..") {
+        return Ok(ToolResult::error("page path must not contain '..'"));
+    }
+
+    let slug = annotations::page_slug_from_path(page);
+    let anns = annotations::load_annotations(dir, &slug)?;
+
+    let items: Vec<Value> = anns
+        .iter()
+        .map(|a| {
+            json!({
+                "id": a.id,
+                "text": a.text,
+                "author": a.author,
+                "section": a.section,
+                "added": a.added,
+                "status": format!("{:?}", a.status).to_lowercase(),
+                "source": format!("{:?}", a.source).to_lowercase(),
+            })
+        })
+        .collect();
+
+    Ok(ToolResult::text(serde_json::to_string_pretty(&items)?))
+}
+
 fn shell_name(shell: Shell) -> &'static str {
     match shell {
         Shell::Standard => "standard",
@@ -608,5 +844,137 @@ mod tests {
         assert!(!result.is_error.unwrap_or(false));
         let written = fs::read_to_string(site.path().join("new.yaml")).unwrap();
         assert_eq!(written, content);
+    }
+
+    #[test]
+    fn annotate_page_creates_sidecar_file() {
+        let site = make_temp_site();
+        let result = annotate_page(
+            site.path(),
+            &json!({
+                "page": "index.yaml",
+                "text": "Test annotation",
+                "author": "tyler",
+                "section": "competitive",
+                "source": "agent"
+            }),
+            true,
+        )
+        .unwrap();
+        assert!(!result.is_error.unwrap_or(false));
+        let text = &result.content[0].text;
+        assert!(text.contains("\"ok\": true"));
+        assert!(text.contains("ann-"));
+    }
+
+    #[test]
+    fn annotate_page_blocked_without_allow_writes() {
+        let site = make_temp_site();
+        let result = annotate_page(
+            site.path(),
+            &json!({"page": "index.yaml", "text": "note", "author": "tyler"}),
+            false,
+        )
+        .unwrap();
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("--allow-writes"));
+    }
+
+    #[test]
+    fn annotate_page_missing_page() {
+        let site = make_temp_site();
+        let result = annotate_page(
+            site.path(),
+            &json!({"page": "nonexistent.yaml", "text": "note", "author": "tyler"}),
+            true,
+        )
+        .unwrap();
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("not found"));
+    }
+
+    #[test]
+    fn list_annotations_empty_page() {
+        let site = make_temp_site();
+        let result = list_annotations(site.path(), &json!({"page": "index.yaml"})).unwrap();
+        assert!(!result.is_error.unwrap_or(false));
+        assert!(result.content[0].text.contains("[]"));
+    }
+
+    #[test]
+    fn update_annotation_status() {
+        let site = make_temp_site();
+        // Create an annotation first
+        let create_result = annotate_page(
+            site.path(),
+            &json!({
+                "page": "index.yaml",
+                "text": "Status update test",
+                "author": "tyler",
+            }),
+            true,
+        )
+        .unwrap();
+        let create_text = &create_result.content[0].text;
+        let create_json: serde_json::Value = serde_json::from_str(create_text).unwrap();
+        let ann_id = create_json["id"].as_str().unwrap();
+
+        // Update status to incorporated
+        let result = update_annotation(
+            site.path(),
+            &json!({
+                "page": "index.yaml",
+                "annotation_id": ann_id,
+                "status": "incorporated",
+            }),
+            true,
+        )
+        .unwrap();
+        assert!(!result.is_error.unwrap_or(false));
+        let text = &result.content[0].text;
+        assert!(text.contains("incorporated"));
+
+        // Verify via list
+        let list_result = list_annotations(site.path(), &json!({"page": "index.yaml"})).unwrap();
+        let list_text = &list_result.content[0].text;
+        assert!(list_text.contains("incorporated"));
+    }
+
+    #[test]
+    fn update_annotation_not_found() {
+        let site = make_temp_site();
+        let result = update_annotation(
+            site.path(),
+            &json!({
+                "page": "index.yaml",
+                "annotation_id": "ann-20260507-0000",
+                "status": "incorporated",
+            }),
+            true,
+        )
+        .unwrap();
+        assert_eq!(result.is_error, Some(true));
+        assert!(result.content[0].text.contains("not found"));
+    }
+
+    #[test]
+    fn annotate_then_list_round_trip() {
+        let site = make_temp_site();
+        annotate_page(
+            site.path(),
+            &json!({
+                "page": "index.yaml",
+                "text": "Round-trip test",
+                "author": "tyler",
+            }),
+            true,
+        )
+        .unwrap();
+        let result = list_annotations(site.path(), &json!({"page": "index.yaml"})).unwrap();
+        assert!(!result.is_error.unwrap_or(false));
+        let text = &result.content[0].text;
+        assert!(text.contains("Round-trip test"));
+        assert!(text.contains("tyler"));
+        assert!(text.contains("pending"));
     }
 }
