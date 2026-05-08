@@ -17,20 +17,22 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::types::{Freshness, FreshnessValue};
 
-/// Number of days before the review deadline at which a page starts
-/// surfacing a yellow "review due soon" banner. Inside this window the
-/// page is not yet overdue but reviewers should see the nudge.
-pub const DUE_SOON_WINDOW_DAYS: i64 = 7;
+/// For cadences longer than this threshold (in days), a "review due soon"
+/// banner appears when 25% of the cadence remains. Cadences at or below
+/// this skip the warning entirely — they go straight from Fresh to Overdue.
+/// This prevents daily/weekly/monthly pages from permanently showing a
+/// yellow banner that's meaningless at short timescales.
+pub const DUE_SOON_CADENCE_THRESHOLD: i64 = 30;
 
 /// A page's current freshness state. The renderer picks a banner variant
 /// (and the build report picks a tone) based on this.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FreshnessStatus {
-    /// No banner. Either no freshness metadata, or comfortably inside the
-    /// review window (more than `DUE_SOON_WINDOW_DAYS` to go).
+    /// No banner. Either no freshness metadata, or comfortably within the
+    /// review window.
     Fresh,
-    /// Yellow banner — review comes due within `DUE_SOON_WINDOW_DAYS`.
-    /// `days_until_due` is non-negative.
+    /// Yellow banner — review is approaching. Only shown for cadences
+    /// longer than 30 days. `days_until_due` is non-negative.
     DueSoon { days_until_due: i64 },
     /// Red banner — review window has elapsed. `days_overdue` is positive.
     Overdue { days_overdue: i64 },
@@ -97,7 +99,7 @@ impl FreshnessInfo {
             FreshnessStatus::Overdue {
                 days_overdue: -days_until_due,
             }
-        } else if days_until_due <= DUE_SOON_WINDOW_DAYS {
+        } else if cadence > DUE_SOON_CADENCE_THRESHOLD && days_until_due <= cadence / 4 {
             FreshnessStatus::DueSoon { days_until_due }
         } else {
             FreshnessStatus::Fresh
