@@ -121,6 +121,9 @@ enum Command {
         /// Directory of .yaml source files to validate (default: current directory)
         #[arg(default_value = ".")]
         dir: PathBuf,
+        /// Validate a single YAML file instead of the whole directory
+        #[arg(long)]
+        file: Option<PathBuf>,
         /// Human-readable output (default is JSON)
         #[arg(long)]
         pretty: bool,
@@ -280,8 +283,13 @@ fn main() -> Result<()> {
         Command::Ctx { command, dir } => ctx::run(command, &dir),
         Command::Board { dir, port } => board::run(&dir, port),
         Command::Workspace { command, dir } => workspace::run_command(command, &dir),
-        Command::Validate { dir, pretty } => {
-            let errors = validate::validate_dir(&dir);
+        Command::Validate { dir, file, pretty } => {
+            let errors = if let Some(file_path) = file {
+                let path = dir.join(&file_path);
+                validate::validate_single_file(&path)
+            } else {
+                validate::validate_dir(&dir)
+            };
             if pretty {
                 validate::print_pretty(&errors);
             } else {

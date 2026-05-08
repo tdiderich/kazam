@@ -76,6 +76,41 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
     errors
 }
 
+/// Validate a single YAML file. Parses it as a [`Page`] and runs semantic
+/// checks. No cross-reference or site config validation (those need the full
+/// directory). Useful for pre-write validation in curata's API layer.
+pub fn validate_single_file(path: &Path) -> Vec<ValidationError> {
+    let file_str = path.display().to_string();
+
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![ValidationError::new(
+                &file_str,
+                "",
+                "format",
+                format!("Could not read file: {}", e),
+                None,
+            )];
+        }
+    };
+
+    let page: Page = match serde_yaml::from_str(&content) {
+        Ok(p) => p,
+        Err(e) => {
+            return vec![ValidationError::new(
+                &file_str,
+                "",
+                "format",
+                format!("YAML parse error: {}", e),
+                Some("Check YAML syntax and required fields (title:, shell:).".into()),
+            )];
+        }
+    };
+
+    validate_page(&file_str, &page)
+}
+
 /// Validate a site directory. Parses every `.yaml` file (skipping `kazam.yaml`
 /// and `404.yaml`), validates each page, and checks nav cross-references.
 pub fn validate_dir(dir: &Path) -> Vec<ValidationError> {
