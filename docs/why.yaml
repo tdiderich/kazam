@@ -66,7 +66,7 @@ components:
           wiki exports. The output is brittle. The pages have no schema, so the agent invents
           one and gets it half right.
 
-          kazam ships an MCP server with 5 tools:
+          kazam ships an MCP server with 8 tools:
 
           | Tool | What it does |
           |------|-------------|
@@ -75,18 +75,50 @@ components:
           | `search` | Text search across all page content |
           | `get_config` | Read the site config |
           | `write_page` | Create or update a page (requires `--allow-writes`) |
+          | `annotate_page` | Add a sidecar annotation to a page |
+          | `list_annotations` | List all annotations on a page |
+          | `update_annotation` | Change annotation status (incorporated, ignored) |
 
           Agents query structured YAML directly — the same source that builds the site. No
           HTML parsing. No export pipeline. The schema is the file.
 
-          Prompt templates give agents consistent instructions for the content lifecycle:
-          migrate existing docs into kazam format, refresh stale pages from their
-          sources-of-truth, audit a section for gaps, review a page before publishing.
-          Standardized workflows mean you can hand any agent the same template and get
-          predictable results.
+          The MCP server runs over stdio (for local agents) or HTTP with bearer token auth
+          (for remote/team access). Prompt templates give agents consistent instructions for
+          the content lifecycle: migrate, refresh, audit, review. Standardized workflows mean
+          you can hand any agent the same template and get predictable results.
 
   - type: section
     eyebrow: Problem 4
+    heading: Context from calls and meetings gets lost
+    components:
+      - type: markdown
+        body: |
+          Someone mentions a competitive threat on a customer call. It lives in the call
+          transcript, maybe a Slack thread, maybe someone's personal notes. It never makes
+          it into the doc that matters — the customer page, the competitive brief, the
+          deal tracker.
+
+          kazam's sidecar annotations capture this context at the moment it happens:
+
+      - type: code
+        language: bash
+        code: |
+          kazam annotate customers/acme.yaml "evaluating Wiz alongside us" \
+            --section competitive --author tyler
+
+      - type: markdown
+        body: |
+          Annotations live as individual YAML files in `.kazam/annotations/` — not embedded
+          in the page, so there are no write collisions or round-trip serialization issues.
+          They render inline at build time with age indicators and status badges.
+
+          The real power is the refresh loop. When an agent refreshes a page, it reads
+          pending annotations first — as the highest-priority source. Human context overrides
+          stale CRM data. After incorporating an annotation, the agent marks it `incorporated`.
+          A 14-day decay window ensures nothing sits unreviewed forever.
+
+  - type: section
+    eyebrow: Problem 5
     heading: One binary, zero dependencies
     components:
       - type: markdown
@@ -172,9 +204,14 @@ components:
             confluence: None
             gitbook: Analytics only (page views, not content staleness)
           - feature: Agent access
-            kazam: MCP server — 5 structured tools
+            kazam: MCP server — 8 tools (read, write, search, annotate)
             notion: None native (unofficial integrations exist)
             confluence: None
+            gitbook: None
+          - feature: Annotations
+            kazam: Sidecar YAML — CLI + MCP + build rendering
+            notion: Comments (not agent-accessible)
+            confluence: Comments (not agent-accessible)
             gitbook: None
           - feature: Content model
             kazam: Structured YAML with typed components

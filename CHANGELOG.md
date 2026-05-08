@@ -6,27 +6,61 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [1.5.0] — 2026-05-04
+## [1.5.0] — 2026-05-07
+
+The annotation release. kazam gains a sidecar annotation system, annotation-aware
+agent refresh, hardened HTTP MCP transport, Notion ingestion, a full audit command,
+and wishes-as-recipes. This is the bridge release for curata.
 
 ### Added
+- **Sidecar annotations** — human context stored as individual YAML files in
+  `.kazam/annotations/<page-slug>/`. CLI: `kazam annotate <page> "text"`.
+  MCP tools: `annotate_page`, `list_annotations`, `update_annotation`.
+  14-day decay tracking with status lifecycle (pending → incorporated/ignored/stale).
+  Build renders annotations inline with age indicators and status badges.
+- **Annotation-aware refresh** — the deal-360 wish prompt reads annotations as
+  highest-priority source. Conflict resolution: annotations override CRM/call data.
+  Agent updates annotation status after each refresh cycle.
+- **HTTP MCP hardening** — `--local` (127.0.0.1, default) / `--remote` (0.0.0.0)
+  bind modes. `--remote` requires bearer token via `--token` or `KAZAM_MCP_TOKEN`
+  env var. CORS includes Authorization header for remote agent access.
+- **`kazam audit`** — site health audit covering freshness compliance, component
+  validation, and annotation health. JSON output by default, `--pretty` for
+  human-readable.
+- **Notion ingest** — `kazam ingest notion` imports databases, pages, and child
+  pages. `--all` discovers everything the integration can access. `--stats` for
+  metadata-only staleness check. `--dry-run` preview.
+- **Wishes-as-recipes** — wishes are now portable agent recipes in `wishes/`.
+  Each has `wish.yaml`, `prompt.md`, optional `page.yaml` template and `script.py`.
+  New wishes: `deal-360`, `debrief`, `audit-fix`, `freshness-notifier`, `hubspot-icp`,
+  `linear-team-map`, `sources-map`, `notion-ingest`.
+- **Freshness drift** — `kazam freshness drift` checks if source-of-truth files
+  have changed since pages were last updated. `--repo PREFIX=LOCAL` for multi-repo.
+- **Freshness notify** — `kazam freshness notify` generates a digest of stale
+  pages grouped by owner for Slack/email distribution.
 - **`role_map` component** — renders `roles:` from kazam.yaml as clickable
   jump-point cards. Roles gain an optional `href` field for navigation.
 - **Health dashboard** — `kazam build` now generates `_health.html` with
   freshness stats (StatGrid, ProgressBar), overdue/due-soon tables, and
   ownership summary. Opt out with `--no-health`.
-- **`sync-roles` prompt template** — reusable prompt that syncs roles and
-  generates an org chart from Gmail+Slack or Google Directory MCPs.
 - **Template variables in prompts** — `kazam prompt show` expands `{{config}}`
   and other variables before output.
 
 ### Changed
+- **MCP server** — 5 → 8 tools. Added `annotate_page`, `list_annotations`,
+  `update_annotation` alongside existing `read_page`, `list_pages`, `search`,
+  `get_config`, `write_page`.
+- **Wishes architecture** — old monolithic wish modules (`wish/brief.rs`,
+  `wish/deck.rs`, `wish/dashboard.rs`) replaced by portable recipe directory
+  format in `wishes/`. `kazam wish list` discovers local + registry wishes.
+  `kazam wish init <name>` scaffolds from registry.
 - **Search scoring overhaul** — word-boundary detection, tiered field bonuses
   (title +10, search_terms +8, headings +5, description +3), match context
   snippets shown in results instead of default description.
 - **Freshness-aware search ranking** — overdue pages penalized (-3), expired
   pages penalized (-5). New `freshness_status` field in search.json.
-- **Persona-aware search filtering** — `?role=X` URL param filters results
-  to pages matching that persona.
+- **`kazam init`** — now creates `.kazam/annotations/` alongside track, ctx,
+  and hooks directories.
 
 ### Fixed
 - **Tree collapse** — toggle JS now loads for all trees with children, not
