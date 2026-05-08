@@ -65,6 +65,7 @@ pub fn save_annotation(site_dir: &Path, page_slug: &str, ann: &Annotation) -> Re
 }
 
 const DEFAULT_ANNOTATION_DECAY_DAYS: i64 = 14;
+const ANNOTATION_DUE_SOON_DAYS: i64 = 7;
 
 pub fn annotation_freshness(ann: &Annotation, today: &str) -> FreshnessStatus {
     if ann.status == AnnotationStatus::Incorporated || ann.status == AnnotationStatus::Ignored {
@@ -84,7 +85,7 @@ pub fn annotation_freshness(ann: &Annotation, today: &str) -> FreshnessStatus {
         FreshnessStatus::Overdue {
             days_overdue: -days_until_due,
         }
-    } else if days_until_due <= freshness::DUE_SOON_WINDOW_DAYS {
+    } else if days_until_due <= ANNOTATION_DUE_SOON_DAYS {
         FreshnessStatus::DueSoon { days_until_due }
     } else {
         FreshnessStatus::Fresh
