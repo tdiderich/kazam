@@ -13,6 +13,7 @@ Expect an initial response within 7 days. We'll coordinate disclosure with you b
 
 **In scope:**
 - `kazam` CLI source code (`src/**`)
+- MCP server transport security (stdio and HTTP, including bearer token auth)
 - Build/test infrastructure (`.github/workflows/**`)
 - Default theme CSS, bundled scripts, and scaffolded templates in the release binary
 
@@ -39,6 +40,17 @@ Expect an initial response within 7 days. We'll coordinate disclosure with you b
 - `cargo-audit` runs in CI. A new RustSec advisory against any transitive dep fails the build.
 - **New dependencies require justification in the PR.** kazam's ~10 direct crates are deliberate; a PR that adds a crate for a minor convenience will typically be pushed back.
 - **No build scripts that reach the network.** Dependencies that do will be rejected or vendored.
+
+### MCP server
+
+The MCP server's HTTP transport (`--transport http`) supports two modes:
+
+- **`--local`** (default) — binds to 127.0.0.1. No authentication required.
+- **`--remote`** — binds to 0.0.0.0. Requires a bearer token via `--token` or `KAZAM_MCP_TOKEN` env var. The server refuses to start without a token when `--remote` is set.
+
+When deploying the HTTP transport on a network, put it behind a reverse proxy (Caddy, nginx) for TLS. The bearer token authenticates the JSON-RPC channel; TLS protects the token in transit.
+
+The `--allow-writes` flag gates write operations (`write_page`, `annotate_page`, `update_annotation`). Without it, all write tools return an error.
 
 ### What contributors should not do
 

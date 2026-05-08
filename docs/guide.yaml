@@ -246,36 +246,66 @@ components:
 
   - type: section
     eyebrow: MCP server
-    heading: Let agents read and write directly
+    heading: Let agents read, write, and annotate directly
     components:
       - type: markdown
         body: |
           `kazam mcp` starts an MCP server that exposes your site to AI agents.
-          Five tools: `read_page`, `list_pages`, `search`, `write_page`, `get_config`.
+          Eight tools: `read_page`, `list_pages`, `search`, `get_config`, `write_page`,
+          `annotate_page`, `list_annotations`, `update_annotation`.
 
           **Local (stdio)** — for Claude Code, Cursor, or any agent on the same machine:
 
       - type: code
         language: bash
         code: |
-          kazam mcp
+          kazam mcp --allow-writes
 
       - type: markdown
         body: |
-          **Remote (HTTP)** — serve over a network so your whole team can connect:
+          **Remote (HTTP)** — serve over a network so your whole team's agents can connect:
 
       - type: code
         language: bash
         code: |
-          kazam mcp --transport http --port 8090
+          kazam mcp --transport http --remote --token $KAZAM_MCP_TOKEN --port 8080 --allow-writes
 
       - type: markdown
         body: |
-          The HTTP transport speaks the same JSON-RPC protocol over POST requests
-          with CORS support. Put it behind a reverse proxy (Caddy, nginx) for HTTPS.
+          The `--local` flag (default) binds to 127.0.0.1. The `--remote` flag binds to
+          0.0.0.0 and requires a bearer token via `--token` or `KAZAM_MCP_TOKEN` env var.
+          The HTTP transport speaks the same JSON-RPC protocol over POST requests with CORS
+          support. Put it behind a reverse proxy (Caddy, nginx) for HTTPS.
 
           See the [MCP reference](/mcp.html) for Claude Code config, Claude Desktop
           setup, team deployment, and the proxy script for non-technical users.
+
+  - type: section
+    eyebrow: Step 6
+    heading: Annotate from calls and meetings
+    components:
+      - type: markdown
+        body: |
+          Annotations capture human context that data sources miss — competitive intel,
+          timeline changes, corrections from customer calls. They live as sidecar YAML
+          files, not embedded in the page.
+
+      - type: code
+        language: bash
+        code: |
+          kazam annotate customers/acme.yaml "evaluating Wiz alongside us" \
+            --section competitive --author tyler
+
+      - type: markdown
+        body: |
+          Annotations render inline at build time with age indicators and status badges.
+          When an agent refreshes a page, it reads pending annotations as the
+          highest-priority source and marks them `incorporated` after use. The 14-day decay
+          window ensures nothing sits unreviewed.
+
+          The same annotation tools are available via MCP — `annotate_page`,
+          `list_annotations`, `update_annotation` — so agents can write annotations
+          programmatically during their workflows.
 
   - type: callout
     variant: info
