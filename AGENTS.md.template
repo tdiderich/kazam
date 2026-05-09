@@ -178,6 +178,23 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     id: optional-stable-anchor   # else auto-slugged from title
   ```
 
+- **hero_banner** — full-width hero with eyebrow, title, subtitle, and CTA buttons.
+  Use on landing pages only — one per page, first component.
+  ```yaml
+  - type: hero_banner
+    title: AI Native Knowledge Base
+    eyebrow: kazam
+    subtitle: Structured pages, sidecar annotations, and an MCP server.
+    buttons:
+      - label: Get Started
+        href: /guide.html
+        variant: primary
+      - label: GitHub
+        href: https://github.com/...
+        variant: secondary
+        external: true
+  ```
+
 - **meta** — key-value strip (author, date, status, version)
   ```yaml
   - type: meta
@@ -230,6 +247,14 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     alt: Dashboard screenshot
     caption: Optional caption.
     max_width: 600
+  ```
+
+- **embed** — responsive iframe (Loom, YouTube, Vimeo, etc.)
+  ```yaml
+  - type: embed
+    src: https://www.youtube.com/embed/dQw4w9WgXcQ
+    title: Product demo
+    aspect: "16:9"       # optional — default 16:9
   ```
 
 - **kbd** — keyboard keys joined by `+`
@@ -307,6 +332,31 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         after_context: fully automated
   ```
 
+- **split_compare** — side-by-side panel comparison (before/after, today/with-product)
+  ```yaml
+  - type: split_compare
+    left:
+      eyebrow: TODAY
+      title: Manual process
+      stats:
+        - label: Frequency
+          value: quarterly
+          color: red
+        - label: Coverage
+          value: "30%"
+          color: yellow
+    right:
+      eyebrow: WITH KAZAM
+      title: Automated checks
+      stats:
+        - label: Frequency
+          value: every build
+          color: green
+        - label: Coverage
+          value: "100%"
+          color: green
+  ```
+
 - **avatar** — profile circle with initials fallback
   ```yaml
   - type: avatar
@@ -332,6 +382,59 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     items:
       - term: ACV
         definition: Annual contract value.
+  ```
+
+- **resources** — structured link collection with per-item metadata
+  ```yaml
+  - type: resources
+    items:
+      - title: API Reference
+        href: https://docs.example.com/api
+        description: Full REST API documentation
+        owner: platform-team
+      - title: Runbook
+        href: /runbook.html
+  ```
+
+### Data Visualization
+
+- **chart** — inline SVG chart (pie, bar, or timeseries). No JS dependencies.
+  ```yaml
+  - type: chart
+    kind: bar                    # pie | bar | timeseries
+    title: Monthly active users
+    height: 300                  # optional pixel height
+    x_label: Month               # optional, ignored by pie
+    y_label: Users               # optional, ignored by pie
+    orientation: vertical        # vertical (default) | horizontal — bar only
+    data:                        # single-series data
+      - label: Jan
+        value: 1200
+        color: teal              # optional per-slice/bar tint
+      - label: Feb
+        value: 1450
+        color: green
+  ```
+  For multi-series (stacked bars, multi-line timeseries), use `series:` instead of `data:`:
+  ```yaml
+  - type: chart
+    kind: timeseries
+    title: Revenue by segment
+    series:
+      - label: Enterprise
+        color: teal
+        points:
+          - label: Q1
+            value: 500000
+          - label: Q2
+            value: 620000
+      - label: SMB
+        color: green
+        points:
+          - label: Q1
+            value: 180000
+          - label: Q2
+            value: 210000
   ```
 
 ### Interactive
