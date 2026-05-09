@@ -224,6 +224,8 @@ enum Command {
 enum SdkCommand {
     /// Print TypeScript type definitions to stdout
     Emit,
+    /// Print React component renderer to stdout (TSX)
+    EmitReact,
 }
 
 #[derive(Subcommand)]
@@ -414,6 +416,7 @@ fn main() -> Result<()> {
         },
         Command::Sdk { command } => match command {
             SdkCommand::Emit => sdk::emit_typescript(),
+            SdkCommand::EmitReact => sdk::emit_react(),
         },
         Command::Audit { dir, pretty } => audit::run(&dir, pretty),
         Command::Annotate { command, dir } => match command {
