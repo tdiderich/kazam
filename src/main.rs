@@ -22,6 +22,7 @@ mod mcp;
 mod minify;
 mod prompts;
 mod render;
+mod sdk;
 mod search;
 mod theme;
 mod track;
@@ -207,11 +208,22 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
+    /// Emit a TypeScript SDK from the page schema (types, enums, interfaces)
+    Sdk {
+        #[command(subcommand)]
+        command: SdkCommand,
+    },
     /// Output the kazam CSS theme for use in external apps
     Theme {
         #[command(subcommand)]
         command: ThemeCommand,
     },
+}
+
+#[derive(Subcommand)]
+enum SdkCommand {
+    /// Print TypeScript type definitions to stdout
+    Emit,
 }
 
 #[derive(Subcommand)]
@@ -352,6 +364,9 @@ fn main() -> Result<()> {
         Command::Actions { command, dir } => match command {
             ActionsCommand::List => actions::list(),
             ActionsCommand::Init { name } => actions::init(&name, &dir),
+        },
+        Command::Sdk { command } => match command {
+            SdkCommand::Emit => sdk::emit_typescript(),
         },
         Command::Audit { dir, pretty } => audit::run(&dir, pretty),
         Command::Annotate { command, dir } => match command {
