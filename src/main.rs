@@ -233,12 +233,33 @@ enum ThemeCommand {
         /// Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet)
         #[arg(long, default_value = "dark")]
         theme: String,
-        /// Enable texture overlay (none, dots, grid, diagonal)
+        /// Base mode for rainbow themes (dark, light). Ignored for dark/light themes.
+        #[arg(long, default_value = "dark")]
+        mode: String,
+        /// Enable texture overlay (none, dots, grid, grain, topography, diagonal)
         #[arg(long, default_value = "none")]
         texture: String,
         /// Enable glow effect (none, accent, corner)
         #[arg(long, default_value = "none")]
         glow: String,
+    },
+    /// Print only the :root CSS custom properties block to stdout
+    Vars {
+        /// Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet)
+        #[arg(long, default_value = "dark")]
+        theme: String,
+        /// Base mode for rainbow themes (dark, light). Ignored for dark/light themes.
+        #[arg(long, default_value = "dark")]
+        mode: String,
+    },
+    /// Print theme tokens as JSON (for programmatic consumption)
+    Json {
+        /// Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet)
+        #[arg(long, default_value = "dark")]
+        theme: String,
+        /// Base mode for rainbow themes (dark, light). Ignored for dark/light themes.
+        #[arg(long, default_value = "dark")]
+        mode: String,
     },
 }
 
@@ -261,6 +282,32 @@ enum WishCommand {
         #[arg(long)]
         force: bool,
     },
+}
+
+fn parse_mode(s: &str) -> types::Mode {
+    match s {
+        "light" => types::Mode::Light,
+        _ => types::Mode::Dark,
+    }
+}
+
+fn parse_texture(s: &str) -> types::Texture {
+    match s {
+        "dots" => types::Texture::Dots,
+        "grid" => types::Texture::Grid,
+        "grain" => types::Texture::Grain,
+        "topography" => types::Texture::Topography,
+        "diagonal" => types::Texture::Diagonal,
+        _ => types::Texture::None,
+    }
+}
+
+fn parse_glow(s: &str) -> types::Glow {
+    match s {
+        "accent" => types::Glow::Accent,
+        "corner" => types::Glow::Corner,
+        _ => types::Glow::None,
+    }
 }
 
 fn main() -> Result<()> {
@@ -445,27 +492,33 @@ fn main() -> Result<()> {
         Command::Theme { command } => match command {
             ThemeCommand::Css {
                 theme: theme_name,
+                mode,
                 texture,
                 glow,
             } => {
-                let mode = if theme_name == "light" {
-                    types::Mode::Light
-                } else {
-                    types::Mode::Dark
-                };
-                let t = theme::Theme::named(&theme_name, mode);
-                let tex = match texture.as_str() {
-                    "dots" => types::Texture::Dots,
-                    "grid" => types::Texture::Grid,
-                    "diagonal" => types::Texture::Diagonal,
-                    _ => types::Texture::None,
-                };
-                let g = match glow.as_str() {
-                    "accent" => types::Glow::Accent,
-                    "corner" => types::Glow::Corner,
-                    _ => types::Glow::None,
-                };
+                let m = parse_mode(&mode);
+                let t = theme::Theme::named(&theme_name, m);
+                let tex = parse_texture(&texture);
+                let g = parse_glow(&glow);
                 print!("{}", theme::render_css(&t, tex, g));
+                Ok(())
+            }
+            ThemeCommand::Vars {
+                theme: theme_name,
+                mode,
+            } => {
+                let m = parse_mode(&mode);
+                let t = theme::Theme::named(&theme_name, m);
+                print!("{}", t.root_block());
+                Ok(())
+            }
+            ThemeCommand::Json {
+                theme: theme_name,
+                mode,
+            } => {
+                let m = parse_mode(&mode);
+                let t = theme::Theme::named(&theme_name, m);
+                print!("{}", t.to_json());
                 Ok(())
             }
         },
