@@ -77,8 +77,36 @@ fn generate_typescript() -> String {
     );
     emit_enum(&mut out, "AnnotationSource", &["cli", "agent", "web"]);
     emit_enum(&mut out, "RefreshMode", &["human", "auto", "assisted"]);
+    emit_enum(
+        &mut out,
+        "ThemeName",
+        &[
+            "dark", "light", "red", "orange", "yellow", "green", "blue", "indigo", "violet",
+        ],
+    );
 
     // Supporting types
+    emit_interface(
+        &mut out,
+        "ThemeTokens",
+        &[
+            ("bg", "string"),
+            ("surface", "string"),
+            ("surface_strong", "string"),
+            ("border", "string"),
+            ("border_strong", "string"),
+            ("accent", "string"),
+            ("accent_soft", "string"),
+            ("text", "string"),
+            ("text_muted", "string"),
+            ("text_subtle", "string"),
+            ("overlay_hover", "string"),
+            ("green", "string"),
+            ("yellow", "string"),
+            ("red", "string"),
+            ("header_border", "string"),
+        ],
+    );
     emit_interface(
         &mut out,
         "MetaField",

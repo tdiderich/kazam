@@ -86,7 +86,46 @@ impl Theme {
         self
     }
 
-    fn root_block(&self) -> String {
+    pub fn to_json(&self) -> String {
+        format!(
+            concat!(
+                "{{\n",
+                "  \"bg\": \"{bg}\",\n",
+                "  \"surface\": \"{surface}\",\n",
+                "  \"surface_strong\": \"{surface_strong}\",\n",
+                "  \"border\": \"{border}\",\n",
+                "  \"border_strong\": \"{border_strong}\",\n",
+                "  \"accent\": \"{accent}\",\n",
+                "  \"accent_soft\": \"{accent_soft}\",\n",
+                "  \"text\": \"{text}\",\n",
+                "  \"text_muted\": \"{text_muted}\",\n",
+                "  \"text_subtle\": \"{text_subtle}\",\n",
+                "  \"overlay_hover\": \"{overlay_hover}\",\n",
+                "  \"green\": \"{green}\",\n",
+                "  \"yellow\": \"{yellow}\",\n",
+                "  \"red\": \"{red}\",\n",
+                "  \"header_border\": \"{header_border}\"\n",
+                "}}\n",
+            ),
+            bg = self.bg,
+            surface = self.surface,
+            surface_strong = self.surface_strong,
+            border = self.border,
+            border_strong = self.border_strong,
+            accent = self.accent,
+            accent_soft = self.accent_soft,
+            text = self.text,
+            text_muted = self.text_muted,
+            text_subtle = self.text_subtle,
+            overlay_hover = self.overlay_hover,
+            green = self.green,
+            yellow = self.yellow,
+            red = self.red,
+            header_border = self.header_border,
+        )
+    }
+
+    pub fn root_block(&self) -> String {
         let accent_rgb = hex_to_rgb_triple(&self.accent).unwrap_or_else(|| "60, 206, 206".into());
         let bg_rgb = hex_to_rgb_triple(&self.bg).unwrap_or_else(|| "9, 13, 24".into());
         let text_rgb = hex_to_rgb_triple(&self.text).unwrap_or_else(|| "255, 255, 255".into());
