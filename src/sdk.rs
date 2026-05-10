@@ -5,6 +5,214 @@ pub fn emit_typescript() -> Result<()> {
     Ok(())
 }
 
+fn component_defs() -> Vec<(&'static str, Vec<(&'static str, &'static str)>)> {
+    vec![
+        (
+            "header",
+            vec![
+                ("title", "string"),
+                ("subtitle?", "string"),
+                ("eyebrow?", "string"),
+                ("align?", "Align"),
+                ("id?", "string"),
+            ],
+        ),
+        (
+            "hero_banner",
+            vec![
+                ("title", "string"),
+                ("eyebrow?", "string"),
+                ("subtitle?", "string"),
+                ("buttons?", "ButtonConfig[]"),
+            ],
+        ),
+        ("meta", vec![("fields", "MetaField[]")]),
+        (
+            "card_grid",
+            vec![
+                ("cards", "Card[]"),
+                ("min_width?", "number"),
+                ("connector?", "Connector"),
+            ],
+        ),
+        (
+            "selectable_grid",
+            vec![
+                ("cards", "SelectableCard[]"),
+                ("interaction?", "Interaction"),
+                ("connector?", "Connector"),
+            ],
+        ),
+        ("timeline", vec![("items", "TimelineItem[]")]),
+        (
+            "stat_grid",
+            vec![("stats", "Stat[]"), ("columns?", "number")],
+        ),
+        (
+            "before_after",
+            vec![
+                ("items", "BeforeAfterItem[]"),
+                ("before_label?", "string"),
+                ("after_label?", "string"),
+            ],
+        ),
+        (
+            "split_compare",
+            vec![("left", "ComparePanel"), ("right", "ComparePanel")],
+        ),
+        ("steps", vec![("items", "Step[]"), ("numbered?", "boolean")]),
+        ("markdown", vec![("body", "string")]),
+        (
+            "table",
+            vec![
+                ("columns", "TableColumn[]"),
+                ("rows", "Record<string, unknown>[]"),
+                ("filterable?", "boolean"),
+            ],
+        ),
+        (
+            "callout",
+            vec![
+                ("variant?", "CalloutVariant"),
+                ("title?", "string"),
+                ("body", "string"),
+                ("links?", "ButtonConfig[]"),
+            ],
+        ),
+        ("code", vec![("language?", "string"), ("code", "string")]),
+        ("tabs", vec![("tabs", "Tab[]")]),
+        (
+            "section",
+            vec![
+                ("heading?", "string"),
+                ("eyebrow?", "string"),
+                ("components", "Component[]"),
+                ("align?", "Align"),
+                ("id?", "string"),
+            ],
+        ),
+        (
+            "columns",
+            vec![("columns", "Component[][]"), ("equal_heights?", "boolean")],
+        ),
+        ("accordion", vec![("items", "AccordionItem[]")]),
+        (
+            "event_timeline",
+            vec![
+                ("events", "EventItem[]"),
+                ("default_filter?", "EventFilter"),
+                ("show_filter_toggle?", "boolean"),
+                ("limit?", "number"),
+            ],
+        ),
+        (
+            "tree",
+            vec![
+                ("nodes", "TreeNode[]"),
+                ("default_filter?", "TreeFilter"),
+                ("show_filter_toggle?", "boolean"),
+                ("default_collapsed?", "boolean"),
+            ],
+        ),
+        (
+            "venn",
+            vec![
+                ("sets", "VennSet[]"),
+                ("overlaps?", "VennOverlap[]"),
+                ("title?", "string"),
+            ],
+        ),
+        (
+            "image",
+            vec![
+                ("src", "string"),
+                ("alt?", "string"),
+                ("caption?", "string"),
+                ("max_width?", "number"),
+                ("align?", "Align"),
+            ],
+        ),
+        (
+            "embed",
+            vec![
+                ("src", "string"),
+                ("title?", "string"),
+                ("aspect?", "string"),
+            ],
+        ),
+        ("resources", vec![("items", "ResourceItem[]")]),
+        ("badge", vec![("label", "string"), ("color?", "SemColor")]),
+        ("tag", vec![("label", "string"), ("color?", "SemColor")]),
+        ("divider", vec![("label?", "string")]),
+        ("kbd", vec![("keys", "string[]")]),
+        ("status", vec![("label", "string"), ("color?", "SemColor")]),
+        ("breadcrumb", vec![("items", "BreadcrumbItem[]")]),
+        ("button_group", vec![("buttons", "ButtonConfig[]")]),
+        ("definition_list", vec![("items", "DefinitionItem[]")]),
+        (
+            "blockquote",
+            vec![("body", "string"), ("attribution?", "string")],
+        ),
+        (
+            "avatar",
+            vec![
+                ("name", "string"),
+                ("src?", "string"),
+                ("size?", "AvatarSize"),
+                ("subtitle?", "string"),
+            ],
+        ),
+        (
+            "avatar_group",
+            vec![
+                ("avatars", "AvatarConfig[]"),
+                ("size?", "AvatarSize"),
+                ("max?", "number"),
+            ],
+        ),
+        (
+            "progress_bar",
+            vec![
+                ("value", "number"),
+                ("label?", "string"),
+                ("color?", "SemColor"),
+                ("detail?", "string"),
+            ],
+        ),
+        (
+            "empty_state",
+            vec![
+                ("title", "string"),
+                ("body?", "string"),
+                ("action?", "EmptyStateAction"),
+                ("icon?", "string"),
+            ],
+        ),
+        (
+            "icon",
+            vec![
+                ("name", "string"),
+                ("size?", "IconSize"),
+                ("color?", "SemColor"),
+            ],
+        ),
+        (
+            "chart",
+            vec![
+                ("kind", "ChartKind"),
+                ("title?", "string"),
+                ("height?", "number"),
+                ("x_label?", "string"),
+                ("y_label?", "string"),
+                ("orientation?", "ChartOrientation"),
+                ("data?", "ChartPoint[]"),
+                ("series?", "ChartSeries[]"),
+            ],
+        ),
+        ("role_map", vec![("title?", "string")]),
+    ]
+}
+
 fn generate_typescript() -> String {
     let mut out = String::with_capacity(8192);
     out.push_str("// Auto-generated by `kazam sdk emit` — do not edit\n\n");
@@ -312,211 +520,7 @@ fn generate_typescript() -> String {
 
     // Component union (tagged by "type")
     out.push_str("export type Component =\n");
-    let components = vec![
-        (
-            "header",
-            vec![
-                ("title", "string"),
-                ("subtitle?", "string"),
-                ("eyebrow?", "string"),
-                ("align?", "Align"),
-                ("id?", "string"),
-            ],
-        ),
-        (
-            "hero_banner",
-            vec![
-                ("title", "string"),
-                ("eyebrow?", "string"),
-                ("subtitle?", "string"),
-                ("buttons?", "ButtonConfig[]"),
-            ],
-        ),
-        ("meta", vec![("fields", "MetaField[]")]),
-        (
-            "card_grid",
-            vec![
-                ("cards", "Card[]"),
-                ("min_width?", "number"),
-                ("connector?", "Connector"),
-            ],
-        ),
-        (
-            "selectable_grid",
-            vec![
-                ("cards", "SelectableCard[]"),
-                ("interaction?", "Interaction"),
-                ("connector?", "Connector"),
-            ],
-        ),
-        ("timeline", vec![("items", "TimelineItem[]")]),
-        (
-            "stat_grid",
-            vec![("stats", "Stat[]"), ("columns?", "number")],
-        ),
-        (
-            "before_after",
-            vec![
-                ("items", "BeforeAfterItem[]"),
-                ("before_label?", "string"),
-                ("after_label?", "string"),
-            ],
-        ),
-        (
-            "split_compare",
-            vec![("left", "ComparePanel"), ("right", "ComparePanel")],
-        ),
-        ("steps", vec![("items", "Step[]"), ("numbered?", "boolean")]),
-        ("markdown", vec![("body", "string")]),
-        (
-            "table",
-            vec![
-                ("columns", "TableColumn[]"),
-                ("rows", "Record<string, unknown>[]"),
-                ("filterable?", "boolean"),
-            ],
-        ),
-        (
-            "callout",
-            vec![
-                ("variant?", "CalloutVariant"),
-                ("title?", "string"),
-                ("body", "string"),
-                ("links?", "ButtonConfig[]"),
-            ],
-        ),
-        ("code", vec![("language?", "string"), ("code", "string")]),
-        ("tabs", vec![("tabs", "Tab[]")]),
-        (
-            "section",
-            vec![
-                ("heading?", "string"),
-                ("eyebrow?", "string"),
-                ("components", "Component[]"),
-                ("align?", "Align"),
-                ("id?", "string"),
-            ],
-        ),
-        (
-            "columns",
-            vec![("columns", "Component[][]"), ("equal_heights?", "boolean")],
-        ),
-        ("accordion", vec![("items", "AccordionItem[]")]),
-        (
-            "event_timeline",
-            vec![
-                ("events", "EventItem[]"),
-                ("default_filter?", "EventFilter"),
-                ("show_filter_toggle?", "boolean"),
-                ("limit?", "number"),
-            ],
-        ),
-        (
-            "tree",
-            vec![
-                ("nodes", "TreeNode[]"),
-                ("default_filter?", "TreeFilter"),
-                ("show_filter_toggle?", "boolean"),
-                ("default_collapsed?", "boolean"),
-            ],
-        ),
-        (
-            "venn",
-            vec![
-                ("sets", "VennSet[]"),
-                ("overlaps?", "VennOverlap[]"),
-                ("title?", "string"),
-            ],
-        ),
-        (
-            "image",
-            vec![
-                ("src", "string"),
-                ("alt?", "string"),
-                ("caption?", "string"),
-                ("max_width?", "number"),
-                ("align?", "Align"),
-            ],
-        ),
-        (
-            "embed",
-            vec![
-                ("src", "string"),
-                ("title?", "string"),
-                ("aspect?", "string"),
-            ],
-        ),
-        ("resources", vec![("items", "ResourceItem[]")]),
-        ("badge", vec![("label", "string"), ("color?", "SemColor")]),
-        ("tag", vec![("label", "string"), ("color?", "SemColor")]),
-        ("divider", vec![("label?", "string")]),
-        ("kbd", vec![("keys", "string[]")]),
-        ("status", vec![("label", "string"), ("color?", "SemColor")]),
-        ("breadcrumb", vec![("items", "BreadcrumbItem[]")]),
-        ("button_group", vec![("buttons", "ButtonConfig[]")]),
-        ("definition_list", vec![("items", "DefinitionItem[]")]),
-        (
-            "blockquote",
-            vec![("body", "string"), ("attribution?", "string")],
-        ),
-        (
-            "avatar",
-            vec![
-                ("name", "string"),
-                ("src?", "string"),
-                ("size?", "AvatarSize"),
-                ("subtitle?", "string"),
-            ],
-        ),
-        (
-            "avatar_group",
-            vec![
-                ("avatars", "AvatarConfig[]"),
-                ("size?", "AvatarSize"),
-                ("max?", "number"),
-            ],
-        ),
-        (
-            "progress_bar",
-            vec![
-                ("value", "number"),
-                ("label?", "string"),
-                ("color?", "SemColor"),
-                ("detail?", "string"),
-            ],
-        ),
-        (
-            "empty_state",
-            vec![
-                ("title", "string"),
-                ("body?", "string"),
-                ("action?", "EmptyStateAction"),
-                ("icon?", "string"),
-            ],
-        ),
-        (
-            "icon",
-            vec![
-                ("name", "string"),
-                ("size?", "IconSize"),
-                ("color?", "SemColor"),
-            ],
-        ),
-        (
-            "chart",
-            vec![
-                ("kind", "ChartKind"),
-                ("title?", "string"),
-                ("height?", "number"),
-                ("x_label?", "string"),
-                ("y_label?", "string"),
-                ("orientation?", "ChartOrientation"),
-                ("data?", "ChartPoint[]"),
-                ("series?", "ChartSeries[]"),
-            ],
-        ),
-        ("role_map", vec![("title?", "string")]),
-    ];
+    let components = component_defs();
 
     for (i, (tag, fields)) in components.iter().enumerate() {
         out.push_str("  | { type: \"");
@@ -694,6 +698,297 @@ fn generate_typescript() -> String {
 pub fn emit_react() -> Result<()> {
     print!("{}", generate_react());
     Ok(())
+}
+
+pub fn emit_schema() -> Result<()> {
+    print!("{}", generate_schema());
+    Ok(())
+}
+
+fn generate_schema() -> String {
+    let enums: Vec<(&str, Vec<&str>)> = vec![
+        (
+            "SemColor",
+            vec!["default", "green", "yellow", "red", "teal"],
+        ),
+        ("Align", vec!["left", "right", "center"]),
+        ("CalloutVariant", vec!["info", "warn", "success", "danger"]),
+        ("Interaction", vec!["single_select", "multi_select", "none"]),
+        ("Connector", vec!["none", "dots_line", "arrow"]),
+        ("TimelineStatus", vec!["completed", "active", "upcoming"]),
+        ("EventSeverity", vec!["major", "minor", "info"]),
+        ("EventFilter", vec!["all", "major"]),
+        (
+            "TreeStatus",
+            vec![
+                "default",
+                "completed",
+                "active",
+                "blocked",
+                "priority",
+                "upcoming",
+            ],
+        ),
+        (
+            "TreeFilter",
+            vec!["all", "incomplete", "blocked", "priority"],
+        ),
+        ("ButtonVariant", vec!["primary", "secondary", "ghost"]),
+        ("AvatarSize", vec!["sm", "md", "lg", "xl"]),
+        ("IconSize", vec!["xs", "sm", "md", "lg", "xl"]),
+        ("ChartKind", vec!["pie", "bar", "timeseries"]),
+        ("ChartOrientation", vec!["vertical", "horizontal"]),
+    ];
+
+    let types: Vec<(&str, Vec<(&str, &str)>)> = vec![
+        ("MetaField", vec![("key", "string"), ("value", "string")]),
+        ("Badge", vec![("label", "string"), ("color?", "SemColor")]),
+        ("Link", vec![("label", "string"), ("href", "string")]),
+        (
+            "Card",
+            vec![
+                ("title", "string"),
+                ("badge?", "Badge"),
+                ("description?", "string"),
+                ("links?", "Link[]"),
+                ("href?", "string"),
+                ("color?", "SemColor"),
+            ],
+        ),
+        (
+            "SelectableCard",
+            vec![
+                ("title", "string"),
+                ("eyebrow?", "string"),
+                ("bullets?", "string[]"),
+                ("body?", "string"),
+                ("color?", "SemColor"),
+            ],
+        ),
+        (
+            "TimelineItem",
+            vec![("name", "string"), ("status", "TimelineStatus")],
+        ),
+        (
+            "Stat",
+            vec![
+                ("label", "string"),
+                ("value", "string"),
+                ("detail?", "string"),
+                ("color?", "SemColor"),
+            ],
+        ),
+        (
+            "BeforeAfterItem",
+            vec![
+                ("title", "string"),
+                ("before", "string"),
+                ("after", "string"),
+                ("after_context?", "string"),
+            ],
+        ),
+        (
+            "ComparePanel",
+            vec![
+                ("eyebrow?", "string"),
+                ("title", "string"),
+                ("stats", "CompareStat[]"),
+            ],
+        ),
+        (
+            "CompareStat",
+            vec![
+                ("label", "string"),
+                ("value", "string"),
+                ("color?", "SemColor"),
+            ],
+        ),
+        ("Step", vec![("title", "string"), ("detail?", "string")]),
+        (
+            "TableColumn",
+            vec![
+                ("key", "string"),
+                ("label", "string"),
+                ("sortable?", "boolean"),
+                ("align?", "Align"),
+            ],
+        ),
+        (
+            "Tab",
+            vec![("label", "string"), ("components", "Component[]")],
+        ),
+        (
+            "AccordionItem",
+            vec![("title", "string"), ("components", "Component[]")],
+        ),
+        (
+            "EventItem",
+            vec![
+                ("date", "string"),
+                ("title", "string"),
+                ("summary?", "string"),
+                ("severity?", "EventSeverity"),
+                ("source?", "string"),
+                ("link?", "string"),
+            ],
+        ),
+        (
+            "TreeNode",
+            vec![
+                ("label", "string"),
+                ("status?", "TreeStatus"),
+                ("note?", "string"),
+                ("children?", "TreeNode[]"),
+            ],
+        ),
+        ("VennSet", vec![("label", "string"), ("color?", "SemColor")]),
+        (
+            "VennOverlap",
+            vec![("sets", "number[]"), ("label?", "string")],
+        ),
+        (
+            "ButtonConfig",
+            vec![
+                ("label", "string"),
+                ("href", "string"),
+                ("variant?", "ButtonVariant"),
+                ("external?", "boolean"),
+                ("icon?", "string"),
+            ],
+        ),
+        (
+            "BreadcrumbItem",
+            vec![("label", "string"), ("href?", "string")],
+        ),
+        (
+            "DefinitionItem",
+            vec![("term", "string"), ("definition", "string")],
+        ),
+        ("AvatarConfig", vec![("name", "string"), ("src?", "string")]),
+        (
+            "EmptyStateAction",
+            vec![("label", "string"), ("href", "string")],
+        ),
+        (
+            "ResourceItem",
+            vec![
+                ("title", "string"),
+                ("href", "string"),
+                ("description?", "string"),
+                ("owner?", "string"),
+            ],
+        ),
+        (
+            "ChartPoint",
+            vec![
+                ("label", "string"),
+                ("value", "number"),
+                ("color?", "SemColor"),
+            ],
+        ),
+        (
+            "ChartSeries",
+            vec![
+                ("label", "string"),
+                ("color?", "SemColor"),
+                ("points", "ChartPoint[]"),
+            ],
+        ),
+    ];
+
+    let components = component_defs();
+
+    let mut out = String::with_capacity(16384);
+    out.push_str("{\n");
+
+    // Enums
+    out.push_str("  \"enums\": {\n");
+    for (i, (name, variants)) in enums.iter().enumerate() {
+        out.push_str("    \"");
+        out.push_str(name);
+        out.push_str("\": [");
+        for (j, v) in variants.iter().enumerate() {
+            if j > 0 {
+                out.push_str(", ");
+            }
+            out.push('"');
+            out.push_str(v);
+            out.push('"');
+        }
+        out.push(']');
+        if i < enums.len() - 1 {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  },\n");
+
+    // Types
+    out.push_str("  \"types\": {\n");
+    for (i, (name, fields)) in types.iter().enumerate() {
+        out.push_str("    \"");
+        out.push_str(name);
+        out.push_str("\": {\n");
+        for (j, (fname, ftype)) in fields.iter().enumerate() {
+            let (clean_name, required) = if let Some(stripped) = fname.strip_suffix('?') {
+                (stripped, false)
+            } else {
+                (*fname, true)
+            };
+            out.push_str("      \"");
+            out.push_str(clean_name);
+            out.push_str("\": { \"type\": \"");
+            out.push_str(ftype);
+            out.push_str("\", \"required\": ");
+            out.push_str(if required { "true" } else { "false" });
+            out.push_str(" }");
+            if j < fields.len() - 1 {
+                out.push(',');
+            }
+            out.push('\n');
+        }
+        out.push_str("    }");
+        if i < types.len() - 1 {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  },\n");
+
+    // Components
+    out.push_str("  \"components\": {\n");
+    for (i, (tag, fields)) in components.iter().enumerate() {
+        out.push_str("    \"");
+        out.push_str(tag);
+        out.push_str("\": {\n");
+        for (j, (fname, ftype)) in fields.iter().enumerate() {
+            let (clean_name, required) = if let Some(stripped) = fname.strip_suffix('?') {
+                (stripped, false)
+            } else {
+                (*fname, true)
+            };
+            out.push_str("      \"");
+            out.push_str(clean_name);
+            out.push_str("\": { \"type\": \"");
+            out.push_str(ftype);
+            out.push_str("\", \"required\": ");
+            out.push_str(if required { "true" } else { "false" });
+            out.push_str(" }");
+            if j < fields.len() - 1 {
+                out.push(',');
+            }
+            out.push('\n');
+        }
+        out.push_str("    }");
+        if i < components.len() - 1 {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  }\n");
+
+    out.push_str("}\n");
+    out
 }
 
 fn generate_react() -> String {
