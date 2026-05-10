@@ -1008,6 +1008,368 @@ function ComponentView({
       );
     }
 
+    case "timeline": {
+      const items = (comp.items as Array<{ name: string; status: string }>) || [];
+      return (
+        <div id={id} className="c-timeline">
+          {items.map((item, i) => (
+            <div key={i} className={`c-timeline-item c-timeline-${item.status || "upcoming"}`}>
+              <div className="c-timeline-marker" />
+              {i < items.length - 1 && <div className="c-timeline-connector" />}
+              <div className="c-timeline-label">{item.name}</div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "split_compare": {
+      const left = comp.left as { eyebrow?: string; title: string; stats: Array<{ label: string; value: string; color?: string }> };
+      const right = comp.right as { eyebrow?: string; title: string; stats: Array<{ label: string; value: string; color?: string }> };
+      return (
+        <div id={id} className="c-split-compare">
+          {[left, right].map((panel, pi) => (
+            <div key={pi} className={`c-split-panel c-split-panel-${pi === 0 ? "left" : "right"}`}>
+              {panel.eyebrow && <div className="c-split-eyebrow">{panel.eyebrow}</div>}
+              <h3 className="c-split-title">{panel.title}</h3>
+              <div className="c-split-stats">
+                {(panel.stats || []).map((s, si) => (
+                  <div key={si} className="c-split-stat">
+                    <span className="c-split-stat-label">{s.label}</span>
+                    <span className={`c-split-stat-value c-color-${s.color || "default"}`}>{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "before_after": {
+      const items = (comp.items as Array<{ title: string; before: string; after: string; after_context?: string }>) || [];
+      const beforeLabel = (comp.before_label as string) || "Before";
+      const afterLabel = (comp.after_label as string) || "After";
+      return (
+        <div id={id} className="c-before-after">
+          {items.map((item, i) => (
+            <div key={i} className="c-ba-item">
+              <h3 className="c-ba-title">{item.title}</h3>
+              <div className="c-ba-panels">
+                <div className="c-ba-panel c-ba-before">
+                  <div className="c-ba-label">{beforeLabel}</div>
+                  <p>{item.before}</p>
+                </div>
+                <div className="c-ba-panel c-ba-after">
+                  <div className="c-ba-label">{afterLabel}</div>
+                  <p>{item.after}</p>
+                  {item.after_context && <div className="c-ba-context">{item.after_context}</div>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "tabs": {
+      const tabs = (comp.tabs as Array<{ label: string; components: ComponentData[] }>) || [];
+      return (
+        <div id={id} className="c-tabs">
+          {tabs.map((tab, ti) => (
+            <details key={ti} className="c-tab" {...(ti === 0 ? { open: true } : {})}>
+              <summary className="c-tab-label">{tab.label}</summary>
+              <div className="c-tab-content">
+                {(tab.components || []).map((c, ci) => (
+                  <ComponentView key={ci} comp={c} index={ci} renderMarkdown={renderMarkdown} />
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+      );
+    }
+
+    case "columns": {
+      const cols = (comp.columns as ComponentData[][]) || [];
+      return (
+        <div id={id} className="c-columns" style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr)` }}>
+          {cols.map((col, ci) => (
+            <div key={ci} className="c-column">
+              {col.map((c, i) => (
+                <ComponentView key={i} comp={c} index={i} renderMarkdown={renderMarkdown} />
+              ))}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "accordion": {
+      const items = (comp.items as Array<{ title: string; components: ComponentData[] }>) || [];
+      return (
+        <div id={id} className="c-accordion">
+          {items.map((item, i) => (
+            <details key={i} className="c-accordion-item">
+              <summary className="c-accordion-title">{item.title}</summary>
+              <div className="c-accordion-content">
+                {(item.components || []).map((c, ci) => (
+                  <ComponentView key={ci} comp={c} index={ci} renderMarkdown={renderMarkdown} />
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+      );
+    }
+
+    case "hero_banner": {
+      const title = (comp.title as string) || "";
+      const eyebrow = comp.eyebrow as string | undefined;
+      const subtitle = comp.subtitle as string | undefined;
+      const buttons = (comp.buttons as Array<{ label: string; href: string; variant?: string; external?: boolean }>) || [];
+      return (
+        <div id={id} className="c-hero-banner">
+          {eyebrow && <div className="c-hero-eyebrow">{eyebrow}</div>}
+          <h1 className="c-hero-title">{title}</h1>
+          {subtitle && <p className="c-hero-subtitle">{subtitle}</p>}
+          {buttons.length > 0 && (
+            <div className="c-hero-buttons">
+              {buttons.map((b, i) => (
+                <a key={i} className={`c-btn c-btn-${b.variant || "primary"}`} href={b.href}>{b.label}</a>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case "event_timeline": {
+      const events = (comp.events as Array<{ date: string; title: string; summary?: string; severity?: string; source?: string; link?: string }>) || [];
+      return (
+        <div id={id} className="c-event-timeline">
+          {events.map((ev, i) => (
+            <div key={i} className={`c-event c-event-${ev.severity || "minor"}`}>
+              <div className="c-event-date">{ev.date}</div>
+              <div className="c-event-body">
+                <div className="c-event-title">{ev.link ? <a href={ev.link}>{ev.title}</a> : ev.title}</div>
+                {ev.summary && <p className="c-event-summary">{ev.summary}</p>}
+                {ev.source && <span className="c-event-source">{ev.source}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "tree": {
+      const nodes = (comp.nodes as Array<Record<string, unknown>>) || [];
+      const renderNode = (node: Record<string, unknown>, depth: number): JSX.Element => {
+        const children = (node.children as Array<Record<string, unknown>>) || [];
+        return (
+          <div className={`c-tree-node c-tree-${(node.status as string) || "default"}`} style={{ paddingLeft: `${depth * 20}px` }}>
+            <div className="c-tree-label">
+              <span className="c-tree-marker" />
+              <span>{node.label as string}</span>
+              {node.note && <span className="c-tree-note">{node.note as string}</span>}
+            </div>
+            {children.map((child, i) => <div key={i}>{renderNode(child, depth + 1)}</div>)}
+          </div>
+        );
+      };
+      return <div id={id} className="c-tree">{nodes.map((n, i) => <div key={i}>{renderNode(n, 0)}</div>)}</div>;
+    }
+
+    case "selectable_grid": {
+      const cards = (comp.cards as Array<{ title: string; eyebrow?: string; bullets?: string[]; body?: string }>) || [];
+      const connector = comp.connector as string | undefined;
+      return (
+        <div id={id} className={`c-selectable-grid ${connector === "dots_line" ? "c-connector-dots" : ""}`}>
+          {cards.map((card, i) => (
+            <div key={i} className="c-selectable-card">
+              {card.eyebrow && <div className="c-selectable-eyebrow">{card.eyebrow}</div>}
+              <h3 className="c-selectable-title">{card.title}</h3>
+              {card.body && <p>{card.body}</p>}
+              {card.bullets && (
+                <ul className="c-selectable-bullets">
+                  {card.bullets.map((b, bi) => <li key={bi}>{b}</li>)}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "resources": {
+      const items = (comp.items as Array<{ title: string; href: string; description?: string; owner?: string }>) || [];
+      return (
+        <div id={id} className="c-resources">
+          {items.map((item, i) => (
+            <a key={i} className="c-resource" href={item.href}>
+              <div className="c-resource-title">{item.title}</div>
+              {item.description && <div className="c-resource-desc">{item.description}</div>}
+              {item.owner && <div className="c-resource-owner">{item.owner}</div>}
+            </a>
+          ))}
+        </div>
+      );
+    }
+
+    case "button_group": {
+      const buttons = (comp.buttons as Array<{ label: string; href: string; variant?: string; external?: boolean }>) || [];
+      return (
+        <div id={id} className="c-button-group">
+          {buttons.map((b, i) => (
+            <a key={i} className={`c-btn c-btn-${b.variant || "primary"}`} href={b.href} {...(b.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{b.label}</a>
+          ))}
+        </div>
+      );
+    }
+
+    case "definition_list": {
+      const items = (comp.items as Array<{ term: string; definition: string }>) || [];
+      return (
+        <dl id={id} className="c-definition-list">
+          {items.map((item, i) => (
+            <div key={i} className="c-dl-item">
+              <dt>{item.term}</dt>
+              <dd>{item.definition}</dd>
+            </div>
+          ))}
+        </dl>
+      );
+    }
+
+    case "avatar": {
+      const name = (comp.name as string) || "";
+      const src = comp.src as string | undefined;
+      const subtitle = comp.subtitle as string | undefined;
+      const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+      return (
+        <div id={id} className={`c-avatar c-avatar-${(comp.size as string) || "md"}`}>
+          {src ? <img src={src} alt={name} className="c-avatar-img" /> : <div className="c-avatar-initials">{initials}</div>}
+          <div className="c-avatar-info">
+            <div className="c-avatar-name">{name}</div>
+            {subtitle && <div className="c-avatar-subtitle">{subtitle}</div>}
+          </div>
+        </div>
+      );
+    }
+
+    case "avatar_group": {
+      const avatars = (comp.avatars as Array<{ name: string; src?: string }>) || [];
+      const max = (comp.max as number) || 5;
+      const visible = avatars.slice(0, max);
+      const overflow = avatars.length - max;
+      return (
+        <div id={id} className="c-avatar-group">
+          {visible.map((a, i) => {
+            const initials = a.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+            return a.src
+              ? <img key={i} src={a.src} alt={a.name} className="c-avatar-circle" title={a.name} />
+              : <div key={i} className="c-avatar-circle c-avatar-circle-initials" title={a.name}>{initials}</div>;
+          })}
+          {overflow > 0 && <div className="c-avatar-circle c-avatar-overflow">+{overflow}</div>}
+        </div>
+      );
+    }
+
+    case "breadcrumb": {
+      const items = (comp.items as Array<{ label: string; href?: string }>) || [];
+      return (
+        <nav id={id} className="c-breadcrumb">
+          {items.map((item, i) => (
+            <span key={i}>
+              {i > 0 && <span className="c-breadcrumb-sep">/</span>}
+              {item.href ? <a href={item.href}>{item.label}</a> : <span>{item.label}</span>}
+            </span>
+          ))}
+        </nav>
+      );
+    }
+
+    case "tag": {
+      const label = (comp.label as string) || "";
+      const color = (comp.color as string) || "default";
+      return <span id={id} className={`c-tag c-tag-${color}`}>{label}</span>;
+    }
+
+    case "kbd": {
+      const keys = (comp.keys as string[]) || [];
+      return (
+        <span id={id} className="c-kbd">
+          {keys.map((k, i) => (
+            <span key={i}>
+              {i > 0 && <span className="c-kbd-sep">+</span>}
+              <kbd>{k}</kbd>
+            </span>
+          ))}
+        </span>
+      );
+    }
+
+    case "empty_state": {
+      const title = (comp.title as string) || "";
+      const body = comp.body as string | undefined;
+      const action = comp.action as { label: string; href: string } | undefined;
+      return (
+        <div id={id} className="c-empty-state">
+          <h3 className="c-empty-title">{title}</h3>
+          {body && <p className="c-empty-body">{body}</p>}
+          {action && <a className="c-btn c-btn-primary" href={action.href}>{action.label}</a>}
+        </div>
+      );
+    }
+
+    case "venn": {
+      const sets = (comp.sets as Array<{ label: string; color?: string }>) || [];
+      const overlaps = (comp.overlaps as Array<{ sets: number[]; label?: string }>) || [];
+      const title = comp.title as string | undefined;
+      return (
+        <div id={id} className="c-venn">
+          {title && <h3 className="c-venn-title">{title}</h3>}
+          <div className="c-venn-diagram">
+            {sets.map((s, i) => (
+              <div key={i} className={`c-venn-set c-venn-set-${i} c-venn-color-${s.color || "default"}`}>
+                <span>{s.label}</span>
+              </div>
+            ))}
+          </div>
+          {overlaps.length > 0 && (
+            <div className="c-venn-overlaps">
+              {overlaps.map((o, i) => o.label && (
+                <div key={i} className="c-venn-overlap">
+                  {sets.filter((_, si) => o.sets.includes(si)).map(s => s.label).join(" ∩ ")}: {o.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case "chart": {
+      const title = comp.title as string | undefined;
+      const kind = (comp.kind as string) || "bar";
+      return (
+        <div id={id} className="c-chart" data-kind={kind}>
+          {title && <h3 className="c-chart-title">{title}</h3>}
+          <div className="c-chart-placeholder">Chart ({kind})</div>
+        </div>
+      );
+    }
+
+    case "role_map": {
+      const title = comp.title as string | undefined;
+      return (
+        <div id={id} className="c-role-map">
+          {title && <h3 className="c-role-map-title">{title}</h3>}
+          <div className="c-role-map-placeholder">Roles configured in site settings</div>
+        </div>
+      );
+    }
+
     default:
       return (
         <div id={id} className="c-unsupported" data-type={comp.type}>
