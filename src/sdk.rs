@@ -1077,22 +1077,27 @@ function ComponentView({
         badge?: { label: string; color?: string };
         href?: string;
       }>) || [];
+      const connector = comp.connector as string | undefined;
+      const gridClass = connector === "arrow" ? "c-card-grid c-card-grid-arrow" : "c-card-grid";
       return (
-        <div id={id} className="c-card-grid">
+        <div id={id} className={gridClass}>
           {cards.map((card, i) => {
             const Tag = card.href ? "a" : "div";
             return (
-              <Tag key={i} className="c-card c-card-default" {...(card.href ? { href: card.href } : {})}>
-                <div className="c-card-top">
-                  <h2 className="c-card-title">{card.title}</h2>
-                  {card.badge && (
-                    <span className={`c-badge c-badge-${card.badge.color || "default"}`}>
-                      {card.badge.label}
-                    </span>
-                  )}
-                </div>
-                {card.description && <p className="c-card-desc">{card.description}</p>}
-              </Tag>
+              <React.Fragment key={i}>
+                {connector === "arrow" && i > 0 && <div className="c-card-arrow">→</div>}
+                <Tag className="c-card c-card-default" {...(card.href ? { href: card.href } : {})}>
+                  <div className="c-card-top">
+                    <h2 className="c-card-title">{card.title}</h2>
+                    {card.badge && (
+                      <span className={`c-badge c-badge-${card.badge.color || "default"}`}>
+                        {card.badge.label}
+                      </span>
+                    )}
+                  </div>
+                  {card.description && <p className="c-card-desc">{card.description}</p>}
+                </Tag>
+              </React.Fragment>
             );
           })}
         </div>
@@ -1367,7 +1372,7 @@ function ComponentView({
         <div id={id} className="c-tabs">
           <div className="c-tab-buttons">
             {tabs.map((tab, ti) => (
-              <button key={ti} className={`tab-btn${ti === activeTab ? " active" : ""}`} onClick={() => setActiveTab(ti)}>{tab.label}</button>
+              <button key={ti} className={`tab-btn${ti === activeTab ? " tab-btn-active" : ""}`} onClick={() => setActiveTab(ti)}>{tab.label}</button>
             ))}
           </div>
           {tabs.map((tab, ti) => (
@@ -1446,12 +1451,18 @@ function ComponentView({
       return (
         <div id={id} className="c-event-timeline">
           {events.map((ev, i) => (
-            <div key={i} className={`c-event c-event-${ev.severity || "minor"}`}>
-              <div className="c-event-date">{ev.date}</div>
+            <div key={i} className={`c-event severity-${ev.severity || "minor"}`} data-severity={ev.severity || "minor"}>
+              <div className="c-event-rail">
+                <div className="c-event-dot" />
+              </div>
               <div className="c-event-body">
+                <div className="c-event-meta">
+                  <span className="c-event-date">{ev.date}</span>
+                  {ev.severity && <span className="c-event-severity">{ev.severity}</span>}
+                  {ev.source && <span className="c-event-source">{ev.source}</span>}
+                </div>
                 <div className="c-event-title">{ev.link ? <a href={ev.link}>{ev.title}</a> : ev.title}</div>
                 {ev.summary && <p className="c-event-summary">{ev.summary}</p>}
-                {ev.source && <span className="c-event-source">{ev.source}</span>}
               </div>
             </div>
           ))}
@@ -1461,20 +1472,28 @@ function ComponentView({
 
     case "tree": {
       const nodes = (comp.nodes as Array<Record<string, unknown>>) || [];
+      const statusGlyphs: Record<string, string> = { completed: "✓", active: "●", blocked: "✕", priority: "!", upcoming: "○" };
       const renderNode = (node: Record<string, unknown>, depth: number): React.JSX.Element => {
         const children = (node.children as Array<Record<string, unknown>>) || [];
+        const status = (node.status as string) || "default";
+        const hasChildren = children.length > 0;
         return (
-          <div className={`c-tree-node c-tree-${(node.status as string) || "default"}`} style={{ paddingLeft: `${depth * 20}px` }}>
-            <div className="c-tree-label">
-              <span className="c-tree-marker" />
-              <span>{node.label as string}</span>
+          <li className={`c-tree-node status-${status}`}>
+            <div className="c-tree-row">
+              {hasChildren && <span className="c-tree-chevron">▶</span>}
+              <span className="c-tree-glyph">{statusGlyphs[status] || "·"}</span>
+              <span className="c-tree-label">{node.label as string}</span>
               {node.note ? <span className="c-tree-note">{node.note as string}</span> : null}
             </div>
-            {children.map((child, i) => <div key={i}>{renderNode(child, depth + 1)}</div>)}
-          </div>
+            {hasChildren && (
+              <ul className="c-tree-children">
+                {children.map((child, i) => <React.Fragment key={i}>{renderNode(child, depth + 1)}</React.Fragment>)}
+              </ul>
+            )}
+          </li>
         );
       };
-      return <div id={id} className="c-tree">{nodes.map((n, i) => <div key={i}>{renderNode(n, 0)}</div>)}</div>;
+      return <div id={id} className="c-tree"><ul className="c-tree-root">{nodes.map((n, i) => <React.Fragment key={i}>{renderNode(n, 0)}</React.Fragment>)}</ul></div>;
     }
 
     case "selectable_grid": {
@@ -1532,9 +1551,9 @@ function ComponentView({
       return (
         <dl id={id} className="c-definition-list">
           {items.map((item, i) => (
-            <div key={i} className="c-dl-item">
-              <dt>{item.term}</dt>
-              <dd>{item.definition}</dd>
+            <div key={i} className="c-dl-row">
+              <dt className="c-dl-term">{item.term}</dt>
+              <dd className="c-dl-def">{item.definition}</dd>
             </div>
           ))}
         </dl>
