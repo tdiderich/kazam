@@ -1165,7 +1165,8 @@ a.c-card { color: inherit; }
 
 /* Split Compare */
 .c-split-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; border-radius: 12px; overflow: hidden; }
-.c-sc-panel { padding: 32px; background: rgba(var(--text-rgb),0.04); }
+.c-sc-panel { padding: 32px; background: rgba(var(--text-rgb),0.04); display: flex; flex-direction: column; }
+.c-sc-panel .c-sc-stats { margin-top: auto; }
 .c-sc-left { border-right: 1px solid rgba(var(--text-rgb),0.08); }
 .c-sc-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(var(--text-rgb),0.4); margin-bottom: 8px; }
 .c-sc-right .c-sc-eyebrow { color: var(--teal); }
