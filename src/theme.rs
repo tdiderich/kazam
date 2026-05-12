@@ -1148,6 +1148,14 @@ a.c-card { color: inherit; }
 }
 .c-stat-value { font-size: 28px; font-weight: 700; line-height: 1.1; }
 .c-stat-detail { font-size: 13px; color: rgba(var(--text-rgb),0.6); line-height: 1.4; }
+.c-stat-green { --stat-color: var(--green); }
+.c-stat-green .c-stat-value { color: var(--green); }
+.c-stat-yellow { --stat-color: var(--yellow); }
+.c-stat-yellow .c-stat-value { color: var(--yellow); }
+.c-stat-red { --stat-color: var(--red); }
+.c-stat-red .c-stat-value { color: var(--red); }
+.c-stat-teal { --stat-color: var(--teal); }
+.c-stat-teal .c-stat-value { color: var(--teal); }
 
 /* Before / After */
 .c-before-after { display: flex; flex-direction: column; gap: 20px; }
