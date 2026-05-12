@@ -101,7 +101,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             caption,
             max_width,
             align,
-        } => image(src, alt, caption, *max_width, *align),
+        } => image(src, alt, caption, *max_width, *align, base),
         Component::Embed { src, title, aspect } => embed(src, title, aspect),
         Component::Resources { items } => resources(items),
         // Phase 1 additions
@@ -1288,7 +1288,9 @@ fn image(
     caption: &Option<String>,
     max_width: Option<u32>,
     align: Align,
+    base: &str,
 ) -> Rendered {
+    let resolved_src = resolve_href(src, base);
     let alt_txt = alt.as_deref().unwrap_or("");
     let style = max_width
         .map(|w| format!(r#" style="max-width: {w}px""#))
@@ -1297,7 +1299,7 @@ fn image(
         r#"<figure class="c-image {align}"{style}><img src="{src}" alt="{alt}">"#,
         align = align.class(),
         style = style,
-        src = esc(src),
+        src = esc(&resolved_src),
         alt = esc(alt_txt),
     );
     if let Some(cap) = caption {
