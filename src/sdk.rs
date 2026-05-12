@@ -997,11 +997,19 @@ fn generate_react() -> String {
 /* eslint-disable @next/next/no-img-element */
 import React from "react";
 
+interface SlideData {
+  label: string;
+  components?: ComponentData[];
+  hide_label?: boolean;
+  cover?: boolean;
+}
+
 interface PageData {
   title: string;
   subtitle?: string;
   shell?: string;
   components?: ComponentData[];
+  slides?: SlideData[];
 }
 
 interface ComponentData {
@@ -1022,6 +1030,61 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function renderInline(text: string): React.ReactNode[] {
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    const token = match[0];
+    if (token.startsWith("`")) {
+      parts.push(<code key={key++} className="c-inline-code">{token.slice(1, -1)}</code>);
+    } else if (token.startsWith("**")) {
+      parts.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("[")) {
+      const labelEnd = token.indexOf("](");
+      const label = token.slice(1, labelEnd);
+      const href = token.slice(labelEnd + 2, -1);
+      parts.push(<a key={key++} href={href}>{label}</a>);
+    } else {
+      parts.push(<em key={key++}>{token.slice(1, -1)}</em>);
+    }
+    last = match.index + token.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
+function renderBlock(text: string): React.ReactElement {
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  let key = 0;
+  let listItems: React.ReactNode[] = [];
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(<ul key={key++} className="c-md-list">{listItems}</ul>);
+      listItems = [];
+    }
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trimStart();
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      listItems.push(<li key={key++}>{renderInline(trimmed.slice(2))}</li>);
+    } else if (trimmed === "") {
+      flushList();
+    } else {
+      flushList();
+      elements.push(<p key={key++}>{renderInline(trimmed)}</p>);
+    }
+  }
+  flushList();
+  return <>{elements}</>;
+}
+
 function ComponentView({
   comp,
   index,
@@ -1036,7 +1099,7 @@ function ComponentView({
     renderMarkdown ? (
       <div dangerouslySetInnerHTML={{ __html: renderMarkdown(s) }} />
     ) : (
-      <p>{s}</p>
+      renderBlock(s)
     );
 
   switch (comp.type) {
@@ -1064,7 +1127,7 @@ function ComponentView({
       const body = (comp.body as string) || "";
       return (
         <div id={id} className={`c-callout c-callout-${variant}`}>
-          {title && <div className="c-callout-title">{title}</div>}
+          {title && <div className="c-callout-title">{renderInline(title)}</div>}
           <div className="c-callout-body c-markdown">{md(body)}</div>
         </div>
       );
@@ -1095,7 +1158,7 @@ function ComponentView({
                       </span>
                     )}
                   </div>
-                  {card.description && <p className="c-card-desc">{card.description}</p>}
+                  {card.description && <p className="c-card-desc">{renderInline(card.description)}</p>}
                 </Tag>
               </React.Fragment>
             );
@@ -1119,10 +1182,10 @@ function ComponentView({
           style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
         >
           {stats.map((s, i) => (
-            <div key={i} className="c-stat">
+            <div key={i} className={`c-stat${s.color && s.color !== "default" ? ` c-stat-${s.color}` : ""}`}>
               <div className="c-stat-label">{s.label}</div>
               <div className="c-stat-value">{s.value}</div>
-              {s.detail && <div className="c-stat-detail">{s.detail}</div>}
+              {s.detail && <div className="c-stat-detail">{renderInline(s.detail)}</div>}
             </div>
           ))}
         </div>
@@ -1143,8 +1206,8 @@ function ComponentView({
                 <div className="c-step-bullet" />
               )}
               <div>
-                <div className="c-step-title">{item.title}</div>
-                {item.detail && <div className="c-step-detail">{item.detail}</div>}
+                <div className="c-step-title">{renderInline(item.title)}</div>
+                {item.detail && <div className="c-step-detail">{renderInline(item.detail)}</div>}
               </div>
             </li>
           ))}
@@ -1205,7 +1268,7 @@ function ComponentView({
               {rows.map((row, ri) => (
                 <tr key={ri}>
                   {columns.map((col, ci) => (
-                    <td key={ci}>{String(row[col.key] ?? "")}</td>
+                    <td key={ci}>{renderInline(String(row[col.key] ?? ""))}</td>
                   ))}
                 </tr>
               ))}
@@ -1222,7 +1285,7 @@ function ComponentView({
           {fields.map((f, i) => (
             <div key={i} className="c-meta-item">
               <span className="c-meta-key">{f.key}</span>
-              <span className="c-meta-value">{f.value}</span>
+              <span className="c-meta-value">{renderInline(f.value)}</span>
             </div>
           ))}
         </div>
@@ -1253,7 +1316,7 @@ function ComponentView({
       const attribution = comp.attribution as string | undefined;
       return (
         <figure id={id} className="c-blockquote">
-          <blockquote><p>{body}</p></blockquote>
+          <blockquote><p>{renderInline(body)}</p></blockquote>
           {attribution && (
             <figcaption className="c-blockquote-attribution">— {attribution}</figcaption>
           )}
@@ -1462,7 +1525,7 @@ function ComponentView({
                   {ev.source && <span className="c-event-source">{ev.source}</span>}
                 </div>
                 <div className="c-event-title">{ev.link ? <a href={ev.link}>{ev.title}</a> : ev.title}</div>
-                {ev.summary && <p className="c-event-summary">{ev.summary}</p>}
+                {ev.summary && <p className="c-event-summary">{renderInline(ev.summary)}</p>}
               </div>
             </div>
           ))}
@@ -1507,10 +1570,10 @@ function ComponentView({
               <div key={i} className="sel-card">
                 {card.eyebrow && <div className="c-sel-eyebrow">{card.eyebrow}</div>}
                 <div className="c-sel-title">{card.title}</div>
-                {card.body && <div className="c-sel-body">{card.body}</div>}
+                {card.body && <div className="c-sel-body">{renderInline(card.body)}</div>}
                 {card.bullets && (
                   <ul className="c-sel-bullets">
-                    {card.bullets.map((b, bi) => <li key={bi}><span className="c-sel-bullet-dot" /><span>{b}</span></li>)}
+                    {card.bullets.map((b, bi) => <li key={bi}><span className="c-sel-bullet-dot" /><span>{renderInline(b)}</span></li>)}
                   </ul>
                 )}
               </div>
@@ -1527,7 +1590,7 @@ function ComponentView({
           {items.map((item, i) => (
             <a key={i} className="c-resource" href={item.href}>
               <div className="c-resource-title">{item.title}</div>
-              {item.description && <div className="c-resource-desc">{item.description}</div>}
+              {item.description && <div className="c-resource-desc">{renderInline(item.description)}</div>}
               {item.owner && <div className="c-resource-owner">{item.owner}</div>}
             </a>
           ))}
@@ -1553,7 +1616,7 @@ function ComponentView({
           {items.map((item, i) => (
             <div key={i} className="c-dl-row">
               <dt className="c-dl-term">{item.term}</dt>
-              <dd className="c-dl-def">{item.definition}</dd>
+              <dd className="c-dl-def">{renderInline(item.definition)}</dd>
             </div>
           ))}
         </dl>
@@ -1648,7 +1711,7 @@ function ComponentView({
       return (
         <div id={id} className="c-empty-state">
           <h3 className="c-empty-title">{title}</h3>
-          {body && <p className="c-empty-body">{body}</p>}
+          {body && <p className="c-empty-body">{renderInline(body)}</p>}
           {action && <a className="c-btn c-btn-primary" href={action.href}>{action.label}</a>}
         </div>
       );
@@ -1711,7 +1774,57 @@ function ComponentView({
   }
 }
 
+function DeckRenderer({ slides, renderMarkdown }: { slides: SlideData[]; renderMarkdown?: (md: string) => string }) {
+  const [current, setCurrent] = React.useState(0);
+  const trackRef = React.useRef<HTMLDivElement>(null);
+
+  const go = React.useCallback((n: number) => {
+    setCurrent(Math.max(0, Math.min(slides.length - 1, n)));
+  }, [slides.length]);
+
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") setCurrent(c => Math.min(slides.length - 1, c + 1));
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") setCurrent(c => Math.max(0, c - 1));
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [slides.length]);
+
+  React.useEffect(() => {
+    document.body.classList.add("shell-deck");
+    return () => { document.body.classList.remove("shell-deck"); };
+  }, []);
+
+  return (
+    <div className="deck-root">
+      <div className="deck-viewport">
+        <div className="deck-track" ref={trackRef} style={{ transform: `translateX(-${current * 100}%)` }}>
+          {slides.map((slide, si) => (
+            <div key={si} className={`deck-slide${slide.hide_label || slide.cover ? " deck-slide-cover" : ""}`} data-label={slide.label}>
+              <div className="deck-inner">
+                {!slide.hide_label && <div className="deck-label">{slide.label}</div>}
+                {(slide.components ?? []).map((comp, ci) => (
+                  <ComponentView key={ci} comp={comp} index={ci} renderMarkdown={renderMarkdown} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="deck-nav">
+        <button className="deck-arrow deck-prev" onClick={() => go(current - 1)} style={current === 0 ? { visibility: "hidden" } : undefined}>← {slides[current - 1]?.label}</button>
+        <span className="deck-nav-label">{slides[current]?.label}</span>
+        <button className="deck-arrow deck-next" onClick={() => go(current + 1)} style={current >= slides.length - 1 ? { visibility: "hidden" } : undefined}>{slides[current + 1]?.label} →</button>
+      </div>
+    </div>
+  );
+}
+
 export function PageRenderer({ page, renderMarkdown }: PageRendererProps) {
+  if (page.shell === "deck" && page.slides && page.slides.length > 0) {
+    return <DeckRenderer slides={page.slides} renderMarkdown={renderMarkdown} />;
+  }
   const components = page.components ?? [];
   return (
     <div>
@@ -1722,7 +1835,7 @@ export function PageRenderer({ page, renderMarkdown }: PageRendererProps) {
   );
 }
 
-export { ComponentView, type PageData, type ComponentData, type PageRendererProps };
+export { ComponentView, DeckRenderer, type SlideData, type PageData, type ComponentData, type PageRendererProps };
 "##
     .to_string()
 }
