@@ -1038,6 +1038,12 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+const _assetBase = typeof process !== "undefined" && process.env?.NEXT_PUBLIC_BASE_PATH || "";
+function assetSrc(src: string): string {
+  if (_assetBase && src.startsWith("/") && !src.startsWith("//")) return _assetBase + src;
+  return src;
+}
+
 function renderInline(text: string): React.ReactNode[] {
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
   const parts: React.ReactNode[] = [];
@@ -1105,7 +1111,7 @@ function renderBlock(text: string): React.ReactElement {
       flushList();
       const alt = trimmed.slice(2, trimmed.indexOf("]("));
       const src = trimmed.slice(trimmed.indexOf("](") + 2, -1);
-      elements.push(<img key={key++} src={src} alt={alt} />);
+      elements.push(<img key={key++} src={assetSrc(src)} alt={alt} />);
     } else if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
       flushList();
       elements.push(<hr key={key++} />);
@@ -1302,7 +1308,7 @@ function ComponentView({
       const caption = comp.caption as string | undefined;
       return (
         <figure id={id} className="c-image">
-          <img src={src} alt={alt} />
+          <img src={assetSrc(src)} alt={alt} />
           {caption && <figcaption>{caption}</figcaption>}
         </figure>
       );
@@ -1686,7 +1692,7 @@ function ComponentView({
         return (
           <div id={id} className="c-avatar-row">
             <div className={`c-avatar c-avatar-${sizeClass}`}>
-              {src ? <img src={src} alt={name} /> : <span className="c-avatar-initials">{initials}</span>}
+              {src ? <img src={assetSrc(src)} alt={name} /> : <span className="c-avatar-initials">{initials}</span>}
             </div>
             <div className="c-avatar-meta">
               <div className="c-avatar-name">{name}</div>
@@ -1697,7 +1703,7 @@ function ComponentView({
       }
       return (
         <div id={id} className={`c-avatar c-avatar-${sizeClass}`}>
-          {src ? <img src={src} alt={name} /> : <span className="c-avatar-initials">{initials}</span>}
+          {src ? <img src={assetSrc(src)} alt={name} /> : <span className="c-avatar-initials">{initials}</span>}
         </div>
       );
     }
@@ -1714,7 +1720,7 @@ function ComponentView({
             const initials = a.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
             return (
               <div key={i} className={`c-avatar c-avatar-${sizeClass}`} title={a.name}>
-                {a.src ? <img src={a.src} alt={a.name} /> : <span className="c-avatar-initials">{initials}</span>}
+                {a.src ? <img src={assetSrc(a.src)} alt={a.name} /> : <span className="c-avatar-initials">{initials}</span>}
               </div>
             );
           })}
