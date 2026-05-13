@@ -1187,17 +1187,22 @@ fn render_annotations_section(anns: &[crate::types::Annotation], today: &str) ->
         let section_tag = ann
             .section
             .as_deref()
-            .map(|s| format!(r#" <span class="c-annotation-section">{}</span>"#, s))
+            .map(|s| {
+                format!(
+                    r#" <span class="c-annotation-section">{}</span>"#,
+                    render::esc(s)
+                )
+            })
             .unwrap_or_default();
 
         html.push_str(&format!(
             r#"<div class="c-annotation {age_class}"><div class="c-annotation-meta"><span class="c-annotation-author">{author}</span>{section}{badge} <span class="c-annotation-age">{age}</span></div><div class="c-annotation-text">{text}</div></div>"#,
             age_class = age_class,
-            author = ann.author,
+            author = render::esc(&ann.author),
             section = section_tag,
             badge = status_badge,
             age = age_label,
-            text = ann.text,
+            text = render::esc(&ann.text),
         ));
     }
     html.push_str("</div></section>");

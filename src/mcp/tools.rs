@@ -203,6 +203,18 @@ pub fn read_page(dir: &Path, params: &Value) -> Result<ToolResult> {
         return Ok(ToolResult::error(format!("file not found: {}", path_str)));
     }
 
+    // Verify the resolved path stays inside the site directory (guards against
+    // symlink-based escapes and other canonicalization surprises).
+    let site_root = dir
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("canonicalizing site dir: {}", e))?;
+    let canonical = full_path
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("canonicalizing path: {}", e))?;
+    if !canonical.starts_with(&site_root) {
+        return Ok(ToolResult::error("path escapes site directory"));
+    }
+
     let content = std::fs::read_to_string(&full_path)
         .map_err(|e| anyhow::anyhow!("reading {}: {}", path_str, e))?;
 
@@ -444,6 +456,29 @@ pub fn write_page(dir: &Path, params: &Value, allow_writes: bool) -> Result<Tool
     if let Some(parent) = full_path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| anyhow::anyhow!("creating directories: {}", e))?;
+    }
+
+    // Verify the resolved path stays inside the site directory (guards against
+    // symlink-based escapes and other canonicalization surprises). We
+    // canonicalize the parent (which now exists after create_dir_all) and
+    // append the filename so the target file itself need not exist yet.
+    {
+        let site_root = dir
+            .canonicalize()
+            .map_err(|e| anyhow::anyhow!("canonicalizing site dir: {}", e))?;
+        let canonical_parent = full_path
+            .parent()
+            .unwrap_or(dir)
+            .canonicalize()
+            .map_err(|e| anyhow::anyhow!("canonicalizing parent dir: {}", e))?;
+        let canonical_target = canonical_parent.join(
+            full_path
+                .file_name()
+                .ok_or_else(|| anyhow::anyhow!("path has no filename"))?,
+        );
+        if !canonical_target.starts_with(&site_root) {
+            return Ok(ToolResult::error("path escapes site directory"));
+        }
     }
 
     std::fs::write(&full_path, content)
