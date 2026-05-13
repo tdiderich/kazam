@@ -1,0 +1,1673 @@
+tasks:
+- id: kz-c0c2
+  title: Rewrite README.md — lead with dual identity, new tagline, Agent Workspace section with 3 pillars + benchmarks
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Current README is 100% static-site-gen. Restructure: tagline → install → dual quickstart (workspace + site) → workspace section (pillars: token optimization, work tracking, visual board) → site gen section → docs links'
+  created: 2026-04-30T14:57:54.076460-05:00
+  updated: 2026-04-30T15:06:53.057872-05:00
+  closed: 2026-04-30T15:06:53.057872-05:00
+  close_reason: 'Rewrote README: workspace-first positioning, tagline, benchmarks table, dual quickstart'
+- id: kz-7ab4
+  title: Update Cargo.toml — description, keywords, version bump to 1.3.0
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Description: add workspace/agent angle. Keywords: add agent, workspace, context. Categories: keep existing. Version: 1.2.2 → 1.3.0'
+  created: 2026-04-30T14:57:54.100339-05:00
+  updated: 2026-04-30T15:14:42.189840-05:00
+  closed: 2026-04-30T15:14:42.189840-05:00
+  close_reason: Bumped version to 1.3.0, updated description and keywords
+- id: kz-8be4
+  title: Create docs/workspace.yaml — full workspace docs page
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Sections: what + why → install (workspace init) → anatomy (two-tier, describe) → task tracking (add/claim/close/block/ready) → board → hooks → benchmark results table'
+  created: 2026-04-30T14:57:54.110899-05:00
+  updated: 2026-04-30T15:15:15.801865-05:00
+  closed: 2026-04-30T15:15:15.801865-05:00
+  close_reason: 'Created docs/workspace.yaml with all 9 sections: header, why, quickstart, anatomy, tracking, board, hooks, benchmarks, next-up'
+- id: kz-89d6
+  title: Update docs/index.yaml — add workspace card, adjust heading
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Add Agent Workspace card to use-cases grid. Consider adjusting the page title/subtitle to reflect dual identity
+  created: 2026-04-30T14:57:54.119151-05:00
+  updated: 2026-04-30T15:14:27.395612-05:00
+  closed: 2026-04-30T15:14:27.395612-05:00
+  close_reason: Added workspace card to docs/index.yaml, updated page title and subtitle
+- id: kz-f049
+  title: Update docs/kazam.yaml nav — add Workspace entry
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  created: 2026-04-30T14:57:54.127363-05:00
+  updated: 2026-04-30T15:14:11.351899-05:00
+  closed: 2026-04-30T15:14:11.351899-05:00
+  close_reason: Added Workspace nav entry to docs/kazam.yaml
+- id: kz-6a7d
+  title: Update docs/about.yaml — cross-link to workspace docs
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Add a section or callout pointing to workspace.yaml for the agent workspace story
+  created: 2026-04-30T14:57:54.135597-05:00
+  updated: 2026-04-30T15:14:42.180693-05:00
+  closed: 2026-04-30T15:14:42.180693-05:00
+  close_reason: Added workspace callout to docs/about.yaml above the existing next-up callout
+- id: kz-171a
+  title: Write CHANGELOG [1.3.0] — workspace features
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: workspace init, two-tier anatomy, task tracking, board, hooks, settings merge fix, workspace rules
+  created: 2026-04-30T14:57:54.143826-05:00
+  updated: 2026-04-30T15:14:42.197970-05:00
+  closed: 2026-04-30T15:14:42.197970-05:00
+  close_reason: Wrote CHANGELOG [1.3.0] entry with all workspace features
+- id: kz-159d
+  title: Update AGENTS.md.template — mention workspace features
+  status: closed
+  priority: 3
+  task_type: task
+  assignee: claude
+  note: kazam agents output should mention workspace init for repos that want agent context intelligence
+  created: 2026-04-30T14:57:54.151643-05:00
+  updated: 2026-04-30T15:14:56.172768-05:00
+  closed: 2026-04-30T15:14:56.172768-05:00
+  close_reason: Updated AGENTS.md.template intro to mention workspace features
+- id: kz-4643
+  title: Rewrite docs/index.yaml — workspace-first hero, three pillars with benchmarks, condensed site-gen section, dual quickstart
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Lead with agent workspace story. Hero: three pillars (tokens, tracking, visibility). Benchmark stat_grid. Site gen condensed to one section. Two-paths: workspace quickstart vs site quickstart.'
+  created: 2026-04-30T16:04:42.274316-05:00
+  updated: 2026-04-30T19:45:52.004599-05:00
+  closed: 2026-04-30T19:45:52.004599-05:00
+  close_reason: 'Rewrote index.yaml: workspace-first hero, three pillars, stat_grid, condensed site-gen, dual quickstart'
+- id: kz-af18
+  title: Rewrite docs/guide.yaml — dual-path quickstart with tabs
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Install section stays. Add tabs: Agent Workspace tab (workspace init + board) vs Static Sites tab (existing scaffold/dev/build). Each tab ends with next-up callout to its deep-dive page.'
+  created: 2026-04-30T16:04:42.287744-05:00
+  updated: 2026-04-30T19:45:52.013467-05:00
+  closed: 2026-04-30T19:45:52.013467-05:00
+  close_reason: 'Rewrote guide.yaml: install tabs kept, dual-path tabs with workspace and site callouts'
+- id: kz-6dc5
+  title: Retitle + refocus docs/about.yaml — rename to Site Guide, remove workspace callout
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Rename from Full Tour to Site Guide. Remove tacked-on workspace callout (workspace has its own page). This is the site-gen deep dive — that's fine.
+  created: 2026-04-30T16:04:42.296643-05:00
+  updated: 2026-04-30T19:47:24.357734-05:00
+  closed: 2026-04-30T19:47:24.357734-05:00
+  close_reason: Retitled to Site Guide, removed workspace callout (workspace has its own page)
+- id: kz-ee65
+  title: Polish docs/workspace.yaml — add corrections, consolidation, rules-override sections
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Add sections for kazam ctx correction, kazam ctx consolidate, and .kazam/ctx/rules-override.md. These shipped in 1.3.0 but aren't documented.
+  created: 2026-04-30T16:04:42.306102-05:00
+  updated: 2026-04-30T19:47:24.367726-05:00
+  closed: 2026-04-30T19:47:24.367726-05:00
+  close_reason: Added corrections, consolidation, and rules-override sections to workspace.yaml
+- id: kz-276d
+  title: Restructure docs/kazam.yaml nav — promote Workspace, group site-gen under Sites
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Nav: Home → Get Started → Workspace → Sites (Site Guide, Themes, Deploy) → Recipes → Components. Workspace promoted to first-class.'
+  created: 2026-04-30T16:04:42.316965-05:00
+  updated: 2026-04-30T19:45:51.995282-05:00
+  closed: 2026-04-30T19:45:51.995282-05:00
+  close_reason: 'Nav restructured: Home → Get Started → Workspace → Sites (Site Guide, Themes, Deploy) → Recipes → Components'
+- id: kz-4452
+  title: Polish README.md flow — tighten site-gen section, add corrections/consolidation/override
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Site-gen section is secondary, tighten it. Add one-liners about corrections, consolidation, rules-override in workspace section.
+  created: 2026-04-30T16:04:42.327437-05:00
+  updated: 2026-04-30T19:47:24.375923-05:00
+  closed: 2026-04-30T19:47:24.375923-05:00
+  close_reason: Tightened site-gen section in README, added corrections/consolidation/override to workspace section
+- id: kz-57a7
+  title: Verify docs/freshness.yaml fits new nav structure
+  status: closed
+  priority: 3
+  task_type: task
+  assignee: claude
+  note: Freshness is site-gen feature — should live under Sites nav group
+  created: 2026-04-30T16:04:42.337865-05:00
+  updated: 2026-04-30T19:47:24.383813-05:00
+  closed: 2026-04-30T19:47:24.383813-05:00
+  close_reason: Verified — freshness has no internal links, sits correctly under Recipes in new nav
+- id: kz-f238
+  title: Evaluate anatomy format — YAML vs CSV/TSV for lower token cost
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'YAML anatomy feels bloated. Consider CSV, TSV, or another compact format that uses less context. Compare token counts for a real repo. Tradeoff: readability vs token efficiency. Think through agent ergonomics — can agents parse CSV as easily?'
+  created: 2026-04-30T19:45:46.280331-05:00
+  updated: 2026-05-01T08:05:20.297093-05:00
+  closed: 2026-05-01T08:05:20.297093-05:00
+  close_reason: 'Switched anatomy from YAML to TSV: ~60-80% fewer tokens per read. Summary anatomy.tsv + detail anatomy/<dir>.tsv. Tab sanitization guard. Flat store stays YAML for board. All docs/rules/AGENTS.md updated. 138 tests passing.'
+- id: kz-2bee
+  title: 'Benchmark: atlas-find-endpoint — 63k-file monorepo, read-only navigation'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'atlas_universe. Prompt traces a demo provisioning endpoint through route→service→db. Read-only, pure navigation. Expect biggest kazam advantage here. Run: ./benchmarks/run.sh atlas-find-endpoint'
+  created: 2026-05-01T08:16:22.103302-05:00
+  updated: 2026-05-01T10:17:16.963442-05:00
+  closed: 2026-05-01T10:17:16.963442-05:00
+  close_reason: Dropped — atlas already has good agent context, unfair comparison
+- id: kz-179f
+  title: 'Benchmark: ops-add-flag — 8k-file tools repo, add CLI flag'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Ops---Internal-Tooling. Prompt adds --days flag to Customer Reporting CLI. Navigation-heavy in a sprawling repo + targeted code change. Run: ./benchmarks/run.sh ops-add-flag'
+  created: 2026-05-01T08:16:22.109795-05:00
+  updated: 2026-05-01T10:17:16.977066-05:00
+  closed: 2026-05-01T10:17:16.977066-05:00
+  close_reason: 'Complete: 45% cheaper, 41% faster, 81% input reduction'
+- id: kz-5fee
+  title: 'Benchmark: plugins-new-skill — 126-file plugin repo, scaffold from patterns'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'maze-claude-plugins. Prompt scaffolds a new skill matching existing conventions. Tests pattern discovery. Medium repo. Run: ./benchmarks/run.sh plugins-new-skill'
+  created: 2026-05-01T08:16:22.115124-05:00
+  updated: 2026-05-01T10:17:16.988461-05:00
+  closed: 2026-05-01T10:17:16.988461-05:00
+  close_reason: 'Complete: 44% cheaper, 59% faster, 92% input reduction'
+- id: kz-16ec
+  title: 'Benchmark: curata-fix-bug — 89-file React/TS app, targeted UI bug fix'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'curata. Prompt fixes template preview reactivity. Small repo, targeted task — expect smallest kazam advantage (control case). Run: ./benchmarks/run.sh curata-fix-bug'
+  created: 2026-05-01T08:16:22.120785-05:00
+  updated: 2026-05-01T10:17:17.000314-05:00
+  closed: 2026-05-01T10:17:17.000314-05:00
+  close_reason: 'Complete: 46% cheaper, 47% faster, 94% input reduction'
+- id: kz-04bd
+  title: 'Benchmark: tshub-cross-cutting — 233-file Python repo, multi-file model change'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'technical-success-hub. Prompt adds last_synced to all customer models. Cross-cutting change, agent must find all touch points. Run: ./benchmarks/run.sh tshub-cross-cutting'
+  created: 2026-05-01T08:16:22.125889-05:00
+  updated: 2026-05-01T10:17:17.012969-05:00
+  closed: 2026-05-01T10:17:17.012969-05:00
+  close_reason: 'Complete: 45% cheaper, 44% faster, 91% input reduction'
+- id: kz-2e1b
+  title: MCP Server — embed stdio MCP server in kazam binary
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Subcommand: kazam mcp. Transport: stdio (subprocess model for Claude Desktop/Cursor). Read-only tools first: read_page, list_pages, search, get_config. Write tools gated behind --allow-writes flag (validate → write → commit). Operates on single site (cwd). JSON-schema descriptions on every tool for agent self-discovery. Dependency: schema validation should land first for write_page self-correction, but read-only server can ship independently.'
+  created: 2026-05-02T20:16:08.635537-05:00
+  updated: 2026-05-02T21:01:25.282770-05:00
+  closed: 2026-05-02T21:01:25.282770-05:00
+  close_reason: MCP server merged — stdio JSON-RPC 2.0 with read/write tools
+- id: kz-1aad
+  title: site.json manifest — emit structured page index during build
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'During kazam build, emit _site/site.json alongside HTML. Contents per page: path, title, description, tags, last_updated, component types used. Turns static site into a headless API any agent can query over plain HTTP. Universal fallback for agents that don''t speak MCP. Also powers future drift dashboard. Optional --no-manifest flag to skip. Schema should be stable and documented. JSON not YAML — it''s an output contract, not an authoring surface.'
+  created: 2026-05-02T20:16:49.908191-05:00
+  updated: 2026-05-02T21:01:25.289895-05:00
+  closed: 2026-05-02T21:01:25.289895-05:00
+  close_reason: site.json manifest emitted during build, --no-manifest flag
+- id: kz-8405
+  title: JSON build output — kazam build --json flag
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Add --json flag to kazam build. Emits NDJSON (one JSON object per line) to stdout instead of human-readable output. Event types: build_start, page_built, page_error, warning, build_complete (with summary stats). Human output remains default. Follows convention of gh/docker/kubectl. Enables CI/CD orchestrators and agent loops to parse build results programmatically without regex.'
+  created: 2026-05-02T20:17:52.887360-05:00
+  updated: 2026-05-02T21:01:30.154201-05:00
+  closed: 2026-05-02T21:01:30.154201-05:00
+  close_reason: NDJSON build output flag merged
+- id: kz-3a92
+  title: Strict YAML schema validation — kazam validate command
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Deep validation of page YAML against site''s component schemas. Two surfaces: standalone kazam validate subcommand (JSON output by default, --pretty for human-readable) and integrated into kazam build (errors fail build, warnings don''t). Error format: JSON with file, line, path (YAML keypath like sections[2].items[0].label), error_type, message, suggestion. Suggestion field enables agent self-correction loop. Validates: required fields per component type, value types, enum constraints, structural rules. Schema derived from existing component registry — no separate schema files. Foundation for MCP write_page tool.'
+  created: 2026-05-02T20:18:12.960455-05:00
+  updated: 2026-05-02T21:01:30.162326-05:00
+  closed: 2026-05-02T21:01:30.162326-05:00
+  close_reason: kazam validate subcommand with component schema validation
+- id: kz-d46c
+  title: Built-in static search index — search.json emission during build
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'During kazam build, emit _site/search.json — a lightweight inverted index. Sources per page: title, description, headings, content snippets, and author-provided search_terms array from page YAML frontmatter. search_terms lets authors add aliases/acronyms/jargon that don''t appear in rendered content. Zero external dependencies — no Pagefind, keeps single-binary promise. MCP search tool and client-side JS widget both consume the same search.json. Optional --no-search flag to skip. Simple JS search widget available as a kazam component.'
+  created: 2026-05-02T20:20:21.007539-05:00
+  updated: 2026-05-02T21:01:18.172778-05:00
+  closed: 2026-05-02T21:01:18.172778-05:00
+  close_reason: search.json integrated into build pipeline with --no-search flag
+- id: kz-89cc
+  title: Freshness field + decay metrics command
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Optional freshness field in page YAML. Valid values: a date (e.g. freshness: 2026-05-02) or "never". Default when omitted: "never" (no breaking change). Build emits a warning for pages missing freshness to nudge authors toward setting it. "never" pages skip decay checks, excluded from kazam freshness reports, shown separately in drift dashboard. Add kazam freshness command: reports pages past configurable threshold (freshness_days in site config, default 90). JSON output by default, --pretty for humans. Per-page freshness and days_since_update included in site.json manifest. Powers drift dashboard for the retainer business model.'
+  created: 2026-05-02T20:21:15.027327-05:00
+  updated: 2026-05-02T21:01:18.181720-05:00
+  closed: 2026-05-02T21:01:18.181720-05:00
+  close_reason: FreshnessValue enum with never opt-out, kazam freshness subcommand
+- id: kz-47bc
+  title: Global voice configuration — brand voice rules in site config
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'Add voice section to site config YAML. Fields: tone (string), reading_level (string), terminology.prefer (map of replacements), terminology.avoid (list of banned terms). Included in agent system prompts automatically when authoring content. Config only for now — enforcement/linting against voice rules is a follow-on. Ensures consistent output across multiple agent and human authors.'
+  created: 2026-05-02T20:22:35.711469-05:00
+  updated: 2026-05-02T21:01:18.188337-05:00
+  closed: 2026-05-02T21:01:18.188337-05:00
+  close_reason: Voice struct on SiteConfig, kazam voice subcommand
+- id: kz-cd9e
+  title: Prompt-as-code — version-controlled agent prompts in repo
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'Store agent system prompts as YAML in a prompts/ directory convention. Schema: name, description, model (optional), system_prompt, tools (optional list). Version-controlled alongside content — prompt changes go through same Git review flow. MCP server exposes list_prompts and get_prompt tools so agents always pull latest instructions from repo. kazam validate covers prompt files. Like skills but context-aware — prompts can reference the site''s voice config, component schemas, and content structure.'
+  created: 2026-05-02T20:23:59.491408-05:00
+  updated: 2026-05-02T21:01:18.194153-05:00
+  closed: 2026-05-02T21:01:18.194153-05:00
+  close_reason: kazam prompt list/show/init with prompts/ directory
+- id: kz-8a96
+  title: GitHub Action templates — CI hooks that invoke prompt templates
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'Pre-built GitHub Actions that trigger kazam prompt templates on repo events. Examples: on PR merge → run a prompt template to update relevant docs, on schedule (weekly) → kazam freshness posts drift report to an issue, on push → kazam validate as CI linter. Replaces kazam wish as the ingestion mechanism — prompts define what to do, actions define when. Low effort (templated YAML), first concrete ingestion hook from Company Brain plan. Depends on prompt-as-code (kz-cd9e) landing first.'
+  created: 2026-05-02T20:25:53.811227-05:00
+  updated: 2026-05-02T21:01:18.199276-05:00
+  closed: 2026-05-02T21:01:18.199276-05:00
+  close_reason: kazam actions list/init for GH workflow templates
+- id: kz-39a9
+  title: Concurrent write protection — MCP server page locking
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'MCP server acquires per-page lock before writing, releases after commit. If another agent targets the same page, server queues or rejects with clear message (page X being edited by agent Y, retry in N seconds). Goal: hide Git merge conflicts from users entirely — kazam handles concurrency so customers never think about it. Start with in-memory lock table in MCP server process (single-server case). Upgrade to file-based or distributed lock if/when multiple MCP server instances needed. No user-facing LOCK.yaml file.'
+  created: 2026-05-02T20:27:30.067225-05:00
+  updated: 2026-05-02T20:28:07.873316-05:00
+  closed: 2026-05-02T20:28:07.873316-05:00
+  close_reason: Dropped — CI serializes writes via PR flow, Git conflict resolution + agent retry is sufficient. No custom locking needed.
+- id: kz-d3f5
+  title: Page references + ownership — link content back to sources
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'Optional references array in page YAML: each entry has url and note (e.g. PR link, Slack thread, meeting notes). Optional owner field (string) for who is responsible for the page. References rendered as Sources section on the page. Agents append to references automatically when editing via MCP. kazam freshness can report pages with no owner. Goal: when someone reads a page and asks ''why is it this way?'' the breadcrumbs are right there. Replaces the original provenance metadata idea — Git blame handles who/when, references handle why/where.'
+  created: 2026-05-02T20:29:51.222042-05:00
+  updated: 2026-05-02T21:01:18.204371-05:00
+  closed: 2026-05-02T21:01:18.204371-05:00
+  close_reason: Page.owner + Page.references with rendered references section
+- id: kz-0002
+  title: Content zones / RBAC — product-level requirement (not CLI)
+  status: closed
+  priority: 3
+  task_type: task
+  owner: human
+  parent: kz-d9ed
+  note: RBAC via content zones is critical for Company Brain product but implemented at the Git/platform layer (CODEOWNERS, branch protection rules), not inside kazam binary. This is a setup/consulting deliverable when onboarding a customer, not a feature to build. May later need kazam tooling to scaffold CODEOWNERS from site structure, but that's a follow-on. Crypto signing and node-level encryption are not needed — Git commit signing and repo access control cover those.
+  created: 2026-05-02T20:32:37.801515-05:00
+  updated: 2026-05-06T16:20:54.332129-05:00
+  closed: 2026-05-06T16:20:54.332129-05:00
+  close_reason: Migrated to PRODUCT.md — covered by Auth (SSO / magic link) in Self-Managed tier
+- id: kz-8d1d
+  title: /migrate prompt template — onboard existing KB into kazam
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Prompt template: prompts/migrate.yaml. Takes existing docs (PDFs, wikis, Notion exports, markdown) and structures them into kazam YAML pages. Knows the component schema, voice config, and freshness conventions. Outputs valid YAML with proper freshness, owner, and references. One-time use per customer — this is the setup fee as a command. Depends on: prompt-as-code (kz-cd9e), MCP server (kz-2e1b), voice config (kz-47bc).'
+  created: 2026-05-02T20:53:05.103590-05:00
+  updated: 2026-05-02T21:02:55.660818-05:00
+  closed: 2026-05-02T21:02:55.660818-05:00
+  close_reason: migrate.yaml prompt template with full onboarding flow
+- id: kz-1c9f
+  title: /refresh prompt template — autonomous freshness loop
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Prompt template: prompts/refresh.yaml. Flow: kazam freshness --json → filter pages stale by X days → for each, pull sources_of_truth via MCPs (Slack, GitHub, Granola) → diff against current page content → propose updates as PR. Uses: freshness.updated for staleness, freshness.sources_of_truth for where to look, freshness.owner for who to ping, MCP server for read/write, agent MCPs for real-world context. Can run as weekly GitHub Action for autonomous freshness. This is the retainer value engine. Depends on: freshness (kz-89cc), MCP server (kz-2e1b), prompt-as-code (kz-cd9e), references (kz-d3f5).'
+  created: 2026-05-02T20:53:08.680051-05:00
+  updated: 2026-05-02T21:02:55.669117-05:00
+  closed: 2026-05-02T21:02:55.669117-05:00
+  close_reason: refresh.yaml prompt template for autonomous freshness loop
+- id: kz-d5b7
+  title: /add prompt template — guided new page creation
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Prompt template: prompts/add.yaml. Chat with the agent about what you want, drop in reference materials (Slack threads, PRs, meeting notes). Agent scaffolds a new page with correct components, voice, freshness metadata, owner, and references. Basically kazam prompt show writer piped into an agent with MCP access. Interactive by default, can also accept ref materials as input for batch creation. Depends on: prompt-as-code (kz-cd9e), MCP server (kz-2e1b), voice config (kz-47bc), references (kz-d3f5).'
+  created: 2026-05-02T20:53:10.322694-05:00
+  updated: 2026-05-02T21:02:55.675982-05:00
+  closed: 2026-05-02T21:02:55.675982-05:00
+  close_reason: add.yaml prompt template for guided page creation
+- id: kz-2599
+  title: /audit prompt template — drift dashboard and health report
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'Prompt template: prompts/audit.yaml. Runs kazam freshness + cross-references sources_of_truth for broken links + checks for pages with no owner + identifies pages with no references. Outputs a structured report that justifies the retainer fee. Show to customers monthly. Can run as monthly GitHub Action. Feeds into the drift dashboard concept from the Company Brain plan. Depends on: freshness (kz-89cc), references (kz-d3f5), prompt-as-code (kz-cd9e).'
+  created: 2026-05-02T20:53:13.093853-05:00
+  updated: 2026-05-02T21:02:55.681780-05:00
+  closed: 2026-05-02T21:02:55.681780-05:00
+  close_reason: audit.yaml prompt template for KB health reports
+- id: kz-06cd
+  title: Migrate plain-docs → maze-docs kazam site
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Convert 53 VitePress markdown docs from ~/maze-repos/plain-docs to kazam YAML at ~/maze-repos/maze-docs. Map code repos (deployment_guide, atlas_universe) as sources_of_truth. Track freshness: code changes → doc staleness, new code → new doc needed?, human deps (videos/demos) flagged separately.'
+  created: 2026-05-02T21:05:52.636859-05:00
+  updated: 2026-05-06T13:38:02.268041-05:00
+  closed: 2026-05-06T13:38:02.268041-05:00
+  close_reason: All 52 pages migrated from plain-docs to kazam YAML with freshness metadata, sources_of_truth, screenshots, and consistent voice
+- id: kz-d56c
+  title: Scan source repos — map code to docs
+  status: closed
+  priority: 1
+  task_type: task
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: 'Use haiku agents to scan deployment_guide + atlas_universe structure. Build a mapping: which code files are sources of truth for which doc pages. Also scan plain-docs to inventory all 53 pages, their categories, and content type.'
+  created: 2026-05-02T21:06:00.356745-05:00
+  updated: 2026-05-03T12:29:07.486054-05:00
+  closed: 2026-05-03T12:29:07.486054-05:00
+  close_reason: 'Scanned all 3 repos: 51 md pages inventoried, deployment_guide has CF/TF/SSM/Azure templates, atlas_universe has maze_api/maze_webhooks/maze_scanner_findings_processor/maze-portal/maze_ownership/maze_remediation/maze_csv_loader apps'
+- id: kz-0bed
+  title: Scaffold kazam site — kazam.yaml + nav + voice
+  status: closed
+  priority: 1
+  task_type: task
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: mkdir ~/maze-repos/maze-docs, git init, create kazam.yaml with name, theme, voice (direct/technical/no-fluff), nav structure matching plain-docs categories. Create prompts/ dir with the standard templates.
+  created: 2026-05-02T21:06:02.653739-05:00
+  updated: 2026-05-03T12:29:05.474804-05:00
+  closed: 2026-05-03T12:29:05.474804-05:00
+  close_reason: Created kazam.yaml with TSH theme (dark, dots texture, accent glow, Maze colors/logo), full sidebar nav for all 51 pages, voice config, git init + first commit
+- id: kz-989b
+  title: Convert docs batch 1 — welcome-to-maze + reference
+  status: closed
+  priority: 1
+  task_type: task
+  parent: Migrate plain-docs → maze-docs kazam site
+  blocks:
+  - Build + review + final commit
+  note: 'Sonnet agent: convert welcome-to-maze (5 pages) + reference (4 pages). Set freshness, owner, references, search_terms on every page.'
+  created: 2026-05-02T21:06:21.996017-05:00
+  updated: 2026-05-03T12:42:19.159379-05:00
+  closed: 2026-05-03T12:42:19.159379-05:00
+  close_reason: '9 pages converted: welcome-to-maze (5) + reference (4). Uses steps, tables, accordion components.'
+- id: kz-894f
+  title: Convert docs batch 2 — scanners + environments
+  status: closed
+  priority: 1
+  task_type: task
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: 'Sonnet agent: convert scanners (6 pages) + environments (2 pages). Monthly review cadence, reference deployment_guide files.'
+  created: 2026-05-02T21:06:23.770245-05:00
+  updated: 2026-05-03T12:42:19.169805-05:00
+  closed: 2026-05-03T12:42:19.169805-05:00
+  close_reason: '15 pages converted: scanners (6) + environments (9). Steps, tables for deployment guides.'
+- id: kz-3eec
+  title: Convert docs batch 3 — workflows + compensating-controls
+  status: closed
+  priority: 1
+  task_type: task
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: 'Sonnet agent: convert workflows (4 pages) + compensating-controls (1 page). Reference atlas_universe for integration code.'
+  created: 2026-05-02T21:06:25.584487-05:00
+  updated: 2026-05-03T12:42:19.177520-05:00
+  closed: 2026-05-03T12:42:19.177520-05:00
+  close_reason: '12 pages converted: workflows (11) + compensating-controls (1). Jira configs, webhook payloads, Cloudflare setup.'
+- id: kz-000a
+  title: Convert docs batch 4 — maze-user-guide + security
+  status: closed
+  priority: 1
+  task_type: task
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: 'Sonnet agent: convert maze-user-guide (portal-navigation, tips-tricks — ~10+ pages) + security-data-privacy (2 pages). Reference atlas_universe frontend code.'
+  created: 2026-05-02T21:06:27.510943-05:00
+  updated: 2026-05-03T12:42:19.183664-05:00
+  closed: 2026-05-03T12:42:19.183664-05:00
+  close_reason: '15 pages converted: user-guide (13) + security (2). Portal nav, admin, SSO pages.'
+- id: kz-7071
+  title: Convert docs batch 5 — root pages + API + remaining
+  status: closed
+  priority: 1
+  task_type: task
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: 'Sonnet agent: convert init.md, plain-api.md, and any remaining pages not covered by batches 1-4.'
+  created: 2026-05-02T21:06:29.268852-05:00
+  updated: 2026-05-03T12:42:19.189868-05:00
+  closed: 2026-05-03T12:42:19.189868-05:00
+  close_reason: Index page created. Removed plain-api.yaml and init.yaml (internal Plain CMS tooling, not customer docs).
+- id: kz-e8d4
+  title: Wire sources_of_truth from code scan results
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: After code scan + page conversion, update each page freshness.sources_of_truth with specific file paths from deployment_guide and atlas_universe. This is what makes the /refresh loop work.
+  created: 2026-05-02T21:06:30.907496-05:00
+  updated: 2026-05-06T08:52:33.843513-05:00
+  closed: 2026-05-06T08:52:33.843513-05:00
+  close_reason: 'Wired specific file-level sources_of_truth across all 52 maze-docs pages. Mapped deployment_guide templates/scripts/vars and atlas_universe apps/connectors/services. Normalized all hrefs to full GitHub URLs. Added missing sources: connector providers for all scanners, maze_ownership for asset-ownership, GitHub connector for GitHub integration, severity_matrix.py for severity scores, maze_integrations for Jira pages, automations.py for auto-close, webhooks model for payload reference.'
+- id: kz-b11c
+  title: Identify human-dependent content — videos, demos, external links
+  status: closed
+  priority: 2
+  task_type: task
+  owner: human
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: Some docs reference videos, demo environments, or external resources that go stale independently of code. Flag during conversion, compile list for Tyler to review.
+  created: 2026-05-02T21:06:32.654380-05:00
+  updated: 2026-05-06T16:26:40.768630-05:00
+  closed: 2026-05-06T16:26:40.768630-05:00
+  close_reason: Migration complete — remaining decision on videos/demos is an internal discussion, not a task
+- id: kz-98d3
+  title: Build + review + final commit
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: 'Run kazam build on finished site. Opus reviews: valid YAML, consistent voice, complete freshness metadata, working nav, references wired. Fix issues and commit.'
+  created: 2026-05-02T21:06:34.909646-05:00
+  updated: 2026-05-06T13:38:02.254508-05:00
+  closed: 2026-05-06T13:38:02.254508-05:00
+  close_reason: Build passes clean (52 pages, 46 assets), all screenshots wired, image margin fix shipped
+- id: kz-abef
+  title: Reinstall kazam from local repo
+  status: closed
+  priority: 1
+  task_type: task
+  parent: Migrate plain-docs → maze-docs kazam site
+  note: Run cargo install --path /Users/tyler/personal-repos/kazam to get all the new Company Brain features (freshness, voice, prompts, actions, search, references) into the binary before starting migration.
+  created: 2026-05-02T21:15:03.631412-05:00
+  updated: 2026-05-03T01:16:55.292834-05:00
+  closed: 2026-05-03T01:16:55.292834-05:00
+  close_reason: Installed from local repo, new commands verified
+- id: kz-8fc7
+  title: Ship prompt templates for self-healing doc workflows
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Create 5 prompt templates in kazam source (shipped with binary): migrate, add-page, refresh, audit, review. Each injects kazam agents output + site voice + page list. Templates go in a new prompts/ example dir or get bundled. Must encode all learnings from maze-docs migration: component schema gotchas, field name pitfalls, voice adherence.'
+  created: 2026-05-03T14:14:43.941430-05:00
+  updated: 2026-05-03T14:22:25.031597-05:00
+  closed: 2026-05-03T14:22:25.031597-05:00
+  close_reason: created 5 prompt templates in prompts/ — migrate, add-page, refresh, audit, review — all with full system prompts encoding component schema gotchas
+- id: kz-9ed5
+  title: Rethink docs site — self-healing docs as primary use case
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Full rewrite of docs/index.yaml, docs/guide.yaml, docs/about.yaml. New hero: ''Self-healing documentation from YAML.'' Lead with the doc lifecycle (create → review → refresh → audit), workspace + MCP as the engine. Current agent-workspace positioning becomes a section, not the headline. README.md also needs updating.'
+  created: 2026-05-03T14:14:47.643792-05:00
+  updated: 2026-05-03T14:22:34.252221-05:00
+  closed: 2026-05-03T14:22:34.252221-05:00
+  close_reason: rewrote index.yaml, guide.yaml, about.yaml, kazam.yaml — repositioned around content management with freshness + prompt templates + MCP as the hero
+- id: kz-75aa
+  title: Add prompt workflow docs page
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'New docs/workflows.yaml page covering: what each prompt template does, when to use it, human-in-the-loop review points, example CLI invocations (kazam prompt show migrate), how MCP tools connect. This is the ''how to use self-healing docs'' guide.'
+  created: 2026-05-03T14:14:50.011790-05:00
+  updated: 2026-05-03T14:22:34.263229-05:00
+  closed: 2026-05-03T14:22:34.263229-05:00
+  close_reason: created docs/workflows.yaml — covers prompt templates, content lifecycle, usage modes (manual/semi-auto/GH Actions), MCP integration, custom templates
+- id: kz-c978
+  title: Add prompt template variable expansion to kazam prompt show
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Support {{kazam_agents}}, {{voice}}, {{page_list}}, {{config}} template variables in system_prompt field. Expand at show-time from live site state. This way subagents get full context in their system prompt without burning tool calls to orient.
+  created: 2026-05-03T14:14:52.428050-05:00
+  updated: 2026-05-04T16:35:23.355484-05:00
+  closed: 2026-05-04T16:35:23.355484-05:00
+  close_reason: Implemented {{config}}, {{voice}}, {{page_list}}, {{kazam_agents}} expansion in prompt show
+- id: kz-2541
+  title: Update README.md — self-healing docs positioning
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'README currently leads with agent workspace benchmarks. Keep those but reframe: kazam is a self-healing docs platform. YAML pages + freshness tracking + prompt templates + MCP = docs that know when they''re stale and agents that know how to fix them. Workspace is the engine, not the product.'
+  created: 2026-05-03T14:14:55.874558-05:00
+  updated: 2026-05-03T14:22:34.272985-05:00
+  closed: 2026-05-03T14:22:34.272985-05:00
+  close_reason: rewrote README.md — content management positioning, capabilities list, quickstart showing full lifecycle, workspace as engine
+- id: kz-f00a
+  title: 'Product template: Linear'
+  status: closed
+  priority: 1
+  task_type: task
+  note: MCP-native template. Agent already dispatched — linear.yaml with list_issues, list_projects, get_status_updates tool shapes. Sprint status, roadmap, release notes, team workload workflows.
+  created: 2026-05-03T21:06:15.286943-05:00
+  updated: 2026-05-03T21:07:41.843854-05:00
+  closed: 2026-05-03T21:07:41.843854-05:00
+  close_reason: linear.yaml written with full tool shapes and 4 workflow patterns
+- id: kz-21fd
+  title: 'Product template: Slack'
+  status: closed
+  priority: 1
+  task_type: task
+  note: MCP-native template. Agent already dispatched — slack.yaml with read_channel, search_public, read_thread tool shapes. Decision logs, channel digests, FAQ compilation, runbook extraction workflows.
+  created: 2026-05-03T21:06:15.300211-05:00
+  updated: 2026-05-03T21:07:41.853849-05:00
+  closed: 2026-05-03T21:07:41.853849-05:00
+  close_reason: slack.yaml written with timestamp handling, privacy rules, 5 workflow patterns
+- id: kz-8d67
+  title: 'Product template: HubSpot'
+  status: closed
+  priority: 1
+  task_type: task
+  note: MCP-native template. Agent already dispatched — hubspot.yaml with search_crm_objects, get_crm_objects, chatInsights requirement. Pipeline reviews, customer health, account overviews, win/loss reports.
+  created: 2026-05-03T21:06:15.310503-05:00
+  updated: 2026-05-03T21:07:41.864088-05:00
+  closed: 2026-05-03T21:07:41.864088-05:00
+  close_reason: hubspot.yaml written with chatInsights requirement, data discovery pattern, 5 workflows
+- id: kz-2522
+  title: 'Product template: Attention'
+  status: closed
+  priority: 1
+  task_type: task
+  note: MCP-native template. Agent already dispatched — attention.yaml with search_calls, ask_attention, two-search pattern. Customer voice, competitive intel, deal call history, coaching insights.
+  created: 2026-05-03T21:06:15.320664-05:00
+  updated: 2026-05-03T21:07:41.873785-05:00
+  closed: 2026-05-03T21:07:41.873785-05:00
+  close_reason: attention.yaml written with two-search pattern, transcript_search isolation, 5 workflows
+- id: kz-7020
+  title: 'Product template: Granola'
+  status: closed
+  priority: 1
+  task_type: task
+  note: MCP-native template. granola.yaml with query_granola_meetings, list_meetings, get_meeting_transcript. Meeting recaps, decision logs, action item tracking, stakeholder briefings.
+  created: 2026-05-03T21:06:15.330479-05:00
+  updated: 2026-05-03T21:11:10.080184-05:00
+  closed: 2026-05-03T21:11:10.080184-05:00
+  close_reason: granola.yaml written with citation preservation, query_granola_meetings preferred, 5 workflows
+- id: kz-bf81
+  title: 'Product template: Gmail'
+  status: closed
+  priority: 1
+  task_type: task
+  note: MCP-native template. gmail.yaml with search_threads, get_thread, list_labels. Communication summaries, email-to-doc conversion, thread digest pages.
+  created: 2026-05-03T21:06:15.340260-05:00
+  updated: 2026-05-03T21:11:10.091130-05:00
+  closed: 2026-05-03T21:11:10.091130-05:00
+  close_reason: gmail.yaml written with search query syntax, privacy rules, 4 workflows
+- id: kz-c7b4
+  title: 'Product template: Google Calendar'
+  status: closed
+  priority: 1
+  task_type: task
+  note: MCP-native template. calendar.yaml with list_events, get_event, suggest_time. Meeting prep pages, team schedule overviews, recurring meeting trackers.
+  created: 2026-05-03T21:06:15.350139-05:00
+  updated: 2026-05-03T21:11:10.101355-05:00
+  closed: 2026-05-03T21:11:10.101355-05:00
+  close_reason: calendar.yaml written with list_events/get_event shapes, aggressive freshness cadences, 4 workflows
+- id: kz-0984
+  title: 'BYOK template: JIRA'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'WebFetch + API key pattern. jira.yaml using JIRA REST API v3. Auth: Basic (email:token) or Bearer. Endpoints: /rest/api/3/search (JQL), /rest/api/3/issue/{id}, /rest/api/3/project. Sprint boards, backlog, release notes. Env var: JIRA_API_TOKEN, JIRA_EMAIL, JIRA_BASE_URL.'
+  created: 2026-05-03T21:06:27.095054-05:00
+  updated: 2026-05-03T21:07:41.883531-05:00
+  closed: 2026-05-03T21:07:41.883531-05:00
+  close_reason: deferred — needs real API testing before shipping
+- id: kz-0609
+  title: 'BYOK template: Notion'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'WebFetch + API key pattern. notion.yaml using Notion API v1. Auth: Bearer token. Endpoints: /v1/databases/{id}/query, /v1/pages/{id}, /v1/search. Wiki sync, database views, knowledge base refresh. Env var: NOTION_API_KEY.'
+  created: 2026-05-03T21:06:27.106095-05:00
+  updated: 2026-05-03T21:07:41.893013-05:00
+  closed: 2026-05-03T21:07:41.893013-05:00
+  close_reason: deferred — needs real API testing before shipping
+- id: kz-3c7a
+  title: 'BYOK template: Confluence'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'WebFetch + API key pattern. confluence.yaml using Confluence REST API. Auth: Basic (email:token). Endpoints: /rest/api/content, /rest/api/content/{id}, /rest/api/search. Space sync, page migration, doc refresh. Env var: CONFLUENCE_API_TOKEN, CONFLUENCE_EMAIL, CONFLUENCE_BASE_URL.'
+  created: 2026-05-03T21:06:27.116852-05:00
+  updated: 2026-05-03T21:07:41.902499-05:00
+  closed: 2026-05-03T21:07:41.902499-05:00
+  close_reason: deferred — needs real API testing before shipping
+- id: kz-0202
+  title: 'BYOK template: GitHub'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'WebFetch + API key pattern. github.yaml using GitHub REST/GraphQL API. Auth: Bearer token. Issues, PRs, releases, discussions, wiki. Changelog generation, project status, contributor pages. Env var: GITHUB_TOKEN.'
+  created: 2026-05-03T21:06:27.126991-05:00
+  updated: 2026-05-03T21:07:41.911874-05:00
+  closed: 2026-05-03T21:07:41.911874-05:00
+  close_reason: deferred — needs real API testing before shipping
+- id: kz-333e
+  title: 'BYOK template: Salesforce'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'WebFetch + API key pattern. salesforce.yaml using Salesforce REST API. Auth: Bearer (OAuth flow). SOQL queries, SObject CRUD. Pipeline reviews, account overviews, opportunity tracking. Env var: SF_ACCESS_TOKEN, SF_INSTANCE_URL.'
+  created: 2026-05-03T21:06:27.136254-05:00
+  updated: 2026-05-03T21:07:41.921268-05:00
+  closed: 2026-05-03T21:07:41.921268-05:00
+  close_reason: deferred — needs real API testing before shipping
+- id: kz-664b
+  title: 'GitHub Actions: scheduled refresh workflows'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Create reusable GH Actions workflow templates in prompts/actions/ or a new actions/ dir. Patterns: (1) daily/weekly build + stale page detection, (2) scheduled refresh using prompt templates, (3) BYOK fetch + commit pattern (fetch from API, write YAML, open PR). Most users will run kazam from a GH repo — these should be copy-paste ready. Include secrets management pattern (ANTHROPIC_API_KEY, product API keys as repo secrets).'
+  created: 2026-05-03T21:06:43.494384-05:00
+  updated: 2026-05-03T21:09:52.218512-05:00
+  closed: 2026-05-03T21:09:52.218512-05:00
+  close_reason: created 4 GH Actions workflows + README in prompts/actions/ — build-and-check, scheduled-refresh, audit-on-release, product-sync
+- id: kz-fe50
+  title: BYOK processing pipeline docs
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Document the BYOK pattern end-to-end: (1) store API keys as GH secrets or env vars, (2) GH Action fetches data on schedule via WebFetch/curl, (3) pipes to kazam prompt template, (4) agent updates YAML pages, (5) opens PR for review or auto-merges. This is the ''self-driving brain'' open-source pattern. Add to docs/workflows.yaml or new docs/byok.yaml page.'
+  created: 2026-05-03T21:06:43.504212-05:00
+  updated: 2026-05-03T21:09:52.230359-05:00
+  closed: 2026-05-03T21:09:52.230359-05:00
+  close_reason: covered by GH Actions workflows — the product-sync and scheduled-refresh patterns document the full processing pipeline
+- id: kz-85bb
+  title: Persona + tagging system for docs
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Add persona-based routing to help people find the right templates. Personas: engineering (Linear, GitHub, JIRA), sales (HubSpot, Salesforce, Attention), product (Linear, Notion, Slack), ops (Confluence, Slack, Gmail). Could be tags on templates, a routing page, or a section in workflows.yaml. Also add tags to existing templates (migrate, refresh, etc.) to indicate which personas use them.'
+  created: 2026-05-03T21:06:43.513882-05:00
+  updated: 2026-05-03T21:11:02.914043-05:00
+  closed: 2026-05-03T21:11:02.914043-05:00
+  close_reason: added persona tags (engineering, sales, product, ops, all) to all prompt templates + added integration catalog and GH Actions sections to workflows.yaml
+- id: kz-5715
+  title: Update workflows.yaml with integration catalog
+  status: closed
+  priority: 2
+  task_type: task
+  note: After product templates are written, update docs/workflows.yaml to include an integration catalog section — card_grid showing all available product templates grouped by MCP-native vs BYOK, with persona tags. This becomes the landing page for 'which template do I need?'
+  created: 2026-05-03T21:06:43.523434-05:00
+  updated: 2026-05-03T21:11:02.925831-05:00
+  closed: 2026-05-03T21:11:02.925831-05:00
+  close_reason: integration catalog with MCP-native card grid + by-persona routing table added to docs/workflows.yaml
+- id: kz-4658
+  title: 'Feature: page expiration + auto-archive'
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'Add optional expires: field to freshness metadata. Pages past their expiration date get moved to an archive section or excluded from build (configurable). Use case: event-specific content (offsites, campaigns) that should age out automatically rather than show stale banners forever. Could also support unlisted: true after expiry.'
+  created: 2026-05-04T08:50:45.583448-05:00
+  updated: 2026-05-04T09:44:46.421993-05:00
+  closed: 2026-05-04T09:44:46.421993-05:00
+  close_reason: Replaced by kz-d1cc (expires field) + kz-fb9b (archive state) with more specific implementation plans
+- id: kz-d1cc
+  title: 'Add expires: field to freshness metadata'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Add optional expires: Option<String> (ISO date) to Freshness struct in types.rs. During build, if expires < today: mark page as archived/expired. Expired pages get excluded from main nav and search, optionally rendered to an archive section. Update freshness::info_for(), stale.md output, and site.json manifest. This is the foundation for auto-archiving time-bound content (offsite materials, dated analyses, campaign pages).'
+  created: 2026-05-04T09:44:16.077009-05:00
+  updated: 2026-05-04T10:10:39.198077-05:00
+  closed: 2026-05-04T10:10:39.198077-05:00
+  close_reason: 'Added expires: Option<String> to Freshness struct, FreshnessStatus::Expired variant, expiry logic in info_for/status, banner rendering, build report tracking, and 2 tests'
+- id: kz-ef93
+  title: 'Add personas: field to Page struct'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Add personas: Option<Vec<String>> to Page in types.rs. Values are freeform strings matching roles defined in kazam.yaml (e.g. everyone, engineering, gtm, product, ops). Emit in site.json manifest and search.json. Used by nav filtering and role-map landing page to route people to their content. Pages with no personas: field default to everyone.'
+  created: 2026-05-04T09:44:18.642780-05:00
+  updated: 2026-05-04T10:10:41.129439-05:00
+  closed: 2026-05-04T10:10:41.129439-05:00
+  close_reason: 'Added personas: Vec<String> to Page struct, threaded through all Page constructors (board, render/mod, validate), search index, and manifest'
+- id: kz-78be
+  title: 'Add roles: config block to kazam.yaml'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Add a roles: block to SiteConfig in types.rs. Structure: roles: [{id: engineering, label: Engineering, description: ''Dev setup, infrastructure, workflows'', icon: optional}]. Emitted in site.json. Consumed by nav filtering and the role-map landing page component. This is the taxonomy that connects personas on pages to the jump-point UI.'
+  created: 2026-05-04T09:44:25.233322-05:00
+  updated: 2026-05-04T10:10:43.051080-05:00
+  closed: 2026-05-04T10:10:43.051080-05:00
+  close_reason: 'Added Role struct and roles: Vec<Role> to SiteConfig, threaded through board.rs constructors and site manifest output'
+- id: kz-ee1e
+  title: Add persona filtering to nav links
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Add personas: Option<Vec<String>> to NavLink in types.rs. When a role is selected (via query param or build-time flag), nav links not matching that persona are hidden. Default: show all. This makes the sidebar/topnav adapt per-role. Implementation: render all links with data-persona attributes, add minimal JS to filter on ?role= param, or build separate nav per role.'
+  created: 2026-05-04T09:44:28.309515-05:00
+  updated: 2026-05-04T10:10:52.707584-05:00
+  closed: 2026-05-04T10:10:52.707584-05:00
+  close_reason: NavLink personas field added, personas_attr() helper renders data-personas attributes on nav links in all shells. Client-side JS filtering deferred to role-map component work (kz-6f5f)
+- id: kz-fb9b
+  title: Add archive visibility state for expired/archived pages
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Currently unlisted: true hides from llms.txt and search but still renders HTML. Add a separate concept for archived pages: they render to an /archive/ section with a banner, are excluded from main nav and search, but remain accessible via direct URL. Expired pages (past expires: date) auto-enter this state during build. Also support explicit archived: true for manual archival.'
+  created: 2026-05-04T09:44:35.764285-05:00
+  updated: 2026-05-04T10:19:00.522453-05:00
+  closed: 2026-05-04T10:19:00.522453-05:00
+  close_reason: 'Added archived: bool and draft: bool to Page. Archived pages (explicit, expired, or stale draft 30d+) excluded from llms.txt, search, sitemap. Banners rendered at build time. Manifest tracks both flags. 3 new tests.'
+- id: kz-6f5f
+  title: Build role-map landing page component
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: 'New component type: role_map. Renders a grid of role cards from the roles: config in kazam.yaml. Each card links to a filtered view of the site (e.g. ?role=engineering). Shows role label, description, and page count. This is the ''pick your role'' jump point that serves as the main entry for the brain site. Could also render as a persona switcher in the nav.'
+  created: 2026-05-04T09:44:38.945017-05:00
+  updated: 2026-05-04T16:42:22.705848-05:00
+  closed: 2026-05-04T16:42:22.705848-05:00
+  close_reason: Built role_map component with config-driven cards, href jump points, CSS grid, threaded SiteConfig through render pipeline
+- id: kz-a0fc
+  title: Migrate maze-brain Slab dump to kazam YAML
+  status: active
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'After kazam features are built (expires, personas, roles, archive), run the migrate prompt template on all 182 posts. Structure: Everyone (company, onboarding, policies, how-tos, tools, brand), Engineering (dev setup, infra, workflows, observability, product internals, hiring), GTM (sales quick start, marketing, shared collateral, playbooks), Product (features, process, research), Solutions Engineering (tech scoping, PoV, security/compliance), Ops/People (people ops, schedules, internal vuln mgmt). Drop: 3 About Slab posts, ''Old'' post, duplicates. Archive: Autumn Offsite 2025, Q4 Planning, Buyer Language Analysis, Weekly Wrap schedule.'
+  created: 2026-05-04T09:44:53.648174-05:00
+  updated: 2026-05-04T10:30:42.501687-05:00
+- id: kz-8919
+  title: Add tree component type
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'New component: tree. Renders nested collapsible nodes for org charts, taxonomy views, and hierarchical data. Structure: tree: [{label: ''CEO'', children: [{label: ''VP Eng'', role: ''engineering'', children: [...]}]}]. Each node can have: label, subtitle (role/title), href (optional link), children. Collapsed by default past depth 2. No JS required — use <details>/<summary> for collapse. First use case: org chart that feeds into persona/role mapping.'
+  created: 2026-05-04T09:51:43.059402-05:00
+  updated: 2026-05-04T09:52:48.390190-05:00
+  closed: 2026-05-04T09:52:48.390190-05:00
+  close_reason: Tree component already exists in kazam — has collapsible nodes, filtering, and prune logic
+- id: kz-cf31
+  title: Add resources component type for link collections
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'New component: resources. A structured list of links with per-item metadata. Structure: resources: [{title: ''Brand Guide'', href: ''...'', description: ''Logo usage and colors'', owner: ''marketing'', freshness: {updated: 2025-08-19, review_every: 90d}}]. Each item is individually reviewable — the refresh prompt can flag stale items without flagging the whole page. Solves the ''page that is just 3 links'' anti-pattern by consolidating into a structured FAQ/shared-resources section per persona. Renders as a card list or compact table depending on item count.'
+  created: 2026-05-04T09:51:47.460318-05:00
+  updated: 2026-05-04T10:10:48.835398-05:00
+  closed: 2026-05-04T10:10:48.835398-05:00
+  close_reason: Added Resources component with ResourceItem struct, render function (c-resources div with linked items), validation, search indexing, and manifest type
+- id: kz-d827
+  title: Update migrate prompt template for brain-style migrations
+  status: closed
+  priority: 1
+  task_type: task
+  note: |-
+    Enhance prompts/migrate.yaml to handle the patterns we found in the Slab dump:
+    1. Classify each page as long-living (KB) vs ephemeral (should get expires: date)
+    2. Flag empty/stub pages (<10 words) for removal or update — list them in a triage report
+    3. Consolidate link-only pages into resources components on the relevant persona page
+    4. Use editedAt from source to set freshness updated: field (not export date)
+    5. Flag pages not edited in 6+ months as needing review
+    6. Map org chart content to tree component + role/persona definitions
+    7. Detect FAQ/troubleshooting patterns and suggest resources component vs standalone page
+    Output: triage report (drop, archive, consolidate, migrate as-is) before doing any conversion.
+  created: 2026-05-04T09:51:58.273094-05:00
+  updated: 2026-05-04T10:10:50.591721-05:00
+  closed: 2026-05-04T10:10:50.591721-05:00
+  close_reason: Updated prompts/migrate.yaml with Phase 1 triage, persona tagging rules, content type detection (tree/resources/accordion), editedAt freshness, and brain/slab/notion/confluence tags
+- id: kz-d9ed
+  title: Company Brain Product Requirements
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'Epic: tracking what a real product would need beyond the CLI/static-site-gen. This is the managed SaaS vision — features that require auth, persistence, and integrations beyond what ships in the kazam binary.'
+  created: 2026-05-04T10:53:55.525133-05:00
+  updated: 2026-05-06T16:20:52.420127-05:00
+  closed: 2026-05-06T16:20:52.420127-05:00
+  close_reason: Migrated to PRODUCT.md — full tier/pricing/feature/merge-pipeline plan now lives there
+- id: kz-d93e
+  title: Login portal + user auth
+  status: closed
+  priority: 3
+  task_type: task
+  owner: human
+  parent: kz-d9ed
+  note: Web portal where users login to view their brain site. Enables per-user freshness assignments, review workflows, and access control beyond Git-level RBAC.
+  created: 2026-05-04T10:54:08.595204-05:00
+  updated: 2026-05-06T16:20:56.377562-05:00
+  closed: 2026-05-06T16:20:56.377562-05:00
+  close_reason: Migrated to PRODUCT.md — Auth (SSO / magic link) in Self-Managed tier
+- id: kz-ca5f
+  title: Admin dispatch for stale doc reviews
+  status: closed
+  priority: 3
+  task_type: task
+  owner: human
+  parent: kz-d9ed
+  note: Admins can assign stale pages to owners for review. Dispatch creates tasks visible in the portal — owner picks archive/refresh/recommend-updates. Could integrate with Linear or standalone.
+  created: 2026-05-04T10:54:08.606409-05:00
+  updated: 2026-05-06T16:20:58.014578-05:00
+  closed: 2026-05-06T16:20:58.014578-05:00
+  close_reason: Migrated to PRODUCT.md — covered by Queued updates feed + approval mode
+- id: kz-6edc
+  title: Slack/Teams notifications for review cycles
+  status: closed
+  priority: 3
+  task_type: task
+  owner: human
+  parent: kz-d9ed
+  note: 'Scheduled notifications to page owners when their content is due or overdue. Actions inline: confirm fresh / archive / request help. Channels: Slack, Teams, email.'
+  created: 2026-05-04T10:54:08.617948-05:00
+  updated: 2026-05-06T16:21:00.686476-05:00
+  closed: 2026-05-06T16:21:00.686476-05:00
+  close_reason: Migrated to PRODUCT.md — Notification service in Self-Managed tier
+- id: kz-2539
+  title: Interactive stale doc review (CLI)
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  parent: kz-d9ed
+  note: 'kazam freshness review — walk through overdue pages interactively. Actions: archive, refresh (update date), recommend updates, skip. CLI-native precursor to the portal version.'
+  created: 2026-05-04T10:54:08.628504-05:00
+  updated: 2026-05-04T10:58:28.485867-05:00
+  closed: 2026-05-04T10:58:28.485867-05:00
+  close_reason: Shipped freshness review + act commands and freshness-triage prompt template
+- id: kz-3397
+  title: Search improvements — better scoring, freshness ranking, persona filter
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Feature 1 of 1.5.0. Better client-side JS scoring: word-boundary +5, heading +5, search_terms +8, match context display. Add freshness_status to search index for ranking penalty. Persona-aware filtering via ?role= URL param. No new deps.'
+  created: 2026-05-04T21:00:31.229784-05:00
+  updated: 2026-05-04T21:03:02.839391-05:00
+  closed: 2026-05-04T21:03:02.839391-05:00
+  close_reason: Implemented better scoring (word-boundary, heading, search_terms bonuses), freshness ranking penalties, match-context snippets, and ?role= persona filtering. All tests pass.
+- id: kz-db47
+  title: Health dashboard page — _health.html in build output
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Feature 2 of 1.5.0. Generate _health.html during kazam build using existing StatGrid, Table, ProgressBar, Callout components. Data from StaleEntry vec + manifest. Opt-out via --no-health. Not in nav/search/llms.txt.
+  created: 2026-05-04T21:00:38.535553-05:00
+  updated: 2026-05-04T21:07:11.670926-05:00
+  closed: 2026-05-04T21:07:11.670926-05:00
+  close_reason: Generated _health.html with StatGrid, ProgressBar, overdue/due-soon/ownership tables, and missing-metadata callout. --no-health flag, all tests pass.
+- id: kz-733a
+  title: Ingest command + migration docs
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Feature 3 of 1.5.0. kazam ingest <source-dir> following wish pattern: scaffold workspace, bundle migrate prompt, --dry-run/--stdout/--scaffold modes. Plus migrating.yaml, migrating-notion.yaml, migrating-confluence.yaml doc pages.'
+  created: 2026-05-04T21:00:41.066666-05:00
+  updated: 2026-05-05T12:01:37.432554-05:00
+  closed: 2026-05-05T12:01:37.432554-05:00
+  close_reason: Superseded by kz-ac27 which includes direct API connectors
+- id: kz-dd99
+  title: 'Docs: add ''Why kazam'' page — positioning against Notion/Confluence/GitBook'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Dedicated page explaining the philosophy: anti-bloat (one binary vs Node/React/MDX), freshness as a first-class primitive (not a plugin), agent-native (MCP + prompt templates), docs-as-code (YAML in Git). Reference the before/after from landing page but go deeper. Include a comparison table (kazam vs Notion vs Confluence vs GitBook) grounded in REAL features, not aspirational ones.'
+  created: 2026-05-05T11:35:01.102207-05:00
+  updated: 2026-05-05T12:13:56.041641-05:00
+  closed: 2026-05-05T12:13:56.041641-05:00
+  close_reason: Created docs/why.yaml — competitive comparison, trade-offs, problem-first headers
+- id: kz-8f02
+  title: 'Docs: add persona hooks to landing page'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Add a section below ''Sound familiar?'' with 2-3 persona-specific callouts: Engineering lead (onboarding velocity, dev setup docs that stay current), Ops/People lead (policy docs with owners, review cycles that actually happen), CTO/founder (agent-native infrastructure, one binary, no maintenance debt). Each should be 1-2 sentences that make that person think ''this is for me''.'
+  created: 2026-05-05T11:35:28.816157-05:00
+  updated: 2026-05-05T12:13:56.055076-05:00
+  closed: 2026-05-05T12:13:56.055076-05:00
+  close_reason: Added 3-column persona callouts to landing page (eng lead, ops lead, tech founder)
+- id: kz-18d1
+  title: 'Docs: document health dashboard'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'New section in freshness.yaml or standalone page. Covers: _health.html generated at build time, StatGrid/ProgressBar/Tables showing freshness stats, --no-health flag to opt out. Show a screenshot or describe what it contains (total/fresh/due-soon/overdue counts, ownership summary, overdue table sorted by days).'
+  created: 2026-05-05T11:35:28.827563-05:00
+  updated: 2026-05-05T12:13:56.066560-05:00
+  closed: 2026-05-05T12:13:56.066560-05:00
+  close_reason: Added health dashboard section to freshness.yaml with stat grid, content list, build commands
+- id: kz-5f0e
+  title: 'Docs: document role_map component + sync-roles prompt'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: 'Two additions: (1) role_map component in the components catalog — type: role_map renders roles from kazam.yaml as clickable cards, mention href field on roles. (2) sync-roles prompt in the workflows/prompts page — requires Gmail+Slack or Google Directory MCPs, syncs roles config and generates org chart.'
+  created: 2026-05-05T11:35:28.838942-05:00
+  updated: 2026-05-05T12:13:56.076183-05:00
+  closed: 2026-05-05T12:13:56.076183-05:00
+  close_reason: Added role_map to grids.yaml, sync-roles to workflows.yaml
+- id: kz-369b
+  title: 'Docs: sharpen README ''Why'' section'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: 'Current ''Why'' is too timid (''Docs go stale''). Rewrite to lead with the pain more aggressively, then pivot to what kazam actually does differently: freshness is structural (not a plugin), agents are first-class (MCP + prompts), one binary (no Node/React/MDX). Keep it to ~100 words.'
+  created: 2026-05-05T11:35:28.849948-05:00
+  updated: 2026-05-05T12:13:56.083794-05:00
+  closed: 2026-05-05T12:13:56.083794-05:00
+  close_reason: Rewrote README Why section — leads with pain, covers health dashboard and MCP
+- id: kz-d8ee
+  title: 'Docs: add ''kazam freshness show'' as standalone audit entry point'
+  status: closed
+  priority: 3
+  task_type: task
+  assignee: claude
+  note: Gemini's 'Knowledge Audit lead magnet' idea — kazam freshness show already works on any site. Document it as a standalone thing you can run on an existing site to see what's stale, even before fully adopting kazam. Could be a callout on the landing page or freshness page.
+  created: 2026-05-05T11:35:28.860609-05:00
+  updated: 2026-05-05T12:13:56.090641-05:00
+  closed: 2026-05-05T12:13:56.090641-05:00
+  close_reason: Added 'Audit your docs in 30 seconds' section to landing page with kazam freshness show
+- id: kz-ac27
+  title: 'CLI: kazam ingest command'
+  status: blocked
+  priority: 1
+  task_type: task
+  note: Waiting on Gemini analysis for minimum viable hosted offering and marketing framing before finalizing scope
+  created: 2026-05-05T11:35:53.391439-05:00
+  updated: 2026-05-05T12:01:37.443978-05:00
+- id: kz-b43f
+  title: 'CLI: kazam freshness notify — owner notifications'
+  status: closed
+  priority: 2
+  task_type: task
+  note: Generate a summary of overdue pages grouped by owner, formatted for Slack/email. Not a daemon — just a CLI command that outputs markdown suitable for pasting into Slack or piping to a webhook. Pairs with a cron job or GitHub Action. Bridges the gap between build-time staleness detection and actual human action.
+  created: 2026-05-05T11:35:53.403002-05:00
+  updated: 2026-05-05T19:33:25.758536-05:00
+  closed: 2026-05-05T19:33:25.758536-05:00
+  close_reason: 'Built in this session — kazam freshness notify command + freshness-notifier wish with MCP and bot-token paths. In PR #49.'
+- id: kz-95f6
+  title: 'CLI: source-of-truth drift detection'
+  status: closed
+  priority: 2
+  task_type: task
+  note: When a page declares sources_of_truth with GitHub URLs, check git log for those paths and flag if the source changed after the page's freshness.updated date. This is the deterministic version of Gemini's 'semantic gap detection' — no vectors needed, just git timestamps. Could be a flag on kazam freshness show or a standalone command.
+  created: 2026-05-05T11:35:53.414564-05:00
+  updated: 2026-05-06T11:37:18.173349-05:00
+  closed: 2026-05-06T11:37:18.173349-05:00
+  close_reason: Built kazam freshness drift — zero-token git log detection, repo mapping via config or CLI flags, JSON + pretty output
+- id: kz-fa49
+  title: 'CLI: kazam audit — structural quality checks'
+  status: closed
+  priority: 3
+  task_type: task
+  note: 'Beyond validate (schema correctness), audit checks content quality: pages with no freshness metadata, pages with no owner, pages with empty components, orphans not linked from nav. Outputs a score or grade. The ''knowledge audit'' that works without an LLM.'
+  created: 2026-05-05T11:35:53.425829-05:00
+  updated: 2026-05-06T13:47:12.721623-05:00
+  closed: 2026-05-06T13:47:12.721623-05:00
+  close_reason: Merged into kazam audit — single command covers freshness + structural checks with JSON output and health score
+- id: kz-a10f
+  title: 'Product: GitHub Action for freshness CI gate'
+  status: closed
+  priority: 2
+  task_type: task
+  note: A GitHub Action that runs kazam freshness show and fails the build (or posts a PR comment) if overdue count exceeds a threshold. This is the 'freshness as CI' story — documentation quality becomes a merge gate. Ships as a reusable action in the kazam repo or a separate action repo.
+  created: 2026-05-05T11:35:53.436841-05:00
+  updated: 2026-05-06T16:27:20.980508-05:00
+  closed: 2026-05-06T16:27:20.980508-05:00
+  close_reason: Punted — focusing on Self-Managed app MVP first
+- id: kz-ac29
+  title: 'Product: observer hooks — auto-capture from Slack/GitHub'
+  status: closed
+  priority: 3
+  task_type: task
+  owner: human
+  parent: kz-d9ed
+  note: 'The Company Brain ingestion layer. Start with GitHub post-merge hook: when a PR merges that touches files referenced in sources_of_truth, auto-create a kazam task or flag the page as needing refresh. Slack observer is phase 2 — monitor channels for decisions/announcements that should become pages. This is the ''self-healing'' differentiator but requires auth, persistence, and a running service — not CLI-shippable.'
+  created: 2026-05-05T11:35:53.447942-05:00
+  updated: 2026-05-06T16:21:02.414932-05:00
+  closed: 2026-05-06T16:21:02.414932-05:00
+  close_reason: Migrated to PRODUCT.md — Observer hooks in Self-Driving tier
+- id: kz-9d30
+  title: 'Product: hosted dashboard + notifications SaaS'
+  status: closed
+  priority: 3
+  task_type: task
+  owner: human
+  parent: kz-d9ed
+  note: The managed product vision. Health dashboard served as a live web app (not just build-time HTML), Slack/email notifications for overdue pages, owner login to confirm-fresh/archive/request-help. This is the revenue layer — setup fee to migrate, monthly retainer for autonomous freshness. Requires auth, persistence, integrations. Separate from the OSS CLI.
+  created: 2026-05-05T11:35:53.459514-05:00
+  updated: 2026-05-06T16:21:04.159209-05:00
+  closed: 2026-05-06T16:21:04.159209-05:00
+  close_reason: Migrated to PRODUCT.md — Hosted build + CDN, Live health dashboard, Notifications in Self-Managed tier
+- id: kz-db7b
+  title: 'CLI: kazam ingest --notion — direct Notion API connector'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Hit Notion API directly to pull workspace/database pages. Block types map ~1:1 to kazam components (callout→callout, table→table, toggle→accordion, code→code, heading→markdown, paragraph→markdown). Auth via Notion integration token. Output: valid kazam YAML pages with freshness metadata scaffolded (owner from last_edited_by, updated from last_edited_time). This is the PRIMARY ingest path for Notion users — more reliable than export+agent. The generic ''kazam ingest <folder>'' agent path remains as fallback for unsupported platforms.'
+  created: 2026-05-05T12:01:48.304736-05:00
+  updated: 2026-05-06T15:25:58.892612-05:00
+  closed: 2026-05-06T15:25:58.892612-05:00
+  close_reason: shipped kazam ingest notion — full Notion API connector with --page, --database, --all modes, --stats pre-check, child db→table mapping, aftermath report, setup docs in CLI help + error messages, notion-ingest wish
+- id: kz-e33b
+  title: 'CLI: kazam ingest --confluence — direct Confluence API connector'
+  status: closed
+  priority: 2
+  task_type: task
+  note: Hit Confluence REST API to pull space pages. API is messier than Notion but still structured (storage format is XHTML). Map macros to kazam components where possible. Auth via Confluence API token. Lower priority than Notion since Notion is more common in our target market (AI-native startups).
+  created: 2026-05-05T12:01:48.314806-05:00
+  updated: 2026-05-06T16:27:21.006423-05:00
+  closed: 2026-05-06T16:27:21.006423-05:00
+  close_reason: Punted — focusing on Self-Managed app MVP first
+- id: kz-6569
+  title: 'CLI: GitHub Action — PR staleness comment bot'
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'GitHub Action that runs on PR open/sync. Checks if any files touched by the PR are referenced in sources_of_truth of stale pages. Posts a PR comment: ''This PR affects N stale documents: [list with links]''. Also reports total repo health stats. No hosted service needed — runs entirely in GitHub Actions. Gemini''s best idea from the strategic analysis.'
+  created: 2026-05-05T12:09:37.485381-05:00
+  updated: 2026-05-06T16:27:20.993305-05:00
+  closed: 2026-05-06T16:27:20.993305-05:00
+  close_reason: Punted — focusing on Self-Managed app MVP first
+- id: kz-6a31
+  title: 'CLI: health badge for README'
+  status: closed
+  priority: 3
+  task_type: task
+  parent: kz-d9ed
+  note: Generate a dynamic SVG badge showing docs freshness percentage (e.g. 'docs | 90% fresh | green'). Could be a static badge generated at build time and committed, or a shields.io-compatible endpoint. Creates social pressure to maintain docs. Low effort, high visibility.
+  created: 2026-05-05T12:09:37.495824-05:00
+  updated: 2026-05-06T16:21:06.006090-05:00
+  closed: 2026-05-06T16:21:06.006090-05:00
+  close_reason: Migrated to PRODUCT.md — health badge can be CLI or SaaS, tracked there
+- id: kz-64bf
+  title: Linear active projects report page
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'New maze-brain page: pull all active Linear projects, map activity level (issue velocity, recent commits, assignee count), team ownership. Similar pattern to who-owns-what but project-centric rather than people-centric. Data source: Linear projects + issues API. Could become a generic wish/recipe later.'
+  created: 2026-05-05T16:05:31.147167-05:00
+  updated: 2026-05-06T16:27:01.951311-05:00
+  closed: 2026-05-06T16:27:01.951311-05:00
+  close_reason: Punted — needs internal buy-in on maze-brain before building more report pages
+- id: kz-398d
+  title: Debrief skill + annotation digest (SaaS reporting engine)
+  status: closed
+  priority: 2
+  task_type: task
+  owner: human
+  note: 'MVP: prompt template in wish that accepts pasted transcript/notes and updates the relevant report section. No new infra — refresh prompt step already handles it. SaaS: inline highlight/comment UX (cmd+K style) on any report section, digest pass synthesizes all annotations into page updates. Self-rewriting docs from team feedback. See memory: project_reporting_engine_vision.md'
+  created: 2026-05-05T19:32:54.176990-05:00
+  updated: 2026-05-06T15:32:49.511743-05:00
+  closed: 2026-05-06T15:32:49.511743-05:00
+  close_reason: MVP shipped as wishes/debrief — SaaS annotation digest moved to subtask under kz-d9ed
+- id: kz-a7f1
+  title: Inline annotation UX + digest pass (SaaS reporting engine)
+  status: closed
+  priority: 3
+  task_type: task
+  owner: human
+  parent: kz-d9ed
+  note: 'SaaS feature: cmd+K style inline highlight/comment UX on any rendered report section. Users annotate sections with corrections, updates, or context (e.g. "this number is wrong, it''s actually 45"). A digest pass synthesizes all annotations into page YAML updates. Self-rewriting docs from team feedback. MVP debrief wish (paste notes → update page) shipped — this is the interactive, multi-user version. Requires auth, persistence, and a web frontend.'
+  created: 2026-05-06T15:35:00.000000-05:00
+  updated: 2026-05-06T16:21:07.907093-05:00
+  closed: 2026-05-06T16:21:07.907093-05:00
+  close_reason: Migrated to PRODUCT.md — Inline annotation UX in Self-Driving tier
+- id: kz-9d78
+  title: 'Phase 1: Sidecar annotation schema — Annotation struct in src/types.rs'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Add Annotation struct with Serialize + Deserialize. Fields: id (ann-YYYYMMDD-XXXX), text, author, section, added, status (pending|incorporated|ignored|stale), source (cli|agent|web). Add annotations reading logic that scans .kazam/annotations/<page-slug>/ for annotation YAML files.'
+  created: 2026-05-07T12:33:05.721512-05:00
+  updated: 2026-05-07T12:41:51.082740-05:00
+  closed: 2026-05-07T12:41:51.082740-05:00
+  close_reason: Added Annotation struct with Serialize+Deserialize, AnnotationStatus/AnnotationSource enums in types.rs. Created annotations.rs module with generate_id, load_annotations, save_annotation, page_slug_from_path. 8 tests pass.
+- id: kz-f990
+  title: 'Phase 1: kazam annotate CLI subcommand'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Add Command::Annotate to src/main.rs. Usage: kazam annotate <page> ''note text'' --section competitive --author tyler. Creates .kazam/annotations/<page-slug>/ann-YYYYMMDD-XXXX.yaml. Generate ID with timestamp + 4-char random hex. Create directory if needed.'
+  created: 2026-05-07T12:33:08.441798-05:00
+  updated: 2026-05-07T12:43:02.829422-05:00
+  closed: 2026-05-07T12:43:02.829422-05:00
+  close_reason: Added Command::Annotate subcommand with page, text, --section, --author, --source flags. Creates sidecar .yaml file in .kazam/annotations/<page-slug>/. Validates page exists, generates ann-YYYYMMDD-XXXX ID.
+- id: kz-9523
+  title: 'Phase 1: annotate_page + list_annotations MCP tools'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Add two new MCP tools in src/mcp/tools.rs. annotate_page: takes page path + text + author + section + source, creates sidecar annotation file. list_annotations: takes page path, returns all annotation files for that page. No file locking needed — each annotation is its own file.'
+  created: 2026-05-07T12:33:10.956636-05:00
+  updated: 2026-05-07T12:44:39.788323-05:00
+  closed: 2026-05-07T12:44:39.788323-05:00
+  close_reason: Added annotate_page and list_annotations MCP tools. annotate_page creates sidecar YAML, requires --allow-writes. list_annotations reads all annotations for a page. Wired into dispatch. All 22 MCP tests pass.
+- id: kz-6c25
+  title: 'Phase 1: Annotation decay in freshness.rs'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Add annotation staleness check reusing existing date math. 14-day default decay. Annotations with status:incorporated skip decay. Report annotation health in kazam audit output. Use KAZAM_TODAY env var for deterministic tests.
+  created: 2026-05-07T12:33:18.170704-05:00
+  updated: 2026-05-07T12:45:34.343305-05:00
+  closed: 2026-05-07T12:45:34.343305-05:00
+  close_reason: Added annotation_freshness() with 14-day default decay, skip for incorporated/ignored status. Added AnnotationHealth struct and page_annotation_health() for audit reporting. 5 decay-specific tests pass.
+- id: kz-cbd6
+  title: 'Phase 1: Render annotations in build.rs'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: When building a page, scan .kazam/annotations/<page-slug>/ for annotation files. Render annotations inline in HTML output with age indicators (e.g. '3 days ago'). Show stale annotations with visual warning. Pages with zero annotations render normally (no empty annotation section).
+  created: 2026-05-07T12:33:20.438014-05:00
+  updated: 2026-05-07T12:48:03.505524-05:00
+  closed: 2026-05-07T12:48:03.505524-05:00
+  close_reason: Annotations render inline in build output. Scans .kazam/annotations/<page-slug>/ during build, injects HTML section before </main>. Shows author, section, age, status badge. Stale annotations get visual warning class. Pages with zero annotations render normally.
+- id: kz-1553
+  title: 'Phase 1: Tests for annotation system'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: '~20 tests across 5 modules. types.rs: serde round-trip (all fields, minimal fields, invalid enum, empty vec). freshness.rs: decay thresholds (fresh, due-soon, stale, custom review_every). main.rs: annotate CLI (happy path, missing page, flags). mcp/tools.rs: annotate_page + list_annotations. build.rs: render with/without annotations.'
+  created: 2026-05-07T12:33:23.692103-05:00
+  updated: 2026-05-07T12:49:29.170876-05:00
+  closed: 2026-05-07T12:49:29.170876-05:00
+  close_reason: '22 annotation tests across 3 modules: 13 in annotations.rs (serde, decay, IO), 5 in mcp/tools.rs (annotate_page, list_annotations round-trip, error cases), 4 in build.rs (render with/without annotations, stale/incorporated badges). All 246 tests pass.'
+- id: kz-f8cd
+  title: 'Phase 2: Annotation-aware deal-360 refresh prompt'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: 'Extend wishes/deal-360/prompt.md to read sidecar annotations as input context. Prompt includes annotation text with attribution and date. Conflict resolution: annotation overrides data source. After refresh, agent updates status field in each annotation file (incorporated/ignored/stale).'
+  created: 2026-05-07T12:33:32.241966-05:00
+  updated: 2026-05-07T12:50:39.359590-05:00
+  closed: 2026-05-07T12:50:39.359590-05:00
+  close_reason: 'Extended deal-360 prompt.md with annotation-aware refresh. Annotations are source #1 (highest priority), read via list_annotations MCP tool. Includes conflict resolution rule (annotations override data sources), status update instructions (incorporated/ignored), and Owner Context callout in output format.'
+- id: kz-e25d
+  title: 'Phase 2: Annotation status update workflow'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: 'After agent refresh, write updated status back to each annotation file. Uses Serialize on Annotation struct. Status transitions: pending->incorporated (used in rewrite), pending->ignored (not relevant), pending->stale (old, may be wrong). Single-file writes, no collision risk.'
+  created: 2026-05-07T12:33:34.080883-05:00
+  updated: 2026-05-07T12:51:49.192892-05:00
+  closed: 2026-05-07T12:51:49.192892-05:00
+  close_reason: Added update_annotation MCP tool for status transitions (pending->incorporated/ignored/stale). Reads existing annotation file, updates status, writes back via Serialize. Wired into dispatch. Deal-360 prompt instructs agent to use it after each refresh. 2 new tests pass.
+- id: kz-2679
+  title: 'Phase 3: Harden HTTP MCP transport for remote access'
+  status: closed
+  priority: 3
+  task_type: task
+  assignee: claude
+  note: 'Existing kazam serve --transport http works but needs hardening for remote use. Serves double duty: BYOA agents connect remotely AND web annotation view backend. Auth deferred for V1 (private network). Validate unattended operation with HubSpot/Attention tokens.'
+  created: 2026-05-07T12:33:41.738468-05:00
+  updated: 2026-05-07T13:03:11.495931-05:00
+  closed: 2026-05-07T13:03:11.495931-05:00
+  close_reason: HTTP MCP transport hardened with --local/--remote modes. --local binds 127.0.0.1 (default), --remote binds 0.0.0.0 and requires bearer token via --token or KAZAM_MCP_TOKEN env var. CORS includes Authorization header. Auth rejects 401 on missing/wrong token. All 248 tests pass.
+- id: kz-a00f
+  title: 'Phase 4: Web annotation view'
+  status: closed
+  priority: 4
+  task_type: task
+  note: Browser view of rendered kazam pages. Users view annotations, add new notes via text input, see which notes were incorporated after refresh. Saves via annotate_page MCP HTTP API. Scope TBD — could be simple text box per section or richer highlighting. Replaces the dropped Slack bot.
+  created: 2026-05-07T12:33:44.933813-05:00
+  updated: 2026-05-07T15:22:08.051884-05:00
+  closed: 2026-05-07T15:22:08.051884-05:00
+  close_reason: 'Decomposed into 7 subtasks: kz-8296 through kz-9cc4'
+- id: kz-08d8
+  title: 'Phase 5: Deploy on 5 Maze deals'
+  status: closed
+  priority: 5
+  task_type: task
+  owner: human
+  note: 'Pick 5 active deals. Connect AEs to web annotation view. Run deal-360 refresh nightly (manual then cron). Post summary diff to deal channel after each refresh. Track: annotation rate, refresh quality (accepted vs reverted), AE satisfaction. Accepted = no revert within 48h.'
+  created: 2026-05-07T12:33:56.793349-05:00
+  updated: 2026-05-07T15:33:44.368549-05:00
+  closed: 2026-05-07T15:33:44.368549-05:00
+  close_reason: Completed as part of Maze pilot
+- id: kz-e201
+  title: 'Phase 5: Extend annotations to debrief + call-prep wishes'
+  status: open
+  priority: 9
+  task_type: task
+  note: POST-MVP. After deal-360 annotations are proven, extend the annotation-aware refresh pattern to debrief and call-prep wishes. Same sidecar file architecture, same MCP tools, just different prompt context per wish type.
+  created: 2026-05-07T12:33:58.822459-05:00
+  updated: 2026-05-07T17:50:00.000000-05:00
+- id: kz-a13c
+  title: 'Phase 6: curata platform — auth, hosting, BYOA API'
+  status: closed
+  priority: 6
+  task_type: task
+  note: 'Separate curata repo (TypeScript/React). REST API for customers'' agents. Auth/RBAC, team permissions. Hosted CDN for kazam _site/ output. Diff review UI (old vs new page with annotation citations). Editor evaluation: Proof SDK vs Tiptap/ProseMirror.'
+  created: 2026-05-07T12:34:01.205290-05:00
+  updated: 2026-05-07T15:21:02.689792-05:00
+  closed: 2026-05-07T15:21:02.689792-05:00
+  close_reason: 'Scaffolded curata-app: Next.js + Clerk + Prisma + Railway + agent API route'
+- id: kz-d7a1
+  title: 'curata: sample report — Getting Started with curata page + annotations'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Author the "Getting Started with curata" kazam page YAML with 5 sections: What is curata (BYOA explainer), Your Team''s Data Sources (MCP/script hints for HubSpot, Granola, Slack, custom), How Annotations Work (pre-seeded annotations showing lifecycle), Connecting Your Agent (API key generation prompt + agents.md pattern), Creating Your First Page (templates + wish scaffolding). Pre-seed 3 annotations: a note, an edit, and one marked incorporated. Static content — no DB needed.'
+  created: 2026-05-07T17:45:00.000000-05:00
+  updated: 2026-05-07T15:46:28.813361-05:00
+  closed: 2026-05-07T15:46:28.813361-05:00
+  close_reason: 'Authored Getting Started page (5 sections: what is curata, data sources, annotations, agent connection, first page) + 3 pre-seeded annotations (pending note, pending edit, incorporated). Builds clean, annotations render inline.'
+- id: kz-0c24
+  title: 'curata: page detail view — rendered page with inline annotations'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: THE onboarding experience. Renders the sample report with kazam build output. Inline annotations with status badges, age indicators, author. Use static/mock data initially — reads the sample page YAML + annotation sidecar files directly, no DB. Must look polished — this is the first thing every user sees.
+  created: 2026-05-07T15:21:34.885950-05:00
+  updated: 2026-05-07T15:53:14.184616-05:00
+  closed: 2026-05-07T15:53:14.184616-05:00
+  close_reason: Page detail view with content + annotation sidebar. Signed-in users land on sample report. Dots texture.
+- id: kz-abba
+  title: 'curata: web annotation input — add annotations from the browser'
+  status: closed
+  priority: 3
+  task_type: task
+  assignee: claude
+  note: Part of onboarding flow — "try annotating" step on the sample report. Text input on page detail view. User types annotation text, picks section (optional), submits. Writes to sidecar YAML locally (or calls kazam annotate subprocess). Shows new annotation immediately. No DB — annotations are files.
+  created: 2026-05-07T15:21:41.063302-05:00
+  updated: 2026-05-07T16:03:40.247460-05:00
+  closed: 2026-05-07T16:03:40.247460-05:00
+  close_reason: 'Interactive annotation flow: select text → Annotate popup → prefills form with quoted selection + section. Click annotation → highlights section. Fixed event timing with onMouseUp + ref.'
+- id: kz-1bba
+  title: 'curata: agent connection experience — API key + copyable agents.md prompt'
+  status: closed
+  priority: 4
+  task_type: task
+  note: The bridge moment. After user has explored the sample report and tried annotating. Generate API key (show once), one-time token in a copyable agents.md prompt the user pastes into their AI tool. Mock the key generation locally first — defer hashing/DB storage to the infra phase. Focus on the UX of the copy-paste-connect flow.
+  created: 2026-05-07T15:21:17.516761-05:00
+  updated: 2026-05-08T09:57:07.489672-05:00
+  closed: 2026-05-08T09:57:07.489672-05:00
+  close_reason: Built agent connection modal, API key generation, bearer token auth on MCP, copyable agent prompt with bucketed skills
+- id: kz-4f33
+  title: 'curata: annotation status management — incorporate/ignore from UI'
+  status: closed
+  priority: 5
+  task_type: task
+  note: 'On page detail, each annotation has action buttons: mark incorporated, mark ignored. Writes status to sidecar YAML. Updates inline without page reload. Part of the core annotation experience — nail this before infra.'
+  created: 2026-05-07T15:21:47.663526-05:00
+  updated: 2026-05-07T16:25:02.132785-05:00
+  closed: 2026-05-07T16:25:02.132785-05:00
+  close_reason: Incorporate/ignore buttons on each pending annotation in sidebar. PATCH /api/annotations endpoint updates YAML sidecar status. UI refreshes inline via router.refresh(). Dead code cleaned up from page-viewer.tsx.
+- id: kz-f464
+  title: 'curata: page list view — dashboard shows all pages with freshness status'
+  status: closed
+  priority: 6
+  task_type: task
+  note: Secondary nav. Lists all kazam pages for the org via kazam list --json. Shows page title, owner, freshness status (fresh/due-soon/overdue), last updated. Clicking a page goes to page detail. Can work with local filesystem initially.
+  created: 2026-05-07T15:21:27.835545-05:00
+  updated: 2026-05-08T09:54:50.988105-05:00
+  closed: 2026-05-08T09:54:50.988105-05:00
+  close_reason: Built dashboard with Personal/Shared/Folders workspace sections, page table with freshness badges and annotation counts
+- id: kz-8296
+  title: 'curata: org provisioning — Clerk webhook + DB + sample report seeding'
+  status: closed
+  priority: 7
+  task_type: task
+  note: INFRA PHASE — after UX is nailed. Clerk org.created webhook → create Organization row in Postgres + mkdir site dir on volume. Seed the sample report into the new org's site dir. Wire up real API key hashing/storage in DB.
+  created: 2026-05-07T15:21:10.995277-05:00
+  updated: 2026-05-08T12:55:02.166660-05:00
+  closed: 2026-05-08T12:55:02.166660-05:00
+  close_reason: Replaced by detailed eng review plan (tyler-main-eng-review-plan-20260508-125213.md). Subtasks now tracked individually.
+- id: kz-9cc4
+  title: 'curata: Railway deploy — Postgres, volume, env vars, first live URL'
+  status: closed
+  priority: 8
+  task_type: task
+  note: 'INFRA PHASE. Deploy curata-app to Railway. Wire up Postgres (DATABASE_URL), persistent volume for /data/sites, Clerk env vars. Run prisma migrate deploy. Verify: sign up → land on sample report → annotations visible on the live URL.'
+  created: 2026-05-07T15:21:54.106605-05:00
+  updated: 2026-05-08T12:55:02.186292-05:00
+  closed: 2026-05-08T12:55:02.186292-05:00
+  close_reason: Replaced by detailed eng review plan. Railway deploy subtasks now tracked individually.
+- id: kz-f277
+  title: 'curata: Maze pilot — seed 5 deal sites, connect AEs, run first annotation cycle'
+  status: closed
+  priority: 8
+  task_type: task
+  owner: human
+  note: 'Phase 5 kickoff. Pick 5 active deals. Create org in curata, seed kazam sites from existing deal-360 output. Give AEs access. Run one annotation→refresh cycle end to end. Track: did they annotate? Did the refresh incorporate it? Owner: Tyler.'
+  created: 2026-05-07T15:22:02.096018-05:00
+  updated: 2026-05-07T15:33:30.301259-05:00
+  closed: 2026-05-07T15:33:30.301259-05:00
+  close_reason: Maze pilot completed — 5 deals running with annotation cycle
+- id: kz-f976
+  title: 'EPIC: curata Phase A — DB-canonical multi-tenancy (Lane A critical path)'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'Sequential: schema → auth → sync → pages → API → dashboard. Design doc: tyler-main-eng-review-plan-20260508-125213.md'
+  created: 2026-05-08T12:55:27.977248-05:00
+  updated: 2026-05-08T13:17:28.298059-05:00
+  closed: 2026-05-08T13:17:28.298059-05:00
+  close_reason: 'Lane A complete: schema (A1), auth (A2), sync (A3), pages rewrite (A4), API routes (A5), dashboard (A6) — all type-checked clean'
+- id: kz-1366
+  title: 'A1: Prisma schema migration — all 7 models'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Update schema.prisma: Organization (drop sitePath), OrgMember, Folder, Page, PageVersion, Annotation, ApiKey (add createdBy, scopes default [''read'',''write'']). Run prisma migrate dev. Repo: curata-app.'
+  created: 2026-05-08T12:55:27.991075-05:00
+  updated: 2026-05-08T13:10:19.197196-05:00
+  closed: 2026-05-08T13:10:19.197196-05:00
+  close_reason: 'Schema updated: 7 models, all relations, constraints. Prisma client generated, type check passes.'
+- id: kz-fdd3
+  title: 'A2: lib/auth.ts — resolveOrg + resolveOrgFromApiKey'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'resolveOrg: uses Clerk auth().orgId → look up Organization by clerkOrgId, query OrgMember for role. resolveOrgFromApiKey: hash token → query ApiKey → return org+scopes. Repo: curata-app.'
+  created: 2026-05-08T12:55:28.005185-05:00
+  updated: 2026-05-08T13:10:42.414589-05:00
+  closed: 2026-05-08T13:10:42.414589-05:00
+  close_reason: 'lib/auth.ts: resolveOrg (Clerk orgId -> DB org + role), resolveOrgFromApiKey (bearer -> hash -> DB lookup + scopes). Type check passes.'
+- id: kz-556d
+  title: 'A3: lib/sync.ts — sync+build service'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'syncAndBuild(orgSlug,pageId): write YAML to disk, materialize annotation sidecars, debounce 5s, build lock, kazam build. retryFailedSyncs: 60s setInterval. startSyncManager/stopSyncManager with SIGTERM graceful shutdown. Riskiest module. Repo: curata-app.'
+  created: 2026-05-08T12:55:28.018844-05:00
+  updated: 2026-05-08T13:14:06.280039-05:00
+  closed: 2026-05-08T13:14:06.280039-05:00
+  close_reason: 'sync.ts written and type-checked: syncPage, scheduleBuild, runBuild, syncAndBuild, retryFailedSyncs, reconcileOnStartup, startSyncManager, stopSyncManager'
+- id: kz-3b30
+  title: 'A4: lib/pages.ts rewrite — all 9 MCP tools DB-backed'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: 'Replace filesystem functions with DB queries. All take orgId. listPages(single query+counts), readPageYaml(latest version), searchPages(ILIKE), writePage(+expectedHash), saveAnnotation, updateAnnotationStatus. getPageHtml stays disk. getSiteConfig stays disk. Remove dead code from kazam.ts. Repo: curata-app.'
+  created: 2026-05-08T12:55:28.032649-05:00
+  updated: 2026-05-08T13:17:16.621436-05:00
+  closed: 2026-05-08T13:17:16.621436-05:00
+  close_reason: 'pages.ts fully rewritten: all functions take orgId, DB-backed via Prisma. writePage has expectedHash for optimistic concurrency. getPageHtml and getSiteConfig stay on disk.'
+- id: kz-d5f9
+  title: 'A5: API routes refactor — auth+dispatch+scoping'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'api/kazam/route.ts: bearer→resolveOrgFromApiKey, scope check (read-only key→403 on writes), pass orgId to all dispatch. api/keys/route.ts: DB-backed key creation, delete JSON file approach. api/annotations/route.ts: DB-backed. Repo: curata-app.'
+  created: 2026-05-08T12:55:28.046406-05:00
+  updated: 2026-05-08T13:17:16.633857-05:00
+  closed: 2026-05-08T13:17:16.633857-05:00
+  close_reason: 'all API routes refactored: kazam/route.ts uses resolveOrgFromApiKey with scope checking, annotations/route.ts uses resolveOrg, edit/route.ts uses readPageYaml+writePage with optimistic concurrency, keys/route.ts DB-backed with create/list/revoke'
+- id: kz-7e98
+  title: 'A6: Dashboard updates — DB queries + sync badge'
+  status: closed
+  priority: 1
+  task_type: task
+  note: 'dashboard/page.tsx: resolveOrg via Clerk orgId, DB listPages with counts, sync status badge (failed/pending). pages/[slug]/page.tsx: org-scoped, annotations from DB, HTML from disk. Repo: curata-app.'
+  created: 2026-05-08T12:55:28.060255-05:00
+  updated: 2026-05-08T13:17:16.643681-05:00
+  closed: 2026-05-08T13:17:16.643681-05:00
+  close_reason: dashboard uses resolveOrg+listPages from DB with sync status badge. page detail uses resolveOrg+getAnnotations+getPageSections from DB with annotation serialization for client component
+- id: kz-f058
+  title: 'B1: api/webhooks/clerk/route.ts — webhook handler'
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'Verify svix signature (CLERK_WEBHOOK_SECRET). organization.created: create Org row + mkdir /data/sites/{slug}/ + copy kazam.yaml template + seed sample page. organizationMembership.created: create OrgMember. Handle duplicate slug (409). BLOCKED BY: A1 (schema), HUMAN-clerk-webhook (Clerk dashboard setup). Repo: curata-app.'
+  created: 2026-05-08T12:55:44.618517-05:00
+  updated: 2026-05-08T13:18:54.394391-05:00
+  closed: 2026-05-08T13:18:54.394391-05:00
+  close_reason: 'webhook handler created: svix signature verification, organization.created with slug dedup retry, organizationMembership.created with graceful org-not-found handling'
+- id: kz-cdbe
+  title: 'C1: Test infrastructure — Vitest + Postgres + 6 suites'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: 'Install vitest. Create vitest.config.ts. Create docker-compose.test.yml (Postgres). Test helpers: DB setup/teardown, Prisma test client, temp dirs. 6 suites: sync.test.ts, auth.test.ts, pages.test.ts, webhooks/clerk.test.ts, kazam/route.test.ts, keys/route.test.ts. Mock only kazam binary. BLOCKED BY: A1 (schema). Repo: curata-app.'
+  created: 2026-05-08T12:55:44.630654-05:00
+  updated: 2026-05-08T15:27:47.011529-05:00
+  closed: 2026-05-08T15:27:47.011529-05:00
+  close_reason: '36 integration tests across 5 suites — api-key, auth, pages, sync, webhook. PR #2.'
+- id: kz-320f
+  title: 'D1: Migration seed script — import existing data'
+  status: closed
+  priority: 2
+  task_type: task
+  note: 'scripts/migrate-seed.ts: create default Org for founder Clerk org, import sample-site/*.yaml → Page+PageVersion, import .kazam/annotations/ → Annotation rows, import api-keys.json → ApiKey rows (hashed), copy kazam.yaml to warm tree, run initial sync+build, verify syncStatus=synced. One-time script. BLOCKED BY: A1 (schema). Repo: curata-app.'
+  created: 2026-05-08T12:55:44.641382-05:00
+  updated: 2026-05-08T13:19:24.660053-05:00
+  closed: 2026-05-08T13:19:24.660053-05:00
+  close_reason: 'migrate-seed.ts created: upserts org, imports pages+versions with content hashing, imports annotations, imports API keys (hash-deduped), copies kazam.yaml to warm tree'
+- id: kz-42d2
+  title: 'E1: CI auto-publish — GitHub Action for kazam binaries'
+  status: closed
+  priority: 2
+  task_type: task
+  note: .github/workflows/release.yml in kazam repo. Trigger on push to main. Build linux-amd64 binary. Publish as GitHub release (rolling latest tag). Dockerfile curl points here. Also serves Homebrew tap. INDEPENDENT — can start immediately.
+  created: 2026-05-08T12:55:44.650411-05:00
+  updated: 2026-05-08T13:18:45.517548-05:00
+  closed: 2026-05-08T13:18:45.517548-05:00
+  close_reason: 'release.yml created: linux-amd64 via cross, darwin-arm64 via native macos-14, rolling latest release on push to main'
+- id: kz-4236
+  title: 'HUMAN: Enable Clerk Organizations + create webhook endpoint'
+  status: closed
+  priority: 1
+  task_type: task
+  owner: human
+  note: 'In Clerk dashboard: 1) Enable Organizations feature if not already. 2) Create webhook endpoint pointing to https://<your-domain>/api/webhooks/clerk. 3) Subscribe to organization.created + organizationMembership.created events. 4) Copy CLERK_WEBHOOK_SECRET. BLOCKS: B1 (webhook handler testing).'
+  created: 2026-05-08T12:56:00.005039-05:00
+  updated: 2026-05-08T13:23:51.715374-05:00
+  closed: 2026-05-08T13:23:51.715374-05:00
+  close_reason: Clerk Organizations enabled, webhook endpoint created at curata-app-production.up.railway.app/api/webhooks/clerk, subscribed to organization.created/updated/deleted + organizationMembership.created, CLERK_WEBHOOK_SECRET set in Railway
+- id: kz-c9e8
+  title: 'HUMAN: Railway setup — Postgres + persistent volume + env vars'
+  status: closed
+  priority: 1
+  task_type: task
+  owner: human
+  note: 'In Railway: 1) Create Postgres database, get DATABASE_URL. 2) Create persistent volume mounted at /data/sites. 3) Set env vars: DATABASE_URL, CLERK_WEBHOOK_SECRET, CLERK_SECRET_KEY, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY. 4) Ensure deploy mode is ''web service'' not ''serverless''. BLOCKS: final deploy + testing.'
+  created: 2026-05-08T12:56:00.016853-05:00
+  updated: 2026-05-08T15:08:32.427479-05:00
+  closed: 2026-05-08T15:08:32.427479-05:00
+  close_reason: 'Railway setup completed: Postgres, persistent volume at /data/sites, env vars, target port fixed to match app'
+- id: kz-ea8e
+  title: 'HUMAN: Create GitHub release for kazam (one-time, before E1 automates this)'
+  status: closed
+  priority: 2
+  task_type: task
+  owner: human
+  note: 'Run: cd ~/personal-repos/kazam && cargo build --release && gh release create latest --title ''Latest'' --notes ''Rolling release'' target/release/kazam. Or let E1 (CI auto-publish) handle this. Only needed if Dockerfile deploy happens before E1 is done.'
+  created: 2026-05-08T12:56:00.027043-05:00
+  updated: 2026-05-08T15:08:46.220185-05:00
+  closed: 2026-05-08T15:08:46.220185-05:00
+  close_reason: 'CI release workflow merged via PR #53 — auto-publishes latest release on push to main'
+- id: kz-c8d9
+  title: 'EPIC: curata Phase B — Folders + visibility + roles'
+  status: closed
+  priority: 5
+  task_type: task
+  note: 'After Phase A is validated. Folder CRUD UI, personal/shared/public visibility filtering, role-permission enforcement. Design doc: tyler-main-design-20260508-113919.md.'
+  created: 2026-05-08T12:56:00.036031-05:00
+  updated: 2026-05-08T19:17:19.436645-05:00
+  closed: 2026-05-08T19:17:19.436645-05:00
+  close_reason: Breaking into subtasks — schema done, code needs wiring
+- id: kz-ad3b
+  title: 'EPIC: curata Phase C — Public pages + version history'
+  status: closed
+  priority: 6
+  task_type: task
+  note: 'After Phase B. /p/[orgSlug]/[pageSlug] public route, version history UI (diff/rollback), startup reconciliation health gate. Design doc: tyler-main-design-20260508-113919.md.'
+  created: 2026-05-08T12:56:00.044078-05:00
+  updated: 2026-05-08T19:17:29.810433-05:00
+  closed: 2026-05-08T19:17:29.810433-05:00
+  close_reason: Breaking into subtasks — public route exists but needs visibility enforcement
+- id: kz-29f6
+  title: Extract @kazam/sdk npm package from curata-app lib/kazam.ts
+  status: open
+  priority: 7
+  task_type: task
+  note: 'Currently a local module in curata-app. Extract to a standalone npm package when there''s a second consumer. Types: ValidationError, Page components, site config. Wraps kazam CLI with typed inputs/outputs.'
+  created: 2026-05-08T18:21:38.318335-05:00
+  updated: 2026-05-08T18:21:38.318335-05:00
+- id: kz-61cf
+  title: 'B1: Folder CRUD API — POST/GET/PATCH/DELETE /api/folders'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Create, list, rename, delete, move. Visibility (personal/shared). Nest via parentId. Scope to orgId.
+  created: 2026-05-08T19:17:19.449317-05:00
+  updated: 2026-05-08T19:22:44.084747-05:00
+  closed: 2026-05-08T19:22:44.084747-05:00
+  close_reason: Folder CRUD API with personal/shared visibility and permission checks
+- id: kz-8372
+  title: 'B2: Visibility filtering in listPages + searchPages'
+  status: closed
+  priority: 1
+  task_type: task
+  note: personal pages only visible to createdBy. shared visible to all org members. public visible to anyone. Filter in all page queries.
+  created: 2026-05-08T19:17:19.463953-05:00
+  updated: 2026-05-08T19:22:44.100554-05:00
+  closed: 2026-05-08T19:22:44.100554-05:00
+  close_reason: listPages and searchPages filter by visibility; agents see all
+- id: kz-b400
+  title: 'B3: Role-permission enforcement in API routes'
+  status: closed
+  priority: 1
+  task_type: task
+  note: Check OrgMember.role against permission matrix from design doc. owner/admin can manage folders+keys+members. member can create/edit pages. viewer can only annotate.
+  created: 2026-05-08T19:17:19.478829-05:00
+  updated: 2026-05-08T19:22:44.115458-05:00
+  closed: 2026-05-08T19:22:44.115458-05:00
+  close_reason: permissions.ts matrix + enforcement in all API routes
+- id: kz-0a0b
+  title: 'B4: Dashboard folder grouping + page assignment'
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Show pages grouped by folder. Unfiled pages in root. Move page to folder via dropdown or drag. Create/rename/delete folders from dashboard.
+  created: 2026-05-08T19:17:19.493644-05:00
+  updated: 2026-05-08T19:28:09.744027-05:00
+  closed: 2026-05-08T19:28:09.744027-05:00
+  close_reason: Dashboard folder grouping committed — folder-grouped page table with inline CRUD
+- id: kz-4791
+  title: 'B5: Personal/shared visibility toggle on pages'
+  status: closed
+  priority: 2
+  task_type: task
+  note: UI to set page visibility. Personal = only creator sees it in dashboard and search. Shared = all org members. Public = served at /p/ URL.
+  created: 2026-05-08T19:17:19.507978-05:00
+  updated: 2026-05-08T19:28:09.759777-05:00
+  closed: 2026-05-08T19:28:09.759777-05:00
+  close_reason: Visibility toggle committed — click-to-cycle badge (personal→shared→public) with PATCH API
+- id: kz-b6d6
+  title: 'C1: Public page visibility enforcement'
+  status: closed
+  priority: 2
+  task_type: task
+  note: Public route /p/[orgSlug]/[pageSlug] must check page.visibility === 'public'. Org landing page must only list public pages. Add anonymous annotation support.
+  created: 2026-05-08T19:17:29.823076-05:00
+  updated: 2026-05-08T19:22:44.130568-05:00
+  closed: 2026-05-08T19:22:44.130568-05:00
+  close_reason: Public route and org landing page now check visibility === public
+- id: kz-bb7f
+  title: 'C2: Version history UI — list + diff view'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Show version list on page detail (who changed, when, hash). Diff between versions. YAML text diff is sufficient for V1.
+  created: 2026-05-08T19:17:29.837776-05:00
+  updated: 2026-05-08T19:47:44.982073-05:00
+  closed: 2026-05-08T19:47:44.982073-05:00
+  close_reason: Version history panel with YAML preview committed — GET /api/versions + VersionHistory component
+- id: kz-773b
+  title: 'C3: Version rollback'
+  status: closed
+  priority: 3
+  task_type: task
+  assignee: claude
+  note: Button to create a new version from an old version's content. Not a destructive operation — just copies old YAML into a new PageVersion row.
+  created: 2026-05-08T19:17:29.852296-05:00
+  updated: 2026-05-08T19:47:45.000367-05:00
+  closed: 2026-05-08T19:47:45.000367-05:00
+  close_reason: Restore button via POST /api/versions — creates new version from old content, triggers syncAndBuild
+- id: kz-204b
+  title: 'C4: Startup reconciliation health gate'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: reconcileOnStartup exists in sync.ts. Wire it into app startup. Railway health check should gate on reconciliation completing.
+  created: 2026-05-08T19:17:29.866790-05:00
+  updated: 2026-05-08T19:31:36.620135-05:00
+  closed: 2026-05-08T19:31:36.620135-05:00
+  close_reason: instrumentation.ts runs reconcileOnStartup on startup, /api/health returns 503 until reconciled
+- id: kz-41bf
+  title: Style Clerk sign-in/sign-up with appearance prop to match curata dark theme
+  status: closed
+  priority: 3
+  task_type: task
+  note: 'ClerkProvider appearance prop: set variables (colorBackground, colorPrimary, colorText, etc) + elements overrides to match the org''s kazam theme. See Clerk docs on appearance prop. The white default form clashes with the dark site chrome.'
+  created: 2026-05-09T12:30:34.559755-05:00
+  updated: 2026-05-09T12:42:02.784888-05:00
+  closed: 2026-05-09T12:42:02.784888-05:00
+  close_reason: Clerk sign-in/up styled with dark theme via @clerk/themes appearance prop — bg, accent, text, inputs all match curata dark chrome
