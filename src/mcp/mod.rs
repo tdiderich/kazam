@@ -1,9 +1,19 @@
 use anyhow::Result;
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Read, Write};
 use std::path::Path;
 
 mod protocol;
 mod tools;
+
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
+}
 
 use protocol::{JsonRpcRequest, JsonRpcResponse, ToolResult};
 
@@ -82,7 +92,13 @@ pub fn run_http(
     );
 
     for mut request in server.incoming_requests() {
-        let cors = tiny_http::Header::from_bytes("Access-Control-Allow-Origin", "*").unwrap();
+        let cors_origin = if token.is_some() {
+            "http://localhost:3000"
+        } else {
+            "*"
+        };
+        let cors =
+            tiny_http::Header::from_bytes("Access-Control-Allow-Origin", cors_origin).unwrap();
         let cors_headers = tiny_http::Header::from_bytes(
             "Access-Control-Allow-Headers",
             "Content-Type, Authorization",
@@ -111,7 +127,7 @@ pub fn run_http(
                     && h.value
                         .as_str()
                         .strip_prefix("Bearer ")
-                        .map(|t| t == expected)
+                        .map(|t| constant_time_eq(t.as_bytes(), expected.as_bytes()))
                         .unwrap_or(false)
             });
             if !auth_ok {
@@ -136,9 +152,14 @@ pub fn run_http(
             continue;
         }
 
-        // Read body
+        // Read body (capped at 10 MB to prevent memory exhaustion)
+        const MAX_BODY: usize = 10 * 1024 * 1024;
         let mut body = String::new();
-        if let Err(e) = request.as_reader().read_to_string(&mut body) {
+        if let Err(e) = request
+            .as_reader()
+            .take(MAX_BODY as u64)
+            .read_to_string(&mut body)
+        {
             eprintln!("kazam mcp: read error: {}", e);
             let err_body = format!(
                 r#"{{"jsonrpc":"2.0","error":{{"code":-32700,"message":"read error: {}"}},"id":null}}"#,
