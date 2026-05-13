@@ -1004,12 +1004,20 @@ interface SlideData {
   cover?: boolean;
 }
 
+interface FreshnessData {
+  updated?: string;
+  review_every?: string;
+  owner?: string;
+  expires?: string;
+}
+
 interface PageData {
   title: string;
   subtitle?: string;
   shell?: string;
   components?: ComponentData[];
   slides?: SlideData[];
+  freshness?: FreshnessData | "never";
 }
 
 interface ComponentData {
@@ -1110,6 +1118,36 @@ function renderBlock(text: string): React.ReactElement {
   return <>{elements}</>;
 }
 
+function AccordionView({
+  id,
+  items,
+  renderMarkdown,
+}: {
+  id: string;
+  items: Array<{ title: string; components: ComponentData[] }>;
+  renderMarkdown?: (md: string) => string;
+}) {
+  const [openIndex, setOpenIndex] = React.useState<number | null>(null);
+  return (
+    <div id={id} className="c-accordion">
+      {items.map((item, i) => (
+        <div key={i} className={`c-accordion-item${openIndex === i ? " accordion-open" : ""}`}>
+          <button className="accordion-head" onClick={() => setOpenIndex(openIndex === i ? null : i)}>
+            {item.title}<span className="accordion-chevron">›</span>
+          </button>
+          {openIndex === i && (
+            <div className="accordion-body">
+              {(item.components || []).map((c, ci) => (
+                <ComponentView key={ci} comp={c} index={ci} renderMarkdown={renderMarkdown} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ComponentView({
   comp,
   index,
@@ -1150,10 +1188,18 @@ function ComponentView({
       const variant = (comp.variant as string) || "info";
       const title = comp.title as string | undefined;
       const body = (comp.body as string) || "";
+      const links = (comp.links as Array<{ label: string; href: string; variant?: string }>) || [];
       return (
         <div id={id} className={`c-callout c-callout-${variant}`}>
           {title && <div className="c-callout-title">{renderInline(title)}</div>}
           <div className="c-callout-body c-markdown">{md(body)}</div>
+          {links.length > 0 && (
+            <div className="c-callout-links c-button-group">
+              {links.map((l, i) => (
+                <a key={i} href={l.href} className={`c-button c-button-${l.variant || "secondary"}`}>{l.label}</a>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
@@ -1492,25 +1538,7 @@ function ComponentView({
 
     case "accordion": {
       const items = (comp.items as Array<{ title: string; components: ComponentData[] }>) || [];
-      const [openIndex, setOpenIndex] = React.useState<number | null>(null);
-      return (
-        <div id={id} className="c-accordion">
-          {items.map((item, i) => (
-            <div key={i} className={`c-accordion-item${openIndex === i ? " accordion-open" : ""}`}>
-              <button className="accordion-head" onClick={() => setOpenIndex(openIndex === i ? null : i)}>
-                {item.title}<span className="accordion-chevron">›</span>
-              </button>
-              {openIndex === i && (
-                <div className="accordion-body">
-                  {(item.components || []).map((c, ci) => (
-                    <ComponentView key={ci} comp={c} index={ci} renderMarkdown={renderMarkdown} />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      );
+      return <AccordionView id={id} items={items} renderMarkdown={renderMarkdown} />;
     }
 
     case "hero_banner": {
@@ -1846,6 +1874,61 @@ function DeckRenderer({ slides, renderMarkdown }: { slides: SlideData[]; renderM
   );
 }
 
+function FreshnessBanner({ freshness }: { freshness?: FreshnessData | "never" }) {
+  if (!freshness || freshness === "never") return null;
+  const f = freshness as FreshnessData;
+  if (!f.updated || !f.review_every) return null;
+
+  const cadenceMap: Record<string, number> = {
+    weekly: 7, monthly: 30, quarterly: 90, yearly: 365, annually: 365,
+  };
+  let cadenceDays = cadenceMap[f.review_every];
+  if (!cadenceDays) {
+    const m = f.review_every.match(/^(\d+)(d|w|m|y)$/);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      cadenceDays = m[2] === "d" ? n : m[2] === "w" ? n * 7 : m[2] === "m" ? n * 30 : n * 365;
+    }
+  }
+  if (!cadenceDays) return null;
+
+  const updated = new Date(f.updated);
+  const now = new Date();
+  const elapsed = Math.floor((now.getTime() - updated.getTime()) / 86400000);
+  const dueIn = cadenceDays - elapsed;
+
+  let variant: string;
+  let title: string;
+  let headline: string;
+  if (dueIn > 7) return null;
+  if (dueIn > 0) {
+    variant = "warn";
+    title = "Review due soon";
+    headline = dueIn === 1 ? "Review is due in 1 day." : `Review is due in ${dueIn} days.`;
+  } else if (dueIn === 0) {
+    variant = "warn";
+    title = "Review due soon";
+    headline = "Review is due today.";
+  } else {
+    variant = "danger";
+    title = "Review overdue";
+    headline = `Review is ${-dueIn} ${-dueIn === 1 ? "day" : "days"} overdue.`;
+  }
+
+  const meta = [
+    `Last updated: ${f.updated} (${elapsed} days ago)`,
+    `Review cadence: every ${f.review_every}`,
+    f.owner ? `Owner: ${f.owner}` : null,
+  ].filter(Boolean).join(". ");
+
+  return (
+    <div className={`c-callout c-callout-${variant} c-freshness-banner`}>
+      <div className="c-callout-title">{title}</div>
+      <div className="c-callout-body">{headline} {meta}.</div>
+    </div>
+  );
+}
+
 export function PageRenderer({ page, renderMarkdown }: PageRendererProps) {
   if (page.shell === "deck" && page.slides && page.slides.length > 0) {
     return <DeckRenderer slides={page.slides} renderMarkdown={renderMarkdown} />;
@@ -1853,6 +1936,7 @@ export function PageRenderer({ page, renderMarkdown }: PageRendererProps) {
   const components = page.components ?? [];
   return (
     <div>
+      <FreshnessBanner freshness={page.freshness} />
       {components.map((comp, i) => (
         <ComponentView key={i} comp={comp} index={i} renderMarkdown={renderMarkdown} />
       ))}
