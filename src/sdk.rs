@@ -2525,7 +2525,7 @@ fn generate_editor(out: &mut String) {
                         .collect();
                     let default_item = format!("{{{}}}", required_defaults.join(", "));
                     out.push_str(&format!(
-                        "            {{((comp.{} as unknown[]) || []).length > 1 && <button className=\"pe-list-remove\" onClick={{() => onChange({{...comp, {}: ((comp.{} as unknown[]) || []).filter((_: unknown, j: number) => j !== i)}})}}>\\u00d7</button>}}\n",
+                        "            {{((comp.{} as unknown[]) || []).length > 1 && <button className=\"pe-list-remove\" onClick={{() => onChange({{...comp, {}: ((comp.{} as unknown[]) || []).filter((_: unknown, j: number) => j !== i)}})}}>×</button>}}\n",
                         field_name, field_name, field_name
                     ));
                     out.push_str("          </div>\n        ))}\n");
