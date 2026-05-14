@@ -228,6 +228,8 @@ enum SdkCommand {
     EmitReact,
     /// Print JSON component schema to stdout (for agent tooling)
     EmitSchema,
+    /// Print markdown component reference to stdout (for agent context)
+    EmitAgents,
 }
 
 #[derive(Subcommand)]
@@ -420,6 +422,7 @@ fn main() -> Result<()> {
             SdkCommand::Emit => sdk::emit_typescript(),
             SdkCommand::EmitReact => sdk::emit_react(),
             SdkCommand::EmitSchema => sdk::emit_schema(),
+            SdkCommand::EmitAgents => sdk::emit_agents(),
         },
         Command::Audit { dir, pretty } => audit::run(&dir, pretty),
         Command::Annotate { command, dir } => match command {

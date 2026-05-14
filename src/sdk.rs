@@ -1,4 +1,24 @@
 use anyhow::Result;
+use serde::Deserialize;
+use std::collections::BTreeMap;
+
+#[derive(Deserialize)]
+struct SchemaField {
+    #[serde(rename = "type")]
+    field_type: String,
+    required: bool,
+}
+
+#[derive(Deserialize)]
+struct Schema {
+    enums: BTreeMap<String, Vec<String>>,
+    types: BTreeMap<String, BTreeMap<String, SchemaField>>,
+    components: BTreeMap<String, BTreeMap<String, SchemaField>>,
+}
+
+fn load_schema() -> Schema {
+    serde_json::from_str(include_str!("../schema/components.json")).expect("invalid schema JSON")
+}
 
 pub fn emit_typescript() -> Result<()> {
     print!("{}", generate_typescript());
@@ -6,516 +26,64 @@ pub fn emit_typescript() -> Result<()> {
 }
 
 fn component_defs() -> Vec<(&'static str, Vec<(&'static str, &'static str)>)> {
-    vec![
-        (
-            "header",
-            vec![
-                ("title", "string"),
-                ("subtitle?", "string"),
-                ("eyebrow?", "string"),
-                ("align?", "Align"),
-                ("id?", "string"),
-            ],
-        ),
-        (
-            "hero_banner",
-            vec![
-                ("title", "string"),
-                ("eyebrow?", "string"),
-                ("subtitle?", "string"),
-                ("buttons?", "ButtonConfig[]"),
-            ],
-        ),
-        ("meta", vec![("fields", "MetaField[]")]),
-        (
-            "card_grid",
-            vec![
-                ("cards", "Card[]"),
-                ("min_width?", "number"),
-                ("connector?", "Connector"),
-            ],
-        ),
-        (
-            "selectable_grid",
-            vec![
-                ("cards", "SelectableCard[]"),
-                ("interaction?", "Interaction"),
-                ("connector?", "Connector"),
-            ],
-        ),
-        ("timeline", vec![("items", "TimelineItem[]")]),
-        (
-            "stat_grid",
-            vec![("stats", "Stat[]"), ("columns?", "number")],
-        ),
-        (
-            "before_after",
-            vec![
-                ("items", "BeforeAfterItem[]"),
-                ("before_label?", "string"),
-                ("after_label?", "string"),
-            ],
-        ),
-        (
-            "split_compare",
-            vec![("left", "ComparePanel"), ("right", "ComparePanel")],
-        ),
-        ("steps", vec![("items", "Step[]"), ("numbered?", "boolean")]),
-        ("markdown", vec![("body", "string")]),
-        (
-            "table",
-            vec![
-                ("columns", "TableColumn[]"),
-                ("rows", "Record<string, unknown>[]"),
-                ("filterable?", "boolean"),
-            ],
-        ),
-        (
-            "callout",
-            vec![
-                ("variant?", "CalloutVariant"),
-                ("title?", "string"),
-                ("body", "string"),
-                ("links?", "ButtonConfig[]"),
-            ],
-        ),
-        ("code", vec![("language?", "string"), ("code", "string")]),
-        ("tabs", vec![("tabs", "Tab[]")]),
-        (
-            "section",
-            vec![
-                ("heading?", "string"),
-                ("eyebrow?", "string"),
-                ("components", "Component[]"),
-                ("align?", "Align"),
-                ("id?", "string"),
-            ],
-        ),
-        (
-            "columns",
-            vec![("columns", "Component[][]"), ("equal_heights?", "boolean")],
-        ),
-        ("accordion", vec![("items", "AccordionItem[]")]),
-        (
-            "event_timeline",
-            vec![
-                ("events", "EventItem[]"),
-                ("default_filter?", "EventFilter"),
-                ("show_filter_toggle?", "boolean"),
-                ("limit?", "number"),
-            ],
-        ),
-        (
-            "tree",
-            vec![
-                ("nodes", "TreeNode[]"),
-                ("default_filter?", "TreeFilter"),
-                ("show_filter_toggle?", "boolean"),
-                ("default_collapsed?", "boolean"),
-            ],
-        ),
-        (
-            "venn",
-            vec![
-                ("sets", "VennSet[]"),
-                ("overlaps?", "VennOverlap[]"),
-                ("title?", "string"),
-            ],
-        ),
-        (
-            "image",
-            vec![
-                ("src", "string"),
-                ("alt?", "string"),
-                ("caption?", "string"),
-                ("max_width?", "number"),
-                ("align?", "Align"),
-            ],
-        ),
-        (
-            "embed",
-            vec![
-                ("src", "string"),
-                ("title?", "string"),
-                ("aspect?", "string"),
-            ],
-        ),
-        ("resources", vec![("items", "ResourceItem[]")]),
-        ("badge", vec![("label", "string"), ("color?", "SemColor")]),
-        ("tag", vec![("label", "string"), ("color?", "SemColor")]),
-        ("divider", vec![("label?", "string")]),
-        ("kbd", vec![("keys", "string[]")]),
-        ("status", vec![("label", "string"), ("color?", "SemColor")]),
-        ("breadcrumb", vec![("items", "BreadcrumbItem[]")]),
-        ("button_group", vec![("buttons", "ButtonConfig[]")]),
-        ("definition_list", vec![("items", "DefinitionItem[]")]),
-        (
-            "blockquote",
-            vec![("body", "string"), ("attribution?", "string")],
-        ),
-        (
-            "avatar",
-            vec![
-                ("name", "string"),
-                ("src?", "string"),
-                ("size?", "AvatarSize"),
-                ("subtitle?", "string"),
-            ],
-        ),
-        (
-            "avatar_group",
-            vec![
-                ("avatars", "AvatarConfig[]"),
-                ("size?", "AvatarSize"),
-                ("max?", "number"),
-            ],
-        ),
-        (
-            "progress_bar",
-            vec![
-                ("value", "number"),
-                ("label?", "string"),
-                ("color?", "SemColor"),
-                ("detail?", "string"),
-            ],
-        ),
-        (
-            "empty_state",
-            vec![
-                ("title", "string"),
-                ("body?", "string"),
-                ("action?", "EmptyStateAction"),
-                ("icon?", "string"),
-            ],
-        ),
-        (
-            "icon",
-            vec![
-                ("name", "string"),
-                ("size?", "IconSize"),
-                ("color?", "SemColor"),
-            ],
-        ),
-        (
-            "chart",
-            vec![
-                ("kind", "ChartKind"),
-                ("title?", "string"),
-                ("height?", "number"),
-                ("x_label?", "string"),
-                ("y_label?", "string"),
-                ("orientation?", "ChartOrientation"),
-                ("data?", "ChartPoint[]"),
-                ("series?", "ChartSeries[]"),
-            ],
-        ),
-        (
-            "chart_group",
-            vec![
-                ("components", "Component[]"),
-                ("columns?", "number"),
-                ("title?", "string"),
-            ],
-        ),
-        ("role_map", vec![("title?", "string")]),
-    ]
+    let schema = load_schema();
+    schema
+        .components
+        .into_iter()
+        .map(|(tag, fields)| {
+            let tag: &'static str = Box::leak(tag.into_boxed_str());
+            let fields: Vec<(&'static str, &'static str)> = fields
+                .into_iter()
+                .map(|(name, field)| {
+                    let name_str = if field.required {
+                        name
+                    } else {
+                        format!("{}?", name)
+                    };
+                    let name: &'static str = Box::leak(name_str.into_boxed_str());
+                    let ftype: &'static str = Box::leak(field.field_type.into_boxed_str());
+                    (name, ftype)
+                })
+                .collect();
+            (tag, fields)
+        })
+        .collect()
 }
 
 fn generate_typescript() -> String {
     let mut out = String::with_capacity(8192);
     out.push_str("// Auto-generated by `kazam sdk emit` — do not edit\n\n");
 
-    // Enums
-    emit_enum(&mut out, "Shell", &["standard", "document", "deck"]);
-    emit_enum(&mut out, "Align", &["left", "right", "center"]);
-    emit_enum(
-        &mut out,
-        "SemColor",
-        &["default", "green", "yellow", "red", "teal"],
-    );
-    emit_enum(
-        &mut out,
-        "CalloutVariant",
-        &["info", "warn", "success", "danger"],
-    );
-    emit_enum(
-        &mut out,
-        "Interaction",
-        &["single_select", "multi_select", "none"],
-    );
-    emit_enum(&mut out, "Connector", &["none", "dots_line", "arrow"]);
-    emit_enum(
-        &mut out,
-        "TimelineStatus",
-        &["completed", "active", "upcoming"],
-    );
-    emit_enum(&mut out, "EventSeverity", &["major", "minor", "info"]);
-    emit_enum(&mut out, "EventFilter", &["all", "major"]);
-    emit_enum(
-        &mut out,
-        "TreeStatus",
-        &[
-            "default",
-            "completed",
-            "active",
-            "blocked",
-            "priority",
-            "upcoming",
-        ],
-    );
-    emit_enum(
-        &mut out,
-        "TreeFilter",
-        &["all", "incomplete", "blocked", "priority"],
-    );
-    emit_enum(
-        &mut out,
-        "ButtonVariant",
-        &["primary", "secondary", "ghost"],
-    );
-    emit_enum(&mut out, "IconSize", &["xs", "sm", "md", "lg", "xl"]);
-    emit_enum(&mut out, "AvatarSize", &["sm", "md", "lg", "xl"]);
-    emit_enum(&mut out, "ChartKind", &["pie", "bar", "timeseries"]);
-    emit_enum(&mut out, "ChartOrientation", &["vertical", "horizontal"]);
-    emit_enum(&mut out, "PrintFlow", &["slides", "continuous", "square"]);
-    emit_enum(
-        &mut out,
-        "Texture",
-        &["none", "dots", "grid", "grain", "topography", "diagonal"],
-    );
-    emit_enum(&mut out, "Glow", &["none", "accent", "corner"]);
-    emit_enum(&mut out, "NavLayout", &["top", "sidebar"]);
-    emit_enum(&mut out, "Mode", &["dark", "light"]);
-    emit_enum(
-        &mut out,
-        "AnnotationStatus",
-        &["pending", "incorporated", "ignored", "stale"],
-    );
-    emit_enum(&mut out, "AnnotationSource", &["cli", "agent", "web"]);
-    emit_enum(&mut out, "RefreshMode", &["human", "auto", "assisted"]);
-    emit_enum(
-        &mut out,
-        "ThemeName",
-        &[
-            "dark", "light", "red", "orange", "yellow", "green", "blue", "indigo", "violet",
-        ],
-    );
+    let schema = load_schema();
 
-    // Supporting types
-    emit_interface(
-        &mut out,
-        "ThemeTokens",
-        &[
-            ("bg", "string"),
-            ("surface", "string"),
-            ("surface_strong", "string"),
-            ("border", "string"),
-            ("border_strong", "string"),
-            ("accent", "string"),
-            ("accent_soft", "string"),
-            ("text", "string"),
-            ("text_muted", "string"),
-            ("text_subtle", "string"),
-            ("overlay_hover", "string"),
-            ("green", "string"),
-            ("yellow", "string"),
-            ("red", "string"),
-            ("header_border", "string"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "MetaField",
-        &[("key", "string"), ("value", "string")],
-    );
-    emit_interface(&mut out, "Link", &[("label", "string"), ("href", "string")]);
-    emit_interface(
-        &mut out,
-        "Badge",
-        &[("label", "string"), ("color?", "SemColor")],
-    );
-    emit_interface(
-        &mut out,
-        "Card",
-        &[
-            ("title", "string"),
-            ("badge?", "Badge"),
-            ("description?", "string"),
-            ("links?", "Link[]"),
-            ("href?", "string"),
-            ("color?", "SemColor"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "SelectableCard",
-        &[
-            ("title", "string"),
-            ("eyebrow?", "string"),
-            ("bullets?", "string[]"),
-            ("body?", "string"),
-            ("color?", "SemColor"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "TimelineItem",
-        &[("name", "string"), ("status", "TimelineStatus")],
-    );
-    emit_interface(
-        &mut out,
-        "Stat",
-        &[
-            ("label", "string"),
-            ("value", "string"),
-            ("detail?", "string"),
-            ("color?", "SemColor"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "BeforeAfterItem",
-        &[
-            ("title", "string"),
-            ("before", "string"),
-            ("after", "string"),
-            ("after_context?", "string"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "ComparePanel",
-        &[
-            ("eyebrow?", "string"),
-            ("title", "string"),
-            ("stats", "CompareStat[]"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "CompareStat",
-        &[
-            ("label", "string"),
-            ("value", "string"),
-            ("color?", "SemColor"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "Step",
-        &[("title", "string"), ("detail?", "string")],
-    );
-    emit_interface(
-        &mut out,
-        "TableColumn",
-        &[
-            ("key", "string"),
-            ("label", "string"),
-            ("sortable?", "boolean"),
-            ("align?", "Align"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "Tab",
-        &[("label", "string"), ("components", "Component[]")],
-    );
-    emit_interface(
-        &mut out,
-        "AccordionItem",
-        &[("title", "string"), ("components", "Component[]")],
-    );
-    emit_interface(
-        &mut out,
-        "EventItem",
-        &[
-            ("date", "string"),
-            ("title", "string"),
-            ("summary?", "string"),
-            ("severity?", "EventSeverity"),
-            ("source?", "string"),
-            ("link?", "string"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "TreeNode",
-        &[
-            ("label", "string"),
-            ("status?", "TreeStatus"),
-            ("note?", "string"),
-            ("children?", "TreeNode[]"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "VennSet",
-        &[("label", "string"), ("color?", "SemColor")],
-    );
-    emit_interface(
-        &mut out,
-        "VennOverlap",
-        &[("sets", "number[]"), ("label?", "string")],
-    );
-    emit_interface(
-        &mut out,
-        "BreadcrumbItem",
-        &[("label", "string"), ("href?", "string")],
-    );
-    emit_interface(
-        &mut out,
-        "ButtonConfig",
-        &[
-            ("label", "string"),
-            ("href", "string"),
-            ("variant?", "ButtonVariant"),
-            ("external?", "boolean"),
-            ("icon?", "string"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "DefinitionItem",
-        &[("term", "string"), ("definition", "string")],
-    );
-    emit_interface(
-        &mut out,
-        "AvatarConfig",
-        &[("name", "string"), ("src?", "string")],
-    );
-    emit_interface(
-        &mut out,
-        "EmptyStateAction",
-        &[("label", "string"), ("href", "string")],
-    );
-    emit_interface(
-        &mut out,
-        "ChartPoint",
-        &[
-            ("label", "string"),
-            ("value", "number"),
-            ("color?", "SemColor"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "ChartSeries",
-        &[
-            ("label", "string"),
-            ("color?", "SemColor"),
-            ("points", "ChartPoint[]"),
-        ],
-    );
-    emit_interface(
-        &mut out,
-        "ResourceItem",
-        &[
-            ("title", "string"),
-            ("href", "string"),
-            ("description?", "string"),
-            ("owner?", "string"),
-        ],
-    );
+    // Enums from schema
+    for (name, variants) in &schema.enums {
+        let variant_refs: Vec<&str> = variants.iter().map(|s| s.as_str()).collect();
+        emit_enum(&mut out, name, &variant_refs);
+    }
+
+    // Supporting types from schema
+    for (name, fields) in &schema.types {
+        // Build field list in the format emit_interface expects: ("name" or "name?", "type")
+        let field_list: Vec<(String, String)> = fields
+            .iter()
+            .map(|(fname, field)| {
+                let key = if field.required {
+                    fname.clone()
+                } else {
+                    format!("{}?", fname)
+                };
+                (key, field.field_type.clone())
+            })
+            .collect();
+        let field_refs: Vec<(&str, &str)> = field_list
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        emit_interface(&mut out, name, &field_refs);
+    }
+
+    // Slide type (not in schema, stays hardcoded)
     emit_interface(
         &mut out,
         "Slide",
@@ -714,202 +282,14 @@ pub fn emit_schema() -> Result<()> {
 }
 
 fn generate_schema() -> String {
-    let enums: Vec<(&str, Vec<&str>)> = vec![
-        (
-            "SemColor",
-            vec!["default", "green", "yellow", "red", "teal"],
-        ),
-        ("Align", vec!["left", "right", "center"]),
-        ("CalloutVariant", vec!["info", "warn", "success", "danger"]),
-        ("Interaction", vec!["single_select", "multi_select", "none"]),
-        ("Connector", vec!["none", "dots_line", "arrow"]),
-        ("TimelineStatus", vec!["completed", "active", "upcoming"]),
-        ("EventSeverity", vec!["major", "minor", "info"]),
-        ("EventFilter", vec!["all", "major"]),
-        (
-            "TreeStatus",
-            vec![
-                "default",
-                "completed",
-                "active",
-                "blocked",
-                "priority",
-                "upcoming",
-            ],
-        ),
-        (
-            "TreeFilter",
-            vec!["all", "incomplete", "blocked", "priority"],
-        ),
-        ("ButtonVariant", vec!["primary", "secondary", "ghost"]),
-        ("AvatarSize", vec!["sm", "md", "lg", "xl"]),
-        ("IconSize", vec!["xs", "sm", "md", "lg", "xl"]),
-        ("ChartKind", vec!["pie", "bar", "timeseries"]),
-        ("ChartOrientation", vec!["vertical", "horizontal"]),
-    ];
-
-    let types: Vec<(&str, Vec<(&str, &str)>)> = vec![
-        ("MetaField", vec![("key", "string"), ("value", "string")]),
-        ("Badge", vec![("label", "string"), ("color?", "SemColor")]),
-        ("Link", vec![("label", "string"), ("href", "string")]),
-        (
-            "Card",
-            vec![
-                ("title", "string"),
-                ("badge?", "Badge"),
-                ("description?", "string"),
-                ("links?", "Link[]"),
-                ("href?", "string"),
-                ("color?", "SemColor"),
-            ],
-        ),
-        (
-            "SelectableCard",
-            vec![
-                ("title", "string"),
-                ("eyebrow?", "string"),
-                ("bullets?", "string[]"),
-                ("body?", "string"),
-                ("color?", "SemColor"),
-            ],
-        ),
-        (
-            "TimelineItem",
-            vec![("name", "string"), ("status", "TimelineStatus")],
-        ),
-        (
-            "Stat",
-            vec![
-                ("label", "string"),
-                ("value", "string"),
-                ("detail?", "string"),
-                ("color?", "SemColor"),
-            ],
-        ),
-        (
-            "BeforeAfterItem",
-            vec![
-                ("title", "string"),
-                ("before", "string"),
-                ("after", "string"),
-                ("after_context?", "string"),
-            ],
-        ),
-        (
-            "ComparePanel",
-            vec![
-                ("eyebrow?", "string"),
-                ("title", "string"),
-                ("stats", "CompareStat[]"),
-            ],
-        ),
-        (
-            "CompareStat",
-            vec![
-                ("label", "string"),
-                ("value", "string"),
-                ("color?", "SemColor"),
-            ],
-        ),
-        ("Step", vec![("title", "string"), ("detail?", "string")]),
-        (
-            "TableColumn",
-            vec![
-                ("key", "string"),
-                ("label", "string"),
-                ("sortable?", "boolean"),
-                ("align?", "Align"),
-            ],
-        ),
-        (
-            "Tab",
-            vec![("label", "string"), ("components", "Component[]")],
-        ),
-        (
-            "AccordionItem",
-            vec![("title", "string"), ("components", "Component[]")],
-        ),
-        (
-            "EventItem",
-            vec![
-                ("date", "string"),
-                ("title", "string"),
-                ("summary?", "string"),
-                ("severity?", "EventSeverity"),
-                ("source?", "string"),
-                ("link?", "string"),
-            ],
-        ),
-        (
-            "TreeNode",
-            vec![
-                ("label", "string"),
-                ("status?", "TreeStatus"),
-                ("note?", "string"),
-                ("children?", "TreeNode[]"),
-            ],
-        ),
-        ("VennSet", vec![("label", "string"), ("color?", "SemColor")]),
-        (
-            "VennOverlap",
-            vec![("sets", "number[]"), ("label?", "string")],
-        ),
-        (
-            "ButtonConfig",
-            vec![
-                ("label", "string"),
-                ("href", "string"),
-                ("variant?", "ButtonVariant"),
-                ("external?", "boolean"),
-                ("icon?", "string"),
-            ],
-        ),
-        (
-            "BreadcrumbItem",
-            vec![("label", "string"), ("href?", "string")],
-        ),
-        (
-            "DefinitionItem",
-            vec![("term", "string"), ("definition", "string")],
-        ),
-        ("AvatarConfig", vec![("name", "string"), ("src?", "string")]),
-        (
-            "EmptyStateAction",
-            vec![("label", "string"), ("href", "string")],
-        ),
-        (
-            "ResourceItem",
-            vec![
-                ("title", "string"),
-                ("href", "string"),
-                ("description?", "string"),
-                ("owner?", "string"),
-            ],
-        ),
-        (
-            "ChartPoint",
-            vec![
-                ("label", "string"),
-                ("value", "number"),
-                ("color?", "SemColor"),
-            ],
-        ),
-        (
-            "ChartSeries",
-            vec![
-                ("label", "string"),
-                ("color?", "SemColor"),
-                ("points", "ChartPoint[]"),
-            ],
-        ),
-    ];
-
-    let components = component_defs();
+    // The schema file IS the source of truth — just re-emit it as canonical JSON.
+    let schema = load_schema();
 
     let mut out = String::with_capacity(16384);
     out.push_str("{\n");
 
     // Enums
+    let enums: Vec<(&String, &Vec<String>)> = schema.enums.iter().collect();
     out.push_str("  \"enums\": {\n");
     for (i, (name, variants)) in enums.iter().enumerate() {
         out.push_str("    \"");
@@ -932,25 +312,22 @@ fn generate_schema() -> String {
     out.push_str("  },\n");
 
     // Types
+    let types: Vec<(&String, &BTreeMap<String, SchemaField>)> = schema.types.iter().collect();
     out.push_str("  \"types\": {\n");
     for (i, (name, fields)) in types.iter().enumerate() {
         out.push_str("    \"");
         out.push_str(name);
         out.push_str("\": {\n");
-        for (j, (fname, ftype)) in fields.iter().enumerate() {
-            let (clean_name, required) = if let Some(stripped) = fname.strip_suffix('?') {
-                (stripped, false)
-            } else {
-                (*fname, true)
-            };
+        let field_list: Vec<(&String, &SchemaField)> = fields.iter().collect();
+        for (j, (fname, field)) in field_list.iter().enumerate() {
             out.push_str("      \"");
-            out.push_str(clean_name);
+            out.push_str(fname);
             out.push_str("\": { \"type\": \"");
-            out.push_str(ftype);
+            out.push_str(&field.field_type);
             out.push_str("\", \"required\": ");
-            out.push_str(if required { "true" } else { "false" });
+            out.push_str(if field.required { "true" } else { "false" });
             out.push_str(" }");
-            if j < fields.len() - 1 {
+            if j < field_list.len() - 1 {
                 out.push(',');
             }
             out.push('\n');
@@ -964,31 +341,29 @@ fn generate_schema() -> String {
     out.push_str("  },\n");
 
     // Components
+    let components_map: Vec<(&String, &BTreeMap<String, SchemaField>)> =
+        schema.components.iter().collect();
     out.push_str("  \"components\": {\n");
-    for (i, (tag, fields)) in components.iter().enumerate() {
+    for (i, (tag, fields)) in components_map.iter().enumerate() {
         out.push_str("    \"");
         out.push_str(tag);
         out.push_str("\": {\n");
-        for (j, (fname, ftype)) in fields.iter().enumerate() {
-            let (clean_name, required) = if let Some(stripped) = fname.strip_suffix('?') {
-                (stripped, false)
-            } else {
-                (*fname, true)
-            };
+        let field_list: Vec<(&String, &SchemaField)> = fields.iter().collect();
+        for (j, (fname, field)) in field_list.iter().enumerate() {
             out.push_str("      \"");
-            out.push_str(clean_name);
+            out.push_str(fname);
             out.push_str("\": { \"type\": \"");
-            out.push_str(ftype);
+            out.push_str(&field.field_type);
             out.push_str("\", \"required\": ");
-            out.push_str(if required { "true" } else { "false" });
+            out.push_str(if field.required { "true" } else { "false" });
             out.push_str(" }");
-            if j < fields.len() - 1 {
+            if j < field_list.len() - 1 {
                 out.push(',');
             }
             out.push('\n');
         }
         out.push_str("    }");
-        if i < components.len() - 1 {
+        if i < components_map.len() - 1 {
             out.push(',');
         }
         out.push('\n');
@@ -996,6 +371,142 @@ fn generate_schema() -> String {
     out.push_str("  }\n");
 
     out.push_str("}\n");
+    out
+}
+
+pub fn emit_agents() -> Result<()> {
+    print!("{}", generate_agents());
+    Ok(())
+}
+
+fn yaml_example_value(field_type: &str, field_name: &str, schema: &Schema) -> String {
+    if field_type.ends_with("[]") {
+        return "[]".to_string();
+    }
+    match field_type {
+        "string" => match field_name {
+            "title" | "heading" | "label" | "term" => "\"Example Title\"",
+            "body" | "description" | "detail" | "definition" | "summary" => "\"Description text\"",
+            "value" => "\"$1.2M\"",
+            "href" | "src" | "link" | "url" => "\"https://example.com\"",
+            "code" => "\"console.log('hello')\"",
+            "language" => "\"typescript\"",
+            "key" => "\"metric\"",
+            "name" => "\"Example\"",
+            "date" => "\"2025-01-15\"",
+            "alt" | "caption" => "\"Image description\"",
+            "aspect" => "\"16:9\"",
+            _ => "\"example\"",
+        }
+        .to_string(),
+        "number" => match field_name {
+            "value" => "42",
+            "columns" | "max" | "limit" | "min_width" => "3",
+            "height" | "max_width" => "300",
+            _ => "0",
+        }
+        .to_string(),
+        "boolean" => "false".to_string(),
+        _ => {
+            if let Some(variants) = schema.enums.get(field_type) {
+                if let Some(first) = variants.first() {
+                    return format!("\"{}\"", first);
+                }
+            }
+            "{}".to_string()
+        }
+    }
+}
+
+fn generate_agents() -> String {
+    let schema = load_schema();
+    let mut out = String::with_capacity(32768);
+
+    out.push_str("# kazam component reference\n\n");
+    out.push_str("Auto-generated from schema. Do not edit.\n\n");
+
+    // Enums
+    out.push_str("## Enums\n\n");
+    for (name, variants) in &schema.enums {
+        out.push_str("### ");
+        out.push_str(name);
+        out.push('\n');
+        out.push_str("Values: ");
+        for (i, v) in variants.iter().enumerate() {
+            if i > 0 {
+                out.push_str(", ");
+            }
+            out.push('`');
+            out.push_str(v);
+            out.push('`');
+        }
+        out.push_str("\n\n");
+    }
+
+    // Types
+    out.push_str("## Types\n\n");
+    for (name, fields) in &schema.types {
+        out.push_str("### ");
+        out.push_str(name);
+        out.push('\n');
+        out.push_str("| Field | Type | Required |\n");
+        out.push_str("|-------|------|----------|\n");
+        for (fname, field) in fields {
+            out.push_str("| ");
+            out.push_str(fname);
+            out.push_str(" | ");
+            out.push_str(&field.field_type);
+            out.push_str(" | ");
+            out.push_str(if field.required { "yes" } else { "no" });
+            out.push_str(" |\n");
+        }
+        out.push('\n');
+    }
+
+    // Components
+    out.push_str("## Components\n\n");
+    for (tag, fields) in &schema.components {
+        out.push_str("### ");
+        out.push_str(tag);
+        out.push('\n');
+        out.push_str("| Field | Type | Required |\n");
+        out.push_str("|-------|------|----------|\n");
+        for (fname, field) in fields {
+            out.push_str("| ");
+            out.push_str(fname);
+            out.push_str(" | ");
+            out.push_str(&field.field_type);
+            out.push_str(" | ");
+            out.push_str(if field.required { "yes" } else { "no" });
+            out.push_str(" |\n");
+        }
+        out.push('\n');
+
+        // YAML example: required fields + up to 2 optional
+        out.push_str("```yaml\n");
+        out.push_str("- type: ");
+        out.push_str(tag);
+        out.push('\n');
+        let mut optional_shown = 0usize;
+        for (fname, field) in fields {
+            if field.required {
+                out.push_str("  ");
+                out.push_str(fname);
+                out.push_str(": ");
+                out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
+                out.push('\n');
+            } else if optional_shown < 2 {
+                out.push_str("  ");
+                out.push_str(fname);
+                out.push_str(": ");
+                out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
+                out.push_str("  # optional\n");
+                optional_shown += 1;
+            }
+        }
+        out.push_str("```\n\n");
+    }
+
     out
 }
 
