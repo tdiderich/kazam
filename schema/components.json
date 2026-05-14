@@ -1,0 +1,444 @@
+{
+  "enums": {
+    "Shell": ["standard", "document", "deck"],
+    "Align": ["left", "right", "center"],
+    "SemColor": ["default", "green", "yellow", "red", "teal"],
+    "CalloutVariant": ["info", "warn", "success", "danger"],
+    "Interaction": ["single_select", "multi_select", "none"],
+    "Connector": ["none", "dots_line", "arrow"],
+    "TimelineStatus": ["completed", "active", "upcoming"],
+    "EventSeverity": ["major", "minor", "info"],
+    "EventFilter": ["all", "major"],
+    "TreeStatus": ["default", "completed", "active", "blocked", "priority", "upcoming"],
+    "TreeFilter": ["all", "incomplete", "blocked", "priority"],
+    "ButtonVariant": ["primary", "secondary", "ghost"],
+    "IconSize": ["xs", "sm", "md", "lg", "xl"],
+    "AvatarSize": ["sm", "md", "lg", "xl"],
+    "ChartKind": ["pie", "bar", "timeseries"],
+    "ChartOrientation": ["vertical", "horizontal"],
+    "PrintFlow": ["slides", "continuous", "square"],
+    "Texture": ["none", "dots", "grid", "grain", "topography", "diagonal"],
+    "Glow": ["none", "accent", "corner"],
+    "NavLayout": ["top", "sidebar"],
+    "Mode": ["dark", "light"],
+    "AnnotationStatus": ["pending", "incorporated", "ignored", "stale"],
+    "AnnotationSource": ["cli", "agent", "web"],
+    "RefreshMode": ["human", "auto", "assisted"],
+    "ThemeName": ["dark", "light", "red", "orange", "yellow", "green", "blue", "indigo", "violet"]
+  },
+  "types": {
+    "ThemeTokens": {
+      "bg": { "type": "string", "required": true },
+      "surface": { "type": "string", "required": true },
+      "surface_strong": { "type": "string", "required": true },
+      "border": { "type": "string", "required": true },
+      "border_strong": { "type": "string", "required": true },
+      "accent": { "type": "string", "required": true },
+      "accent_soft": { "type": "string", "required": true },
+      "text": { "type": "string", "required": true },
+      "text_muted": { "type": "string", "required": true },
+      "text_subtle": { "type": "string", "required": true },
+      "overlay_hover": { "type": "string", "required": true },
+      "green": { "type": "string", "required": true },
+      "yellow": { "type": "string", "required": true },
+      "red": { "type": "string", "required": true },
+      "header_border": { "type": "string", "required": true }
+    },
+    "MetaField": {
+      "key": { "type": "string", "required": true },
+      "value": { "type": "string", "required": true }
+    },
+    "Link": {
+      "label": { "type": "string", "required": true },
+      "href": { "type": "string", "required": true }
+    },
+    "Badge": {
+      "label": { "type": "string", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "Card": {
+      "title": { "type": "string", "required": true },
+      "badge": { "type": "Badge", "required": false },
+      "description": { "type": "string", "required": false },
+      "links": { "type": "Link[]", "required": false },
+      "href": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "SelectableCard": {
+      "title": { "type": "string", "required": true },
+      "eyebrow": { "type": "string", "required": false },
+      "bullets": { "type": "string[]", "required": false },
+      "body": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "TimelineItem": {
+      "name": { "type": "string", "required": true },
+      "status": { "type": "TimelineStatus", "required": true }
+    },
+    "Stat": {
+      "label": { "type": "string", "required": true },
+      "value": { "type": "string", "required": true },
+      "detail": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "BeforeAfterItem": {
+      "title": { "type": "string", "required": true },
+      "before": { "type": "string", "required": true },
+      "after": { "type": "string", "required": true },
+      "after_context": { "type": "string", "required": false }
+    },
+    "ComparePanel": {
+      "eyebrow": { "type": "string", "required": false },
+      "title": { "type": "string", "required": true },
+      "stats": { "type": "CompareStat[]", "required": true }
+    },
+    "CompareStat": {
+      "label": { "type": "string", "required": true },
+      "value": { "type": "string", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "Step": {
+      "title": { "type": "string", "required": true },
+      "detail": { "type": "string", "required": false }
+    },
+    "TableColumn": {
+      "key": { "type": "string", "required": true },
+      "label": { "type": "string", "required": true },
+      "sortable": { "type": "boolean", "required": false },
+      "align": { "type": "Align", "required": false }
+    },
+    "Tab": {
+      "label": { "type": "string", "required": true },
+      "components": { "type": "Component[]", "required": true }
+    },
+    "AccordionItem": {
+      "title": { "type": "string", "required": true },
+      "components": { "type": "Component[]", "required": true }
+    },
+    "EventItem": {
+      "date": { "type": "string", "required": true },
+      "title": { "type": "string", "required": true },
+      "summary": { "type": "string", "required": false },
+      "severity": { "type": "EventSeverity", "required": false },
+      "source": { "type": "string", "required": false },
+      "link": { "type": "string", "required": false }
+    },
+    "TreeNode": {
+      "label": { "type": "string", "required": true },
+      "status": { "type": "TreeStatus", "required": false },
+      "note": { "type": "string", "required": false },
+      "children": { "type": "TreeNode[]", "required": false }
+    },
+    "VennSet": {
+      "label": { "type": "string", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "VennOverlap": {
+      "sets": { "type": "number[]", "required": true },
+      "label": { "type": "string", "required": false }
+    },
+    "BreadcrumbItem": {
+      "label": { "type": "string", "required": true },
+      "href": { "type": "string", "required": false }
+    },
+    "ButtonConfig": {
+      "label": { "type": "string", "required": true },
+      "href": { "type": "string", "required": true },
+      "variant": { "type": "ButtonVariant", "required": false },
+      "external": { "type": "boolean", "required": false },
+      "icon": { "type": "string", "required": false }
+    },
+    "DefinitionItem": {
+      "term": { "type": "string", "required": true },
+      "definition": { "type": "string", "required": true }
+    },
+    "AvatarConfig": {
+      "name": { "type": "string", "required": true },
+      "src": { "type": "string", "required": false }
+    },
+    "EmptyStateAction": {
+      "label": { "type": "string", "required": true },
+      "href": { "type": "string", "required": true }
+    },
+    "ChartPoint": {
+      "label": { "type": "string", "required": true },
+      "value": { "type": "number", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "ChartSeries": {
+      "label": { "type": "string", "required": true },
+      "color": { "type": "SemColor", "required": false },
+      "points": { "type": "ChartPoint[]", "required": true }
+    },
+    "ResourceItem": {
+      "title": { "type": "string", "required": true },
+      "href": { "type": "string", "required": true },
+      "description": { "type": "string", "required": false },
+      "owner": { "type": "string", "required": false }
+    },
+    "Slide": {
+      "label": { "type": "string", "required": true },
+      "components": { "type": "Component[]", "required": true },
+      "hide_label": { "type": "boolean", "required": false }
+    },
+    "SourceOfTruth": {
+      "label": { "type": "string", "required": true },
+      "href": { "type": "string", "required": false }
+    },
+    "RefreshStep": {
+      "run": { "type": "string", "required": false },
+      "prompt": { "type": "string", "required": false },
+      "review": { "type": "string", "required": false }
+    },
+    "RefreshConfig": {
+      "mode": { "type": "RefreshMode", "required": false },
+      "steps": { "type": "RefreshStep[]", "required": false }
+    },
+    "Freshness": {
+      "updated": { "type": "string", "required": false },
+      "review_every": { "type": "string", "required": false },
+      "owner": { "type": "string", "required": false },
+      "sources_of_truth": { "type": "(string | SourceOfTruth)[]", "required": false },
+      "expires": { "type": "string", "required": false },
+      "refresh": { "type": "string | RefreshConfig", "required": false }
+    },
+    "Reference": {
+      "url": { "type": "string", "required": true },
+      "note": { "type": "string", "required": false }
+    },
+    "NavLink": {
+      "label": { "type": "string", "required": true },
+      "href": { "type": "string", "required": false },
+      "children": { "type": "NavLink[]", "required": false },
+      "personas": { "type": "string[]", "required": false },
+      "collapsed": { "type": "boolean", "required": false }
+    },
+    "Voice": {
+      "tone": { "type": "string", "required": false },
+      "reading_level": { "type": "string", "required": false },
+      "terminology": { "type": "{ prefer?: Record<string, string>; avoid?: string[] }", "required": false }
+    },
+    "Role": {
+      "id": { "type": "string", "required": true },
+      "label": { "type": "string", "required": true },
+      "description": { "type": "string", "required": false },
+      "icon": { "type": "string", "required": false },
+      "href": { "type": "string", "required": false }
+    },
+    "DriftRepo": {
+      "prefix": { "type": "string", "required": true },
+      "local": { "type": "string", "required": false }
+    },
+    "DriftConfig": {
+      "repos": { "type": "DriftRepo[]", "required": true }
+    },
+    "ValidationError": {
+      "file": { "type": "string", "required": true },
+      "path": { "type": "string", "required": true },
+      "error_type": { "type": "string", "required": true },
+      "message": { "type": "string", "required": true },
+      "suggestion": { "type": "string", "required": false }
+    },
+    "Annotation": {
+      "id": { "type": "string", "required": true },
+      "text": { "type": "string", "required": true },
+      "author": { "type": "string", "required": true },
+      "section": { "type": "string", "required": false },
+      "added": { "type": "string", "required": true },
+      "status": { "type": "AnnotationStatus", "required": true },
+      "source": { "type": "AnnotationSource", "required": true }
+    }
+  },
+  "components": {
+    "header": {
+      "title": { "type": "string", "required": true },
+      "subtitle": { "type": "string", "required": false },
+      "eyebrow": { "type": "string", "required": false },
+      "align": { "type": "Align", "required": false },
+      "id": { "type": "string", "required": false }
+    },
+    "hero_banner": {
+      "title": { "type": "string", "required": true },
+      "eyebrow": { "type": "string", "required": false },
+      "subtitle": { "type": "string", "required": false },
+      "buttons": { "type": "ButtonConfig[]", "required": false }
+    },
+    "meta": {
+      "fields": { "type": "MetaField[]", "required": true }
+    },
+    "card_grid": {
+      "cards": { "type": "Card[]", "required": true },
+      "min_width": { "type": "number", "required": false },
+      "connector": { "type": "Connector", "required": false }
+    },
+    "selectable_grid": {
+      "cards": { "type": "SelectableCard[]", "required": true },
+      "interaction": { "type": "Interaction", "required": false },
+      "connector": { "type": "Connector", "required": false }
+    },
+    "timeline": {
+      "items": { "type": "TimelineItem[]", "required": true }
+    },
+    "stat_grid": {
+      "stats": { "type": "Stat[]", "required": true },
+      "columns": { "type": "number", "required": false }
+    },
+    "before_after": {
+      "items": { "type": "BeforeAfterItem[]", "required": true },
+      "before_label": { "type": "string", "required": false },
+      "after_label": { "type": "string", "required": false }
+    },
+    "split_compare": {
+      "left": { "type": "ComparePanel", "required": true },
+      "right": { "type": "ComparePanel", "required": true }
+    },
+    "steps": {
+      "items": { "type": "Step[]", "required": true },
+      "numbered": { "type": "boolean", "required": false }
+    },
+    "markdown": {
+      "body": { "type": "string", "required": true }
+    },
+    "table": {
+      "columns": { "type": "TableColumn[]", "required": true },
+      "rows": { "type": "Record<string, unknown>[]", "required": true },
+      "filterable": { "type": "boolean", "required": false }
+    },
+    "callout": {
+      "variant": { "type": "CalloutVariant", "required": false },
+      "title": { "type": "string", "required": false },
+      "body": { "type": "string", "required": true },
+      "links": { "type": "ButtonConfig[]", "required": false }
+    },
+    "code": {
+      "language": { "type": "string", "required": false },
+      "code": { "type": "string", "required": true }
+    },
+    "tabs": {
+      "tabs": { "type": "Tab[]", "required": true }
+    },
+    "section": {
+      "heading": { "type": "string", "required": false },
+      "eyebrow": { "type": "string", "required": false },
+      "components": { "type": "Component[]", "required": true },
+      "align": { "type": "Align", "required": false },
+      "id": { "type": "string", "required": false }
+    },
+    "columns": {
+      "columns": { "type": "Component[][]", "required": true },
+      "equal_heights": { "type": "boolean", "required": false }
+    },
+    "accordion": {
+      "items": { "type": "AccordionItem[]", "required": true }
+    },
+    "event_timeline": {
+      "events": { "type": "EventItem[]", "required": true },
+      "default_filter": { "type": "EventFilter", "required": false },
+      "show_filter_toggle": { "type": "boolean", "required": false },
+      "limit": { "type": "number", "required": false }
+    },
+    "tree": {
+      "nodes": { "type": "TreeNode[]", "required": true },
+      "default_filter": { "type": "TreeFilter", "required": false },
+      "show_filter_toggle": { "type": "boolean", "required": false },
+      "default_collapsed": { "type": "boolean", "required": false }
+    },
+    "venn": {
+      "sets": { "type": "VennSet[]", "required": true },
+      "overlaps": { "type": "VennOverlap[]", "required": false },
+      "title": { "type": "string", "required": false }
+    },
+    "image": {
+      "src": { "type": "string", "required": true },
+      "alt": { "type": "string", "required": false },
+      "caption": { "type": "string", "required": false },
+      "max_width": { "type": "number", "required": false },
+      "align": { "type": "Align", "required": false }
+    },
+    "embed": {
+      "src": { "type": "string", "required": true },
+      "title": { "type": "string", "required": false },
+      "aspect": { "type": "string", "required": false }
+    },
+    "resources": {
+      "items": { "type": "ResourceItem[]", "required": true }
+    },
+    "badge": {
+      "label": { "type": "string", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "tag": {
+      "label": { "type": "string", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "divider": {
+      "label": { "type": "string", "required": false }
+    },
+    "kbd": {
+      "keys": { "type": "string[]", "required": true }
+    },
+    "status": {
+      "label": { "type": "string", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "breadcrumb": {
+      "items": { "type": "BreadcrumbItem[]", "required": true }
+    },
+    "button_group": {
+      "buttons": { "type": "ButtonConfig[]", "required": true }
+    },
+    "definition_list": {
+      "items": { "type": "DefinitionItem[]", "required": true }
+    },
+    "blockquote": {
+      "body": { "type": "string", "required": true },
+      "attribution": { "type": "string", "required": false }
+    },
+    "avatar": {
+      "name": { "type": "string", "required": true },
+      "src": { "type": "string", "required": false },
+      "size": { "type": "AvatarSize", "required": false },
+      "subtitle": { "type": "string", "required": false }
+    },
+    "avatar_group": {
+      "avatars": { "type": "AvatarConfig[]", "required": true },
+      "size": { "type": "AvatarSize", "required": false },
+      "max": { "type": "number", "required": false }
+    },
+    "progress_bar": {
+      "value": { "type": "number", "required": true },
+      "label": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false },
+      "detail": { "type": "string", "required": false }
+    },
+    "empty_state": {
+      "title": { "type": "string", "required": true },
+      "body": { "type": "string", "required": false },
+      "action": { "type": "EmptyStateAction", "required": false },
+      "icon": { "type": "string", "required": false }
+    },
+    "icon": {
+      "name": { "type": "string", "required": true },
+      "size": { "type": "IconSize", "required": false },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "chart": {
+      "kind": { "type": "ChartKind", "required": true },
+      "title": { "type": "string", "required": false },
+      "height": { "type": "number", "required": false },
+      "x_label": { "type": "string", "required": false },
+      "y_label": { "type": "string", "required": false },
+      "orientation": { "type": "ChartOrientation", "required": false },
+      "data": { "type": "ChartPoint[]", "required": false },
+      "series": { "type": "ChartSeries[]", "required": false }
+    },
+    "chart_group": {
+      "components": { "type": "Component[]", "required": true },
+      "columns": { "type": "number", "required": false },
+      "title": { "type": "string", "required": false }
+    },
+    "role_map": {
+      "title": { "type": "string", "required": false }
+    }
+  }
+}
