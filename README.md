@@ -137,9 +137,21 @@ kazam mcp --transport http --remote --token $KAZAM_MCP_TOKEN --port 8080
 
 The `--local` flag (default) binds to 127.0.0.1. The `--remote` flag binds to 0.0.0.0 and requires a bearer token via `--token` or `KAZAM_MCP_TOKEN` env var.
 
-## curata
+## curata — the hosted platform
 
-[curata.ai](https://curata.ai) is the BYOA (Bring Your Own Agent) knowledge platform built on kazam. Customers bring their own AI agents; curata provides the web annotation view, hosted sites, merge pipeline, and notifications. kazam is the free OSS engine that curata maintains.
+**kazam** is the OSS engine. A Rust CLI that builds structured YAML pages into themed HTML, with freshness tracking, sidecar annotations, and an MCP server. Free forever, MIT licensed.
+
+**curata** ([github.com/tdiderich/curata](https://github.com/tdiderich/curata)) is the OSS app. A Next.js dashboard for browsing, annotating, and managing kazam pages. Deploy with Docker Compose, expose an API for agents, and serve an MCP server so any AI client can read and write your knowledge base directly. Also MIT licensed.
+
+**curata.ai** ([curata.ai](https://curata.ai)) is the hosted cloud. Free to use — sign up, connect your agent via MCP, and start capturing AI outputs. No infrastructure to manage.
+
+Connect via the built-in MCP server — add this to your editor's MCP config:
+
+```json
+{ "type": "url", "url": "https://curata.ai/api/mcp/stream" }
+```
+
+**The knowledge loop:** agents write structured pages → humans review and annotate in curata → agents read the annotations on the next cycle → the knowledge base compounds over time. Each annotation narrows what the agent needs to reconsider; each refresh closes the loop.
 
 See [PRODUCT.md](PRODUCT.md) for the full product plan.
 
