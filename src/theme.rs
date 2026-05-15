@@ -983,7 +983,7 @@ a.c-card { color: inherit; }
 .c-card-yellow:hover { border-color: rgba(251, 191, 36, 0.6); }
 .c-card-red { border-color: rgba(248, 113, 113, 0.4); }
 .c-card-red:hover { border-color: rgba(248, 113, 113, 0.65); }
-.c-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.c-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px 12px; flex-wrap: wrap; }
 .c-card-title { font-size: 18px; font-weight: 600; }
 .c-card-desc { font-size: 14px; color: var(--light-muted); line-height: 1.5; }
 .c-card-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
@@ -2371,7 +2371,17 @@ body.shell-standard { page: standard-page; }
   body.shell-standard .c-ba-card,
   body.shell-standard .c-meta-item,
   body.shell-standard .c-empty-state { break-inside: avoid; page-break-inside: avoid; }
+  body.shell-standard .c-card-grid,
+  body.shell-standard .c-stat-grid,
+  body.shell-standard .c-split-compare,
+  body.shell-standard .c-section { break-inside: avoid; page-break-inside: avoid; }
   body.shell-standard h1, body.shell-standard h2, body.shell-standard h3 { break-after: avoid; page-break-after: avoid; }
+
+  /* Keep card grids horizontal in print — page width triggers the 768px
+     breakpoint but landscape cards with arrows should stay in a row. */
+  .c-card-grid-arrow { flex-direction: row !important; }
+  .c-card-arrow { transform: none !important; padding: 0 4px !important; }
+  .c-columns[style*="grid-template-columns"] { grid-template-columns: repeat(2, 1fr) !important; }
 
   /* ── Document shell ── (clean white-paper print) ── */
   body.shell-document { background: #fff !important; color: #000 !important; min-height: auto !important; }
