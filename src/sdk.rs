@@ -652,6 +652,13 @@ function renderBlock(text: string): React.ReactElement {
   return <>{elements}</>;
 }
 
+const semToHex: Record<string, string> = { default: "var(--color-text-muted, #999)", green: "var(--color-green, #4ade80)", yellow: "var(--color-yellow, #facc15)", red: "var(--color-red, #f87171)", teal: "var(--color-teal, #2dd4bf)" };
+const getColor = (c?: string, i?: number) => {
+  if (c && semToHex[c]) return semToHex[c];
+  const palette = ["var(--color-accent, #8b5cf6)", "var(--color-green, #4ade80)", "var(--color-yellow, #facc15)", "var(--color-red, #f87171)", "var(--color-teal, #2dd4bf)"];
+  return palette[(i || 0) % palette.length];
+};
+
 function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
   const [tip, setTip] = React.useState<{ x: number; y: number; text: string } | null>(null);
   const title = comp.title as string | undefined;
@@ -660,13 +667,6 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
   const series = (comp.series as Array<{ label: string; color?: string; points: Array<{ label: string; value: number }> }>) || [];
   const h = (comp.height as number) || 200;
   const orientation = (comp.orientation as string) || "vertical";
-
-  const semToHex: Record<string, string> = { default: "var(--color-text-muted, #999)", green: "var(--color-green, #4ade80)", yellow: "var(--color-yellow, #facc15)", red: "var(--color-red, #f87171)", teal: "var(--color-teal, #2dd4bf)" };
-  const getColor = (c?: string, i?: number) => {
-    if (c && semToHex[c]) return semToHex[c];
-    const palette = ["var(--color-accent, #8b5cf6)", "var(--color-green, #4ade80)", "var(--color-yellow, #facc15)", "var(--color-red, #f87171)", "var(--color-teal, #2dd4bf)"];
-    return palette[(i || 0) % palette.length];
-  };
 
   const Tip = tip ? (
     <g pointerEvents="none">
