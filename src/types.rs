@@ -528,6 +528,41 @@ pub enum Component {
         #[serde(default)]
         title: Option<String>,
     },
+    Sankey {
+        title: Option<String>,
+        #[serde(default)]
+        height: Option<u32>,
+        flows: Vec<SankeyFlow>,
+        #[serde(default)]
+        colors: HashMap<String, SemColor>,
+    },
+    Radar {
+        title: Option<String>,
+        #[serde(default)]
+        height: Option<u32>,
+        axes: Vec<String>,
+        curves: Vec<RadarCurve>,
+        #[serde(default)]
+        max: Option<f64>,
+    },
+    Quadrant {
+        title: Option<String>,
+        #[serde(default)]
+        height: Option<u32>,
+        x_axis: String,
+        y_axis: String,
+        quadrants: Vec<String>,
+        points: Vec<QuadrantPoint>,
+    },
+    Architecture {
+        title: Option<String>,
+        #[serde(default)]
+        height: Option<u32>,
+        #[serde(default)]
+        direction: ArchDirection,
+        nodes: Vec<ArchNode>,
+        connections: Vec<ArchConnection>,
+    },
 }
 
 // ── Supporting types ─────────────────────────────────
@@ -1033,6 +1068,67 @@ pub struct ChartSeries {
     #[serde(default)]
     pub color: Option<SemColor>,
     pub points: Vec<ChartPoint>,
+}
+
+// ── Sankey supporting types ─────────────────────────
+
+#[derive(Deserialize)]
+pub struct SankeyFlow {
+    pub source: String,
+    pub target: String,
+    pub value: f64,
+}
+
+// ── Radar supporting types ──────────────────────────
+
+#[derive(Deserialize)]
+pub struct RadarCurve {
+    pub label: String,
+    pub values: Vec<f64>,
+    #[serde(default)]
+    pub color: Option<SemColor>,
+}
+
+// ── Quadrant supporting types ───────────────────────
+
+#[derive(Deserialize)]
+pub struct QuadrantPoint {
+    pub label: String,
+    pub x: f64,
+    pub y: f64,
+    #[serde(default)]
+    pub color: Option<SemColor>,
+}
+
+// ── Architecture supporting types ───────────────────
+
+#[derive(Deserialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchDirection {
+    #[default]
+    LeftToRight,
+    TopToBottom,
+}
+
+#[derive(Deserialize)]
+pub struct ArchNode {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[allow(dead_code)]
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub color: SemColor,
+}
+
+#[derive(Deserialize)]
+pub struct ArchConnection {
+    pub from: String,
+    pub to: String,
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 // ── Site config ──────────────────────────────────────

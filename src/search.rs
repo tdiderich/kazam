@@ -222,7 +222,11 @@ fn extract_searchable_text(
             | Component::Tree { .. }
             | Component::HeroBanner { .. }
             | Component::RoleMap { .. }
-            | Component::SplitCompare { .. } => {}
+            | Component::SplitCompare { .. }
+            | Component::Sankey { .. }
+            | Component::Radar { .. }
+            | Component::Quadrant { .. }
+            | Component::Architecture { .. } => {}
         }
     }
 }

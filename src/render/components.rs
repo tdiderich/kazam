@@ -154,6 +154,34 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             series,
         }),
         Component::RoleMap { title } => role_map(title.as_deref(), config, base),
+        Component::Sankey {
+            title,
+            height,
+            flows,
+            colors,
+        } => charts::render_sankey(title, *height, flows, colors),
+        Component::Radar {
+            title,
+            height,
+            axes,
+            curves,
+            max,
+        } => charts::render_radar(title, *height, axes, curves, *max),
+        Component::Quadrant {
+            title,
+            height,
+            x_axis,
+            y_axis,
+            quadrants,
+            points,
+        } => charts::render_quadrant(title, *height, x_axis, y_axis, quadrants, points),
+        Component::Architecture {
+            title,
+            height,
+            direction,
+            nodes,
+            connections,
+        } => charts::render_architecture(title, *height, *direction, nodes, connections),
     }
 }
 

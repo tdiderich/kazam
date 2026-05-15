@@ -708,6 +708,144 @@ fn validate_component(
         | Component::HeroBanner { .. }
         | Component::RoleMap { .. }
         | Component::SplitCompare { .. } => {}
+
+        Component::Sankey { flows, .. } => {
+            if flows.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.flows", path),
+                    "missing_field",
+                    "sankey requires at least one flow",
+                    Some("Add flows with source:, target:, and value:.".into()),
+                ));
+            }
+            for (i, f) in flows.iter().enumerate() {
+                if f.value <= 0.0 {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.flows[{}].value", path, i),
+                        "structural",
+                        "sankey flow value must be > 0",
+                        None,
+                    ));
+                }
+                if f.source == f.target {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.flows[{}]", path, i),
+                        "structural",
+                        "sankey flow source and target must differ",
+                        None,
+                    ));
+                }
+            }
+        }
+
+        Component::Radar { axes, curves, .. } => {
+            if axes.len() < 3 {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.axes", path),
+                    "structural",
+                    "radar requires at least 3 axes",
+                    Some("Add at least 3 axis labels.".into()),
+                ));
+            }
+            if curves.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.curves", path),
+                    "missing_field",
+                    "radar requires at least one curve",
+                    Some("Add curves with label: and values: [].".into()),
+                ));
+            }
+            for (i, c) in curves.iter().enumerate() {
+                if c.values.len() != axes.len() {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.curves[{}].values", path, i),
+                        "structural",
+                        format!(
+                            "curve values length ({}) must match axes count ({})",
+                            c.values.len(),
+                            axes.len()
+                        ),
+                        None,
+                    ));
+                }
+            }
+        }
+
+        Component::Quadrant {
+            quadrants, points, ..
+        } => {
+            if quadrants.len() != 4 {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.quadrants", path),
+                    "structural",
+                    format!(
+                        "quadrant requires exactly 4 labels, got {}",
+                        quadrants.len()
+                    ),
+                    Some("Provide 4 labels: Q1 (top-right), Q2 (top-left), Q3 (bottom-left), Q4 (bottom-right).".into()),
+                ));
+            }
+            if points.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.points", path),
+                    "missing_field",
+                    "quadrant requires at least one point",
+                    Some("Add points with label:, x: (0-1), y: (0-1).".into()),
+                ));
+            }
+        }
+
+        Component::Architecture {
+            nodes, connections, ..
+        } => {
+            if nodes.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.nodes", path),
+                    "missing_field",
+                    "architecture requires at least one node",
+                    Some("Add nodes with id: and label:.".into()),
+                ));
+            }
+            let ids: Vec<&str> = nodes.iter().map(|n| n.id.as_str()).collect();
+            for (i, c) in connections.iter().enumerate() {
+                if !ids.contains(&c.from.as_str()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.connections[{}].from", path, i),
+                        "structural",
+                        format!("connection references unknown node id {:?}", c.from),
+                        None,
+                    ));
+                }
+                if !ids.contains(&c.to.as_str()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.connections[{}].to", path, i),
+                        "structural",
+                        format!("connection references unknown node id {:?}", c.to),
+                        None,
+                    ));
+                }
+                if c.from == c.to {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.connections[{}]", path, i),
+                        "structural",
+                        "connection from and to must differ",
+                        None,
+                    ));
+                }
+            }
+        }
     }
 }
 

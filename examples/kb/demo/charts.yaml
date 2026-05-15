@@ -1,0 +1,158 @@
+title: "Chart Components Showcase"
+shell: standard
+
+components:
+- type: section
+  eyebrow: "SANKEY"
+  heading: "Finding Flow — Vulnerability Triage Pipeline"
+  components:
+  - type: sankey
+    title: "Scanner → Maze → Outcome"
+    height: 380
+    flows:
+    - source: "Wiz"
+      target: "Not Exploitable"
+      value: 35000
+    - source: "Wiz"
+      target: "Exploitable"
+      value: 5100
+    - source: "AWS Inspector"
+      target: "Not Exploitable"
+      value: 9000
+    - source: "AWS Inspector"
+      target: "Exploitable"
+      value: 2000
+    - source: "Exploitable"
+      target: "Critical"
+      value: 92
+    - source: "Exploitable"
+      target: "High"
+      value: 3200
+    - source: "Exploitable"
+      target: "Medium"
+      value: 2500
+    - source: "Exploitable"
+      target: "Low"
+      value: 1308
+    colors:
+      "Not Exploitable": green
+      "Exploitable": red
+      "Critical": red
+      "High": yellow
+      "Medium": teal
+      "Low": default
+
+- type: divider
+
+- type: section
+  eyebrow: "RADAR"
+  heading: "Security Program Maturity — Before & After"
+  components:
+  - type: radar
+    title: "Maturity Scorecard"
+    height: 400
+    max: 10
+    axes:
+    - "Noise Reduction"
+    - "Asset Coverage"
+    - "Triage Automation"
+    - "SLA Tracking"
+    - "Remediation Speed"
+    - "Team Strategic Focus"
+    curves:
+    - label: "Before Maze"
+      values: [1, 4, 2, 1, 2, 2]
+      color: red
+    - label: "Today"
+      values: [9, 6, 8, 5, 8, 9]
+      color: green
+
+- type: divider
+
+- type: section
+  eyebrow: "QUADRANT"
+  heading: "Finding Prioritization Matrix"
+  components:
+  - type: quadrant
+    title: "Exploitability vs Business Impact"
+    height: 420
+    x_axis: "Low Exploitability → High Exploitability"
+    y_axis: "Low Business Impact → High Business Impact"
+    quadrants:
+    - "Fix Now"
+    - "Monitor"
+    - "Accept Risk"
+    - "Defer"
+    points:
+    - label: "EKS Critical CVEs"
+      x: 0.92
+      y: 0.95
+      color: red
+    - label: "EC2 High Findings"
+      x: 0.72
+      y: 0.65
+      color: yellow
+    - label: "S3 Misconfigs"
+      x: 0.55
+      y: 0.45
+      color: yellow
+    - label: "Dev Cluster Medium"
+      x: 0.18
+      y: 0.15
+      color: green
+    - label: "Staging Low"
+      x: 0.12
+      y: 0.08
+      color: green
+
+- type: divider
+
+- type: section
+  eyebrow: "ARCHITECTURE"
+  heading: "Deployment Topology"
+  components:
+  - type: architecture
+    title: "Alloy — Maze Deployment"
+    height: 280
+    direction: left_to_right
+    nodes:
+    - id: wiz
+      label: "Wiz"
+      detail: "Cloud Scanner"
+      color: red
+    - id: inspector
+      label: "AWS Inspector"
+      detail: "Vuln Scanner"
+      color: red
+    - id: maze
+      label: "Maze"
+      detail: "AI Triage Engine"
+      color: teal
+    - id: jira
+      label: "Jira"
+      detail: "Ticket Routing"
+      color: green
+    - id: slack
+      label: "Slack"
+      detail: "Critical Alerts"
+      color: yellow
+    - id: github
+      label: "GitHub"
+      detail: "Team Ownership"
+      color: default
+    connections:
+    - from: wiz
+      to: maze
+      label: "40K findings"
+    - from: inspector
+      to: maze
+      label: "11K findings"
+    - from: maze
+      to: jira
+      label: "7.1K exploitable"
+    - from: maze
+      to: slack
+      label: "92 critical"
+    - from: maze
+      to: github
+      label: "ownership"

@@ -2355,6 +2355,66 @@ body.shell-document .doc-body strong { color: #fff; }
   display: inline-block;
 }
 
+/* Sankey */
+.c-sankey-link { transition: fill-opacity 0.15s; }
+.c-sankey-link:hover { fill-opacity: 0.55; }
+.c-sankey-node { stroke: var(--bg); stroke-width: 1; }
+.c-sankey-label {
+  fill: rgba(var(--text-rgb),0.75);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Radar */
+.c-radar-ring { pointer-events: none; }
+.c-radar-axis { pointer-events: none; }
+.c-radar-label {
+  fill: rgba(var(--text-rgb),0.65);
+  font-size: 11px;
+  font-weight: 500;
+}
+.c-radar-curve { pointer-events: none; }
+
+/* Quadrant */
+.c-quadrant-bg { pointer-events: none; }
+.c-quadrant-zone-label {
+  fill: rgba(var(--text-rgb),0.15);
+  font-size: 18px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+.c-quadrant-cross {
+  stroke: rgba(var(--text-rgb),0.15);
+  stroke-width: 1;
+  stroke-dasharray: 6 4;
+}
+.c-quadrant-point-label {
+  fill: rgba(var(--text-rgb),0.75);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Architecture */
+.c-arch-node { transition: stroke-opacity 0.15s; }
+.c-arch-node-label {
+  fill: var(--snow);
+  font-size: 13px;
+  font-weight: 600;
+}
+.c-arch-node-detail {
+  fill: rgba(var(--text-rgb),0.55);
+  font-size: 10px;
+  font-weight: 400;
+}
+.c-arch-edge { pointer-events: none; }
+.c-arch-edge-label {
+  fill: rgba(var(--text-rgb),0.55);
+  font-size: 10px;
+  font-weight: 500;
+}
+
 /* Source pill (bottom-right floating dropdown) */
 .source-pill {
   position: fixed;

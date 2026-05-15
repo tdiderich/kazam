@@ -1529,6 +1529,17 @@ function ComponentView({
       );
     }
 
+    case "sankey":
+    case "radar":
+    case "quadrant":
+    case "architecture": {
+      return (
+        <div id={id} className={`c-chart c-chart-${comp.type}`}>
+          <em>{comp.type} chart (server-rendered SVG)</em>
+        </div>
+      );
+    }
+
     default:
       return (
         <div id={id} className="c-unsupported" data-type={comp.type}>
@@ -1692,6 +1703,7 @@ fn generate_editor(out: &mut String) {
         ("AvatarSize", vec!["sm", "md", "lg", "xl"]),
         ("ChartKind", vec!["pie", "bar", "timeseries"]),
         ("ChartOrientation", vec!["vertical", "horizontal"]),
+        ("ArchDirection", vec!["left_to_right", "top_to_bottom"]),
         ("Interaction", vec!["single_select", "multi_select", "none"]),
     ];
 
@@ -1806,6 +1818,49 @@ fn generate_editor(out: &mut String) {
         ),
         ("Tab", vec![("label", "string", true)]),
         ("AccordionItem", vec![("title", "string", true)]),
+        (
+            "SankeyFlow",
+            vec![
+                ("source", "string", true),
+                ("target", "string", true),
+                ("value", "number", true),
+            ],
+        ),
+        (
+            "RadarCurve",
+            vec![
+                ("label", "string", true),
+                ("values", "number[]", true),
+                ("color", "SemColor", false),
+            ],
+        ),
+        (
+            "QuadrantPoint",
+            vec![
+                ("label", "string", true),
+                ("x", "number", true),
+                ("y", "number", true),
+                ("color", "SemColor", false),
+            ],
+        ),
+        (
+            "ArchNode",
+            vec![
+                ("id", "string", true),
+                ("label", "string", true),
+                ("detail", "string", false),
+                ("icon", "string", false),
+                ("color", "SemColor", false),
+            ],
+        ),
+        (
+            "ArchConnection",
+            vec![
+                ("from", "string", true),
+                ("to", "string", true),
+                ("label", "string", false),
+            ],
+        ),
     ];
 
     let long_fields = ["body", "code", "summary", "definition", "description"];
@@ -1827,6 +1882,10 @@ fn generate_editor(out: &mut String) {
         ("accordion", "\u{2261}"),
         ("chart", "\u{25d4}"),
         ("chart_group", "\u{25d4}\u{25d4}"),
+        ("sankey", "\u{21c9}"),
+        ("radar", "\u{25ce}"),
+        ("quadrant", "\u{229e}"),
+        ("architecture", "\u{2b1a}"),
     ];
 
     let get_icon = |comp_type: &str| -> String {

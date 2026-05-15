@@ -709,6 +709,717 @@ fn nice_scale(min: f64, max: f64, target_ticks: usize) -> (f64, f64, f64) {
     (nice_min, nice_max, step)
 }
 
+// ── Shared chart wrapper ───────────────────────────
+
+fn wrap_chart(kind: &str, title: &Option<String>, svg: &str) -> Rendered {
+    let title_html = title
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(|t| {
+            format!(
+                r#"<figcaption class="c-chart-title">{}</figcaption>"#,
+                esc(t)
+            )
+        })
+        .unwrap_or_default();
+    let aria = title
+        .as_deref()
+        .map(esc)
+        .unwrap_or_else(|| format!("{} chart", kind));
+    Rendered::new(format!(
+        r#"<figure class="c-chart c-chart-{kind}" role="img" aria-label="{aria}">{title}{svg}</figure>"#,
+        kind = kind,
+        aria = aria,
+        title = title_html,
+        svg = svg,
+    ))
+}
+
+// ── Sankey ──────────────────────────────────────────
+
+pub fn render_sankey(
+    title: &Option<String>,
+    height: Option<u32>,
+    flows: &[crate::types::SankeyFlow],
+    colors: &std::collections::HashMap<String, crate::types::SemColor>,
+) -> Rendered {
+    let h = height.unwrap_or(400) as f64;
+
+    if flows.is_empty() {
+        return wrap_chart("sankey", title, &empty_svg(h as u32));
+    }
+
+    let mut node_names: Vec<String> = Vec::new();
+    for f in flows {
+        if !node_names.contains(&f.source) {
+            node_names.push(f.source.clone());
+        }
+        if !node_names.contains(&f.target) {
+            node_names.push(f.target.clone());
+        }
+    }
+
+    let mut in_edges: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    for f in flows {
+        in_edges.entry(&f.target).or_default().push(&f.source);
+    }
+
+    let mut col: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for name in &node_names {
+        if !in_edges.contains_key(name.as_str()) {
+            col.insert(name, 0);
+        }
+    }
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for f in flows {
+            if let Some(&sc) = col.get(f.source.as_str()) {
+                let tc = col.entry(&f.target).or_insert(0);
+                if *tc <= sc {
+                    *tc = sc + 1;
+                    changed = true;
+                }
+            }
+        }
+    }
+    for name in &node_names {
+        col.entry(name).or_insert(0);
+    }
+
+    let max_col = col.values().copied().max().unwrap_or(0);
+    let num_cols = max_col + 1;
+
+    let mut node_in: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    let mut node_out: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    for f in flows {
+        *node_out.entry(&f.source).or_default() += f.value;
+        *node_in.entry(&f.target).or_default() += f.value;
+    }
+    let mut node_total: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    for name in &node_names {
+        let i = node_in.get(name.as_str()).copied().unwrap_or(0.0);
+        let o = node_out.get(name.as_str()).copied().unwrap_or(0.0);
+        node_total.insert(name, i.max(o));
+    }
+
+    let total_max: f64 = {
+        let mut by_col: std::collections::HashMap<usize, f64> = std::collections::HashMap::new();
+        for name in &node_names {
+            let c = col[name.as_str()];
+            *by_col.entry(c).or_default() += node_total[name.as_str()];
+        }
+        by_col.values().copied().fold(0.0_f64, f64::max)
+    };
+
+    if total_max <= 0.0 {
+        return wrap_chart("sankey", title, &empty_svg(h as u32));
+    }
+
+    let pad_x = 140.0;
+    let pad_y = 20.0;
+    let node_w = 18.0;
+    let node_gap = 8.0;
+    let plot_w = VB_W - pad_x * 2.0;
+    let plot_h = h - pad_y * 2.0;
+
+    let col_spacing = if num_cols > 1 {
+        plot_w / (num_cols as f64 - 1.0)
+    } else {
+        0.0
+    };
+
+    struct NodePos {
+        x: f64,
+        y: f64,
+        h: f64,
+    }
+    let mut positions: std::collections::HashMap<&str, NodePos> = std::collections::HashMap::new();
+
+    for c in 0..num_cols {
+        let col_nodes: Vec<&str> = node_names
+            .iter()
+            .filter(|n| col[n.as_str()] == c)
+            .map(|n| n.as_str())
+            .collect();
+        let col_total: f64 = col_nodes.iter().map(|n| node_total[n]).sum();
+        let gaps = if col_nodes.len() > 1 {
+            (col_nodes.len() - 1) as f64 * node_gap
+        } else {
+            0.0
+        };
+        let avail_h = plot_h - gaps;
+        let scale = if col_total > 0.0 {
+            avail_h / col_total
+        } else {
+            1.0
+        };
+
+        let x = pad_x + col_spacing * c as f64 - node_w / 2.0;
+        let mut y = pad_y;
+        for name in col_nodes {
+            let nh = (node_total[name] * scale).max(2.0);
+            positions.insert(name, NodePos { x, y, h: nh });
+            y += nh + node_gap;
+        }
+    }
+
+    let mut svg = format!(
+        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+        vb_w = VB_W,
+        h = h,
+    );
+
+    let mut source_offset: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    let mut target_offset: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+
+    for f in flows {
+        let sp = &positions[f.source.as_str()];
+        let tp = &positions[f.target.as_str()];
+        let s_total = node_total[f.source.as_str()];
+        let t_total = node_total[f.target.as_str()];
+
+        let s_off = source_offset.entry(&f.source).or_insert(0.0);
+        let link_h_source = if s_total > 0.0 {
+            (f.value / s_total) * sp.h
+        } else {
+            0.0
+        };
+        let sy = sp.y + *s_off;
+        *s_off += link_h_source;
+
+        let t_off = target_offset.entry(&f.target).or_insert(0.0);
+        let link_h_target = if t_total > 0.0 {
+            (f.value / t_total) * tp.h
+        } else {
+            0.0
+        };
+        let ty = tp.y + *t_off;
+        *t_off += link_h_target;
+
+        let sx = sp.x + node_w;
+        let tx = tp.x;
+        let cpx = (sx + tx) / 2.0;
+
+        let color = colors
+            .get(&f.source)
+            .or_else(|| colors.get(&f.target))
+            .copied()
+            .unwrap_or_else(|| {
+                cycle_color(node_names.iter().position(|n| n == &f.source).unwrap_or(0))
+            });
+
+        let title_text = format!("{} \u{2192} {}: {}", f.source, f.target, fmt_num(f.value));
+
+        svg.push_str(&format!(
+            r#"<path d="M {sx:.1} {sy0:.1} C {cpx:.1} {sy0:.1}, {cpx:.1} {ty0:.1}, {tx:.1} {ty0:.1} L {tx:.1} {ty1:.1} C {cpx:.1} {ty1:.1}, {cpx:.1} {sy1:.1}, {sx:.1} {sy1:.1} Z" fill="{fill}" fill-opacity="0.35" class="c-sankey-link"><title>{t}</title></path>"#,
+            sx = sx,
+            sy0 = sy,
+            sy1 = sy + link_h_source,
+            tx = tx,
+            ty0 = ty,
+            ty1 = ty + link_h_target,
+            cpx = cpx,
+            fill = color.hex(),
+            t = esc(&title_text),
+        ));
+    }
+
+    for name in &node_names {
+        let pos = &positions[name.as_str()];
+        let color = colors
+            .get(name.as_str())
+            .copied()
+            .unwrap_or_else(|| cycle_color(node_names.iter().position(|n| n == name).unwrap_or(0)));
+
+        svg.push_str(&format!(
+            r#"<rect x="{x:.1}" y="{y:.1}" width="{w}" height="{h:.1}" fill="{fill}" rx="2" class="c-sankey-node"><title>{name}: {total}</title></rect>"#,
+            x = pos.x,
+            y = pos.y,
+            w = node_w,
+            h = pos.h,
+            fill = color.hex(),
+            name = esc(name),
+            total = fmt_num(node_total[name.as_str()]),
+        ));
+
+        let c = col[name.as_str()];
+        let (lx, anchor) = if c == 0 {
+            (pos.x - 6.0, "end")
+        } else if c == max_col {
+            (pos.x + node_w + 6.0, "start")
+        } else {
+            (pos.x + node_w / 2.0, "middle")
+        };
+        let ly = pos.y + pos.h / 2.0;
+        svg.push_str(&format!(
+            r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-sankey-label">{name}</text>"#,
+            lx = lx,
+            ly = ly,
+            anchor = anchor,
+            name = esc(name),
+        ));
+    }
+
+    svg.push_str("</svg>");
+    wrap_chart("sankey", title, &svg)
+}
+
+// ── Radar ───────────────────────────────────────────
+
+pub fn render_radar(
+    title: &Option<String>,
+    height: Option<u32>,
+    axes: &[String],
+    curves: &[crate::types::RadarCurve],
+    max: Option<f64>,
+) -> Rendered {
+    let h = height.unwrap_or(360) as f64;
+    let n = axes.len();
+
+    if n < 3 || curves.is_empty() {
+        return wrap_chart("radar", title, &empty_svg(h as u32));
+    }
+
+    let auto_max = curves
+        .iter()
+        .flat_map(|c| c.values.iter())
+        .copied()
+        .fold(0.0_f64, f64::max);
+    let max_val = max.unwrap_or(auto_max).max(1.0);
+
+    let cx = VB_W / 2.0;
+    let cy = h / 2.0;
+    let r = (VB_W.min(h) / 2.0) - 60.0;
+    let rings = 5;
+
+    let angle_of = |i: usize| -> f64 {
+        -std::f64::consts::FRAC_PI_2 + (i as f64) * std::f64::consts::TAU / (n as f64)
+    };
+
+    let point_at = |i: usize, val: f64| -> (f64, f64) {
+        let a = angle_of(i);
+        let d = (val / max_val) * r;
+        (cx + d * a.cos(), cy + d * a.sin())
+    };
+
+    let mut svg = format!(
+        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+        vb_w = VB_W,
+        h = h,
+    );
+
+    for ring in 1..=rings {
+        let frac = ring as f64 / rings as f64;
+        let mut pts = String::new();
+        for i in 0..n {
+            let (px, py) = point_at(i, max_val * frac);
+            if !pts.is_empty() {
+                pts.push(' ');
+            }
+            pts.push_str(&format!("{:.1},{:.1}", px, py));
+        }
+        svg.push_str(&format!(
+            r#"<polygon points="{pts}" fill="none" stroke="rgba(var(--text-rgb),0.1)" stroke-width="1" class="c-radar-ring"/>"#,
+        ));
+    }
+
+    for (i, axis_label) in axes.iter().enumerate() {
+        let (ex, ey) = point_at(i, max_val);
+        svg.push_str(&format!(
+            r#"<line x1="{cx:.1}" y1="{cy:.1}" x2="{ex:.1}" y2="{ey:.1}" stroke="rgba(var(--text-rgb),0.12)" stroke-width="1" class="c-radar-axis"/>"#,
+        ));
+        let label_d = r + 16.0;
+        let a = angle_of(i);
+        let lx = cx + label_d * a.cos();
+        let ly = cy + label_d * a.sin();
+        let anchor = if (a.cos()).abs() < 0.1 {
+            "middle"
+        } else if a.cos() > 0.0 {
+            "start"
+        } else {
+            "end"
+        };
+        svg.push_str(&format!(
+            r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-radar-label">{label}</text>"#,
+            label = esc(axis_label),
+        ));
+    }
+
+    for (ci, curve) in curves.iter().enumerate() {
+        let color = series_color(curve.color, ci);
+        let mut pts = String::new();
+        for (i, &val) in curve.values.iter().enumerate() {
+            let (px, py) = point_at(i, val.min(max_val));
+            if !pts.is_empty() {
+                pts.push(' ');
+            }
+            pts.push_str(&format!("{:.1},{:.1}", px, py));
+        }
+        svg.push_str(&format!(
+            r#"<polygon points="{pts}" fill="{color}" fill-opacity="0.18" stroke="{color}" stroke-width="2" class="c-radar-curve"/>"#,
+        ));
+        for (i, &val) in curve.values.iter().enumerate() {
+            let (px, py) = point_at(i, val.min(max_val));
+            let tip = format!("{} \u{2014} {}: {}", curve.label, axes[i], fmt_num(val));
+            svg.push_str(&format!(
+                r#"<circle cx="{px:.1}" cy="{py:.1}" r="3.5" fill="{color}" class="c-chart-dot"><title>{tip}</title></circle>"#,
+                tip = esc(&tip),
+            ));
+        }
+    }
+
+    svg.push_str("</svg>");
+
+    let legend = if curves.len() > 1 {
+        let mut leg = String::from(r#"<ul class="c-chart-legend">"#);
+        for (i, c) in curves.iter().enumerate() {
+            let color = series_color(c.color, i);
+            leg.push_str(&format!(
+                r#"<li class="c-chart-legend-item"><span class="c-chart-swatch" style="background:{c}"></span><span>{l}</span></li>"#,
+                c = color,
+                l = esc(&c.label),
+            ));
+        }
+        leg.push_str("</ul>");
+        leg
+    } else {
+        String::new()
+    };
+
+    let title_html = title
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(|t| {
+            format!(
+                r#"<figcaption class="c-chart-title">{}</figcaption>"#,
+                esc(t)
+            )
+        })
+        .unwrap_or_default();
+
+    Rendered::new(format!(
+        r#"<figure class="c-chart c-chart-radar" role="img" aria-label="{aria}">{title}{svg}{legend}</figure>"#,
+        aria = title
+            .as_deref()
+            .map(esc)
+            .unwrap_or_else(|| "Radar chart".into()),
+        title = title_html,
+        svg = svg,
+        legend = legend,
+    ))
+}
+
+// ── Quadrant ────────────────────────────────────────
+
+pub fn render_quadrant(
+    title: &Option<String>,
+    height: Option<u32>,
+    x_axis: &str,
+    y_axis: &str,
+    quadrants: &[String],
+    points: &[crate::types::QuadrantPoint],
+) -> Rendered {
+    let h = height.unwrap_or(400) as f64;
+
+    if quadrants.len() != 4 || points.is_empty() {
+        return wrap_chart("quadrant", title, &empty_svg(h as u32));
+    }
+
+    let left = 60.0;
+    let right = 20.0;
+    let top = 20.0;
+    let bottom = 40.0;
+    let plot_w = VB_W - left - right;
+    let plot_h = h - top - bottom;
+    let mid_x = left + plot_w / 2.0;
+    let mid_y = top + plot_h / 2.0;
+
+    let mut svg = format!(
+        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+        vb_w = VB_W,
+        h = h,
+    );
+
+    let quad_colors = [
+        "rgba(52,211,153,0.06)",
+        "rgba(251,191,36,0.04)",
+        "rgba(248,113,113,0.06)",
+        "rgba(60,206,206,0.04)",
+    ];
+    let quad_rects = [
+        (mid_x, top, plot_w / 2.0, plot_h / 2.0),
+        (left, top, plot_w / 2.0, plot_h / 2.0),
+        (left, mid_y, plot_w / 2.0, plot_h / 2.0),
+        (mid_x, mid_y, plot_w / 2.0, plot_h / 2.0),
+    ];
+    for (i, (qx, qy, qw, qh)) in quad_rects.iter().enumerate() {
+        svg.push_str(&format!(
+            r#"<rect x="{qx:.1}" y="{qy:.1}" width="{qw:.1}" height="{qh:.1}" fill="{fill}" class="c-quadrant-bg"/>"#,
+            fill = quad_colors[i],
+        ));
+        let lx = qx + qw / 2.0;
+        let ly = qy + qh / 2.0;
+        svg.push_str(&format!(
+            r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle" class="c-quadrant-zone-label">{label}</text>"#,
+            label = esc(&quadrants[i]),
+        ));
+    }
+
+    svg.push_str(&format!(
+        r#"<line x1="{mid_x:.1}" y1="{top:.1}" x2="{mid_x:.1}" y2="{bot:.1}" class="c-quadrant-cross"/>"#,
+        bot = top + plot_h,
+    ));
+    svg.push_str(&format!(
+        r#"<line x1="{left:.1}" y1="{mid_y:.1}" x2="{rr:.1}" y2="{mid_y:.1}" class="c-quadrant-cross"/>"#,
+        rr = left + plot_w,
+    ));
+
+    let x_parts: Vec<&str> = x_axis.split(" \u{2192} ").collect();
+    if x_parts.len() == 2 {
+        svg.push_str(&format!(
+            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="start" class="c-chart-axis">{t}</text>"#,
+            x = left,
+            y = top + plot_h + 24.0,
+            t = esc(x_parts[0]),
+        ));
+        svg.push_str(&format!(
+            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="end" class="c-chart-axis">{t}</text>"#,
+            x = left + plot_w,
+            y = top + plot_h + 24.0,
+            t = esc(x_parts[1]),
+        ));
+    } else {
+        svg.push_str(&format!(
+            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" class="c-chart-axis">{t}</text>"#,
+            x = mid_x,
+            y = top + plot_h + 24.0,
+            t = esc(x_axis),
+        ));
+    }
+
+    let y_parts: Vec<&str> = y_axis.split(" \u{2192} ").collect();
+    if y_parts.len() == 2 {
+        svg.push_str(&format!(
+            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
+            x = left - 30.0,
+            y = top + plot_h,
+            t = esc(y_parts[0]),
+        ));
+        svg.push_str(&format!(
+            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
+            x = left - 30.0,
+            y = top,
+            t = esc(y_parts[1]),
+        ));
+    } else {
+        svg.push_str(&format!(
+            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
+            x = left - 30.0,
+            y = mid_y,
+            t = esc(y_axis),
+        ));
+    }
+
+    for (i, pt) in points.iter().enumerate() {
+        let px = left + pt.x.clamp(0.0, 1.0) * plot_w;
+        let py = top + (1.0 - pt.y.clamp(0.0, 1.0)) * plot_h;
+        let color = series_color(pt.color, i);
+        let tip = format!("{} ({:.0}%, {:.0}%)", pt.label, pt.x * 100.0, pt.y * 100.0);
+        svg.push_str(&format!(
+            r#"<circle cx="{px:.1}" cy="{py:.1}" r="6" fill="{color}" class="c-chart-dot"><title>{tip}</title></circle>"#,
+            tip = esc(&tip),
+        ));
+        svg.push_str(&format!(
+            r#"<text x="{lx:.1}" y="{py:.1}" dominant-baseline="middle" class="c-quadrant-point-label">{label}</text>"#,
+            lx = px + 10.0,
+            label = esc(&pt.label),
+        ));
+    }
+
+    svg.push_str("</svg>");
+    wrap_chart("quadrant", title, &svg)
+}
+
+// ── Architecture ────────────────────────────────────
+
+pub fn render_architecture(
+    title: &Option<String>,
+    height: Option<u32>,
+    direction: crate::types::ArchDirection,
+    nodes: &[crate::types::ArchNode],
+    connections: &[crate::types::ArchConnection],
+) -> Rendered {
+    use crate::types::ArchDirection;
+
+    let h = height.unwrap_or(300) as f64;
+
+    if nodes.is_empty() {
+        return wrap_chart("arch", title, &empty_svg(h as u32));
+    }
+
+    let mut col: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    let mut in_set: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for c in connections {
+        in_set.insert(&c.to);
+    }
+    for n in nodes {
+        if !in_set.contains(n.id.as_str()) {
+            col.insert(&n.id, 0);
+        }
+    }
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for c in connections {
+            if let Some(&sc) = col.get(c.from.as_str()) {
+                let tc = col.entry(&c.to).or_insert(0);
+                if *tc <= sc {
+                    *tc = sc + 1;
+                    changed = true;
+                }
+            }
+        }
+    }
+    for n in nodes {
+        col.entry(&n.id).or_insert(0);
+    }
+
+    let max_col = col.values().copied().max().unwrap_or(0);
+    let num_cols = max_col + 1;
+
+    let is_lr = matches!(direction, ArchDirection::LeftToRight);
+    let pad = 40.0;
+    let node_w = 130.0;
+    let node_h = 56.0;
+
+    let mut cols_nodes: Vec<Vec<&crate::types::ArchNode>> = vec![Vec::new(); num_cols];
+    for n in nodes {
+        let c = col.get(n.id.as_str()).copied().unwrap_or(0);
+        cols_nodes[c].push(n);
+    }
+
+    struct NPos {
+        cx: f64,
+        cy: f64,
+    }
+    let mut positions: std::collections::HashMap<&str, NPos> = std::collections::HashMap::new();
+
+    if is_lr {
+        let col_spacing = if num_cols > 1 {
+            (VB_W - pad * 2.0 - node_w) / (num_cols as f64 - 1.0).max(1.0)
+        } else {
+            0.0
+        };
+        for (ci, col_nodes) in cols_nodes.iter().enumerate() {
+            let n_count = col_nodes.len();
+            let total_h = n_count as f64 * node_h + (n_count as f64 - 1.0).max(0.0) * 16.0;
+            let start_y = (h - total_h) / 2.0;
+            for (ni, node) in col_nodes.iter().enumerate() {
+                positions.insert(
+                    &node.id,
+                    NPos {
+                        cx: pad + node_w / 2.0 + col_spacing * ci as f64,
+                        cy: start_y + ni as f64 * (node_h + 16.0) + node_h / 2.0,
+                    },
+                );
+            }
+        }
+    } else {
+        let row_spacing = if num_cols > 1 {
+            (h - pad * 2.0 - node_h) / (num_cols as f64 - 1.0).max(1.0)
+        } else {
+            0.0
+        };
+        for (ci, col_nodes) in cols_nodes.iter().enumerate() {
+            let n_count = col_nodes.len();
+            let total_w = n_count as f64 * node_w + (n_count as f64 - 1.0).max(0.0) * 24.0;
+            let start_x = (VB_W - total_w) / 2.0;
+            for (ni, node) in col_nodes.iter().enumerate() {
+                positions.insert(
+                    &node.id,
+                    NPos {
+                        cx: start_x + ni as f64 * (node_w + 24.0) + node_w / 2.0,
+                        cy: pad + node_h / 2.0 + row_spacing * ci as f64,
+                    },
+                );
+            }
+        }
+    }
+
+    let mut svg = format!(
+        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+        vb_w = VB_W,
+        h = h,
+    );
+
+    svg.push_str(r#"<defs><marker id="arch-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)"/></marker></defs>"#);
+
+    for conn in connections {
+        let Some(fp) = positions.get(conn.from.as_str()) else {
+            continue;
+        };
+        let Some(tp) = positions.get(conn.to.as_str()) else {
+            continue;
+        };
+
+        let (x1, y1, x2, y2) = if is_lr {
+            (fp.cx + node_w / 2.0, fp.cy, tp.cx - node_w / 2.0, tp.cy)
+        } else {
+            (fp.cx, fp.cy + node_h / 2.0, tp.cx, tp.cy - node_h / 2.0)
+        };
+
+        svg.push_str(&format!(
+            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="rgba(var(--text-rgb),0.3)" stroke-width="1.5" marker-end="url(#arch-arrow)" class="c-arch-edge"/>"#,
+        ));
+
+        if let Some(label) = &conn.label {
+            let mx = (x1 + x2) / 2.0;
+            let my = (y1 + y2) / 2.0 - 8.0;
+            svg.push_str(&format!(
+                r#"<text x="{mx:.1}" y="{my:.1}" text-anchor="middle" class="c-arch-edge-label">{l}</text>"#,
+                l = esc(label),
+            ));
+        }
+    }
+
+    for n in nodes {
+        let Some(pos) = positions.get(n.id.as_str()) else {
+            continue;
+        };
+        let rx = pos.cx - node_w / 2.0;
+        let ry = pos.cy - node_h / 2.0;
+
+        svg.push_str(&format!(
+            r#"<rect x="{rx:.1}" y="{ry:.1}" width="{nw}" height="{nh}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
+            nw = node_w,
+            nh = node_h,
+            stroke = n.color.hex(),
+        ));
+        svg.push_str(&format!(
+            r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{label}</text>"#,
+            cx = pos.cx,
+            cy = if n.detail.is_some() {
+                pos.cy - 7.0
+            } else {
+                pos.cy
+            },
+            label = esc(&n.label),
+        ));
+        if let Some(detail) = &n.detail {
+            svg.push_str(&format!(
+                r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail">{d}</text>"#,
+                cx = pos.cx,
+                cy = pos.cy + 10.0,
+                d = esc(detail),
+            ));
+        }
+    }
+
+    svg.push_str("</svg>");
+    wrap_chart("arch", title, &svg)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -776,5 +1487,120 @@ mod tests {
         ];
         let buckets = collect_buckets(&series);
         assert_eq!(buckets, vec!["Jan", "Feb", "Mar"]);
+    }
+
+    #[test]
+    fn sankey_renders_svg_with_flows() {
+        let flows = vec![
+            crate::types::SankeyFlow {
+                source: "A".into(),
+                target: "B".into(),
+                value: 80.0,
+            },
+            crate::types::SankeyFlow {
+                source: "A".into(),
+                target: "C".into(),
+                value: 20.0,
+            },
+        ];
+        let colors = std::collections::HashMap::new();
+        let result = render_sankey(&Some("Test".into()), None, &flows, &colors);
+        assert!(result.html.contains("<svg"), "should contain SVG element");
+        assert!(result.html.contains("c-sankey"), "should have sankey class");
+        assert!(result.html.contains("Test"), "should contain title");
+    }
+
+    #[test]
+    fn sankey_empty_flows_renders_empty() {
+        let flows: Vec<crate::types::SankeyFlow> = vec![];
+        let colors = std::collections::HashMap::new();
+        let result = render_sankey(&None, None, &flows, &colors);
+        assert!(result.html.contains("No data"), "should show empty state");
+    }
+
+    #[test]
+    fn radar_renders_svg_with_curves() {
+        let curves = vec![
+            crate::types::RadarCurve {
+                label: "Before".into(),
+                values: vec![1.0, 4.0, 2.0],
+                color: None,
+            },
+            crate::types::RadarCurve {
+                label: "After".into(),
+                values: vec![9.0, 6.0, 8.0],
+                color: None,
+            },
+        ];
+        let axes = vec!["A".into(), "B".into(), "C".into()];
+        let result = render_radar(&Some("Test".into()), None, &axes, &curves, Some(10.0));
+        assert!(result.html.contains("<svg"), "should contain SVG");
+        assert!(result.html.contains("c-radar"), "should have radar class");
+        assert!(
+            result.html.contains("polygon"),
+            "should render data polygons"
+        );
+    }
+
+    #[test]
+    fn quadrant_renders_svg_with_points() {
+        let points = vec![
+            crate::types::QuadrantPoint {
+                label: "A".into(),
+                x: 0.9,
+                y: 0.9,
+                color: Some(crate::types::SemColor::Red),
+            },
+            crate::types::QuadrantPoint {
+                label: "B".into(),
+                x: 0.2,
+                y: 0.3,
+                color: None,
+            },
+        ];
+        let quads = vec!["Q1".into(), "Q2".into(), "Q3".into(), "Q4".into()];
+        let result = render_quadrant(&Some("Test".into()), None, "X", "Y", &quads, &points);
+        assert!(result.html.contains("<svg"), "should contain SVG");
+        assert!(
+            result.html.contains("c-quadrant"),
+            "should have quadrant class"
+        );
+        assert!(result.html.contains("Q1"), "should render quadrant labels");
+    }
+
+    #[test]
+    fn architecture_renders_svg_with_nodes() {
+        let nodes = vec![
+            crate::types::ArchNode {
+                id: "a".into(),
+                label: "Source".into(),
+                detail: None,
+                icon: None,
+                color: crate::types::SemColor::Teal,
+            },
+            crate::types::ArchNode {
+                id: "b".into(),
+                label: "Sink".into(),
+                detail: Some("Details".into()),
+                icon: None,
+                color: crate::types::SemColor::Green,
+            },
+        ];
+        let conns = vec![crate::types::ArchConnection {
+            from: "a".into(),
+            to: "b".into(),
+            label: Some("flow".into()),
+        }];
+        let result = render_architecture(
+            &Some("Test".into()),
+            None,
+            crate::types::ArchDirection::LeftToRight,
+            &nodes,
+            &conns,
+        );
+        assert!(result.html.contains("<svg"), "should contain SVG");
+        assert!(result.html.contains("c-arch"), "should have arch class");
+        assert!(result.html.contains("Source"), "should contain node label");
+        assert!(result.html.contains("flow"), "should contain edge label");
     }
 }
