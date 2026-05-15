@@ -1671,3 +1671,141 @@ tasks:
   updated: 2026-05-09T12:42:02.784888-05:00
   closed: 2026-05-09T12:42:02.784888-05:00
   close_reason: Clerk sign-in/up styled with dark theme via @clerk/themes appearance prop — bg, accent, text, inputs all match curata dark chrome
+- id: kz-8c6a
+  title: Add Sankey + Radar + Quadrant + Architecture data models to types.rs
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Add 4 Component variants, 7 supporting structs, 1 enum (ArchDirection). Follow spec at docs/superpowers/specs/2026-05-15-chart-components-design.md. Plan tasks 1-4.
+  created: 2026-05-15T14:29:59.464858-05:00
+  updated: 2026-05-15T14:50:40.107857-05:00
+  closed: 2026-05-15T14:50:40.107857-05:00
+  close_reason: Added 4 Component variants + 7 structs + ArchDirection enum to types.rs
+- id: kz-b388
+  title: Implement Sankey SVG renderer in render/charts.rs
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Topological column layout, cubic Bezier flow paths, gradient fills, proportional node heights. Plan task 5.
+  created: 2026-05-15T14:30:00.892557-05:00
+  updated: 2026-05-15T14:50:40.119028-05:00
+  closed: 2026-05-15T14:50:40.119028-05:00
+  close_reason: Full Sankey SVG renderer with topological layout and Bezier links
+- id: kz-b6c0
+  title: Implement Radar SVG renderer in render/charts.rs
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Polygon graticule, axis lines, filled curve polygons with opacity, legend. Plan task 6.
+  created: 2026-05-15T14:30:16.786362-05:00
+  updated: 2026-05-15T14:50:40.128214-05:00
+  closed: 2026-05-15T14:50:40.128214-05:00
+  close_reason: Full Radar SVG renderer with polygon graticule and multi-curve overlay
+- id: kz-daef
+  title: Implement Quadrant SVG renderer in render/charts.rs
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Four tinted zones, dashed crosshair, scatter points with labels, axis labels. Plan task 7.
+  created: 2026-05-15T14:30:19.889028-05:00
+  updated: 2026-05-15T14:50:40.136740-05:00
+  closed: 2026-05-15T14:50:40.136740-05:00
+  close_reason: Full Quadrant SVG renderer with zone backgrounds and positioned points
+- id: kz-fb54
+  title: Implement Architecture SVG renderer in render/charts.rs
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Auto-column layout from topology, rounded-rect nodes with icons, arrow connections with labels. Plan task 8.
+  created: 2026-05-15T14:30:20.952516-05:00
+  updated: 2026-05-15T14:50:40.145078-05:00
+  closed: 2026-05-15T14:50:40.145078-05:00
+  close_reason: Full Architecture SVG renderer with topological layout and arrow connections
+- id: kz-bbe1
+  title: Wire component dispatch + CSS + validation for all 4 chart types
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: Add 4 match arms in render/components.rs, CSS classes in theme.rs, validation rules in validate.rs. Plan tasks 9-11.
+  created: 2026-05-15T14:30:22.790879-05:00
+  updated: 2026-05-15T14:50:40.153212-05:00
+  closed: 2026-05-15T14:50:40.153212-05:00
+  close_reason: Wired dispatch in components.rs, CSS in theme.rs, validation in validate.rs
+- id: kz-2b1c
+  title: Add SDK emitters for all 4 chart types
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: TS types in kazam.ts, React renderers in kazam-renderer.tsx, agent docs. Add ArchDirection enum, 5 interfaces, 4 icon entries, 4 React cases. Plan tasks 12-13.
+  created: 2026-05-15T14:30:25.165355-05:00
+  updated: 2026-05-15T14:50:40.160724-05:00
+  closed: 2026-05-15T14:50:40.160724-05:00
+  close_reason: Added ArchDirection enum, 5 interfaces, 4 icons, 4 React cases in sdk.rs
+- id: kz-7077
+  title: Create demo page + local test
+  status: closed
+  priority: 1
+  task_type: task
+  assignee: claude
+  note: sites/demo/pages/chart-showcase.yaml with all 4 new components using security/vuln examples. Serve via kazam dev sites/demo. Plan task 14.
+  created: 2026-05-15T14:30:27.007147-05:00
+  updated: 2026-05-15T14:50:40.168006-05:00
+  closed: 2026-05-15T14:50:40.168006-05:00
+  close_reason: Created examples/kb/demo/charts.yaml with all 4 components, built and served
+- id: kz-bf0e
+  title: Build kazam release binary + install to downstream repos
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Blocked on kazam implementation tasks (kz-8c6a through kz-7077)
+  created: 2026-05-15T14:30:32.796002-05:00
+  updated: 2026-05-15T15:10:10.903376-05:00
+  closed: 2026-05-15T15:10:10.903376-05:00
+  close_reason: Built release binary and installed to curata/.bin/ and curata-app/.bin/
+- id: kz-cea1
+  title: Propagate to curata OSS — pnpm generate + verify
+  status: blocked
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Blocked on kz-bf0e (kazam binary build)
+  created: 2026-05-15T14:30:35.948123-05:00
+  updated: 2026-05-15T14:30:53.435543-05:00
+- id: kz-cc11
+  title: Propagate to curata-app — sync + pnpm generate + verify
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  note: Blocked on kz-cea1 (curata OSS propagation)
+  created: 2026-05-15T14:30:37.671479-05:00
+  updated: 2026-05-15T15:14:59.774946-05:00
+  closed: 2026-05-15T15:14:59.774946-05:00
+  close_reason: Synced generated files from curata OSS, pushed to main. Railway auto-deploys.
+- id: kz-0d52
+  title: Propagate to maze-apps — trigger sync-curata.yml workflow
+  status: blocked
+  priority: 2
+  task_type: task
+  owner: human
+  assignee: claude
+  note: Blocked on kz-cc11 (curata-app propagation)
+  created: 2026-05-15T14:30:43.712977-05:00
+  updated: 2026-05-15T14:30:57.782042-05:00
+- id: kz-55d1
+  title: Create updated blueprint template with new chart visuals
+  status: blocked
+  priority: 3
+  task_type: task
+  assignee: claude
+  note: Blocked on kz-0d52 (all downstream repos live with new charts)
+  created: 2026-05-15T14:30:44.930181-05:00
+  updated: 2026-05-15T14:30:58.966105-05:00

@@ -1529,14 +1529,331 @@ function ComponentView({
       );
     }
 
-    case "sankey":
-    case "radar":
-    case "quadrant":
-    case "architecture": {
+    case "sankey": {
+      const flows = (comp.flows as Array<{ source: string; target: string; value: number }>) || [];
+      const colors = (comp.colors as Record<string, string>) || {};
+      const title = comp.title as string | undefined;
+      const h = (comp.height as number) || 400;
+      const VB_W = 720;
+
+      if (flows.length === 0) return <div id={id} className="c-chart c-chart-sankey"><em>No flows</em></div>;
+
+      const nodeNames: string[] = [];
+      for (const f of flows) {
+        if (!nodeNames.includes(f.source)) nodeNames.push(f.source);
+        if (!nodeNames.includes(f.target)) nodeNames.push(f.target);
+      }
+
+      const inEdges: Record<string, string[]> = {};
+      for (const f of flows) { (inEdges[f.target] ||= []).push(f.source); }
+
+      const col: Record<string, number> = {};
+      for (const n of nodeNames) { if (!inEdges[n]) col[n] = 0; }
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const f of flows) {
+          if (col[f.source] !== undefined) {
+            if ((col[f.target] ?? 0) <= col[f.source]) {
+              col[f.target] = col[f.source] + 1;
+              changed = true;
+            }
+          }
+        }
+      }
+      for (const n of nodeNames) { if (col[n] === undefined) col[n] = 0; }
+
+      const maxCol = Math.max(...Object.values(col));
+      const numCols = maxCol + 1;
+
+      const nodeIn: Record<string, number> = {};
+      const nodeOut: Record<string, number> = {};
+      for (const f of flows) {
+        nodeOut[f.source] = (nodeOut[f.source] || 0) + f.value;
+        nodeIn[f.target] = (nodeIn[f.target] || 0) + f.value;
+      }
+      const nodeTotal: Record<string, number> = {};
+      for (const n of nodeNames) { nodeTotal[n] = Math.max(nodeIn[n] || 0, nodeOut[n] || 0); }
+
+      const byCol: Record<number, number> = {};
+      for (const n of nodeNames) { byCol[col[n]] = (byCol[col[n]] || 0) + nodeTotal[n]; }
+      const totalMax = Math.max(...Object.values(byCol));
+      if (totalMax <= 0) return <div id={id} className="c-chart c-chart-sankey"><em>No data</em></div>;
+
+      const padX = 140, padY = 20, nodeW = 18, nodeGap = 8;
+      const plotW = VB_W - padX * 2, plotH = h - padY * 2;
+      const colSpacing = numCols > 1 ? plotW / (numCols - 1) : 0;
+
+      const positions: Record<string, { x: number; y: number; h: number }> = {};
+      for (let c = 0; c < numCols; c++) {
+        const colNodes = nodeNames.filter(n => col[n] === c);
+        const colTotal = colNodes.reduce((s, n) => s + nodeTotal[n], 0);
+        const gaps = colNodes.length > 1 ? (colNodes.length - 1) * nodeGap : 0;
+        const scale = colTotal > 0 ? (plotH - gaps) / colTotal : 1;
+        const x = padX + colSpacing * c - nodeW / 2;
+        let y = padY;
+        for (const n of colNodes) {
+          const nh = Math.max(nodeTotal[n] * scale, 2);
+          positions[n] = { x, y, h: nh };
+          y += nh + nodeGap;
+        }
+      }
+
+      const sourceOff: Record<string, number> = {};
+      const targetOff: Record<string, number> = {};
+      const fmtNum = (v: number) => v >= 1000 ? (v / 1000).toFixed(v % 1000 === 0 ? 0 : 1) + "K" : String(v);
+
+      const flowPaths = flows.map((f, i) => {
+        const sp = positions[f.source], tp = positions[f.target];
+        const sTotal = nodeTotal[f.source], tTotal = nodeTotal[f.target];
+        const sOff = sourceOff[f.source] || 0;
+        const linkHS = sTotal > 0 ? (f.value / sTotal) * sp.h : 0;
+        const sy = sp.y + sOff;
+        sourceOff[f.source] = sOff + linkHS;
+        const tOff = targetOff[f.target] || 0;
+        const linkHT = tTotal > 0 ? (f.value / tTotal) * tp.h : 0;
+        const ty = tp.y + tOff;
+        targetOff[f.target] = tOff + linkHT;
+        const sx = sp.x + nodeW, tx = tp.x, cpx = (sx + tx) / 2;
+        const fillColor = colors[f.source] || colors[f.target] || ["default", "green", "yellow", "red", "teal"][i % 5];
+        const fill = semToHex[fillColor] || semToHex.default;
+        return <path key={i} d={`M ${sx} ${sy} C ${cpx} ${sy}, ${cpx} ${ty}, ${tx} ${ty} L ${tx} ${ty + linkHT} C ${cpx} ${ty + linkHT}, ${cpx} ${sy + linkHS}, ${sx} ${sy + linkHS} Z`} fill={fill} fillOpacity={0.35} className="c-sankey-link"><title>{`${f.source} → ${f.target}: ${fmtNum(f.value)}`}</title></path>;
+      });
+
+      const nodeEls = nodeNames.map((n, i) => {
+        const pos = positions[n];
+        const fillColor = colors[n] || ["default", "green", "yellow", "red", "teal"][i % 5];
+        const fill = semToHex[fillColor] || semToHex.default;
+        const c = col[n];
+        const [lx, anchor] = c === 0 ? [pos.x - 6, "end" as const] : c === maxCol ? [pos.x + nodeW + 6, "start" as const] : [pos.x + nodeW / 2, "middle" as const];
+        const ly = pos.y + pos.h / 2;
+        return <React.Fragment key={i}>
+          <rect x={pos.x} y={pos.y} width={nodeW} height={pos.h} fill={fill} rx={2} className="c-sankey-node" />
+          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-sankey-label">{n}</text>
+          <text x={lx} y={ly + 14} textAnchor={anchor} dominantBaseline="middle" className="c-sankey-value">{fmtNum(nodeTotal[n])}</text>
+        </React.Fragment>;
+      });
+
       return (
-        <div id={id} className={`c-chart c-chart-${comp.type}`}>
-          <em>{comp.type} chart (server-rendered SVG)</em>
-        </div>
+        <figure id={id} className="c-chart c-chart-sankey" role="img" aria-label={title || "Sankey diagram"}>
+          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">{flowPaths}{nodeEls}</svg>
+        </figure>
+      );
+    }
+
+    case "radar": {
+      const axes = (comp.axes as string[]) || [];
+      const curves = (comp.curves as Array<{ label: string; values: number[]; color?: string }>) || [];
+      const title = comp.title as string | undefined;
+      const h = (comp.height as number) || 360;
+      const maxVal = Math.max(comp.max as number || 0, ...curves.flatMap(c => c.values), 1);
+      const VB_W = 720;
+      const n = axes.length;
+
+      if (n < 3 || curves.length === 0) return <div id={id} className="c-chart c-chart-radar"><em>Insufficient data</em></div>;
+
+      const cx = VB_W / 2, cy = h / 2, r = (Math.min(VB_W, h) / 2) - 60;
+      const angleOf = (i: number) => -Math.PI / 2 + i * (2 * Math.PI) / n;
+      const pointAt = (i: number, val: number) => {
+        const a = angleOf(i), d = (val / maxVal) * r;
+        return [cx + d * Math.cos(a), cy + d * Math.sin(a)];
+      };
+
+      const rings = Array.from({ length: 5 }, (_, ri) => {
+        const frac = (ri + 1) / 5;
+        const pts = Array.from({ length: n }, (_, i) => pointAt(i, maxVal * frac).join(",")).join(" ");
+        return <polygon key={ri} points={pts} fill="none" stroke="rgba(128,128,128,0.15)" strokeWidth={1} className="c-radar-ring" />;
+      });
+
+      const spokes = axes.map((label, i) => {
+        const [ex, ey] = pointAt(i, maxVal);
+        const a = angleOf(i), ld = r + 16;
+        const lx = cx + ld * Math.cos(a), ly = cy + ld * Math.sin(a);
+        const anchor = Math.abs(Math.cos(a)) < 0.1 ? "middle" : Math.cos(a) > 0 ? "start" : "end";
+        return <React.Fragment key={i}>
+          <line x1={cx} y1={cy} x2={ex} y2={ey} stroke="rgba(128,128,128,0.15)" strokeWidth={1} className="c-radar-axis" />
+          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-radar-label">{label}</text>
+        </React.Fragment>;
+      });
+
+      const curveSvg = curves.map((curve, ci) => {
+        const color = semToHex[curve.color || ""] || getColor(curve.color, ci);
+        const pts = curve.values.map((v, i) => pointAt(i, Math.min(v, maxVal)).join(",")).join(" ");
+        const dots = curve.values.map((v, i) => {
+          const [px, py] = pointAt(i, Math.min(v, maxVal));
+          return <circle key={i} cx={px} cy={py} r={3.5} fill={color} className="c-chart-dot"><title>{`${curve.label} — ${axes[i]}: ${v}`}</title></circle>;
+        });
+        return <React.Fragment key={ci}>
+          <polygon points={pts} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} className="c-radar-curve" />
+          {dots}
+        </React.Fragment>;
+      });
+
+      const legend = curves.length > 1 ? (
+        <ul className="c-chart-legend">
+          {curves.map((c, i) => {
+            const color = semToHex[c.color || ""] || getColor(c.color, i);
+            return <li key={i} className="c-chart-legend-item"><span className="c-chart-swatch" style={{ background: color }} /><span>{c.label}</span></li>;
+          })}
+        </ul>
+      ) : null;
+
+      return (
+        <figure id={id} className="c-chart c-chart-radar" role="img" aria-label={title || "Radar chart"}>
+          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">{rings}{spokes}{curveSvg}</svg>
+          {legend}
+        </figure>
+      );
+    }
+
+    case "quadrant": {
+      const title = comp.title as string | undefined;
+      const h = (comp.height as number) || 400;
+      const xAxis = (comp.x_axis as string) || "";
+      const yAxis = (comp.y_axis as string) || "";
+      const quadrants = (comp.quadrants as string[]) || [];
+      const points = (comp.points as Array<{ label: string; x: number; y: number; color?: string }>) || [];
+      const VB_W = 720;
+
+      if (quadrants.length !== 4 || points.length === 0) return <div id={id} className="c-chart c-chart-quadrant"><em>Insufficient data</em></div>;
+
+      const left = 90, right = 20, top = 10, bottom = 40;
+      const plotW = VB_W - left - right, plotH = h - top - bottom;
+      const midX = left + plotW / 2, midY = top + plotH / 2;
+
+      const quadColors = ["rgba(52,211,153,0.06)", "rgba(251,191,36,0.04)", "rgba(248,113,113,0.06)", "rgba(60,206,206,0.04)"];
+      const quadRects: [number, number, number, number][] = [
+        [midX, top, plotW / 2, plotH / 2],
+        [left, top, plotW / 2, plotH / 2],
+        [left, midY, plotW / 2, plotH / 2],
+        [midX, midY, plotW / 2, plotH / 2],
+      ];
+
+      const xParts = xAxis.split(" → ");
+
+      return (
+        <figure id={id} className="c-chart c-chart-quadrant" role="img" aria-label={title || "Quadrant chart"}>
+          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
+            {quadRects.map(([qx, qy, qw, qh], i) => (
+              <React.Fragment key={i}>
+                <rect x={qx} y={qy} width={qw} height={qh} fill={quadColors[i]} className="c-quadrant-bg" />
+                <text x={qx + qw / 2} y={qy + qh / 2} textAnchor="middle" dominantBaseline="middle" className="c-quadrant-zone-label">{quadrants[i]}</text>
+              </React.Fragment>
+            ))}
+            <line x1={midX} y1={top} x2={midX} y2={top + plotH} className="c-quadrant-cross" stroke="rgba(128,128,128,0.3)" strokeWidth={1} strokeDasharray="4 4" />
+            <line x1={left} y1={midY} x2={left + plotW} y2={midY} className="c-quadrant-cross" stroke="rgba(128,128,128,0.3)" strokeWidth={1} strokeDasharray="4 4" />
+            {xParts.length === 2 ? (
+              <>
+                <text x={left} y={top + plotH + 24} textAnchor="start" className="c-chart-axis">{xParts[0]}</text>
+                <text x={left + plotW} y={top + plotH + 24} textAnchor="end" className="c-chart-axis">{xParts[1]}</text>
+              </>
+            ) : (
+              <text x={midX} y={top + plotH + 24} textAnchor="middle" className="c-chart-axis">{xAxis}</text>
+            )}
+            <text x={left - 50} y={midY} textAnchor="middle" transform={`rotate(-90,${left - 50},${midY})`} className="c-chart-axis">{yAxis}</text>
+            {points.map((pt, i) => {
+              const px = left + Math.min(Math.max(pt.x, 0), 1) * plotW;
+              const py = top + (1 - Math.min(Math.max(pt.y, 0), 1)) * plotH;
+              const color = semToHex[pt.color || ""] || getColor(pt.color, i);
+              return <React.Fragment key={i}>
+                <circle cx={px} cy={py} r={6} fill={color} className="c-chart-dot"><title>{`${pt.label} (${(pt.x * 100).toFixed(0)}%, ${(pt.y * 100).toFixed(0)}%)`}</title></circle>
+                <text x={px + 10} y={py} dominantBaseline="middle" className="c-quadrant-point-label">{pt.label}</text>
+              </React.Fragment>;
+            })}
+          </svg>
+        </figure>
+      );
+    }
+
+    case "architecture": {
+      const title = comp.title as string | undefined;
+      const h = (comp.height as number) || 300;
+      const direction = (comp.direction as string) || "left_to_right";
+      const nodes = (comp.nodes as Array<{ id: string; label: string; detail?: string; color?: string }>) || [];
+      const connections = (comp.connections as Array<{ from: string; to: string; label?: string }>) || [];
+      const VB_W = 720;
+
+      if (nodes.length === 0) return <div id={id} className="c-chart c-chart-arch"><em>No nodes</em></div>;
+
+      const inSet = new Set(connections.map(c => c.to));
+      const col: Record<string, number> = {};
+      for (const n of nodes) { if (!inSet.has(n.id)) col[n.id] = 0; }
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const c of connections) {
+          if (col[c.from] !== undefined) {
+            if ((col[c.to] ?? 0) <= col[c.from]) {
+              col[c.to] = col[c.from] + 1;
+              changed = true;
+            }
+          }
+        }
+      }
+      for (const n of nodes) { if (col[n.id] === undefined) col[n.id] = 0; }
+
+      const maxCol = Math.max(...Object.values(col));
+      const numCols = maxCol + 1;
+      const isLR = direction === "left_to_right";
+      const pad = 40, nodeW = 130, nodeH = 56;
+
+      const colsNodes: Array<typeof nodes> = Array.from({ length: numCols }, () => []);
+      for (const n of nodes) colsNodes[col[n.id]].push(n);
+
+      const positions: Record<string, { cx: number; cy: number }> = {};
+      if (isLR) {
+        const colSpacing = numCols > 1 ? (VB_W - pad * 2 - nodeW) / (numCols - 1) : 0;
+        for (let ci = 0; ci < numCols; ci++) {
+          const cn = colsNodes[ci], nCount = cn.length;
+          const totalH = nCount * nodeH + Math.max(nCount - 1, 0) * 16;
+          const startY = (h - totalH) / 2;
+          cn.forEach((node, ni) => { positions[node.id] = { cx: pad + nodeW / 2 + colSpacing * ci, cy: startY + ni * (nodeH + 16) + nodeH / 2 }; });
+        }
+      } else {
+        const rowSpacing = numCols > 1 ? (h - pad * 2 - nodeH) / (numCols - 1) : 0;
+        for (let ci = 0; ci < numCols; ci++) {
+          const cn = colsNodes[ci], nCount = cn.length;
+          const totalW = nCount * nodeW + Math.max(nCount - 1, 0) * 24;
+          const startX = (VB_W - totalW) / 2;
+          cn.forEach((node, ni) => { positions[node.id] = { cx: startX + ni * (nodeW + 24) + nodeW / 2, cy: pad + nodeH / 2 + rowSpacing * ci }; });
+        }
+      }
+
+      const connEls = connections.map((c, i) => {
+        const fp = positions[c.from], tp = positions[c.to];
+        if (!fp || !tp) return null;
+        const [x1, y1, x2, y2] = isLR
+          ? [fp.cx + nodeW / 2, fp.cy, tp.cx - nodeW / 2, tp.cy]
+          : [fp.cx, fp.cy + nodeH / 2, tp.cx, tp.cy - nodeH / 2];
+        return <React.Fragment key={i}>
+          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(128,128,128,0.4)" strokeWidth={1.5} markerEnd="url(#arch-arrow)" className="c-arch-edge" />
+          {c.label && <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 8} textAnchor="middle" className="c-arch-edge-label">{c.label}</text>}
+        </React.Fragment>;
+      });
+
+      const nodeEls = nodes.map((n, i) => {
+        const pos = positions[n.id];
+        if (!pos) return null;
+        const rx = pos.cx - nodeW / 2, ry = pos.cy - nodeH / 2;
+        const stroke = semToHex[n.color || ""] || getColor(n.color, i);
+        return <React.Fragment key={i}>
+          <rect x={rx} y={ry} width={nodeW} height={nodeH} rx={8} fill="rgba(128,128,128,0.08)" stroke={stroke} strokeWidth={1.5} className="c-arch-node" />
+          <text x={pos.cx} y={n.detail ? pos.cy - 7 : pos.cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{n.label}</text>
+          {n.detail && <text x={pos.cx} y={pos.cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{n.detail}</text>}
+        </React.Fragment>;
+      });
+
+      return (
+        <figure id={id} className="c-chart c-chart-arch" role="img" aria-label={title || "Architecture diagram"}>
+          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
+            <defs><marker id="arch-arrow" viewBox="0 0 10 7" refX={10} refY={3.5} markerWidth={8} markerHeight={6} orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(128,128,128,0.5)" /></marker></defs>
+            {connEls}{nodeEls}
+          </svg>
+        </figure>
       );
     }
 
