@@ -248,6 +248,10 @@ enum ThemeCommand {
         /// Enable glow effect (none, accent, corner)
         #[arg(long, default_value = "none")]
         glow: String,
+        /// Emit all theme/mode/texture/glow variants as [data-*] CSS selectors
+        /// for runtime switching. When set, --theme/--mode/--texture/--glow are ignored.
+        #[arg(long)]
+        switchable: bool,
     },
     /// Print only the :root CSS custom properties block to stdout
     Vars {
@@ -504,12 +508,18 @@ fn main() -> Result<()> {
                 mode,
                 texture,
                 glow,
+                switchable,
             } => {
-                let m = parse_mode(&mode);
-                let t = theme::Theme::named(&theme_name, m);
-                let tex = parse_texture(&texture);
-                let g = parse_glow(&glow);
-                print!("{}", theme::render_css(&t, tex, g));
+                if switchable {
+                    let t = theme::dark();
+                    print!("{}", theme::render_switchable_css(&t));
+                } else {
+                    let m = parse_mode(&mode);
+                    let t = theme::Theme::named(&theme_name, m);
+                    let tex = parse_texture(&texture);
+                    let g = parse_glow(&glow);
+                    print!("{}", theme::render_css(&t, tex, g));
+                }
                 Ok(())
             }
             ThemeCommand::Vars {

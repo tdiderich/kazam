@@ -48,6 +48,7 @@ impl Theme {
                     "blue" => "#7897B8",
                     "indigo" => "#8A7FBB",
                     "violet" => "#AB7FBB",
+                    "teal" => "#3CCECE",
                     _ => return dark(),
                 };
                 Theme {
@@ -237,6 +238,138 @@ pub fn render_css(theme: &Theme, texture: Texture, glow: Glow) -> String {
     let mut out = theme.root_block();
     out.push_str(STATIC_CSS);
     out.push_str(&decoration_css(theme, texture, glow));
+    out
+}
+
+/// Emit ALL theme/mode/texture/glow variants as CSS `[data-*]` selectors so
+/// a downstream app can switch at runtime without rebuilding. The `:root`
+/// block is always the dark base. Each variant overrides only the vars it
+/// touches.
+pub fn render_switchable_css(theme: &Theme) -> String {
+    let mut out = theme.root_block();
+
+    // ── Light mode override ───────────────────────────────────────────────
+    // These values are hardcoded (not derived from light()) because the
+    // data-attribute override context cannot use self-referential
+    // `var(--text-rgb)` chains — the circular references resolve incorrectly
+    // when layered over the dark :root.
+    out.push_str(
+        "[data-mode=\"light\"] {\n\
+          --bg: #F7F7F2;\n\
+          --bg-rgb: 247, 247, 242;\n\
+          --snow: #1a1a1a;\n\
+          --text-rgb: 26, 26, 26;\n\
+          --muted: #888888;\n\
+          --light-muted: #666666;\n\
+          --card-bg: rgba(0, 0, 0, 0.05);\n\
+          --card-border: rgba(0, 0, 0, 0.12);\n\
+          --card-hover-border: rgba(var(--accent-rgb), 0.35);\n\
+          --surface-strong: rgba(0, 0, 0, 0.06);\n\
+          --overlay-hover: rgba(0, 0, 0, 0.08);\n\
+          --header-border: rgba(var(--accent-rgb), 0.2);\n\
+          --accent-soft: rgba(var(--accent-rgb), 0.12);\n\
+          --yellow: #8B7B00;\n\
+          --red: #B5404F;\n\
+        }\n",
+    );
+
+    // ── Rainbow theme accents ─────────────────────────────────────────────
+    // Each selector overrides just --teal, --accent-rgb, and --green so
+    // every accent-dependent var (--card-hover-border, etc.) updates too.
+    let rainbow: &[(&str, &str, &str)] = &[
+        ("red", "#BB7777", "187, 119, 119"),
+        ("orange", "#BB8C66", "187, 140, 102"),
+        ("yellow", "#B8A866", "184, 168, 102"),
+        ("green", "#899878", "137, 152, 120"),
+        ("blue", "#7897B8", "120, 151, 184"),
+        ("indigo", "#8A7FBB", "138, 127, 187"),
+        ("violet", "#AB7FBB", "171, 127, 187"),
+        ("teal", "#3CCECE", "60, 206, 206"),
+    ];
+    for (name, hex, rgb) in rainbow {
+        out.push_str(&format!(
+            "[data-theme=\"{name}\"] {{ --teal: {hex}; --accent-rgb: {rgb}; --green: {hex}; }}\n",
+            name = name,
+            hex = hex,
+            rgb = rgb,
+        ));
+    }
+    out.push('\n');
+
+    // ── Texture variants ──────────────────────────────────────────────────
+    // Use CSS custom property references so textures respond to light/dark
+    // mode switches at runtime without needing hardcoded RGB values.
+    out.push_str(
+        "[data-texture=\"dots\"] body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1; \
+         background-image: radial-gradient(rgba(var(--text-rgb), 0.07) 1px, transparent 1px); \
+         background-size: 24px 24px; }\n",
+    );
+    out.push_str(
+        "[data-texture=\"grid\"] body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1; \
+         background-image: \
+           linear-gradient(rgba(var(--text-rgb), 0.04) 1px, transparent 1px), \
+           linear-gradient(90deg, rgba(var(--text-rgb), 0.04) 1px, transparent 1px); \
+         background-size: 44px 44px; }\n",
+    );
+    out.push_str(
+        "[data-texture=\"diagonal\"] body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1; \
+         background-image: repeating-linear-gradient(45deg, \
+           rgba(var(--text-rgb), 0.04) 0 1px, transparent 1px 14px); }\n",
+    );
+
+    // Grain: inline SVG with fractal noise — feColorMatrix cannot resolve CSS
+    // vars, so we keep hardcoded float values derived from the dark theme text color.
+    let text_rgb = hex_to_rgb_triple(&theme.text).unwrap_or_else(|| "255, 255, 255".into());
+    let layer = "content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1;";
+    let grain_svg = format!(
+        "<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'>\
+<filter id='n'>\
+<feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/>\
+<feColorMatrix values='0 0 0 0 {r} 0 0 0 0 {g} 0 0 0 0 {b} 0 0 0 0.55 0'/>\
+</filter>\
+<rect width='100%' height='100%' filter='url(#n)'/></svg>",
+        r = rgb_component_to_unit(&text_rgb, 0),
+        g = rgb_component_to_unit(&text_rgb, 1),
+        b = rgb_component_to_unit(&text_rgb, 2),
+    );
+    out.push_str(&format!(
+        "[data-texture=\"grain\"] body::before {{ {layer} opacity: 0.18; \
+         background-image: url(\"data:image/svg+xml;utf8,{enc}\"); }}\n",
+        layer = layer,
+        enc = url_encode_svg(&grain_svg),
+    ));
+
+    // Topography: wavy contour lines using CSS var for stroke color
+    out.push_str(
+        "[data-texture=\"topography\"] body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1; \
+         background-image: url(\"data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='160' viewBox='0 0 240 160'%3E%3Cg fill='none' stroke='rgb(var(--text-rgb))' stroke-opacity='0.07' stroke-width='1'%3E%3Cpath d='M -10 30 Q 60 10 120 30 T 250 30'/%3E%3Cpath d='M -10 60 Q 60 40 120 60 T 250 60'/%3E%3Cpath d='M -10 90 Q 60 70 120 90 T 250 90'/%3E%3Cpath d='M -10 120 Q 60 100 120 120 T 250 120'/%3E%3Cpath d='M -10 150 Q 60 130 120 150 T 250 150'/%3E%3C/g%3E%3C/svg%3E\"); }\n",
+    );
+
+    out.push_str("[data-texture=\"none\"] body::before { display: none; }\n\n");
+
+    // ── Glow variants ─────────────────────────────────────────────────────
+    // Use CSS custom property references so glows respond to theme switches
+    // at runtime.
+    out.push_str(
+        "[data-glow=\"accent\"] body::after { content: ''; position: fixed; pointer-events: none; z-index: -1; \
+         top: -320px; left: 50%; width: 1200px; height: 720px; \
+         margin-left: -600px; \
+         background: radial-gradient(ellipse at center, \
+           rgba(var(--accent-rgb), 0.10) 0%, transparent 65%); }\n",
+    );
+    out.push_str(
+        "[data-glow=\"corner\"] body::after { content: ''; position: fixed; pointer-events: none; z-index: -1; \
+         top: -220px; right: -220px; width: 720px; height: 620px; \
+         background: radial-gradient(circle at top right, \
+           rgba(var(--accent-rgb), 0.14) 0%, transparent 60%); }\n",
+    );
+    out.push_str("[data-glow=\"none\"] body::after { display: none; }\n\n");
+
+    out.push_str(STATIC_CSS);
+
+    // ── Print: strip decorations ──────────────────────────────────────────
+    out.push_str("@media print { body::before, body::after { display: none !important; } }\n");
+
     out
 }
 
@@ -983,7 +1116,7 @@ a.c-card { color: inherit; }
 .c-card-yellow:hover { border-color: rgba(251, 191, 36, 0.6); }
 .c-card-red { border-color: rgba(248, 113, 113, 0.4); }
 .c-card-red:hover { border-color: rgba(248, 113, 113, 0.65); }
-.c-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px 12px; flex-wrap: wrap; }
+.c-card-top { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .c-card-title { font-size: 18px; font-weight: 600; }
 .c-card-desc { font-size: 14px; color: var(--light-muted); line-height: 1.5; }
 .c-card-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
@@ -1343,6 +1476,8 @@ body.shell-document .doc-body strong { color: #fff; }
 
 /* Callout */
 .c-callout {
+  width: 100%;
+  box-sizing: border-box;
   padding: 16px 20px;
   border-radius: 0 10px 10px 0;
   border-left: 3px solid;
@@ -2185,12 +2320,11 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-chart-axis-x { text-anchor: middle; }
 .c-chart-bar {
   rx: 2px;
-  transition: opacity 0.15s;
 }
-.c-chart-bar:hover, .c-chart-slice:hover, .c-chart-dot:hover { opacity: 0.85; }
 .c-chart-slice { stroke: var(--bg); stroke-width: 2; }
 .c-chart-line { pointer-events: none; }
-.c-chart-dot { cursor: default; }
+.c-chart-dot { transition: r 0.12s; }
+.c-chart-dot:hover { r: 6; }
 .c-chart-empty {
   fill: rgba(var(--text-rgb),0.35);
   font-size: 13px;
