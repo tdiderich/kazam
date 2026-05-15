@@ -24,7 +24,8 @@
     "AnnotationStatus": ["pending", "incorporated", "ignored", "stale"],
     "AnnotationSource": ["cli", "agent", "web"],
     "RefreshMode": ["human", "auto", "assisted"],
-    "ThemeName": ["dark", "light", "red", "orange", "yellow", "green", "blue", "indigo", "violet"]
+    "ThemeName": ["dark", "light", "red", "orange", "yellow", "green", "blue", "indigo", "violet"],
+    "ArchDirection": ["left_to_right", "top_to_bottom"]
   },
   "types": {
     "ThemeTokens": {
@@ -247,6 +248,34 @@
       "added": { "type": "string", "required": true },
       "status": { "type": "AnnotationStatus", "required": true },
       "source": { "type": "AnnotationSource", "required": true }
+    },
+    "SankeyFlow": {
+      "source": { "type": "string", "required": true },
+      "target": { "type": "string", "required": true },
+      "value": { "type": "number", "required": true }
+    },
+    "RadarCurve": {
+      "label": { "type": "string", "required": true },
+      "values": { "type": "number[]", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "QuadrantPoint": {
+      "label": { "type": "string", "required": true },
+      "x": { "type": "number", "required": true },
+      "y": { "type": "number", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "ArchNode": {
+      "id": { "type": "string", "required": true },
+      "label": { "type": "string", "required": true },
+      "detail": { "type": "string", "required": false },
+      "icon": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "ArchConnection": {
+      "from": { "type": "string", "required": true },
+      "to": { "type": "string", "required": true },
+      "label": { "type": "string", "required": false }
     }
   },
   "components": {
@@ -439,6 +468,34 @@
     },
     "role_map": {
       "title": { "type": "string", "required": false }
+    },
+    "sankey": {
+      "title": { "type": "string", "required": false },
+      "height": { "type": "number", "required": false },
+      "flows": { "type": "SankeyFlow[]", "required": true },
+      "colors": { "type": "Record<string, SemColor>", "required": false }
+    },
+    "radar": {
+      "title": { "type": "string", "required": false },
+      "height": { "type": "number", "required": false },
+      "axes": { "type": "string[]", "required": true },
+      "curves": { "type": "RadarCurve[]", "required": true },
+      "max": { "type": "number", "required": false }
+    },
+    "quadrant": {
+      "title": { "type": "string", "required": false },
+      "height": { "type": "number", "required": false },
+      "x_axis": { "type": "string", "required": true },
+      "y_axis": { "type": "string", "required": true },
+      "quadrants": { "type": "string[]", "required": true },
+      "points": { "type": "QuadrantPoint[]", "required": true }
+    },
+    "architecture": {
+      "title": { "type": "string", "required": false },
+      "height": { "type": "number", "required": false },
+      "direction": { "type": "ArchDirection", "required": false },
+      "nodes": { "type": "ArchNode[]", "required": true },
+      "connections": { "type": "ArchConnection[]", "required": true }
     }
   }
 }
