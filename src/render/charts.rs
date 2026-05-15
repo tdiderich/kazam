@@ -1206,28 +1206,12 @@ pub fn render_quadrant(
         ));
     }
 
-    let y_parts: Vec<&str> = y_axis.split(" \u{2192} ").collect();
-    if y_parts.len() == 2 {
-        svg.push_str(&format!(
-            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
-            x = left - 50.0,
-            y = top + plot_h,
-            t = esc(y_parts[0]),
-        ));
-        svg.push_str(&format!(
-            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
-            x = left - 50.0,
-            y = top,
-            t = esc(y_parts[1]),
-        ));
-    } else {
-        svg.push_str(&format!(
-            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
-            x = left - 50.0,
-            y = mid_y,
-            t = esc(y_axis),
-        ));
-    }
+    svg.push_str(&format!(
+        r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
+        x = left - 50.0,
+        y = mid_y,
+        t = esc(y_axis),
+    ));
 
     for (i, pt) in points.iter().enumerate() {
         let px = left + pt.x.clamp(0.0, 1.0) * plot_w;
