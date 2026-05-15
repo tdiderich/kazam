@@ -367,8 +367,17 @@ pub fn render_switchable_css(theme: &Theme) -> String {
 
     out.push_str(STATIC_CSS);
 
-    // ── Print: strip decorations ──────────────────────────────────────────
+    // ── Print: move texture from ::before (position:fixed doesn't print) to body background, strip glow ──
     out.push_str("@media print { body::before, body::after { display: none !important; } }\n");
+    // Repeat each texture as a body background-image in print
+    out.push_str("@media print { \
+      [data-texture=\"dots\"] body { background-image: radial-gradient(rgba(var(--text-rgb), 0.07) 1px, transparent 1px) !important; background-size: 24px 24px !important; } \
+      [data-texture=\"grid\"] body { background-image: linear-gradient(rgba(var(--text-rgb), 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--text-rgb), 0.04) 1px, transparent 1px) !important; background-size: 44px 44px !important; } \
+      [data-texture=\"diagonal\"] body { background-image: repeating-linear-gradient(45deg, rgba(var(--text-rgb), 0.04) 0 1px, transparent 1px 14px) !important; } \
+      [data-texture=\"topography\"] body { background-image: url(\"data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='160' viewBox='0 0 240 160'%3E%3Cg fill='none' stroke='rgb(var(--text-rgb))' stroke-opacity='0.07' stroke-width='1'%3E%3Cpath d='M -10 30 Q 60 10 120 30 T 250 30'/%3E%3Cpath d='M -10 60 Q 60 40 120 60 T 250 60'/%3E%3Cpath d='M -10 90 Q 60 70 120 90 T 250 90'/%3E%3Cpath d='M -10 120 Q 60 100 120 120 T 250 120'/%3E%3Cpath d='M -10 150 Q 60 130 120 150 T 250 150'/%3E%3C/g%3E%3C/svg%3E\") !important; } \
+      [data-glow=\"accent\"] .main-content { background-image: radial-gradient(ellipse at top center, rgba(var(--accent-rgb), 0.12) 0%, transparent 65%) !important; background-repeat: no-repeat !important; background-size: 100% 600px !important; } \
+      [data-glow=\"corner\"] .main-content { background-image: radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.16) 0%, transparent 60%) !important; background-repeat: no-repeat !important; background-size: 700px 600px !important; background-position: top right !important; } \
+    }\n");
 
     out
 }
@@ -2478,7 +2487,7 @@ body.shell-document .doc-body strong { color: #fff; }
 @page { margin: 0.5in; }
 @page deck-page { size: landscape; margin: 0; }
 @page deck-page-square { size: 8.5in 8.5in; margin: 0; }
-@page standard-page { margin: 0; }
+@page standard-page { size: 10in 5.625in; margin: 0; }
 body.shell-deck.print-slides { page: deck-page; }
 body.shell-deck.print-square { page: deck-page-square; }
 body.shell-standard { page: standard-page; }
@@ -2496,7 +2505,7 @@ body.shell-standard { page: standard-page; }
   /* ── Standard shell ── (dark theme preserved, edge-to-edge) ── */
   html, body.shell-standard { background: var(--bg) !important; }
   body.shell-standard { min-height: auto !important; }
-  body.shell-standard .main-content { padding: 0.5in !important; }
+  body.shell-standard .main-content { padding: 0 !important; }
   /* Avoid awkward page breaks inside structured blocks */
   body.shell-standard .c-card,
   body.shell-standard .c-stat,
@@ -2509,10 +2518,19 @@ body.shell-standard { page: standard-page; }
   body.shell-standard .c-stat-grid,
   body.shell-standard .c-split-compare { break-inside: avoid; page-break-inside: avoid; }
   body.shell-standard h1, body.shell-standard h2, body.shell-standard h3 { break-after: avoid; page-break-after: avoid; }
+  .c-section-header { break-after: avoid; page-break-after: avoid; }
+  .c-section-eyebrow { break-after: avoid; page-break-after: avoid; }
+  body.shell-standard .c-divider { display: none !important; margin: 0 !important; padding: 0 !important; height: 0 !important; border: none !important; }
+  body.shell-standard .c-section { break-before: page; page-break-before: always; min-height: 5.0625in; box-sizing: border-box; padding: 0.28in 0.5in !important; display: flex; flex-direction: column; justify-content: center; }
+  body.shell-standard .c-hero + .c-section,
+  body.shell-standard .c-hero + .c-divider + .c-section { break-before: auto; page-break-before: auto; }
+  body.shell-standard .c-section > * { width: 100%; max-width: 9in; margin-left: auto; margin-right: auto; }
+  body.shell-standard .c-hero { height: 5.625in; box-sizing: border-box; padding: 0.28in 0.5in !important; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; }
 
-  /* Keep card grids horizontal in print — page width triggers the 768px
-     breakpoint but landscape cards with arrows should stay in a row. */
+  /* Keep card grids horizontal in print — 10in landscape page is wide enough */
+  .c-card-grid { flex-direction: row !important; flex-wrap: nowrap !important; }
   .c-card-grid-arrow { flex-direction: row !important; }
+  .c-card-grid .c-card { min-width: 0 !important; flex: 1 !important; }
   .c-card-arrow { transform: none !important; padding: 0 4px !important; }
   .c-columns[style*="grid-template-columns"] { grid-template-columns: repeat(2, 1fr) !important; }
 
@@ -2737,8 +2755,8 @@ body.shell-standard { page: standard-page; }
   body.shell-deck .deck-slide-cover .c-header-title { font-size: 32px; }
   body.shell-deck .deck-slide-cover .c-header-subtitle { font-size: 15px; }
 
-  /* Section heading tighter. */
-  .c-section-header { margin-bottom: 16px; }
+  /* Section heading tighter + keep with following content. */
+  .c-section-header { margin-bottom: 16px; break-after: avoid; page-break-after: avoid; }
 
   /* Before/after final step. */
   .c-ba-card { padding: 20px; }

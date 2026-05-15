@@ -1247,7 +1247,7 @@ function ComponentView({
       const subtitle = comp.subtitle as string | undefined;
       const buttons = (comp.buttons as Array<{ label: string; href: string; variant?: string; external?: boolean }>) || [];
       return (
-        <div id={id} className="c-hero-banner">
+        <div id={id} className="c-hero">
           {eyebrow && <div className="c-hero-eyebrow">{eyebrow}</div>}
           <h1 className="c-hero-title">{title}</h1>
           {subtitle && <p className="c-hero-subtitle">{subtitle}</p>}
