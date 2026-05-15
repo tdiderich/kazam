@@ -2507,8 +2507,7 @@ body.shell-standard { page: standard-page; }
   body.shell-standard .c-empty-state { break-inside: avoid; page-break-inside: avoid; }
   body.shell-standard .c-card-grid,
   body.shell-standard .c-stat-grid,
-  body.shell-standard .c-split-compare,
-  body.shell-standard .c-section { break-inside: avoid; page-break-inside: avoid; }
+  body.shell-standard .c-split-compare { break-inside: avoid; page-break-inside: avoid; }
   body.shell-standard h1, body.shell-standard h2, body.shell-standard h3 { break-after: avoid; page-break-after: avoid; }
 
   /* Keep card grids horizontal in print — page width triggers the 768px
