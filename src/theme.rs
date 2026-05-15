@@ -2364,6 +2364,11 @@ body.shell-document .doc-body strong { color: #fff; }
   font-size: 12px;
   font-weight: 500;
 }
+.c-sankey-value {
+  fill: rgba(var(--text-rgb),0.5);
+  font-size: 11px;
+  font-weight: 400;
+}
 
 /* Radar */
 .c-radar-ring { pointer-events: none; }
@@ -2687,6 +2692,13 @@ body.shell-standard { page: standard-page; }
 
 /* ──────────────────── Mobile responsiveness ──────────────────── */
 
+/* Card-grid-arrow: flip to vertical earlier than other tablet breakpoints
+   because 4+ cards with arrow connectors get too narrow at ~900px. */
+@media (max-width: 960px) {
+  .c-card-grid-arrow { flex-direction: column; }
+  .c-card-arrow { transform: rotate(90deg); padding: 4px 0; }
+}
+
 /* Tablet-ish (≤768px): stack multi-column components, tighten chrome,
    collapse the top-bar nav into a hamburger menu. The sidebar layout has
    its own responsive rules above and is exempt. */
@@ -2770,9 +2782,7 @@ body.shell-standard { page: standard-page; }
      both set grid-template-columns inline, so the override needs !important. */
   .c-columns[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
 
-  /* Card-grid with arrows: stack vertically, rotate arrows to point down. */
-  .c-card-grid-arrow { flex-direction: column; }
-  .c-card-arrow { transform: rotate(90deg); padding: 4px 0; }
+  /* Card-grid arrow stacking moved to dedicated breakpoint above. */
 
   /* Before/after cards: tighter padding so they don't feel oversized. */
   .c-ba-card { padding: 24px; }

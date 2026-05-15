@@ -952,12 +952,20 @@ pub fn render_sankey(
             (pos.x + node_w / 2.0, "middle")
         };
         let ly = pos.y + pos.h / 2.0;
+        let total_str = fmt_num(node_total[name.as_str()]);
         svg.push_str(&format!(
             r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-sankey-label">{name}</text>"#,
             lx = lx,
             ly = ly,
             anchor = anchor,
             name = esc(name),
+        ));
+        svg.push_str(&format!(
+            r#"<text x="{lx:.1}" y="{ly2:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-sankey-value">{val}</text>"#,
+            lx = lx,
+            ly2 = ly + 14.0,
+            anchor = anchor,
+            val = total_str,
         ));
     }
 
@@ -1126,9 +1134,9 @@ pub fn render_quadrant(
         return wrap_chart("quadrant", title, &empty_svg(h as u32));
     }
 
-    let left = 60.0;
+    let left = 90.0;
     let right = 20.0;
-    let top = 20.0;
+    let top = 10.0;
     let bottom = 40.0;
     let plot_w = VB_W - left - right;
     let plot_h = h - top - bottom;
@@ -1202,20 +1210,20 @@ pub fn render_quadrant(
     if y_parts.len() == 2 {
         svg.push_str(&format!(
             r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
-            x = left - 30.0,
+            x = left - 50.0,
             y = top + plot_h,
             t = esc(y_parts[0]),
         ));
         svg.push_str(&format!(
             r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
-            x = left - 30.0,
+            x = left - 50.0,
             y = top,
             t = esc(y_parts[1]),
         ));
     } else {
         svg.push_str(&format!(
             r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
-            x = left - 30.0,
+            x = left - 50.0,
             y = mid_y,
             t = esc(y_axis),
         ));
