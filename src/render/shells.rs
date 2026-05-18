@@ -472,10 +472,20 @@ pub mod standard {
         }
         let view_src = view_source_html(source_href, release, yaml_path, page_title, edit_url);
 
+        let flow_class = match page.print_flow.unwrap_or_default() {
+            crate::types::PrintFlow::Slides => "print-slides",
+            crate::types::PrintFlow::Continuous => "print-continuous",
+            crate::types::PrintFlow::Square => "print-square",
+        };
+
         let body_class = if is_sidebar {
-            format!("{} nav-layout-sidebar", Shell::Standard.class())
+            format!(
+                "{} nav-layout-sidebar {}",
+                Shell::Standard.class(),
+                flow_class
+            )
         } else {
-            Shell::Standard.class().to_string()
+            format!("{} {}", Shell::Standard.class(), flow_class)
         };
 
         format!(

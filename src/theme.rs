@@ -2554,6 +2554,7 @@ body.shell-document .doc-body strong { color: #fff; }
 @page deck-page { size: landscape; margin: 0; }
 @page deck-page-square { size: 8.5in 8.5in; margin: 0; }
 @page standard-page { size: 10in 5.625in; margin: 0; }
+@page standard-continuous { size: 11in 8.5in; margin: 0; }
 body.shell-deck.print-slides { page: deck-page; }
 body.shell-deck.print-square { page: deck-page-square; }
 body.shell-standard { page: standard-page; }
@@ -2592,6 +2593,16 @@ body.shell-standard { page: standard-page; }
   body.shell-standard .c-hero + .c-divider + .c-section { break-before: auto; page-break-before: auto; }
   body.shell-standard .c-section > * { width: 100%; max-width: 9in; margin-left: auto; margin-right: auto; }
   body.shell-standard .c-hero { height: 5.625in; box-sizing: border-box; padding: 0.28in 0.5in !important; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; }
+  body.shell-standard .c-chart { break-inside: avoid; page-break-inside: avoid; }
+
+  /* ── Standard continuous: letter-size pages, vertically centered sections ── */
+  body.shell-standard.print-continuous { page: standard-continuous !important; }
+  body.shell-standard.print-continuous .c-section { break-before: page; page-break-before: always; min-height: 7.5in; padding: 0.5in 0.75in !important; justify-content: center; }
+  body.shell-standard.print-continuous .c-section > * { max-width: 9.5in; }
+  body.shell-standard.print-continuous .c-hero { height: 8.5in; padding: 0.5in 0.75in !important; justify-content: center; }
+  body.shell-standard.print-continuous .c-hero + .c-section,
+  body.shell-standard.print-continuous .c-hero + .c-divider + .c-section { break-before: auto; page-break-before: auto; }
+  body.shell-standard.print-continuous .c-divider { display: block !important; height: auto !important; margin: 0.2in 0 !important; border-bottom: 1px solid var(--muted) !important; }
 
   /* Keep card grids horizontal in print — 10in landscape page is wide enough */
   .c-card-grid { flex-direction: row !important; flex-wrap: nowrap !important; }
