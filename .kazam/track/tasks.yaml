@@ -1772,13 +1772,15 @@ tasks:
   close_reason: Built release binary and installed to curata/.bin/ and curata-app/.bin/
 - id: kz-cea1
   title: Propagate to curata OSS — pnpm generate + verify
-  status: blocked
+  status: closed
   priority: 2
   task_type: task
   assignee: claude
   note: Blocked on kz-bf0e (kazam binary build)
   created: 2026-05-15T14:30:35.948123-05:00
-  updated: 2026-05-15T14:30:53.435543-05:00
+  updated: 2026-05-15T15:50:47.555436-05:00
+  closed: 2026-05-15T15:50:47.555436-05:00
+  close_reason: curata OSS pnpm generate completed, generated files updated
 - id: kz-cc11
   title: Propagate to curata-app — sync + pnpm generate + verify
   status: closed
@@ -1792,20 +1794,32 @@ tasks:
   close_reason: Synced generated files from curata OSS, pushed to main. Railway auto-deploys.
 - id: kz-0d52
   title: Propagate to maze-apps — trigger sync-curata.yml workflow
-  status: blocked
+  status: closed
   priority: 2
   task_type: task
   owner: human
   assignee: claude
   note: Blocked on kz-cc11 (curata-app propagation)
   created: 2026-05-15T14:30:43.712977-05:00
-  updated: 2026-05-15T14:30:57.782042-05:00
+  updated: 2026-05-15T15:50:47.581764-05:00
+  closed: 2026-05-15T15:50:47.581764-05:00
+  close_reason: 'maze-apps PR #20 + PR #21 merged, deploy workflows now regenerate kazam outputs'
 - id: kz-55d1
   title: Create updated blueprint template with new chart visuals
-  status: blocked
+  status: closed
   priority: 3
   task_type: task
   assignee: claude
   note: Blocked on kz-0d52 (all downstream repos live with new charts)
   created: 2026-05-15T14:30:44.930181-05:00
-  updated: 2026-05-15T14:30:58.966105-05:00
+  updated: 2026-05-15T15:50:47.600069-05:00
+  closed: 2026-05-15T15:50:47.600069-05:00
+  close_reason: '3 blueprint templates created in curata-tsh Blueprints folder: Impact Report, Operations Blueprint, Executive Summary'
+- id: kz-86b7
+  title: Deployment tree filter buttons missing in curata React renderer
+  status: open
+  priority: 2
+  task_type: task
+  note: Static kazam builds have Show All / Show Incomplete / Show Priorities toggle buttons on deployment_tree components, but the React SDK renderer (sdk.rs) is missing this interactive filtering. Investigate what the static renderer does (likely JS in theme.rs) and port to the React component.
+  created: 2026-05-18T14:32:32.448727-05:00
+  updated: 2026-05-18T14:32:32.448727-05:00

@@ -1222,10 +1222,19 @@ pub fn render_quadrant(
             r#"<circle cx="{px:.1}" cy="{py:.1}" r="6" fill="{color}" class="c-chart-dot"><title>{tip}</title></circle>"#,
             tip = esc(&tip),
         ));
+        let label_text = if pt.label.len() > 35 {
+            format!("{}…", &pt.label[..32])
+        } else {
+            pt.label.clone()
+        };
+        let (lx, anchor) = if pt.x > 0.5 {
+            (px - 10.0, "end")
+        } else {
+            (px + 10.0, "start")
+        };
         svg.push_str(&format!(
-            r#"<text x="{lx:.1}" y="{py:.1}" dominant-baseline="middle" class="c-quadrant-point-label">{label}</text>"#,
-            lx = px + 10.0,
-            label = esc(&pt.label),
+            r#"<text x="{lx:.1}" y="{py:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-quadrant-point-label">{label}</text>"#,
+            label = esc(&label_text),
         ));
     }
 

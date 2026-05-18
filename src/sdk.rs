@@ -1162,20 +1162,19 @@ function ComponentView({
     case "split_compare": {
       const left = comp.left as { eyebrow?: string; title: string; stats: Array<{ label: string; value: string; color?: string }> };
       const right = comp.right as { eyebrow?: string; title: string; stats: Array<{ label: string; value: string; color?: string }> };
+      const rowSpan = 2 + Math.max(left.stats?.length || 0, right.stats?.length || 0);
       return (
         <div id={id} className="c-split-compare">
           {[left, right].map((panel, pi) => (
-            <div key={pi} className={`c-sc-panel c-sc-${pi === 0 ? "left" : "right"}`}>
-              {panel.eyebrow && <div className="c-sc-eyebrow">{panel.eyebrow}</div>}
+            <div key={pi} className={`c-sc-panel c-sc-${pi === 0 ? "left" : "right"}`} style={{ gridRow: `span ${rowSpan}` }}>
+              <div className="c-sc-eyebrow">{panel.eyebrow || ""}</div>
               <div className="c-sc-title">{panel.title}</div>
-              <div className="c-sc-stats">
-                {(panel.stats || []).map((s, si) => (
-                  <div key={si} className="c-sc-stat">
-                    <span className="c-sc-label">{s.label}</span>
-                    <span className={`c-sc-value color-${s.color || "default"}`}>{s.value}</span>
-                  </div>
-                ))}
-              </div>
+              {(panel.stats || []).map((s, si) => (
+                <div key={si} className="c-sc-stat">
+                  <span className="c-sc-label">{s.label}</span>
+                  <span className={`c-sc-value color-${s.color || "default"}`}>{s.value}</span>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -1758,9 +1757,12 @@ function ComponentView({
               const px = left + Math.min(Math.max(pt.x, 0), 1) * plotW;
               const py = top + (1 - Math.min(Math.max(pt.y, 0), 1)) * plotH;
               const color = semToHex[pt.color || ""] || getColor(pt.color, i);
+              const labelText = pt.label.length > 35 ? pt.label.slice(0, 32) + "…" : pt.label;
+              const lx = pt.x > 0.5 ? px - 10 : px + 10;
+              const anchor = pt.x > 0.5 ? "end" : "start";
               return <React.Fragment key={i}>
                 <circle cx={px} cy={py} r={6} fill={color} className="c-chart-dot"><title>{`${pt.label} (${(pt.x * 100).toFixed(0)}%, ${(pt.y * 100).toFixed(0)}%)`}</title></circle>
-                <text x={px + 10} y={py} dominantBaseline="middle" className="c-quadrant-point-label">{pt.label}</text>
+                <text x={lx} y={py} textAnchor={anchor} dominantBaseline="middle" className="c-quadrant-point-label">{labelText}</text>
               </React.Fragment>;
             })}
           </svg>

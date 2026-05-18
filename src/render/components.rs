@@ -492,28 +492,31 @@ fn before_after(
 // ── Split Compare ─────────────────────────────────
 
 fn split_compare(left: &ComparePanel, right: &ComparePanel) -> Rendered {
+    let row_span = 2 + left.stats.len().max(right.stats.len());
     let mut h = String::from(r#"<div class="c-split-compare">"#);
     for (panel, side) in [(left, "left"), (right, "right")] {
-        h.push_str(&format!(r#"<div class="c-sc-panel c-sc-{}">"#, side));
+        h.push_str(&format!(
+            r#"<div class="c-sc-panel c-sc-{}" style="grid-row:span {}">"#,
+            side, row_span
+        ));
+        // Always render eyebrow for subgrid row alignment
         if let Some(ey) = &panel.eyebrow {
             h.push_str(&format!(r#"<div class="c-sc-eyebrow">{}</div>"#, esc(ey)));
+        } else {
+            h.push_str(r#"<div class="c-sc-eyebrow"></div>"#);
         }
         h.push_str(&format!(
             r#"<div class="c-sc-title">{}</div>"#,
             esc(&panel.title)
         ));
-        if !panel.stats.is_empty() {
-            h.push_str(r#"<div class="c-sc-stats">"#);
-            for stat in &panel.stats {
-                let color_class = sem_color_class(stat.color);
-                h.push_str(&format!(
-                    r#"<div class="c-sc-stat"><span class="c-sc-label">{}</span><span class="c-sc-value color-{}">{}</span></div>"#,
-                    esc(&stat.label),
-                    color_class,
-                    esc(&stat.value),
-                ));
-            }
-            h.push_str("</div>");
+        for stat in &panel.stats {
+            let color_class = sem_color_class(stat.color);
+            h.push_str(&format!(
+                r#"<div class="c-sc-stat"><span class="c-sc-label">{}</span><span class="c-sc-value color-{}">{}</span></div>"#,
+                esc(&stat.label),
+                color_class,
+                esc(&stat.value),
+            ));
         }
         h.push_str("</div>");
     }
