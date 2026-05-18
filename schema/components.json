@@ -276,6 +276,22 @@
       "from": { "type": "string", "required": true },
       "to": { "type": "string", "required": true },
       "label": { "type": "string", "required": false }
+    },
+    "PipelineItem": {
+      "label": { "type": "string", "required": true },
+      "detail": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false },
+      "dim": { "type": "boolean", "required": false }
+    },
+    "PipelineStage": {
+      "label": { "type": "string", "required": true },
+      "detail": { "type": "string", "required": false },
+      "capabilities": { "type": "PipelineCapability[]", "required": false }
+    },
+    "PipelineCapability": {
+      "label": { "type": "string", "required": true },
+      "detail": { "type": "string", "required": false },
+      "dim": { "type": "boolean", "required": false }
     }
   },
   "components": {
@@ -496,6 +512,14 @@
       "direction": { "type": "ArchDirection", "required": false },
       "nodes": { "type": "ArchNode[]", "required": true },
       "connections": { "type": "ArchConnection[]", "required": true }
+    },
+    "pipeline": {
+      "title": { "type": "string", "required": false },
+      "height": { "type": "number", "required": false },
+      "inputs": { "type": "PipelineItem[]", "required": true },
+      "stages": { "type": "PipelineStage[]", "required": true },
+      "outputs": { "type": "PipelineItem[]", "required": true },
+      "context": { "type": "PipelineItem[]", "required": false }
     }
   }
 }

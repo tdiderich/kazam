@@ -128,6 +128,7 @@ fn component_type_name(c: &Component) -> String {
         Component::Radar { .. } => "radar",
         Component::Quadrant { .. } => "quadrant",
         Component::Architecture { .. } => "architecture",
+        Component::Pipeline { .. } => "pipeline",
     }
     .to_string()
 }

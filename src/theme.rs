@@ -1586,6 +1586,7 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-section.align-center > * { width: 100%; max-width: 800px; }
 .c-section.align-center .c-section-header { align-items: center; }
 .c-section.align-center ul, .c-section.align-center ol, .c-section.align-center .c-code, .c-section.align-center pre, .c-section.align-center .c-card, .c-section.align-center .c-callout { text-align: left; }
+.c-section.align-center > .c-callout { max-width: 100%; }
 .c-section.align-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
 .c-section.align-right > * { width: 100%; max-width: 800px; }
 .c-section.align-right .c-section-header { align-items: flex-end; }

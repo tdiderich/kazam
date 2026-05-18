@@ -182,6 +182,14 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             nodes,
             connections,
         } => charts::render_architecture(title, *height, *direction, nodes, connections),
+        Component::Pipeline {
+            title,
+            height,
+            inputs,
+            stages,
+            outputs,
+            context,
+        } => charts::render_pipeline(title, *height, inputs, stages, outputs, context),
     }
 }
 

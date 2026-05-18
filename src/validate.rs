@@ -846,6 +846,31 @@ fn validate_component(
                 }
             }
         }
+        Component::Pipeline {
+            inputs,
+            stages,
+            outputs,
+            ..
+        } => {
+            if stages.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.stages", path),
+                    "missing_field",
+                    "pipeline requires at least one stage",
+                    Some("Add stages with label: and capabilities:.".into()),
+                ));
+            }
+            if inputs.is_empty() && outputs.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    path.to_string(),
+                    "structural",
+                    "pipeline needs at least one input or output",
+                    None,
+                ));
+            }
+        }
     }
 }
 

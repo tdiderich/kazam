@@ -1857,6 +1857,131 @@ function ComponentView({
       );
     }
 
+    case "pipeline": {
+      const title = comp.title as string | undefined;
+      const h = (comp.height as number) || 400;
+      const inputs = (comp.inputs as Array<{ label: string; detail?: string; color?: string; dim?: boolean }>) || [];
+      const stages = (comp.stages as Array<{ label: string; detail?: string; capabilities?: Array<{ label: string; detail?: string; dim?: boolean }> }>) || [];
+      const outputs = (comp.outputs as Array<{ label: string; detail?: string; color?: string; dim?: boolean }>) || [];
+      const context = (comp.context as Array<{ label: string; detail?: string; color?: string }>) || [];
+      const VB_W = 720;
+      const hasContext = context.length > 0;
+      const mainH = hasContext ? h * 0.78 : h;
+      const ctxY = mainH + 12;
+      const pad = 16, itemH = 44, gap = 22, stageGap = 10;
+      const charLabel = 7.2, charDetail = 5.8, itemPadX = 20, minW = 80, maxW = 160;
+
+      const estimateW = (items: Array<{ label: string; detail?: string }>) => {
+        let widest = 0;
+        for (const it of items) {
+          widest = Math.max(widest, it.label.length * charLabel, (it.detail?.length || 0) * charDetail);
+        }
+        return Math.min(maxW, Math.max(minW, widest + itemPadX * 2));
+      };
+      const inputW = inputs.length ? estimateW(inputs) : minW;
+      const outputW = outputs.length ? estimateW(outputs) : minW;
+
+      const capRowH = 36, capGap = 6, stagePadTop = 40, stagePadBot = 14;
+      const stageHeights = stages.map(s => {
+        const n = Math.max((s.capabilities || []).length, 1);
+        return stagePadTop + n * capRowH + Math.max(n - 1, 0) * capGap + stagePadBot;
+      });
+      const totalStagesH = stageHeights.reduce((a, b) => a + b, 0) + Math.max(stages.length - 1, 0) * stageGap;
+      const stagesW = VB_W - pad - inputW - gap - gap - outputW - pad;
+      const stagesX = pad + inputW + gap;
+      const stagesStartY = (mainH - totalStagesH) / 2;
+
+      let curY = stagesStartY;
+      const stageLayouts = stageHeights.map(sh => { const layout = { y: curY, h: sh }; curY += sh + stageGap; return layout; });
+      const centerMidY = stagesStartY + totalStagesH / 2;
+      const inputX = pad;
+      const outputX = stagesX + stagesW + gap;
+
+      const inTotal = inputs.length * itemH + Math.max(inputs.length - 1, 0) * 10;
+      const inStartY = (mainH - inTotal) / 2;
+      const outTotal = outputs.length * itemH + Math.max(outputs.length - 1, 0) * 10;
+      const outStartY = (mainH - outTotal) / 2;
+
+      return (
+        <figure id={id} className="c-chart c-chart-pipeline" role="img" aria-label={title || "Pipeline diagram"}>
+          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
+            <defs><marker id="pipe-arrow" viewBox="0 0 10 7" refX={10} refY={3.5} markerWidth={8} markerHeight={6} orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(128,128,128,0.5)" /></marker></defs>
+            {inputs.map((item, i) => {
+              const y = inStartY + i * (itemH + 10);
+              const cx = inputX + inputW / 2;
+              const cy = y + itemH / 2;
+              const stroke = semToHex[item.color || ""] || "rgba(128,128,128,0.4)";
+              return <React.Fragment key={`in-${i}`}>
+                <g opacity={item.dim ? 0.3 : 1}>
+                  <rect x={inputX} y={y} width={inputW} height={itemH} rx={8} fill="rgba(128,128,128,0.08)" stroke={stroke} strokeWidth={1.5} />
+                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{item.label}</text>
+                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{item.detail}</text>}
+                </g>
+                <line x1={inputX + inputW} y1={cy} x2={stagesX - 4} y2={centerMidY} stroke="rgba(128,128,128,0.3)" strokeWidth={1.5} markerEnd="url(#pipe-arrow)" />
+              </React.Fragment>;
+            })}
+            {stages.map((stage, si) => {
+              const sl = stageLayouts[si];
+              const stagesCx = stagesX + stagesW / 2;
+              const caps = stage.capabilities || [];
+              const capW = stagesW - 24;
+              const capX = stagesX + 12;
+              const capStartY = sl.y + stagePadTop;
+              return <React.Fragment key={`stage-${si}`}>
+                <rect x={stagesX} y={sl.y} width={stagesW} height={sl.h} rx={12} fill="rgba(128,128,128,0.03)" stroke="rgba(128,128,128,0.25)" strokeWidth={1.5} strokeDasharray="6 3" />
+                <text x={stagesCx} y={sl.y + 16} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" fontSize={13}>{stage.label}</text>
+                {stage.detail && <text x={stagesCx} y={sl.y + 30} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" fontSize={10}>{stage.detail}</text>}
+                {caps.map((cap, ci) => {
+                  const cy = capStartY + ci * (capRowH + capGap);
+                  const tcx = capX + capW / 2;
+                  const tcy = cy + capRowH / 2;
+                  return <g key={ci} opacity={cap.dim ? 0.3 : 1}>
+                    <rect x={capX} y={cy} width={capW} height={capRowH} rx={6} fill="rgba(128,128,128,0.05)" stroke="rgba(128,128,128,0.15)" strokeWidth={1} />
+                    <text x={tcx} y={cap.detail ? tcy - 6 : tcy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" fontSize={11}>{cap.label}</text>
+                    {cap.detail && <text x={tcx} y={tcy + 8} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" fontSize={9}>{cap.detail}</text>}
+                  </g>;
+                })}
+              </React.Fragment>;
+            })}
+            {outputs.map((item, i) => {
+              const y = outStartY + i * (itemH + 10);
+              const cx = outputX + outputW / 2;
+              const cy = y + itemH / 2;
+              const stroke = semToHex[item.color || ""] || "rgba(128,128,128,0.4)";
+              return <React.Fragment key={`out-${i}`}>
+                <g opacity={item.dim ? 0.3 : 1}>
+                  <rect x={outputX} y={y} width={outputW} height={itemH} rx={8} fill="rgba(128,128,128,0.08)" stroke={stroke} strokeWidth={1.5} />
+                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{item.label}</text>
+                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{item.detail}</text>}
+                </g>
+                <line x1={stagesX + stagesW} y1={centerMidY} x2={outputX - 4} y2={cy} stroke="rgba(128,128,128,0.3)" strokeWidth={1.5} markerEnd="url(#pipe-arrow)" />
+              </React.Fragment>;
+            })}
+            {hasContext && (() => {
+              const ctxItemW = Math.max(inputW, outputW) + 20;
+              const ctxTotalW = context.length * ctxItemW + Math.max(context.length - 1, 0) * 16;
+              const ctxStartX = (VB_W - ctxTotalW) / 2;
+              const lastStage = stageLayouts[stageLayouts.length - 1];
+              const targetY = lastStage ? lastStage.y + lastStage.h + 4 : centerMidY;
+              return context.map((item, i) => {
+                const x = ctxStartX + i * (ctxItemW + 16);
+                const cx = x + ctxItemW / 2;
+                const cy = ctxY + itemH / 2;
+                const stroke = semToHex[item.color || ""] || "rgba(128,128,128,0.4)";
+                return <React.Fragment key={`ctx-${i}`}>
+                  <rect x={x} y={ctxY} width={ctxItemW} height={itemH} rx={8} fill="rgba(128,128,128,0.08)" stroke={stroke} strokeWidth={1.5} />
+                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{item.label}</text>
+                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{item.detail}</text>}
+                  <line x1={cx} y1={ctxY} x2={cx} y2={targetY} stroke="rgba(128,128,128,0.2)" strokeWidth={1} strokeDasharray="4 2" markerEnd="url(#pipe-arrow)" />
+                </React.Fragment>;
+              });
+            })()}
+          </svg>
+        </figure>
+      );
+    }
+
     default:
       return (
         <div id={id} className="c-unsupported" data-type={comp.type}>
@@ -2203,6 +2328,7 @@ fn generate_editor(out: &mut String) {
         ("radar", "\u{25ce}"),
         ("quadrant", "\u{229e}"),
         ("architecture", "\u{2b1a}"),
+        ("pipeline", "\u{27a1}"),
     ];
 
     let get_icon = |comp_type: &str| -> String {

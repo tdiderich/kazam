@@ -1412,6 +1412,324 @@ pub fn render_architecture(
     wrap_chart("arch", title, &svg)
 }
 
+// ── Pipeline ────────────────────────────────────────
+
+pub fn render_pipeline(
+    title: &Option<String>,
+    height: Option<u32>,
+    inputs: &[crate::types::PipelineItem],
+    stages: &[crate::types::PipelineStage],
+    outputs: &[crate::types::PipelineItem],
+    context: &[crate::types::PipelineItem],
+) -> Rendered {
+    let h = height.unwrap_or(400) as f64;
+    let has_context = !context.is_empty();
+
+    let main_h = if has_context { h * 0.78 } else { h };
+    let ctx_y = main_h + 12.0;
+
+    let pad = 16.0;
+    let item_h = 44.0;
+    let gap = 22.0;
+    let stage_gap = 10.0;
+    let item_pad_x = 20.0; // horizontal padding inside item boxes
+    let char_w_label = 7.2; // approx px per char at label font size
+    let char_w_detail = 5.8; // approx px per char at detail font size
+    let min_item_w = 80.0;
+    let max_item_w = 160.0;
+
+    fn estimate_item_w(
+        items: &[crate::types::PipelineItem],
+        char_label: f64,
+        char_detail: f64,
+        pad: f64,
+        min_w: f64,
+        max_w: f64,
+    ) -> f64 {
+        let mut widest = 0.0_f64;
+        for item in items {
+            let label_w = item.label.len() as f64 * char_label;
+            let detail_w = item
+                .detail
+                .as_ref()
+                .map(|d| d.len() as f64 * char_detail)
+                .unwrap_or(0.0);
+            widest = widest.max(label_w).max(detail_w);
+        }
+        (widest + pad * 2.0).clamp(min_w, max_w)
+    }
+
+    let input_w = if inputs.is_empty() {
+        min_item_w
+    } else {
+        estimate_item_w(
+            inputs,
+            char_w_label,
+            char_w_detail,
+            item_pad_x,
+            min_item_w,
+            max_item_w,
+        )
+    };
+    let output_w = if outputs.is_empty() {
+        min_item_w
+    } else {
+        estimate_item_w(
+            outputs,
+            char_w_label,
+            char_w_detail,
+            item_pad_x,
+            min_item_w,
+            max_item_w,
+        )
+    };
+
+    // Calculate each stage box height
+    let cap_row_h = 36.0;
+    let cap_gap = 6.0;
+    let stage_pad_top = 40.0;
+    let stage_pad_bottom = 14.0;
+
+    struct StageLayout {
+        y: f64,
+        h: f64,
+    }
+    let stage_heights: Vec<f64> = stages
+        .iter()
+        .map(|s| {
+            let cap_count = s.capabilities.len().max(1);
+            stage_pad_top
+                + cap_count as f64 * cap_row_h
+                + (cap_count as f64 - 1.0).max(0.0) * cap_gap
+                + stage_pad_bottom
+        })
+        .collect();
+
+    let total_stages_h: f64 =
+        stage_heights.iter().sum::<f64>() + (stages.len() as f64 - 1.0).max(0.0) * stage_gap;
+
+    let stages_w = VB_W - pad - input_w - gap - gap - output_w - pad;
+    let stages_x = pad + input_w + gap;
+    let stages_start_y = (main_h - total_stages_h) / 2.0;
+
+    let mut stage_layouts: Vec<StageLayout> = Vec::new();
+    let mut cur_y = stages_start_y;
+    for sh in &stage_heights {
+        stage_layouts.push(StageLayout { y: cur_y, h: *sh });
+        cur_y += sh + stage_gap;
+    }
+
+    // Overall center bounding box for arrow targets
+    let center_top = stages_start_y;
+    let center_bottom = stages_start_y + total_stages_h;
+    let center_mid_y = (center_top + center_bottom) / 2.0;
+
+    let input_x = pad;
+    let output_x = stages_x + stages_w + gap;
+
+    let mut svg = format!(
+        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+        vb_w = VB_W,
+        h = h,
+    );
+
+    svg.push_str(r#"<defs><marker id="pipe-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)"/></marker></defs>"#);
+
+    // --- Inputs column ---
+    let in_total = inputs.len() as f64 * item_h + (inputs.len() as f64 - 1.0).max(0.0) * 10.0;
+    let in_start_y = (main_h - in_total) / 2.0;
+
+    for (i, item) in inputs.iter().enumerate() {
+        let x = input_x;
+        let y = in_start_y + i as f64 * (item_h + 10.0);
+        let cx = x + input_w / 2.0;
+        let cy = y + item_h / 2.0;
+        let opacity = if item.dim { "0.3" } else { "1" };
+
+        svg.push_str(&format!(r#"<g opacity="{opacity}">"#));
+        svg.push_str(&format!(
+            r#"<rect x="{x:.1}" y="{y:.1}" width="{input_w}" height="{item_h}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5"/>"#,
+            stroke = item.color.hex(),
+        ));
+        svg.push_str(&format!(
+            r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{l}</text>"#,
+            ty = if item.detail.is_some() { cy - 7.0 } else { cy },
+            l = esc(&item.label),
+        ));
+        if let Some(detail) = &item.detail {
+            svg.push_str(&format!(
+                r#"<text x="{cx:.1}" y="{dy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail">{d}</text>"#,
+                dy = cy + 10.0,
+                d = esc(detail),
+            ));
+        }
+        svg.push_str("</g>");
+
+        // Arrow: input → center
+        svg.push_str(&format!(
+            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="rgba(var(--text-rgb),0.3)" stroke-width="1.5" marker-end="url(#pipe-arrow)"/>"#,
+            x1 = x + input_w,
+            y1 = cy,
+            x2 = stages_x - 4.0,
+            y2 = center_mid_y,
+        ));
+    }
+
+    // --- Stage boxes (stacked vertically) ---
+    let stages_cx = stages_x + stages_w / 2.0;
+
+    for (si, stage) in stages.iter().enumerate() {
+        let sl = &stage_layouts[si];
+
+        // Stage container
+        svg.push_str(&format!(
+            r#"<rect x="{sx:.1}" y="{sy:.1}" width="{sw:.1}" height="{sh:.1}" rx="12" fill="rgba(var(--text-rgb),0.03)" stroke="rgba(var(--text-rgb),0.25)" stroke-width="1.5" stroke-dasharray="6 3"/>"#,
+            sx = stages_x,
+            sy = sl.y,
+            sw = stages_w,
+            sh = sl.h,
+        ));
+
+        // Stage label
+        svg.push_str(&format!(
+            r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label" font-size="13">{l}</text>"#,
+            cx = stages_cx,
+            cy = sl.y + 16.0,
+            l = esc(&stage.label),
+        ));
+        if let Some(detail) = &stage.detail {
+            svg.push_str(&format!(
+                r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail" font-size="10">{d}</text>"#,
+                cx = stages_cx,
+                cy = sl.y + 30.0,
+                d = esc(detail),
+            ));
+        }
+
+        // Capabilities inside stage
+        let cap_w = stages_w - 24.0;
+        let cap_x = stages_x + 12.0;
+        let cap_start_y = sl.y + stage_pad_top;
+
+        for (ci, cap) in stage.capabilities.iter().enumerate() {
+            let cy = cap_start_y + ci as f64 * (cap_row_h + cap_gap);
+            let opacity = if cap.dim { "0.3" } else { "1" };
+
+            svg.push_str(&format!(r#"<g opacity="{opacity}">"#));
+            svg.push_str(&format!(
+                r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="{rh}" rx="6" fill="rgba(var(--text-rgb),0.05)" stroke="rgba(var(--text-rgb),0.15)" stroke-width="1"/>"#,
+                x = cap_x,
+                y = cy,
+                w = cap_w,
+                rh = cap_row_h,
+            ));
+            let text_cx = cap_x + cap_w / 2.0;
+            let text_cy = cy + cap_row_h / 2.0;
+            svg.push_str(&format!(
+                r#"<text x="{tx:.1}" y="{ty:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label" font-size="11">{l}</text>"#,
+                tx = text_cx,
+                ty = if cap.detail.is_some() { text_cy - 6.0 } else { text_cy },
+                l = esc(&cap.label),
+            ));
+            if let Some(detail) = &cap.detail {
+                svg.push_str(&format!(
+                    r#"<text x="{tx:.1}" y="{ty:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail" font-size="9">{d}</text>"#,
+                    tx = text_cx,
+                    ty = text_cy + 8.0,
+                    d = esc(detail),
+                ));
+            }
+            svg.push_str("</g>");
+        }
+    }
+
+    // --- Outputs column ---
+    let out_total = outputs.len() as f64 * item_h + (outputs.len() as f64 - 1.0).max(0.0) * 10.0;
+    let out_start_y = (main_h - out_total) / 2.0;
+
+    for (i, item) in outputs.iter().enumerate() {
+        let x = output_x;
+        let y = out_start_y + i as f64 * (item_h + 10.0);
+        let cx = x + output_w / 2.0;
+        let cy = y + item_h / 2.0;
+        let opacity = if item.dim { "0.3" } else { "1" };
+
+        svg.push_str(&format!(r#"<g opacity="{opacity}">"#));
+        svg.push_str(&format!(
+            r#"<rect x="{x:.1}" y="{y:.1}" width="{output_w}" height="{item_h}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5"/>"#,
+            stroke = item.color.hex(),
+        ));
+        svg.push_str(&format!(
+            r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{l}</text>"#,
+            ty = if item.detail.is_some() { cy - 7.0 } else { cy },
+            l = esc(&item.label),
+        ));
+        if let Some(detail) = &item.detail {
+            svg.push_str(&format!(
+                r#"<text x="{cx:.1}" y="{dy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail">{d}</text>"#,
+                dy = cy + 10.0,
+                d = esc(detail),
+            ));
+        }
+        svg.push_str("</g>");
+
+        // Arrow: center → output
+        svg.push_str(&format!(
+            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="rgba(var(--text-rgb),0.3)" stroke-width="1.5" marker-end="url(#pipe-arrow)"/>"#,
+            x1 = stages_x + stages_w,
+            y1 = center_mid_y,
+            x2 = x - 4.0,
+            y2 = cy,
+        ));
+    }
+
+    // --- Context row (bottom) ---
+    if has_context {
+        let ctx_item_w = input_w.max(output_w) + 20.0;
+        let ctx_total_w =
+            context.len() as f64 * ctx_item_w + (context.len() as f64 - 1.0).max(0.0) * 16.0;
+        let ctx_start_x = (VB_W - ctx_total_w) / 2.0;
+
+        for (i, item) in context.iter().enumerate() {
+            let x = ctx_start_x + i as f64 * (ctx_item_w + 16.0);
+            let y = ctx_y;
+            let cx = x + ctx_item_w / 2.0;
+            let cy = y + item_h / 2.0;
+
+            svg.push_str(&format!(
+                r#"<rect x="{x:.1}" y="{y:.1}" width="{ctx_item_w}" height="{item_h}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5"/>"#,
+                stroke = item.color.hex(),
+            ));
+            svg.push_str(&format!(
+                r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{l}</text>"#,
+                ty = if item.detail.is_some() { cy - 7.0 } else { cy },
+                l = esc(&item.label),
+            ));
+            if let Some(detail) = &item.detail {
+                svg.push_str(&format!(
+                    r#"<text x="{cx:.1}" y="{dy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail">{d}</text>"#,
+                    dy = cy + 10.0,
+                    d = esc(detail),
+                ));
+            }
+
+            // Dashed arrow from context up to bottom of last stage
+            let target_y = if let Some(last) = stage_layouts.last() {
+                last.y + last.h + 4.0
+            } else {
+                center_mid_y
+            };
+            svg.push_str(&format!(
+                r#"<line x1="{cx:.1}" y1="{y:.1}" x2="{cx:.1}" y2="{ty:.1}" stroke="rgba(var(--text-rgb),0.2)" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#pipe-arrow)"/>"#,
+                ty = target_y,
+            ));
+        }
+    }
+
+    svg.push_str("</svg>");
+    wrap_chart("pipeline", title, &svg)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -563,6 +563,16 @@ pub enum Component {
         nodes: Vec<ArchNode>,
         connections: Vec<ArchConnection>,
     },
+    Pipeline {
+        title: Option<String>,
+        #[serde(default)]
+        height: Option<u32>,
+        inputs: Vec<PipelineItem>,
+        stages: Vec<PipelineStage>,
+        outputs: Vec<PipelineItem>,
+        #[serde(default)]
+        context: Vec<PipelineItem>,
+    },
 }
 
 // ── Supporting types ─────────────────────────────────
@@ -1129,6 +1139,37 @@ pub struct ArchConnection {
     pub to: String,
     #[serde(default)]
     pub label: Option<String>,
+}
+
+// ── Pipeline supporting types ───────────────────────
+
+#[derive(Deserialize)]
+pub struct PipelineItem {
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub color: SemColor,
+    #[serde(default)]
+    pub dim: bool,
+}
+
+#[derive(Deserialize)]
+pub struct PipelineStage {
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub capabilities: Vec<PipelineCapability>,
+}
+
+#[derive(Deserialize)]
+pub struct PipelineCapability {
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub dim: bool,
 }
 
 // ── Site config ──────────────────────────────────────
