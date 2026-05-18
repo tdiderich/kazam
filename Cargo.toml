@@ -1,6 +1,6 @@
 [package]
 name = "kazam"
-version = "1.5.2"
+version = "1.5.3"
 edition = "2021"
 description = "Agent workspace and static site generator. Codebase indexing, task tracking, visual board — one Rust binary."
 license = "MIT"

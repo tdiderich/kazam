@@ -1287,16 +1287,45 @@ function ComponentView({
 
     case "tree": {
       const nodes = (comp.nodes as Array<Record<string, unknown>>) || [];
+      const showFilterToggle = (comp.show_filter_toggle as boolean) ?? true;
+      const defaultFilter = (comp.default_filter as string) || "all";
+      const defaultCollapsed = (comp.default_collapsed as boolean) || false;
       const statusGlyphs: Record<string, string> = { completed: "✓", active: "●", blocked: "✕", priority: "!", upcoming: "○" };
+      const filters = ["all", "incomplete", "blocked", "priority"];
+      const filterLabels: Record<string, string> = { all: "All", incomplete: "Incomplete only", blocked: "Blocked only", priority: "Priority only" };
+
+      const hasBlockedDescendant = (node: Record<string, unknown>): boolean => {
+        const children = (node.children as Array<Record<string, unknown>>) || [];
+        if ((node.status as string) === "blocked") return true;
+        return children.some(hasBlockedDescendant);
+      };
+      const hasPriorityDescendant = (node: Record<string, unknown>): boolean => {
+        const children = (node.children as Array<Record<string, unknown>>) || [];
+        if ((node.status as string) === "priority") return true;
+        return children.some(hasPriorityDescendant);
+      };
+
       const renderNode = (node: Record<string, unknown>, depth: number): React.JSX.Element => {
         const children = (node.children as Array<Record<string, unknown>>) || [];
         const status = (node.status as string) || "default";
         const hasChildren = children.length > 0;
+        const isLeaf = !hasChildren;
+        const blockedDesc = status !== "blocked" && children.some(hasBlockedDescendant);
+        const priorityDesc = status !== "priority" && children.some(hasPriorityDescendant);
         return (
-          <li className={`c-tree-node status-${status}`}>
+          <li
+            className={`c-tree-node status-${status}${defaultCollapsed && hasChildren ? " collapsed" : ""}`}
+            data-status={status}
+            {...(isLeaf ? { "data-leaf": "true" } : {})}
+            {...(blockedDesc ? { "data-has-blocked-descendant": "true" } : {})}
+            {...(priorityDesc ? { "data-has-priority-descendant": "true" } : {})}
+          >
             <div className="c-tree-row">
-              {hasChildren && <span className="c-tree-chevron">▶</span>}
-              <span className="c-tree-glyph">{statusGlyphs[status] || "·"}</span>
+              {hasChildren && <span className="c-tree-chevron" aria-hidden="true" onClick={(e) => {
+                const node = (e.target as HTMLElement).closest(".c-tree-node");
+                if (node) node.classList.toggle("collapsed");
+              }}>▶</span>}
+              <span className="c-tree-glyph" aria-hidden="true">{statusGlyphs[status] || "·"}</span>
               <span className="c-tree-label">{node.label as string}</span>
               {node.note ? <span className="c-tree-note">{node.note as string}</span> : null}
             </div>
@@ -1308,7 +1337,31 @@ function ComponentView({
           </li>
         );
       };
-      return <div id={id} className="c-tree"><ul className="c-tree-root">{nodes.map((n, i) => <React.Fragment key={i}>{renderNode(n, 0)}</React.Fragment>)}</ul></div>;
+
+      const treeRef = React.useRef<HTMLDivElement>(null);
+      const handleFilter = (filter: string) => {
+        const tree = treeRef.current;
+        if (!tree) return;
+        tree.classList.remove("filter-all", "filter-incomplete", "filter-blocked", "filter-priority");
+        tree.classList.add("filter-" + filter);
+        tree.setAttribute("data-filter", filter);
+        tree.querySelectorAll("[data-tree-filter-toggle] button").forEach((btn) => {
+          btn.classList.toggle("active", btn.getAttribute("data-filter") === filter);
+        });
+      };
+
+      return (
+        <div id={id} ref={treeRef} className={`c-tree filter-${defaultFilter}`} data-filter={defaultFilter}>
+          {showFilterToggle && (
+            <div className="c-tree-filter-toggle" data-tree-filter-toggle>
+              {filters.map((f) => (
+                <button key={f} type="button" data-filter={f} className={f === defaultFilter ? "active" : ""} onClick={() => handleFilter(f)}>{filterLabels[f]}</button>
+              ))}
+            </div>
+          )}
+          <ul className="c-tree-root">{nodes.map((n, i) => <React.Fragment key={i}>{renderNode(n, 0)}</React.Fragment>)}</ul>
+        </div>
+      );
     }
 
     case "selectable_grid": {
