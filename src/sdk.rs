@@ -605,6 +605,7 @@ function renderBlock(text: string): React.ReactElement {
   let key = 0;
   let listItems: React.ReactNode[] = [];
   let listTag: "ul" | "ol" = "ul";
+  let paraLines: string[] = [];
 
   const flushList = () => {
     if (listItems.length > 0) {
@@ -614,40 +615,56 @@ function renderBlock(text: string): React.ReactElement {
     }
   };
 
+  const flushPara = () => {
+    if (paraLines.length > 0) {
+      elements.push(<p key={key++}>{renderInline(paraLines.join(" "))}</p>);
+      paraLines = [];
+    }
+  };
+
   for (const line of lines) {
     const trimmed = line.trimStart();
     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      flushPara();
       if (listTag !== "ul") flushList();
       listTag = "ul";
       listItems.push(<li key={key++}>{renderInline(trimmed.slice(2))}</li>);
     } else if (/^\d+\.\s/.test(trimmed)) {
+      flushPara();
       if (listTag !== "ol") flushList();
       listTag = "ol";
       listItems.push(<li key={key++}>{renderInline(trimmed.replace(/^\d+\.\s/, ""))}</li>);
     } else if (trimmed === "") {
+      flushPara();
       flushList();
     } else if (trimmed.startsWith("### ")) {
+      flushPara();
       flushList();
       elements.push(<h3 key={key++}>{renderInline(trimmed.slice(4))}</h3>);
     } else if (trimmed.startsWith("## ")) {
+      flushPara();
       flushList();
       elements.push(<h2 key={key++}>{renderInline(trimmed.slice(3))}</h2>);
     } else if (trimmed.startsWith("# ")) {
+      flushPara();
       flushList();
       elements.push(<h1 key={key++}>{renderInline(trimmed.slice(2))}</h1>);
     } else if (/^!\[.*\]\(.*\)$/.test(trimmed)) {
+      flushPara();
       flushList();
       const alt = trimmed.slice(2, trimmed.indexOf("]("));
       const src = trimmed.slice(trimmed.indexOf("](") + 2, -1);
       elements.push(<img key={key++} src={assetSrc(src)} alt={alt} />);
     } else if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
+      flushPara();
       flushList();
       elements.push(<hr key={key++} />);
     } else {
       flushList();
-      elements.push(<p key={key++}>{renderInline(trimmed)}</p>);
+      paraLines.push(trimmed);
     }
   }
+  flushPara();
   flushList();
   return <>{elements}</>;
 }
