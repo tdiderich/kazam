@@ -190,6 +190,14 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             outputs,
             context,
         } => charts::render_pipeline(title, *height, inputs, stages, outputs, context),
+        Component::Graph {
+            title,
+            height,
+            direction,
+            nodes,
+            edges,
+            groups,
+        } => charts::render_graph(title, *height, *direction, nodes, edges, groups),
     }
 }
 

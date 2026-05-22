@@ -1923,3 +1923,518 @@ mod tests {
         assert!(result.html.contains("flow"), "should contain edge label");
     }
 }
+
+/// Emit a background-rect + text pair for an edge label.
+/// The rect gives the text a dark knockout so it stays readable over lines.
+/// `char_w` ~6.0 for the small font used in edge labels.
+fn edge_label_svg(x: f64, y: f64, text: &str, fill: Option<&str>) -> String {
+    let fill_attr = fill.map(|f| format!(r#" fill="{}""#, f)).unwrap_or_default();
+    format!(
+        r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-edge-label" style="stroke:var(--bg,#121113);stroke-width:3px;paint-order:stroke" font-size="10"{fill}>{t}</text>"#,
+        t = esc(text), fill = fill_attr,
+    )
+}
+
+pub fn render_graph(
+    title: &Option<String>,
+    height: Option<u32>,
+    direction: crate::types::ArchDirection,
+    nodes: &[crate::types::GraphNode],
+    edges: &[crate::types::GraphEdge],
+    groups: &[crate::types::GraphGroup],
+) -> Rendered {
+    use crate::types::{ArchDirection, GraphEdgeStyle, GraphShape, PortSide};
+
+    let h = height.unwrap_or(400) as f64;
+
+    if nodes.is_empty() {
+        return wrap_chart("graph", title, &empty_svg(h as u32));
+    }
+
+    // Per-node dimensions (Enhancement 3: node size hints)
+    let default_w = 140.0_f64;
+    let default_h = 60.0_f64;
+    struct NDims { w: f64, h: f64 }
+    let dims: std::collections::HashMap<&str, NDims> = nodes
+        .iter()
+        .map(|n| (n.id.as_str(), NDims {
+            w: n.width.map(|v| v as f64).unwrap_or(default_w),
+            h: n.height.map(|v| v as f64).unwrap_or(default_h),
+        }))
+        .collect();
+
+    // Drop BOTH directions of bidirectional edges from column assignment
+    let edge_set: std::collections::HashSet<(&str, &str)> = edges
+        .iter()
+        .map(|e| (e.from.as_str(), e.to.as_str()))
+        .collect();
+    let forward_edges: Vec<&crate::types::GraphEdge> = edges
+        .iter()
+        .filter(|e| !edge_set.contains(&(e.to.as_str(), e.from.as_str())))
+        .collect();
+
+    let mut col: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    let mut in_set: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for e in &forward_edges {
+        in_set.insert(&e.to);
+    }
+    for n in nodes {
+        if !in_set.contains(n.id.as_str()) {
+            col.insert(&n.id, 0);
+        }
+    }
+    let max_iters = nodes.len() * forward_edges.len() + 1;
+    let mut iters = 0;
+    let mut changed = true;
+    while changed && iters < max_iters {
+        changed = false;
+        iters += 1;
+        for e in &forward_edges {
+            if let Some(&sc) = col.get(e.from.as_str()) {
+                let tc = col.entry(&e.to).or_insert(0);
+                if *tc <= sc {
+                    *tc = sc + 1;
+                    changed = true;
+                }
+            }
+        }
+    }
+    for n in nodes {
+        col.entry(&n.id).or_insert(0);
+    }
+    let min_col = col.values().copied().min().unwrap_or(0);
+    for v in col.values_mut() {
+        *v -= min_col;
+    }
+
+    let max_col = col.values().copied().max().unwrap_or(0);
+    let num_cols = max_col + 1;
+    let is_lr = matches!(direction, ArchDirection::LeftToRight);
+    let pad = 40.0;
+    let group_pad = 24.0;
+    let node_gap_v = 32.0;
+    let has_groups = !groups.is_empty();
+    let min_col_gap = if has_groups { 120.0 } else { 80.0 };
+
+    // Max node dimensions per column (for spacing)
+    let mut cols_nodes: Vec<Vec<&crate::types::GraphNode>> = vec![Vec::new(); num_cols];
+    for n in nodes {
+        let c = col.get(n.id.as_str()).copied().unwrap_or(0);
+        cols_nodes[c].push(n);
+    }
+    let col_max_w: Vec<f64> = cols_nodes.iter().map(|cn| {
+        cn.iter().map(|n| dims.get(n.id.as_str()).map(|d| d.w).unwrap_or(default_w)).fold(default_w, f64::max)
+    }).collect();
+    let col_max_h: Vec<f64> = cols_nodes.iter().map(|cn| {
+        cn.iter().map(|n| dims.get(n.id.as_str()).map(|d| d.h).unwrap_or(default_h)).fold(default_h, f64::max)
+    }).collect();
+    let max_col_height = cols_nodes.iter().map(|cn| cn.len()).max().unwrap_or(1);
+
+    let needed_w = if is_lr {
+        pad * 2.0 + col_max_w.iter().sum::<f64>() + (num_cols as f64 - 1.0).max(0.0) * min_col_gap
+    } else {
+        let max_row_count = cols_nodes.iter().map(|cn| cn.len()).max().unwrap_or(1);
+        pad * 2.0 + max_row_count as f64 * default_w + (max_row_count as f64 - 1.0).max(0.0) * node_gap_v
+    };
+    let vb_w = needed_w.max(VB_W);
+
+    let needed_h = if !is_lr {
+        pad * 2.0 + col_max_h.iter().sum::<f64>() + (num_cols as f64 - 1.0).max(0.0) * min_col_gap
+    } else {
+        pad * 2.0 + max_col_height as f64 * default_h + (max_col_height as f64 - 1.0).max(0.0) * node_gap_v
+    };
+    let h = h.max(needed_h);
+
+    struct NPos { cx: f64, cy: f64 }
+    let mut positions: std::collections::HashMap<&str, NPos> = std::collections::HashMap::new();
+
+    if is_lr {
+        // Cumulative x positions based on per-column max widths
+        let mut col_cx: Vec<f64> = Vec::with_capacity(num_cols);
+        let mut x_cursor = pad;
+        for ci in 0..num_cols {
+            let cw = col_max_w[ci];
+            col_cx.push(x_cursor + cw / 2.0);
+            x_cursor += cw + min_col_gap;
+        }
+        // Center columns in viewBox if there's extra space
+        let total_used = x_cursor - min_col_gap + pad;
+        let x_offset = if vb_w > total_used { (vb_w - total_used) / 2.0 } else { 0.0 };
+
+        for (ci, col_nodes) in cols_nodes.iter().enumerate() {
+            let n_count = col_nodes.len();
+            let total_h = n_count as f64 * default_h + (n_count as f64 - 1.0).max(0.0) * node_gap_v;
+            let start_y = (h - total_h) / 2.0;
+            for (ni, node) in col_nodes.iter().enumerate() {
+                positions.insert(&node.id, NPos {
+                    cx: col_cx[ci] + x_offset,
+                    cy: start_y + ni as f64 * (default_h + node_gap_v) + default_h / 2.0,
+                });
+            }
+        }
+    } else {
+        let mut row_cy: Vec<f64> = Vec::with_capacity(num_cols);
+        let mut y_cursor = pad;
+        for ci in 0..num_cols {
+            let ch = col_max_h[ci];
+            row_cy.push(y_cursor + ch / 2.0);
+            y_cursor += ch + min_col_gap;
+        }
+        let total_used = y_cursor - min_col_gap + pad;
+        let y_offset = if h > total_used { (h - total_used) / 2.0 } else { 0.0 };
+
+        for (ci, col_nodes) in cols_nodes.iter().enumerate() {
+            let n_count = col_nodes.len();
+            let total_w = n_count as f64 * default_w + (n_count as f64 - 1.0).max(0.0) * node_gap_v;
+            let start_x = (vb_w - total_w) / 2.0;
+            for (ni, node) in col_nodes.iter().enumerate() {
+                positions.insert(&node.id, NPos {
+                    cx: start_x + ni as f64 * (default_w + node_gap_v) + default_w / 2.0,
+                    cy: row_cy[ci] + y_offset,
+                });
+            }
+        }
+    }
+
+    // Detect bidirectional edges
+    let mut edge_pairs: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    for e in edges {
+        edge_pairs.insert((e.from.clone(), e.to.clone()));
+    }
+    let is_bidir = |from: &str, to: &str| -> bool {
+        edge_pairs.contains(&(to.to_string(), from.to_string()))
+    };
+
+    let mut svg = format!(
+        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+        vb_w = vb_w, h = h,
+    );
+
+    svg.push_str(r#"<defs><marker id="graph-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)"/></marker></defs>"#);
+
+    // ── Groups: nested containers (Enhancement 1 + 4) ──
+    // Compute group bounding boxes, then expand parents to contain children
+    struct GBounds { x: f64, y: f64, w: f64, h: f64 }
+    let mut group_bounds: std::collections::HashMap<&str, GBounds> = std::collections::HashMap::new();
+
+    // First pass: leaf group bounds from member nodes
+    for grp in groups {
+        let members: Vec<(&NPos, &NDims)> = nodes.iter()
+            .filter(|n| n.group.as_deref() == Some(&grp.id))
+            .filter_map(|n| {
+                let pos = positions.get(n.id.as_str())?;
+                let d = dims.get(n.id.as_str())?;
+                Some((pos, d))
+            })
+            .collect();
+        if members.is_empty() { continue; }
+
+        let min_x = members.iter().map(|(p, d)| p.cx - d.w / 2.0).fold(f64::INFINITY, f64::min);
+        let min_y = members.iter().map(|(p, d)| p.cy - d.h / 2.0).fold(f64::INFINITY, f64::min);
+        let max_x = members.iter().map(|(p, d)| p.cx + d.w / 2.0).fold(f64::NEG_INFINITY, f64::max);
+        let max_y = members.iter().map(|(p, d)| p.cy + d.h / 2.0).fold(f64::NEG_INFINITY, f64::max);
+
+        let gx = min_x - group_pad;
+        let gy = min_y - group_pad - 14.0;
+        let gw = max_x - min_x + group_pad * 2.0;
+        let gh = max_y - min_y + group_pad * 2.0 + 14.0;
+        group_bounds.insert(&grp.id, GBounds { x: gx, y: gy, w: gw, h: gh });
+    }
+
+    // Second pass: expand parent groups to contain children
+    for grp in groups {
+        if grp.parent.is_none() { continue; }
+        let parent_id = grp.parent.as_deref().unwrap();
+        let Some(child_b) = group_bounds.get(grp.id.as_str()) else { continue; };
+        let cx = child_b.x;
+        let cy = child_b.y;
+        let cx2 = child_b.x + child_b.w;
+        let cy2 = child_b.y + child_b.h;
+
+        let parent_b = group_bounds.entry(parent_id).or_insert(GBounds {
+            x: cx - group_pad,
+            y: cy - group_pad - 14.0,
+            w: (cx2 - cx) + group_pad * 2.0,
+            h: (cy2 - cy) + group_pad * 2.0 + 14.0,
+        });
+        let px2 = parent_b.x + parent_b.w;
+        let py2 = parent_b.y + parent_b.h;
+        let new_x = parent_b.x.min(cx - group_pad);
+        let new_y = parent_b.y.min(cy - group_pad - 14.0);
+        let new_x2 = px2.max(cx2 + group_pad);
+        let new_y2 = py2.max(cy2 + group_pad);
+        parent_b.x = new_x;
+        parent_b.y = new_y;
+        parent_b.w = new_x2 - new_x;
+        parent_b.h = new_y2 - new_y;
+    }
+
+    // Render groups: parents first (those with no parent), then children
+    let parent_groups: Vec<&crate::types::GraphGroup> = groups.iter()
+        .filter(|g| g.parent.is_none())
+        .collect();
+    let child_groups: Vec<&crate::types::GraphGroup> = groups.iter()
+        .filter(|g| g.parent.is_some())
+        .collect();
+
+    for grp in parent_groups.iter().chain(child_groups.iter()) {
+        let Some(b) = group_bounds.get(grp.id.as_str()) else { continue; };
+        let stroke = grp.color.map(|c| c.hex()).unwrap_or("rgba(var(--text-rgb),0.2)");
+        svg.push_str(&format!(
+            r#"<rect x="{gx:.1}" y="{gy:.1}" width="{gw:.1}" height="{gh:.1}" rx="10" fill="rgba(var(--text-rgb),0.02)" stroke="{stroke}" stroke-width="1" stroke-dasharray="5 3"/>"#,
+            gx = b.x, gy = b.y, gw = b.w, gh = b.h,
+        ));
+        if let Some(lbl) = &grp.label {
+            svg.push_str(&format!(
+                r#"<text x="{x:.1}" y="{y:.1}" class="c-arch-node-detail" dominant-baseline="middle">{l}</text>"#,
+                x = b.x + 8.0, y = b.y + 10.0, l = esc(lbl),
+            ));
+        }
+    }
+
+    // ── Per-side port assignment with geographic sorting ──
+    // Side encoding: 0=Right, 1=Left, 2=Top, 3=Bottom
+    let mut edge_src_side: Vec<u8> = Vec::with_capacity(edges.len());
+    let mut edge_tgt_side: Vec<u8> = Vec::with_capacity(edges.len());
+    let mut src_groups: std::collections::HashMap<(&str, u8), Vec<(usize, f64)>> = std::collections::HashMap::new();
+    let mut tgt_groups: std::collections::HashMap<(&str, u8), Vec<(usize, f64)>> = std::collections::HashMap::new();
+
+    for (ei, edge) in edges.iter().enumerate() {
+        let fp = positions.get(edge.from.as_str());
+        let tp = positions.get(edge.to.as_str());
+        let (Some(fp), Some(tp)) = (fp, tp) else {
+            edge_src_side.push(0); edge_tgt_side.push(1); continue;
+        };
+
+        let bidir = is_bidir(&edge.from, &edge.to);
+        let (ss, ts) = if is_lr {
+            let forward = tp.cx >= fp.cx;
+            if bidir && !forward {
+                (2u8, 2u8) // backward bidir: top→top, arcs over
+            } else {
+                (if forward { 0u8 } else { 1u8 }, if forward { 1u8 } else { 0u8 })
+            }
+        } else {
+            let downward = tp.cy >= fp.cy;
+            if bidir && !downward {
+                (0u8, 0u8) // backward bidir in TB: right→right
+            } else {
+                (if downward { 3u8 } else { 2u8 }, if downward { 2u8 } else { 3u8 })
+            }
+        };
+        edge_src_side.push(ss);
+        edge_tgt_side.push(ts);
+
+        let src_sort = if ss == 0 || ss == 1 { tp.cy } else { tp.cx };
+        let tgt_sort = if ts == 0 || ts == 1 { fp.cy } else { fp.cx };
+        src_groups.entry((edge.from.as_str(), ss)).or_default().push((ei, src_sort));
+        tgt_groups.entry((edge.to.as_str(), ts)).or_default().push((ei, tgt_sort));
+    }
+
+    for entries in src_groups.values_mut() {
+        entries.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    }
+    for entries in tgt_groups.values_mut() {
+        entries.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    }
+
+    let mut src_slot: Vec<(usize, usize)> = vec![(0, 1); edges.len()];
+    let mut tgt_slot: Vec<(usize, usize)> = vec![(0, 1); edges.len()];
+    for entries in src_groups.values() {
+        let count = entries.len();
+        for (slot, &(ei, _)) in entries.iter().enumerate() {
+            src_slot[ei] = (slot, count);
+        }
+    }
+    for entries in tgt_groups.values() {
+        let count = entries.len();
+        for (slot, &(ei, _)) in entries.iter().enumerate() {
+            tgt_slot[ei] = (slot, count);
+        }
+    }
+
+    let port_spread = 0.85_f64;
+    let port_pos = |cx: f64, cy: f64, w: f64, h: f64, side: u8, slot: usize, count: usize| -> (f64, f64) {
+        let off = if count > 1 {
+            ((slot as f64 + 0.5) / count as f64 - 0.5) * port_spread
+        } else { 0.0 };
+        match side {
+            0 => (cx + w / 2.0, cy + off * h),
+            1 => (cx - w / 2.0, cy + off * h),
+            2 => (cx + off * w, cy - h / 2.0),
+            3 => (cx + off * w, cy + h / 2.0),
+            _ => (cx, cy),
+        }
+    };
+
+    // ── Render edges ──
+    for (ei, edge) in edges.iter().enumerate() {
+        let Some(fp) = positions.get(edge.from.as_str()) else { continue; };
+        let Some(tp) = positions.get(edge.to.as_str()) else { continue; };
+        let fd = dims.get(edge.from.as_str()).map(|d| (d.w, d.h)).unwrap_or((default_w, default_h));
+        let td = dims.get(edge.to.as_str()).map(|d| (d.w, d.h)).unwrap_or((default_w, default_h));
+
+        let bidir = is_bidir(&edge.from, &edge.to);
+        let dx = tp.cx - fp.cx;
+        let dy = tp.cy - fp.cy;
+        let len = (dx * dx + dy * dy).sqrt().max(1.0);
+        let norm_perp_x = -dy / len;
+        let norm_perp_y = dx / len;
+
+        let (s_slot, s_count) = src_slot[ei];
+        let (t_slot, t_count) = tgt_slot[ei];
+        let (sx1, sy1) = port_pos(fp.cx, fp.cy, fd.0, fd.1, edge_src_side[ei], s_slot, s_count);
+        let (sx2, sy2) = port_pos(tp.cx, tp.cy, td.0, td.1, edge_tgt_side[ei], t_slot, t_count);
+
+        let mut route_offset = 0.0_f64;
+        if !bidir {
+            for n in nodes {
+                if n.id == edge.from || n.id == edge.to { continue; }
+                let Some(np) = positions.get(n.id.as_str()) else { continue; };
+                let nd = dims.get(n.id.as_str()).map(|d| (d.w, d.h)).unwrap_or((default_w, default_h));
+                let ax = np.cx - fp.cx;
+                let ay = np.cy - fp.cy;
+                let proj = (ax * dx + ay * dy) / (len * len);
+                if proj < 0.02 || proj > 0.98 { continue; }
+                let closest_x = fp.cx + proj * dx;
+                let closest_y = fp.cy + proj * dy;
+                let dist = ((np.cx - closest_x).powi(2) + (np.cy - closest_y).powi(2)).sqrt();
+                let clearance = (nd.0 / 2.0 + 30.0).max(nd.1 / 2.0 + 30.0);
+                if dist < clearance {
+                    let cross = ax * dy - ay * dx;
+                    let needed = clearance - dist + 25.0;
+                    let sign = if cross >= 0.0 { 1.0 } else { -1.0 };
+                    let candidate = sign * needed;
+                    if candidate.abs() > route_offset.abs() {
+                        route_offset = candidate;
+                    }
+                }
+            }
+        }
+
+        let needs_curve = bidir || route_offset.abs() > 1.0;
+
+        let stroke_color = edge.color.unwrap_or(SemColor::Default);
+        let dash_attr = match edge.style {
+            GraphEdgeStyle::Dashed => r#" stroke-dasharray="6 3""#,
+            GraphEdgeStyle::Solid => "",
+        };
+
+        let (label_x, label_y);
+
+        if needs_curve {
+            let curve_offset = if bidir {
+                let backward = if is_lr { tp.cx < fp.cx } else { tp.cy < fp.cy };
+                let mut offset = 40.0_f64;
+                if backward && !groups.is_empty() {
+                    let mid_y = (sy1 + sy2) / 2.0;
+                    let left_x = sx1.min(sx2);
+                    let right_x = sx1.max(sx2);
+                    let perp_y_abs = norm_perp_y.abs().max(0.1);
+                    for grp in groups {
+                        if let Some(b) = group_bounds.get(grp.id.as_str()) {
+                            let g_right = b.x + b.w;
+                            if g_right > left_x && b.x < right_x && b.y < mid_y {
+                                let needed = 2.0 * (mid_y - b.y + 15.0) / perp_y_abs;
+                                if needed > offset { offset = needed; }
+                            }
+                        }
+                    }
+                }
+                offset
+            } else { route_offset };
+            let cpx = (sx1 + sx2) / 2.0 + norm_perp_x * curve_offset;
+            let cpy = (sy1 + sy2) / 2.0 + norm_perp_y * curve_offset;
+            svg.push_str(&format!(
+                r#"<path d="M {sx1:.1},{sy1:.1} Q {cpx:.1},{cpy:.1} {sx2:.1},{sy2:.1}" fill="none" stroke="rgba(var(--text-rgb),0.3)" stroke-width="1.5"{dash} marker-end="url(#graph-arrow)" class="c-arch-edge"/>"#,
+                dash = dash_attr,
+            ));
+            if bidir {
+                let t = 0.25_f64;
+                let mt = 1.0 - t;
+                label_x = mt * mt * sx1 + 2.0 * mt * t * cpx + t * t * sx2;
+                label_y = mt * mt * sy1 + 2.0 * mt * t * cpy + t * t * sy2;
+            } else {
+                label_x = 0.25 * sx1 + 0.5 * cpx + 0.25 * sx2;
+                label_y = 0.25 * sy1 + 0.5 * cpy + 0.25 * sy2;
+            }
+        } else {
+            svg.push_str(&format!(
+                r#"<line x1="{sx1:.1}" y1="{sy1:.1}" x2="{sx2:.1}" y2="{sy2:.1}" stroke="rgba(var(--text-rgb),0.3)" stroke-width="1.5"{dash} marker-end="url(#graph-arrow)" class="c-arch-edge"/>"#,
+                dash = dash_attr,
+            ));
+            label_x = (sx1 + sx2) / 2.0;
+            label_y = (sy1 + sy2) / 2.0;
+        }
+
+        if let Some(label) = &edge.label {
+            svg.push_str(&edge_label_svg(label_x, label_y - 8.0, label, Some(stroke_color.hex())));
+        }
+    }
+
+    // ── Nodes with per-node sizes + port labels (Enhancement 3 + 5) ──
+    for n in nodes {
+        let Some(pos) = positions.get(n.id.as_str()) else { continue; };
+        let d = dims.get(n.id.as_str()).map(|d| (d.w, d.h)).unwrap_or((default_w, default_h));
+        let nw = d.0;
+        let nh = d.1;
+        let rx = pos.cx - nw / 2.0;
+        let ry = pos.cy - nh / 2.0;
+
+        match n.shape {
+            GraphShape::Box => {
+                svg.push_str(&format!(
+                    r#"<rect x="{rx:.1}" y="{ry:.1}" width="{nw}" height="{nh}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
+                    stroke = n.color.hex(),
+                ));
+            }
+            GraphShape::Diamond => {
+                let cx = pos.cx;
+                let cy = pos.cy;
+                let hw = nw / 2.0;
+                let hh = nh / 2.0;
+                svg.push_str(&format!(
+                    r#"<polygon points="{cx:.1},{top:.1} {right:.1},{cy:.1} {cx:.1},{bot:.1} {left:.1},{cy:.1}" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
+                    top = cy - hh, right = cx + hw, bot = cy + hh, left = cx - hw,
+                    stroke = n.color.hex(),
+                ));
+            }
+            GraphShape::Pill => {
+                svg.push_str(&format!(
+                    r#"<rect x="{rx:.1}" y="{ry:.1}" width="{nw}" height="{nh}" rx="{rx_val}" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
+                    rx_val = nh / 2.0, stroke = n.color.hex(),
+                ));
+            }
+        }
+
+        svg.push_str(&format!(
+            r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{label}</text>"#,
+            cx = pos.cx,
+            cy = if n.detail.is_some() { pos.cy - 7.0 } else { pos.cy },
+            label = esc(&n.label),
+        ));
+        if let Some(detail) = &n.detail {
+            svg.push_str(&format!(
+                r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail">{d}</text>"#,
+                cx = pos.cx, cy = pos.cy + 10.0, d = esc(detail),
+            ));
+        }
+
+        // Port labels (Enhancement 5)
+        for port in &n.ports {
+            let (px, py, anchor) = match port.side {
+                PortSide::Right => (pos.cx + nw / 2.0 - 4.0, pos.cy, "end"),
+                PortSide::Left => (pos.cx - nw / 2.0 + 4.0, pos.cy, "start"),
+                PortSide::Top => (pos.cx, pos.cy - nh / 2.0 + 10.0, "middle"),
+                PortSide::Bottom => (pos.cx, pos.cy + nh / 2.0 - 4.0, "middle"),
+            };
+            svg.push_str(&format!(
+                r#"<text x="{px:.1}" y="{py:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-arch-node-detail" font-size="9" opacity="0.6">{l}</text>"#,
+                l = esc(&port.label),
+            ));
+        }
+    }
+
+    svg.push_str("</svg>");
+    wrap_chart("graph", title, &svg)
+}

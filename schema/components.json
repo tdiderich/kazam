@@ -25,7 +25,10 @@
     "AnnotationSource": ["cli", "agent", "web"],
     "RefreshMode": ["human", "auto", "assisted"],
     "ThemeName": ["dark", "light", "red", "orange", "yellow", "green", "blue", "indigo", "violet"],
-    "ArchDirection": ["left_to_right", "top_to_bottom"]
+    "ArchDirection": ["left_to_right", "top_to_bottom"],
+    "GraphShape": ["box", "diamond", "pill"],
+    "GraphEdgeStyle": ["solid", "dashed"],
+    "PortSide": ["right", "left", "top", "bottom"]
   },
   "types": {
     "ThemeTokens": {
@@ -292,6 +295,34 @@
       "label": { "type": "string", "required": true },
       "detail": { "type": "string", "required": false },
       "dim": { "type": "boolean", "required": false }
+    },
+    "GraphNode": {
+      "id": { "type": "string", "required": true },
+      "label": { "type": "string", "required": true },
+      "detail": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false },
+      "shape": { "type": "GraphShape", "required": false },
+      "group": { "type": "string", "required": false },
+      "width": { "type": "number", "required": false },
+      "height": { "type": "number", "required": false },
+      "ports": { "type": "PortLabel[]", "required": false }
+    },
+    "GraphEdge": {
+      "from": { "type": "string", "required": true },
+      "to": { "type": "string", "required": true },
+      "label": { "type": "string", "required": false },
+      "style": { "type": "GraphEdgeStyle", "required": false },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "GraphGroup": {
+      "id": { "type": "string", "required": true },
+      "label": { "type": "string", "required": false },
+      "parent": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false }
+    },
+    "PortLabel": {
+      "side": { "type": "PortSide", "required": true },
+      "label": { "type": "string", "required": true }
     }
   },
   "components": {
@@ -520,6 +551,14 @@
       "stages": { "type": "PipelineStage[]", "required": true },
       "outputs": { "type": "PipelineItem[]", "required": true },
       "context": { "type": "PipelineItem[]", "required": false }
+    },
+    "graph": {
+      "title": { "type": "string", "required": false },
+      "height": { "type": "number", "required": false },
+      "direction": { "type": "ArchDirection", "required": false },
+      "nodes": { "type": "GraphNode[]", "required": true },
+      "edges": { "type": "GraphEdge[]", "required": false },
+      "groups": { "type": "GraphGroup[]", "required": false }
     }
   }
 }

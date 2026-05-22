@@ -827,6 +827,430 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
   );
 }
 
+function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
+  type GNode = { id: string; label: string; group?: string; width?: number; height?: number; shape?: string; color?: string; detail?: string; ports?: Array<{ side: string; label: string }> };
+  type GEdge = { from: string; to: string; label?: string; style?: string; color?: string };
+  type GGroup = { id: string; label?: string; parent?: string; color?: string };
+
+  const nodes = (comp.nodes as GNode[]) || [];
+  const edges = (comp.edges as GEdge[]) || [];
+  const groups = (comp.groups as GGroup[]) || [];
+  const direction = (comp.direction as string) || "left_to_right";
+  const title = comp.title as string | undefined;
+  const compHeight = (comp.height as number) || 400;
+
+  const svgData = React.useMemo(() => {
+    if (nodes.length === 0) return null;
+
+    const isLR = direction === "left_to_right" || direction === "LR" || direction === "lr";
+    const defaultW = 140;
+    const defaultH = 60;
+    const pad = 40;
+    const groupPad = 24;
+    const nodeGapV = 32;
+    const hasGroups = groups.length > 0;
+    const minColGap = hasGroups ? 120 : 80;
+    const portSpread = 0.85;
+    const VB_W = 720;
+
+    // Per-node dimensions
+    const dims: Record<string, { w: number; h: number }> = {};
+    for (const n of nodes) {
+      dims[n.id] = { w: n.width ?? defaultW, h: n.height ?? defaultH };
+    }
+
+    // Filter out bidirectional edges for topo sort
+    const edgeSet = new Set(edges.map(e => `${e.from}||${e.to}`));
+    const forwardEdges = edges.filter(e => !edgeSet.has(`${e.to}||${e.from}`));
+
+    // Topological column assignment
+    const col: Record<string, number> = {};
+    const inSet = new Set(forwardEdges.map(e => e.to));
+    for (const n of nodes) {
+      if (!inSet.has(n.id)) col[n.id] = 0;
+    }
+    const maxIters = nodes.length * forwardEdges.length + 1;
+    let iters = 0;
+    let changed = true;
+    while (changed && iters < maxIters) {
+      changed = false;
+      iters++;
+      for (const e of forwardEdges) {
+        if (col[e.from] !== undefined) {
+          const sc = col[e.from];
+          if (col[e.to] === undefined || col[e.to] <= sc) {
+            col[e.to] = sc + 1;
+            changed = true;
+          }
+        }
+      }
+    }
+    for (const n of nodes) {
+      if (col[n.id] === undefined) col[n.id] = 0;
+    }
+    const minColVal = Math.min(...Object.values(col));
+    for (const k of Object.keys(col)) col[k] -= minColVal;
+
+    const maxColVal = Math.max(...Object.values(col));
+    const numCols = maxColVal + 1;
+
+    // Group nodes by column
+    const colsNodes: GNode[][] = Array.from({ length: numCols }, () => []);
+    for (const n of nodes) {
+      colsNodes[col[n.id] ?? 0].push(n);
+    }
+    const colMaxW = colsNodes.map(cn => Math.max(defaultW, ...cn.map(n => dims[n.id]?.w ?? defaultW)));
+    const colMaxH = colsNodes.map(cn => Math.max(defaultH, ...cn.map(n => dims[n.id]?.h ?? defaultH)));
+    const maxColHeight = Math.max(1, ...colsNodes.map(cn => cn.length));
+
+    const neededW = isLR
+      ? pad * 2 + colMaxW.reduce((a, b) => a + b, 0) + Math.max(0, numCols - 1) * minColGap
+      : pad * 2 + maxColHeight * defaultW + Math.max(0, maxColHeight - 1) * nodeGapV;
+    const vbW = Math.max(neededW, VB_W);
+
+    const neededH = !isLR
+      ? pad * 2 + colMaxH.reduce((a, b) => a + b, 0) + Math.max(0, numCols - 1) * minColGap
+      : pad * 2 + maxColHeight * defaultH + Math.max(0, maxColHeight - 1) * nodeGapV;
+    const h = Math.max(compHeight, neededH);
+
+    // Position nodes
+    const positions: Record<string, { cx: number; cy: number }> = {};
+    if (isLR) {
+      const colCx: number[] = [];
+      let xCursor = pad;
+      for (let ci = 0; ci < numCols; ci++) {
+        colCx.push(xCursor + colMaxW[ci] / 2);
+        xCursor += colMaxW[ci] + minColGap;
+      }
+      const totalUsed = xCursor - minColGap + pad;
+      const xOffset = vbW > totalUsed ? (vbW - totalUsed) / 2 : 0;
+      for (let ci = 0; ci < numCols; ci++) {
+        const cn = colsNodes[ci];
+        const nCount = cn.length;
+        const totalH = nCount * defaultH + Math.max(0, nCount - 1) * nodeGapV;
+        const startY = (h - totalH) / 2;
+        for (let ni = 0; ni < cn.length; ni++) {
+          positions[cn[ni].id] = {
+            cx: colCx[ci] + xOffset,
+            cy: startY + ni * (defaultH + nodeGapV) + defaultH / 2,
+          };
+        }
+      }
+    } else {
+      const rowCy: number[] = [];
+      let yCursor = pad;
+      for (let ci = 0; ci < numCols; ci++) {
+        rowCy.push(yCursor + colMaxH[ci] / 2);
+        yCursor += colMaxH[ci] + minColGap;
+      }
+      const totalUsed = yCursor - minColGap + pad;
+      const yOffset = h > totalUsed ? (h - totalUsed) / 2 : 0;
+      for (let ci = 0; ci < numCols; ci++) {
+        const cn = colsNodes[ci];
+        const nCount = cn.length;
+        const totalW = nCount * defaultW + Math.max(0, nCount - 1) * nodeGapV;
+        const startX = (vbW - totalW) / 2;
+        for (let ni = 0; ni < cn.length; ni++) {
+          positions[cn[ni].id] = {
+            cx: startX + ni * (defaultW + nodeGapV) + defaultW / 2,
+            cy: rowCy[ci] + yOffset,
+          };
+        }
+      }
+    }
+
+    // Bidirectional detection
+    const isBidir = (from: string, to: string) => edgeSet.has(`${to}||${from}`);
+
+    // Group bounding boxes
+    const groupBounds: Record<string, { x: number; y: number; w: number; h: number }> = {};
+    for (const grp of groups) {
+      const members = nodes.filter(n => n.group === grp.id).map(n => ({ pos: positions[n.id], d: dims[n.id] })).filter(m => m.pos && m.d);
+      if (members.length === 0) continue;
+      const minX = Math.min(...members.map(m => m.pos.cx - m.d.w / 2));
+      const minY = Math.min(...members.map(m => m.pos.cy - m.d.h / 2));
+      const maxX = Math.max(...members.map(m => m.pos.cx + m.d.w / 2));
+      const maxY = Math.max(...members.map(m => m.pos.cy + m.d.h / 2));
+      groupBounds[grp.id] = {
+        x: minX - groupPad,
+        y: minY - groupPad - 14,
+        w: maxX - minX + groupPad * 2,
+        h: maxY - minY + groupPad * 2 + 14,
+      };
+    }
+    // Expand parent groups
+    for (const grp of groups) {
+      if (!grp.parent) continue;
+      const cb = groupBounds[grp.id];
+      if (!cb) continue;
+      const cx2 = cb.x + cb.w;
+      const cy2 = cb.y + cb.h;
+      let pb = groupBounds[grp.parent];
+      if (!pb) {
+        groupBounds[grp.parent] = {
+          x: cb.x - groupPad,
+          y: cb.y - groupPad - 14,
+          w: (cx2 - cb.x) + groupPad * 2,
+          h: (cy2 - cb.y) + groupPad * 2 + 14,
+        };
+        pb = groupBounds[grp.parent];
+      }
+      const px2 = pb.x + pb.w;
+      const py2 = pb.y + pb.h;
+      const newX = Math.min(pb.x, cb.x - groupPad);
+      const newY = Math.min(pb.y, cb.y - groupPad - 14);
+      const newX2 = Math.max(px2, cx2 + groupPad);
+      const newY2 = Math.max(py2, cy2 + groupPad);
+      pb.x = newX; pb.y = newY; pb.w = newX2 - newX; pb.h = newY2 - newY;
+    }
+
+    // Per-side port assignment
+    const edgeSrcSide: number[] = [];
+    const edgeTgtSide: number[] = [];
+    const srcGroups: Map<string, Array<[number, number]>> = new Map();
+    const tgtGroups: Map<string, Array<[number, number]>> = new Map();
+
+    for (let ei = 0; ei < edges.length; ei++) {
+      const e = edges[ei];
+      const fp = positions[e.from];
+      const tp = positions[e.to];
+      if (!fp || !tp) { edgeSrcSide.push(0); edgeTgtSide.push(1); continue; }
+      const bidir = isBidir(e.from, e.to);
+      let ss: number, ts: number;
+      if (isLR) {
+        const forward = tp.cx >= fp.cx;
+        if (bidir && !forward) { ss = 2; ts = 2; }
+        else { ss = forward ? 0 : 1; ts = forward ? 1 : 0; }
+      } else {
+        const downward = tp.cy >= fp.cy;
+        if (bidir && !downward) { ss = 0; ts = 0; }
+        else { ss = downward ? 3 : 2; ts = downward ? 2 : 3; }
+      }
+      edgeSrcSide.push(ss);
+      edgeTgtSide.push(ts);
+      const srcSort = (ss === 0 || ss === 1) ? tp.cy : tp.cx;
+      const tgtSort = (ts === 0 || ts === 1) ? fp.cy : fp.cx;
+      const skSrc = `${e.from}||${ss}`;
+      const skTgt = `${e.to}||${ts}`;
+      if (!srcGroups.has(skSrc)) srcGroups.set(skSrc, []);
+      srcGroups.get(skSrc)!.push([ei, srcSort]);
+      if (!tgtGroups.has(skTgt)) tgtGroups.set(skTgt, []);
+      tgtGroups.get(skTgt)!.push([ei, tgtSort]);
+    }
+    for (const arr of srcGroups.values()) arr.sort((a, b) => a[1] - b[1]);
+    for (const arr of tgtGroups.values()) arr.sort((a, b) => a[1] - b[1]);
+
+    const srcSlot: Array<[number, number]> = edges.map(() => [0, 1]);
+    const tgtSlot: Array<[number, number]> = edges.map(() => [0, 1]);
+    for (const arr of srcGroups.values()) {
+      const count = arr.length;
+      arr.forEach(([ei], slot) => { srcSlot[ei] = [slot, count]; });
+    }
+    for (const arr of tgtGroups.values()) {
+      const count = arr.length;
+      arr.forEach(([ei], slot) => { tgtSlot[ei] = [slot, count]; });
+    }
+
+    const portPos = (cx: number, cy: number, w: number, h: number, side: number, slot: number, count: number): [number, number] => {
+      const off = count > 1 ? ((slot + 0.5) / count - 0.5) * portSpread : 0;
+      if (side === 0) return [cx + w / 2, cy + off * h];
+      if (side === 1) return [cx - w / 2, cy + off * h];
+      if (side === 2) return [cx + off * w, cy - h / 2];
+      return [cx + off * w, cy + h / 2];
+    };
+
+    // Build SVG elements arrays
+    const groupElems: React.ReactNode[] = [];
+    const parentGroupIds = new Set(groups.filter(g => !g.parent).map(g => g.id));
+    const orderedGroups = [...groups.filter(g => !g.parent), ...groups.filter(g => !!g.parent)];
+    for (let gi = 0; gi < orderedGroups.length; gi++) {
+      const grp = orderedGroups[gi];
+      const b = groupBounds[grp.id];
+      if (!b) continue;
+      const stroke = grp.color && semToHex[grp.color] ? semToHex[grp.color] : "rgba(var(--text-rgb),0.2)";
+      groupElems.push(
+        <React.Fragment key={`grp-${gi}`}>
+          <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={10} fill="rgba(var(--text-rgb),0.02)" stroke={stroke} strokeWidth={1} strokeDasharray="5 3" />
+          {grp.label && <text x={b.x + 8} y={b.y + 10} className="c-arch-node-detail" dominantBaseline="middle">{grp.label}</text>}
+        </React.Fragment>
+      );
+    }
+
+    const edgeElems: React.ReactNode[] = [];
+    for (let ei = 0; ei < edges.length; ei++) {
+      const e = edges[ei];
+      const fp = positions[e.from];
+      const tp = positions[e.to];
+      if (!fp || !tp) continue;
+      const fd = dims[e.from] ?? { w: defaultW, h: defaultH };
+      const td = dims[e.to] ?? { w: defaultW, h: defaultH };
+      const bidir = isBidir(e.from, e.to);
+      const dx = tp.cx - fp.cx;
+      const dy = tp.cy - fp.cy;
+      const len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+      const normPerpX = -dy / len;
+      const normPerpY = dx / len;
+      const [sSlot, sCount] = srcSlot[ei];
+      const [tSlot, tCount] = tgtSlot[ei];
+      const [sx1, sy1] = portPos(fp.cx, fp.cy, fd.w, fd.h, edgeSrcSide[ei], sSlot, sCount);
+      const [sx2, sy2] = portPos(tp.cx, tp.cy, td.w, td.h, edgeTgtSide[ei], tSlot, tCount);
+
+      let routeOffset = 0;
+      if (!bidir) {
+        for (const n of nodes) {
+          if (n.id === e.from || n.id === e.to) continue;
+          const np = positions[n.id];
+          if (!np) continue;
+          const nd = dims[n.id] ?? { w: defaultW, h: defaultH };
+          const ax = np.cx - fp.cx;
+          const ay = np.cy - fp.cy;
+          const proj = (ax * dx + ay * dy) / (len * len);
+          if (proj < 0.02 || proj > 0.98) continue;
+          const clX = fp.cx + proj * dx;
+          const clY = fp.cy + proj * dy;
+          const dist = Math.sqrt((np.cx - clX) ** 2 + (np.cy - clY) ** 2);
+          const clearance = Math.max(nd.w / 2 + 30, nd.h / 2 + 30);
+          if (dist < clearance) {
+            const cross = ax * dy - ay * dx;
+            const needed = clearance - dist + 25;
+            const sign = cross >= 0 ? 1 : -1;
+            const candidate = sign * needed;
+            if (Math.abs(candidate) > Math.abs(routeOffset)) routeOffset = candidate;
+          }
+        }
+      }
+
+      const needsCurve = bidir || Math.abs(routeOffset) > 1;
+      const strokeColor = e.color && semToHex[e.color] ? semToHex[e.color] : "rgba(var(--text-rgb),0.3)";
+      const dashAttr = e.style === "dashed" ? "6 3" : undefined;
+
+      let labelX = 0, labelY = 0;
+      if (needsCurve) {
+        let cpx: number, cpy: number;
+        if (bidir) {
+          const backward = isLR ? tp.cx < fp.cx : tp.cy < fp.cy;
+          let curveOffset = 40;
+          if (backward && groups.length > 0) {
+            const midY = (sy1 + sy2) / 2;
+            const leftX = Math.min(sx1, sx2);
+            const rightX = Math.max(sx1, sx2);
+            const perpYAbs = Math.max(Math.abs(normPerpY), 0.1);
+            for (const grp of groups) {
+              const b = groupBounds[grp.id];
+              if (!b) continue;
+              const gRight = b.x + b.w;
+              if (gRight > leftX && b.x < rightX && b.y < midY) {
+                const needed = 2.0 * (midY - b.y + 15.0) / perpYAbs;
+                if (needed > curveOffset) curveOffset = needed;
+              }
+            }
+          }
+          cpx = (sx1 + sx2) / 2 + normPerpX * curveOffset;
+          cpy = (sy1 + sy2) / 2 + normPerpY * curveOffset;
+        } else {
+          cpx = (sx1 + sx2) / 2 + normPerpX * routeOffset;
+          cpy = (sy1 + sy2) / 2 + normPerpY * routeOffset;
+        }
+        const d = `M ${sx1.toFixed(1)},${sy1.toFixed(1)} Q ${cpx.toFixed(1)},${cpy.toFixed(1)} ${sx2.toFixed(1)},${sy2.toFixed(1)}`;
+        edgeElems.push(
+          <path key={`e-${ei}`} d={d} fill="none" stroke="rgba(var(--text-rgb),0.3)" strokeWidth={1.5} strokeDasharray={dashAttr} markerEnd="url(#graph-arrow)" className="c-arch-edge" />
+        );
+        if (bidir) {
+          const t = 0.25;
+          const mt = 1 - t;
+          labelX = mt * mt * sx1 + 2 * mt * t * cpx + t * t * sx2;
+          labelY = mt * mt * sy1 + 2 * mt * t * cpy + t * t * sy2;
+        } else {
+          labelX = 0.25 * sx1 + 0.5 * cpx + 0.25 * sx2;
+          labelY = 0.25 * sy1 + 0.5 * cpy + 0.25 * sy2;
+        }
+      } else {
+        edgeElems.push(
+          <line key={`e-${ei}`} x1={sx1} y1={sy1} x2={sx2} y2={sy2} stroke="rgba(var(--text-rgb),0.3)" strokeWidth={1.5} strokeDasharray={dashAttr} markerEnd="url(#graph-arrow)" className="c-arch-edge" />
+        );
+        labelX = (sx1 + sx2) / 2;
+        labelY = (sy1 + sy2) / 2;
+      }
+
+      if (e.label) {
+        const lx = labelX;
+        const ly = labelY - 8;
+        const lc = strokeColor;
+        edgeElems.push(
+          <text key={`el-${ei}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill={lc} style={{ stroke: "var(--bg,#121113)", strokeWidth: 3, paintOrder: "stroke" as const }}>{e.label}</text>
+        );
+      }
+    }
+
+    const nodeElems: React.ReactNode[] = [];
+    for (const n of nodes) {
+      const pos = positions[n.id];
+      if (!pos) continue;
+      const d = dims[n.id] ?? { w: defaultW, h: defaultH };
+      const nw = d.w;
+      const nh = d.h;
+      const rx = pos.cx - nw / 2;
+      const ry = pos.cy - nh / 2;
+      const stroke = n.color && semToHex[n.color] ? semToHex[n.color] : "rgba(var(--text-rgb),0.5)";
+      const shape = n.shape || "box";
+
+      if (shape === "diamond") {
+        const hw = nw / 2;
+        const hh = nh / 2;
+        const pts = `${pos.cx.toFixed(1)},${(pos.cy - hh).toFixed(1)} ${(pos.cx + hw).toFixed(1)},${pos.cy.toFixed(1)} ${pos.cx.toFixed(1)},${(pos.cy + hh).toFixed(1)} ${(pos.cx - hw).toFixed(1)},${pos.cy.toFixed(1)}`;
+        nodeElems.push(<polygon key={`ns-${n.id}`} points={pts} fill="rgba(var(--text-rgb),0.06)" stroke={stroke} strokeWidth={1.5} className="c-arch-node" />);
+      } else if (shape === "pill") {
+        nodeElems.push(<rect key={`ns-${n.id}`} x={rx} y={ry} width={nw} height={nh} rx={nh / 2} fill="rgba(var(--text-rgb),0.06)" stroke={stroke} strokeWidth={1.5} className="c-arch-node" />);
+      } else {
+        nodeElems.push(<rect key={`ns-${n.id}`} x={rx} y={ry} width={nw} height={nh} rx={8} fill="rgba(var(--text-rgb),0.06)" stroke={stroke} strokeWidth={1.5} className="c-arch-node" />);
+      }
+
+      nodeElems.push(
+        <text key={`nl-${n.id}`} x={pos.cx} y={n.detail ? pos.cy - 7 : pos.cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{n.label}</text>
+      );
+      if (n.detail) {
+        nodeElems.push(
+          <text key={`nd-${n.id}`} x={pos.cx} y={pos.cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{n.detail}</text>
+        );
+      }
+
+      for (let pi = 0; pi < (n.ports ?? []).length; pi++) {
+        const port = n.ports![pi];
+        let px: number, py: number, anchor: string;
+        if (port.side === "right") { px = pos.cx + nw / 2 - 4; py = pos.cy; anchor = "end"; }
+        else if (port.side === "left") { px = pos.cx - nw / 2 + 4; py = pos.cy; anchor = "start"; }
+        else if (port.side === "top") { px = pos.cx; py = pos.cy - nh / 2 + 10; anchor = "middle"; }
+        else { px = pos.cx; py = pos.cy + nh / 2 - 4; anchor = "middle"; }
+        nodeElems.push(
+          <text key={`np-${n.id}-${pi}`} x={px} y={py} textAnchor={anchor} dominantBaseline="middle" className="c-arch-node-detail" fontSize={9} opacity={0.6}>{port.label}</text>
+        );
+      }
+    }
+
+    return { vbW, h, groupElems, edgeElems, nodeElems };
+  }, [nodes, edges, groups, direction, compHeight]);
+
+  return (
+    <div id={id} className="c-chart" data-kind="graph">
+      {title && <h3 className="c-chart-title">{title}</h3>}
+      {svgData ? (
+        <svg viewBox={`0 0 ${svgData.vbW} ${svgData.h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
+          <defs>
+            <marker id="graph-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)" />
+            </marker>
+          </defs>
+          {svgData.groupElems}
+          {svgData.edgeElems}
+          {svgData.nodeElems}
+        </svg>
+      ) : (
+        <div className="c-chart-placeholder">Graph</div>
+      )}
+    </div>
+  );
+}
+
 function AccordionView({
   id,
   items,
@@ -1869,7 +2293,7 @@ function ComponentView({
 
       const maxCol = Math.max(...Object.values(col));
       const numCols = maxCol + 1;
-      const isLR = direction === "left_to_right";
+      const isLR = direction === "left_to_right" || direction === "LR" || direction === "lr";
       const pad = 40, nodeW = 130, nodeH = 56;
 
       const colsNodes: Array<typeof nodes> = Array.from({ length: numCols }, () => []);
@@ -2052,6 +2476,10 @@ function ComponentView({
           </svg>
         </figure>
       );
+    }
+
+    case "graph": {
+      return <GraphSVG id={id} comp={comp} />;
     }
 
     default:

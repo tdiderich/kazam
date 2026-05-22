@@ -871,6 +871,54 @@ fn validate_component(
                 ));
             }
         }
+        Component::Graph {
+            nodes, edges, groups, ..
+        } => {
+            if nodes.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.nodes", path),
+                    "missing_field",
+                    "graph requires at least one node",
+                    Some("Add nodes with id: and label:.".into()),
+                ));
+            }
+            let node_ids: std::collections::HashSet<&str> =
+                nodes.iter().map(|n| n.id.as_str()).collect();
+            for (i, edge) in edges.iter().enumerate() {
+                if !node_ids.contains(edge.from.as_str()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.edges[{}].from", path, i),
+                        "cross_reference",
+                        &format!("edge references non-existent node '{}'", edge.from),
+                        None,
+                    ));
+                }
+                if !node_ids.contains(edge.to.as_str()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.edges[{}].to", path, i),
+                        "cross_reference",
+                        &format!("edge references non-existent node '{}'", edge.to),
+                        None,
+                    ));
+                }
+            }
+            for (i, grp) in groups.iter().enumerate() {
+                if let Some(parent) = &grp.parent {
+                    if !groups.iter().any(|g| g.id == *parent) {
+                        errors.push(ValidationError::new(
+                            file,
+                            format!("{}.groups[{}].parent", path, i),
+                            "cross_reference",
+                            &format!("group parent '{}' not found", parent),
+                            None,
+                        ));
+                    }
+                }
+            }
+        }
     }
 }
 

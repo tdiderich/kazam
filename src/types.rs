@@ -573,6 +573,18 @@ pub enum Component {
         #[serde(default)]
         context: Vec<PipelineItem>,
     },
+    Graph {
+        title: Option<String>,
+        #[serde(default)]
+        height: Option<u32>,
+        #[serde(default)]
+        direction: ArchDirection,
+        nodes: Vec<GraphNode>,
+        #[serde(default)]
+        edges: Vec<GraphEdge>,
+        #[serde(default)]
+        groups: Vec<GraphGroup>,
+    },
 }
 
 // ── Supporting types ─────────────────────────────────
@@ -1170,6 +1182,84 @@ pub struct PipelineCapability {
     pub detail: Option<String>,
     #[serde(default)]
     pub dim: bool,
+}
+
+// ── Graph supporting types ───────────────────────────
+
+#[derive(Deserialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphShape {
+    #[default]
+    Box,
+    Diamond,
+    Pill,
+}
+
+#[derive(Deserialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphEdgeStyle {
+    #[default]
+    Solid,
+    Dashed,
+}
+
+#[derive(Deserialize)]
+pub struct GraphNode {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub color: SemColor,
+    #[serde(default)]
+    pub shape: GraphShape,
+    #[serde(default)]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+    #[serde(default)]
+    pub ports: Vec<PortLabel>,
+}
+
+#[derive(Deserialize)]
+pub struct GraphEdge {
+    pub from: String,
+    pub to: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    #[serde(default)]
+    pub style: GraphEdgeStyle,
+    #[serde(default)]
+    pub color: Option<SemColor>,
+}
+
+#[derive(Deserialize)]
+pub struct GraphGroup {
+    pub id: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    #[serde(default)]
+    pub parent: Option<String>,
+    #[serde(default)]
+    pub color: Option<SemColor>,
+}
+
+#[derive(Deserialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum PortSide {
+    #[default]
+    Right,
+    Left,
+    Top,
+    Bottom,
+}
+
+#[derive(Deserialize)]
+pub struct PortLabel {
+    pub side: PortSide,
+    pub label: String,
 }
 
 // ── Site config ──────────────────────────────────────

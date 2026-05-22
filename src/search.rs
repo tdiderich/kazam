@@ -227,7 +227,8 @@ fn extract_searchable_text(
             | Component::Radar { .. }
             | Component::Quadrant { .. }
             | Component::Architecture { .. }
-            | Component::Pipeline { .. } => {}
+            | Component::Pipeline { .. }
+            | Component::Graph { .. } => {}
         }
     }
 }
