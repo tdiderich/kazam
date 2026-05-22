@@ -1,0 +1,14 @@
+# scanned: 2026-05-18T14:37:18.076366-05:00
+# root_files
+path	tokens	reads	description
+deployment-phases.yaml	290	0	YAML configuration/data
+index.yaml	234	0	YAML configuration/data
+kazam.yaml	50	0	YAML configuration/data
+
+# directories
+path	files	tokens	description
+agenda	1	357	
+customers	3	1049	
+demo	2	2090	
+prompts	6	2196	
+qbr	1	478	

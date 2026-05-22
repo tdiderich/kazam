@@ -872,7 +872,10 @@ fn validate_component(
             }
         }
         Component::Graph {
-            nodes, edges, groups, ..
+            nodes,
+            edges,
+            groups,
+            ..
         } => {
             if nodes.is_empty() {
                 errors.push(ValidationError::new(

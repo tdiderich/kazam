@@ -1,0 +1,118 @@
+title: "Deployment Blueprint — Template"
+shell: standard
+theme: dark
+print_flow: continuous
+
+components:
+- type: header
+  title: "{Company} — Maze Deployment Blueprint"
+  subtitle: "Generated {Date}"
+  align: center
+
+- type: divider
+
+- type: section
+  eyebrow: "TODAY"
+  heading: "Your Vulnerability Landscape"
+  components:
+  - type: card_grid
+    connector: arrow
+    min_width: 200
+    cards:
+    - title: "Scanner Sources"
+      description: "Wiz, CrowdStrike, Tenable — generating 69,200 findings."
+      badge:
+        label: "69,200 findings"
+        color: red
+    - title: "Security Team"
+      description: "4 FTEs spending ~50% of their time triaging a backlog no team can keep pace with."
+      badge:
+        label: "17,300 hrs/yr"
+        color: yellow
+    - title: "Remediation"
+      description: "Findings sent to dev teams lack context. Friction between security and engineering slows fixes."
+      badge:
+        label: "Manual"
+        color: default
+    - title: "One Year From Now"
+      description: "New findings outpace what your team can close. The backlog grows every quarter."
+      badge:
+        label: "1.2x open findings"
+        color: red
+
+- type: divider
+
+- type: section
+  eyebrow: "MAZE"
+  heading: "What Changes"
+  components:
+  - type: stat_grid
+    columns: 3
+    stats:
+    - label: "Not Exploitable"
+      value: "75%"
+      detail: "51,900 findings eliminated instantly"
+      color: green
+    - label: "Exploitable"
+      value: "25%"
+      detail: "17,300 findings — properly triaged"
+      color: red
+    - label: "With Remediation Context"
+      value: "100%"
+      detail: "Every finding routed with fix guidance"
+      color: teal
+  - type: steps
+    numbered: true
+    items:
+    - title: "Exploitability Analysis"
+      detail: "Every finding analyzed for real-world exploitability — runtime context, network exposure, exploit maturity. 75% eliminated as not exploitable."
+    - title: "Severity Re-Rating"
+      detail: "Exploitable findings re-rated by actual impact and likelihood. Critical drops from 1,384 to 69. Your team sees right-sized risk, not scanner noise."
+    - title: "Remediation Routing"
+      detail: "Actionable findings sent to Jira, ServiceNow, or Slack with ownership, root cause, and fix steps. Developers get what they need to fix — no back-and-forth with security."
+
+- type: divider
+
+- type: section
+  eyebrow: "OUTCOME"
+  heading: "Today vs. One Year With Maze"
+  components:
+  - type: split_compare
+    left:
+      eyebrow: WITHOUT MAZE
+      title: "Status Quo"
+      stats:
+      - label: "Actionable Backlog"
+        value: "69,200 unanalyzed"
+        color: red
+      - label: "Critical Findings"
+        value: "1,384 — mostly noise"
+        color: red
+      - label: "Security-Dev Handoff"
+        value: "manual, no context"
+        color: yellow
+      - label: "Team Focus"
+        value: "triage treadmill"
+        color: yellow
+      - label: "Backlog in 12 Months"
+        value: "1.2x larger"
+        color: red
+    right:
+      eyebrow: WITH MAZE
+      title: "Year One"
+      stats:
+      - label: "Actionable Backlog"
+        value: "17,300 verified exploitable"
+        color: green
+      - label: "Critical Findings"
+        value: "69 — real risk only"
+        color: green
+      - label: "Security-Dev Handoff"
+        value: "automated with fix steps"
+        color: green
+      - label: "Team Focus"
+        value: "strategy and response"
+        color: teal
+      - label: "Backlog in 12 Months"
+        value: "actively shrinking"
+        color: green

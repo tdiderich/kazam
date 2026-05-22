@@ -1928,10 +1928,13 @@ mod tests {
 /// The rect gives the text a dark knockout so it stays readable over lines.
 /// `char_w` ~6.0 for the small font used in edge labels.
 fn edge_label_svg(x: f64, y: f64, text: &str, fill: Option<&str>) -> String {
-    let fill_attr = fill.map(|f| format!(r#" fill="{}""#, f)).unwrap_or_default();
+    let fill_attr = fill
+        .map(|f| format!(r#" fill="{}""#, f))
+        .unwrap_or_default();
     format!(
         r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-edge-label" style="stroke:var(--bg,#121113);stroke-width:3px;paint-order:stroke" font-size="10"{fill}>{t}</text>"#,
-        t = esc(text), fill = fill_attr,
+        t = esc(text),
+        fill = fill_attr,
     )
 }
 
@@ -1954,14 +1957,27 @@ pub fn render_graph(
     // Per-node dimensions (Enhancement 3: node size hints)
     let default_w = 140.0_f64;
     let default_h = 60.0_f64;
-    struct NDims { w: f64, h: f64 }
+    struct NDims {
+        w: f64,
+        h: f64,
+    }
     let dims: std::collections::HashMap<&str, NDims> = nodes
         .iter()
         .map(|n| {
             let w = n.width.map(|v| v as f64).unwrap_or(default_w);
             let h = n.height.map(|v| v as f64).unwrap_or(default_h);
-            let scale = if n.shape == GraphShape::Diamond { 1.4 } else { 1.0 };
-            (n.id.as_str(), NDims { w: w * scale, h: h * scale })
+            let scale = if n.shape == GraphShape::Diamond {
+                1.4
+            } else {
+                1.0
+            };
+            (
+                n.id.as_str(),
+                NDims {
+                    w: w * scale,
+                    h: h * scale,
+                },
+            )
         })
         .collect();
 
@@ -2024,30 +2040,47 @@ pub fn render_graph(
         let c = col.get(n.id.as_str()).copied().unwrap_or(0);
         cols_nodes[c].push(n);
     }
-    let col_max_w: Vec<f64> = cols_nodes.iter().map(|cn| {
-        cn.iter().map(|n| dims.get(n.id.as_str()).map(|d| d.w).unwrap_or(default_w)).fold(default_w, f64::max)
-    }).collect();
-    let col_max_h: Vec<f64> = cols_nodes.iter().map(|cn| {
-        cn.iter().map(|n| dims.get(n.id.as_str()).map(|d| d.h).unwrap_or(default_h)).fold(default_h, f64::max)
-    }).collect();
+    let col_max_w: Vec<f64> = cols_nodes
+        .iter()
+        .map(|cn| {
+            cn.iter()
+                .map(|n| dims.get(n.id.as_str()).map(|d| d.w).unwrap_or(default_w))
+                .fold(default_w, f64::max)
+        })
+        .collect();
+    let col_max_h: Vec<f64> = cols_nodes
+        .iter()
+        .map(|cn| {
+            cn.iter()
+                .map(|n| dims.get(n.id.as_str()).map(|d| d.h).unwrap_or(default_h))
+                .fold(default_h, f64::max)
+        })
+        .collect();
     let max_col_height = cols_nodes.iter().map(|cn| cn.len()).max().unwrap_or(1);
 
     let needed_w = if is_lr {
         pad * 2.0 + col_max_w.iter().sum::<f64>() + (num_cols as f64 - 1.0).max(0.0) * min_col_gap
     } else {
         let max_row_count = cols_nodes.iter().map(|cn| cn.len()).max().unwrap_or(1);
-        pad * 2.0 + max_row_count as f64 * default_w + (max_row_count as f64 - 1.0).max(0.0) * node_gap_v
+        pad * 2.0
+            + max_row_count as f64 * default_w
+            + (max_row_count as f64 - 1.0).max(0.0) * node_gap_v
     };
     let vb_w = needed_w.max(VB_W);
 
     let needed_h = if !is_lr {
         pad * 2.0 + col_max_h.iter().sum::<f64>() + (num_cols as f64 - 1.0).max(0.0) * min_col_gap
     } else {
-        pad * 2.0 + max_col_height as f64 * default_h + (max_col_height as f64 - 1.0).max(0.0) * node_gap_v
+        pad * 2.0
+            + max_col_height as f64 * default_h
+            + (max_col_height as f64 - 1.0).max(0.0) * node_gap_v
     };
     let h = h.max(needed_h);
 
-    struct NPos { cx: f64, cy: f64 }
+    struct NPos {
+        cx: f64,
+        cy: f64,
+    }
     let mut positions: std::collections::HashMap<&str, NPos> = std::collections::HashMap::new();
 
     if is_lr {
@@ -2061,17 +2094,24 @@ pub fn render_graph(
         }
         // Center columns in viewBox if there's extra space
         let total_used = x_cursor - min_col_gap + pad;
-        let x_offset = if vb_w > total_used { (vb_w - total_used) / 2.0 } else { 0.0 };
+        let x_offset = if vb_w > total_used {
+            (vb_w - total_used) / 2.0
+        } else {
+            0.0
+        };
 
         for (ci, col_nodes) in cols_nodes.iter().enumerate() {
             let n_count = col_nodes.len();
             let total_h = n_count as f64 * default_h + (n_count as f64 - 1.0).max(0.0) * node_gap_v;
             let start_y = (h - total_h) / 2.0;
             for (ni, node) in col_nodes.iter().enumerate() {
-                positions.insert(&node.id, NPos {
-                    cx: col_cx[ci] + x_offset,
-                    cy: start_y + ni as f64 * (default_h + node_gap_v) + default_h / 2.0,
-                });
+                positions.insert(
+                    &node.id,
+                    NPos {
+                        cx: col_cx[ci] + x_offset,
+                        cy: start_y + ni as f64 * (default_h + node_gap_v) + default_h / 2.0,
+                    },
+                );
             }
         }
     } else {
@@ -2083,45 +2123,60 @@ pub fn render_graph(
             y_cursor += ch + min_col_gap;
         }
         let total_used = y_cursor - min_col_gap + pad;
-        let y_offset = if h > total_used { (h - total_used) / 2.0 } else { 0.0 };
+        let y_offset = if h > total_used {
+            (h - total_used) / 2.0
+        } else {
+            0.0
+        };
 
         for (ci, col_nodes) in cols_nodes.iter().enumerate() {
             let n_count = col_nodes.len();
             let total_w = n_count as f64 * default_w + (n_count as f64 - 1.0).max(0.0) * node_gap_v;
             let start_x = (vb_w - total_w) / 2.0;
             for (ni, node) in col_nodes.iter().enumerate() {
-                positions.insert(&node.id, NPos {
-                    cx: start_x + ni as f64 * (default_w + node_gap_v) + default_w / 2.0,
-                    cy: row_cy[ci] + y_offset,
-                });
+                positions.insert(
+                    &node.id,
+                    NPos {
+                        cx: start_x + ni as f64 * (default_w + node_gap_v) + default_w / 2.0,
+                        cy: row_cy[ci] + y_offset,
+                    },
+                );
             }
         }
     }
 
     // Detect bidirectional edges
-    let mut edge_pairs: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    let mut edge_pairs: std::collections::HashSet<(String, String)> =
+        std::collections::HashSet::new();
     for e in edges {
         edge_pairs.insert((e.from.clone(), e.to.clone()));
     }
-    let is_bidir = |from: &str, to: &str| -> bool {
-        edge_pairs.contains(&(to.to_string(), from.to_string()))
-    };
+    let is_bidir =
+        |from: &str, to: &str| -> bool { edge_pairs.contains(&(to.to_string(), from.to_string())) };
 
     let mut svg = format!(
         r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = vb_w, h = h,
+        vb_w = vb_w,
+        h = h,
     );
 
     svg.push_str(r#"<defs><marker id="graph-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)"/></marker></defs>"#);
 
     // ── Groups: nested containers (Enhancement 1 + 4) ──
     // Compute group bounding boxes, then expand parents to contain children
-    struct GBounds { x: f64, y: f64, w: f64, h: f64 }
-    let mut group_bounds: std::collections::HashMap<&str, GBounds> = std::collections::HashMap::new();
+    struct GBounds {
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    }
+    let mut group_bounds: std::collections::HashMap<&str, GBounds> =
+        std::collections::HashMap::new();
 
     // First pass: leaf group bounds from member nodes
     for grp in groups {
-        let members: Vec<(&NPos, &NDims)> = nodes.iter()
+        let members: Vec<(&NPos, &NDims)> = nodes
+            .iter()
             .filter(|n| n.group.as_deref() == Some(&grp.id))
             .filter_map(|n| {
                 let pos = positions.get(n.id.as_str())?;
@@ -2129,25 +2184,51 @@ pub fn render_graph(
                 Some((pos, d))
             })
             .collect();
-        if members.is_empty() { continue; }
+        if members.is_empty() {
+            continue;
+        }
 
-        let min_x = members.iter().map(|(p, d)| p.cx - d.w / 2.0).fold(f64::INFINITY, f64::min);
-        let min_y = members.iter().map(|(p, d)| p.cy - d.h / 2.0).fold(f64::INFINITY, f64::min);
-        let max_x = members.iter().map(|(p, d)| p.cx + d.w / 2.0).fold(f64::NEG_INFINITY, f64::max);
-        let max_y = members.iter().map(|(p, d)| p.cy + d.h / 2.0).fold(f64::NEG_INFINITY, f64::max);
+        let min_x = members
+            .iter()
+            .map(|(p, d)| p.cx - d.w / 2.0)
+            .fold(f64::INFINITY, f64::min);
+        let min_y = members
+            .iter()
+            .map(|(p, d)| p.cy - d.h / 2.0)
+            .fold(f64::INFINITY, f64::min);
+        let max_x = members
+            .iter()
+            .map(|(p, d)| p.cx + d.w / 2.0)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let max_y = members
+            .iter()
+            .map(|(p, d)| p.cy + d.h / 2.0)
+            .fold(f64::NEG_INFINITY, f64::max);
 
         let gx = min_x - group_pad;
         let gy = min_y - group_pad - 14.0;
         let gw = max_x - min_x + group_pad * 2.0;
         let gh = max_y - min_y + group_pad * 2.0 + 14.0;
-        group_bounds.insert(&grp.id, GBounds { x: gx, y: gy, w: gw, h: gh });
+        group_bounds.insert(
+            &grp.id,
+            GBounds {
+                x: gx,
+                y: gy,
+                w: gw,
+                h: gh,
+            },
+        );
     }
 
     // Second pass: expand parent groups to contain children
     for grp in groups {
-        if grp.parent.is_none() { continue; }
+        if grp.parent.is_none() {
+            continue;
+        }
         let parent_id = grp.parent.as_deref().unwrap();
-        let Some(child_b) = group_bounds.get(grp.id.as_str()) else { continue; };
+        let Some(child_b) = group_bounds.get(grp.id.as_str()) else {
+            continue;
+        };
         let cx = child_b.x;
         let cy = child_b.y;
         let cx2 = child_b.x + child_b.w;
@@ -2172,16 +2253,19 @@ pub fn render_graph(
     }
 
     // Render groups: parents first (those with no parent), then children
-    let parent_groups: Vec<&crate::types::GraphGroup> = groups.iter()
-        .filter(|g| g.parent.is_none())
-        .collect();
-    let child_groups: Vec<&crate::types::GraphGroup> = groups.iter()
-        .filter(|g| g.parent.is_some())
-        .collect();
+    let parent_groups: Vec<&crate::types::GraphGroup> =
+        groups.iter().filter(|g| g.parent.is_none()).collect();
+    let child_groups: Vec<&crate::types::GraphGroup> =
+        groups.iter().filter(|g| g.parent.is_some()).collect();
 
     for grp in parent_groups.iter().chain(child_groups.iter()) {
-        let Some(b) = group_bounds.get(grp.id.as_str()) else { continue; };
-        let stroke = grp.color.map(|c| c.hex()).unwrap_or("rgba(var(--text-rgb),0.2)");
+        let Some(b) = group_bounds.get(grp.id.as_str()) else {
+            continue;
+        };
+        let stroke = grp
+            .color
+            .map(|c| c.hex())
+            .unwrap_or("rgba(var(--text-rgb),0.2)");
         svg.push_str(&format!(
             r#"<rect x="{gx:.1}" y="{gy:.1}" width="{gw:.1}" height="{gh:.1}" rx="10" fill="rgba(var(--text-rgb),0.02)" stroke="{stroke}" stroke-width="1" stroke-dasharray="5 3"/>"#,
             gx = b.x, gy = b.y, gw = b.w, gh = b.h,
@@ -2198,14 +2282,18 @@ pub fn render_graph(
     // Side encoding: 0=Right, 1=Left, 2=Top, 3=Bottom
     let mut edge_src_side: Vec<u8> = Vec::with_capacity(edges.len());
     let mut edge_tgt_side: Vec<u8> = Vec::with_capacity(edges.len());
-    let mut src_groups: std::collections::HashMap<(&str, u8), Vec<(usize, f64)>> = std::collections::HashMap::new();
-    let mut tgt_groups: std::collections::HashMap<(&str, u8), Vec<(usize, f64)>> = std::collections::HashMap::new();
+    let mut src_groups: std::collections::HashMap<(&str, u8), Vec<(usize, f64)>> =
+        std::collections::HashMap::new();
+    let mut tgt_groups: std::collections::HashMap<(&str, u8), Vec<(usize, f64)>> =
+        std::collections::HashMap::new();
 
     for (ei, edge) in edges.iter().enumerate() {
         let fp = positions.get(edge.from.as_str());
         let tp = positions.get(edge.to.as_str());
         let (Some(fp), Some(tp)) = (fp, tp) else {
-            edge_src_side.push(0); edge_tgt_side.push(1); continue;
+            edge_src_side.push(0);
+            edge_tgt_side.push(1);
+            continue;
         };
 
         let bidir = is_bidir(&edge.from, &edge.to);
@@ -2214,14 +2302,20 @@ pub fn render_graph(
             if bidir && !forward {
                 (2u8, 2u8) // backward bidir: top→top, arcs over
             } else {
-                (if forward { 0u8 } else { 1u8 }, if forward { 1u8 } else { 0u8 })
+                (
+                    if forward { 0u8 } else { 1u8 },
+                    if forward { 1u8 } else { 0u8 },
+                )
             }
         } else {
             let downward = tp.cy >= fp.cy;
             if bidir && !downward {
                 (0u8, 0u8) // backward bidir in TB: right→right
             } else {
-                (if downward { 3u8 } else { 2u8 }, if downward { 2u8 } else { 3u8 })
+                (
+                    if downward { 3u8 } else { 2u8 },
+                    if downward { 2u8 } else { 3u8 },
+                )
             }
         };
         edge_src_side.push(ss);
@@ -2229,8 +2323,14 @@ pub fn render_graph(
 
         let src_sort = if ss == 0 || ss == 1 { tp.cy } else { tp.cx };
         let tgt_sort = if ts == 0 || ts == 1 { fp.cy } else { fp.cx };
-        src_groups.entry((edge.from.as_str(), ss)).or_default().push((ei, src_sort));
-        tgt_groups.entry((edge.to.as_str(), ts)).or_default().push((ei, tgt_sort));
+        src_groups
+            .entry((edge.from.as_str(), ss))
+            .or_default()
+            .push((ei, src_sort));
+        tgt_groups
+            .entry((edge.to.as_str(), ts))
+            .or_default()
+            .push((ei, tgt_sort));
     }
 
     for entries in src_groups.values_mut() {
@@ -2256,25 +2356,38 @@ pub fn render_graph(
     }
 
     let port_spread = 0.85_f64;
-    let port_pos = |cx: f64, cy: f64, w: f64, h: f64, side: u8, slot: usize, count: usize| -> (f64, f64) {
-        let off = if count > 1 {
-            ((slot as f64 + 0.5) / count as f64 - 0.5) * port_spread
-        } else { 0.0 };
-        match side {
-            0 => (cx + w / 2.0, cy + off * h),
-            1 => (cx - w / 2.0, cy + off * h),
-            2 => (cx + off * w, cy - h / 2.0),
-            3 => (cx + off * w, cy + h / 2.0),
-            _ => (cx, cy),
-        }
-    };
+    let port_pos =
+        |cx: f64, cy: f64, w: f64, h: f64, side: u8, slot: usize, count: usize| -> (f64, f64) {
+            let off = if count > 1 {
+                ((slot as f64 + 0.5) / count as f64 - 0.5) * port_spread
+            } else {
+                0.0
+            };
+            match side {
+                0 => (cx + w / 2.0, cy + off * h),
+                1 => (cx - w / 2.0, cy + off * h),
+                2 => (cx + off * w, cy - h / 2.0),
+                3 => (cx + off * w, cy + h / 2.0),
+                _ => (cx, cy),
+            }
+        };
 
     // ── Render edges ──
     for (ei, edge) in edges.iter().enumerate() {
-        let Some(fp) = positions.get(edge.from.as_str()) else { continue; };
-        let Some(tp) = positions.get(edge.to.as_str()) else { continue; };
-        let fd = dims.get(edge.from.as_str()).map(|d| (d.w, d.h)).unwrap_or((default_w, default_h));
-        let td = dims.get(edge.to.as_str()).map(|d| (d.w, d.h)).unwrap_or((default_w, default_h));
+        let Some(fp) = positions.get(edge.from.as_str()) else {
+            continue;
+        };
+        let Some(tp) = positions.get(edge.to.as_str()) else {
+            continue;
+        };
+        let fd = dims
+            .get(edge.from.as_str())
+            .map(|d| (d.w, d.h))
+            .unwrap_or((default_w, default_h));
+        let td = dims
+            .get(edge.to.as_str())
+            .map(|d| (d.w, d.h))
+            .unwrap_or((default_w, default_h));
 
         let bidir = is_bidir(&edge.from, &edge.to);
         let dx = tp.cx - fp.cx;
@@ -2291,13 +2404,22 @@ pub fn render_graph(
         let mut route_offset = 0.0_f64;
         if !bidir {
             for n in nodes {
-                if n.id == edge.from || n.id == edge.to { continue; }
-                let Some(np) = positions.get(n.id.as_str()) else { continue; };
-                let nd = dims.get(n.id.as_str()).map(|d| (d.w, d.h)).unwrap_or((default_w, default_h));
+                if n.id == edge.from || n.id == edge.to {
+                    continue;
+                }
+                let Some(np) = positions.get(n.id.as_str()) else {
+                    continue;
+                };
+                let nd = dims
+                    .get(n.id.as_str())
+                    .map(|d| (d.w, d.h))
+                    .unwrap_or((default_w, default_h));
                 let ax = np.cx - fp.cx;
                 let ay = np.cy - fp.cy;
                 let proj = (ax * dx + ay * dy) / (len * len);
-                if proj < 0.02 || proj > 0.98 { continue; }
+                if proj < 0.02 || proj > 0.98 {
+                    continue;
+                }
                 let closest_x = fp.cx + proj * dx;
                 let closest_y = fp.cy + proj * dy;
                 let dist = ((np.cx - closest_x).powi(2) + (np.cy - closest_y).powi(2)).sqrt();
@@ -2338,13 +2460,17 @@ pub fn render_graph(
                             let g_right = b.x + b.w;
                             if g_right > left_x && b.x < right_x && b.y < mid_y {
                                 let needed = 2.0 * (mid_y - b.y + 15.0) / perp_y_abs;
-                                if needed > offset { offset = needed; }
+                                if needed > offset {
+                                    offset = needed;
+                                }
                             }
                         }
                     }
                 }
                 offset
-            } else { route_offset };
+            } else {
+                route_offset
+            };
             let cpx = (sx1 + sx2) / 2.0 + norm_perp_x * curve_offset;
             let cpy = (sy1 + sy2) / 2.0 + norm_perp_y * curve_offset;
             svg.push_str(&format!(
@@ -2370,14 +2496,24 @@ pub fn render_graph(
         }
 
         if let Some(label) = &edge.label {
-            svg.push_str(&edge_label_svg(label_x, label_y - 8.0, label, Some(stroke_color.hex())));
+            svg.push_str(&edge_label_svg(
+                label_x,
+                label_y - 8.0,
+                label,
+                Some(stroke_color.hex()),
+            ));
         }
     }
 
     // ── Nodes with per-node sizes + port labels (Enhancement 3 + 5) ──
     for n in nodes {
-        let Some(pos) = positions.get(n.id.as_str()) else { continue; };
-        let d = dims.get(n.id.as_str()).map(|d| (d.w, d.h)).unwrap_or((default_w, default_h));
+        let Some(pos) = positions.get(n.id.as_str()) else {
+            continue;
+        };
+        let d = dims
+            .get(n.id.as_str())
+            .map(|d| (d.w, d.h))
+            .unwrap_or((default_w, default_h));
         let nw = d.0;
         let nh = d.1;
         let rx = pos.cx - nw / 2.0;
