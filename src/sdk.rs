@@ -1216,7 +1216,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
 
       for (let pi = 0; pi < (n.ports ?? []).length; pi++) {
         const port = n.ports![pi];
-        let px: number, py: number, anchor: string;
+        let px: number, py: number, anchor: "start" | "middle" | "end";
         if (port.side === "right") { px = pos.cx + nw / 2 - 4; py = pos.cy; anchor = "end"; }
         else if (port.side === "left") { px = pos.cx - nw / 2 + 4; py = pos.cy; anchor = "start"; }
         else if (port.side === "top") { px = pos.cx; py = pos.cy - nh / 2 + 10; anchor = "middle"; }
