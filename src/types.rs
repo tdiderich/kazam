@@ -1186,7 +1186,7 @@ pub struct PipelineCapability {
 
 // ── Graph supporting types ───────────────────────────
 
-#[derive(Deserialize, Default, Clone, Copy)]
+#[derive(Deserialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum GraphShape {
     #[default]

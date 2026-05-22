@@ -1957,10 +1957,12 @@ pub fn render_graph(
     struct NDims { w: f64, h: f64 }
     let dims: std::collections::HashMap<&str, NDims> = nodes
         .iter()
-        .map(|n| (n.id.as_str(), NDims {
-            w: n.width.map(|v| v as f64).unwrap_or(default_w),
-            h: n.height.map(|v| v as f64).unwrap_or(default_h),
-        }))
+        .map(|n| {
+            let w = n.width.map(|v| v as f64).unwrap_or(default_w);
+            let h = n.height.map(|v| v as f64).unwrap_or(default_h);
+            let scale = if n.shape == GraphShape::Diamond { 1.4 } else { 1.0 };
+            (n.id.as_str(), NDims { w: w * scale, h: h * scale })
+        })
         .collect();
 
     // Drop BOTH directions of bidirectional edges from column assignment

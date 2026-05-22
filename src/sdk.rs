@@ -856,7 +856,8 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
     // Per-node dimensions
     const dims: Record<string, { w: number; h: number }> = {};
     for (const n of nodes) {
-      dims[n.id] = { w: n.width ?? defaultW, h: n.height ?? defaultH };
+      const scale = n.shape === "diamond" ? 1.4 : 1;
+      dims[n.id] = { w: (n.width ?? defaultW) * scale, h: (n.height ?? defaultH) * scale };
     }
 
     // Filter out bidirectional edges for topo sort
@@ -1217,10 +1218,10 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       for (let pi = 0; pi < (n.ports ?? []).length; pi++) {
         const port = n.ports![pi];
         let px: number, py: number, anchor: "start" | "middle" | "end";
-        if (port.side === "right") { px = pos.cx + nw / 2 - 4; py = pos.cy; anchor = "end"; }
-        else if (port.side === "left") { px = pos.cx - nw / 2 + 4; py = pos.cy; anchor = "start"; }
-        else if (port.side === "top") { px = pos.cx; py = pos.cy - nh / 2 + 10; anchor = "middle"; }
-        else { px = pos.cx; py = pos.cy + nh / 2 - 4; anchor = "middle"; }
+        if (port.side === "right") { px = pos.cx + nw / 2 - 4; py = pos.cy; anchor = "end" as const; }
+        else if (port.side === "left") { px = pos.cx - nw / 2 + 4; py = pos.cy; anchor = "start" as const; }
+        else if (port.side === "top") { px = pos.cx; py = pos.cy - nh / 2 + 10; anchor = "middle" as const; }
+        else { px = pos.cx; py = pos.cy + nh / 2 - 4; anchor = "middle" as const; }
         nodeElems.push(
           <text key={`np-${n.id}-${pi}`} x={px} y={py} textAnchor={anchor} dominantBaseline="middle" className="c-arch-node-detail" fontSize={9} opacity={0.6}>{port.label}</text>
         );
