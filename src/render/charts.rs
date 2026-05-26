@@ -1739,191 +1739,6 @@ pub fn render_pipeline(
     wrap_chart("pipeline", title, &svg)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fmt_num_trims_integer_and_decimal() {
-        assert_eq!(fmt_num(42.0), "42");
-        assert_eq!(fmt_num(42.5), "42.5");
-        assert_eq!(fmt_num(0.0), "0");
-        assert_eq!(fmt_num(1.10), "1.1");
-    }
-
-    #[test]
-    fn nice_scale_produces_round_steps() {
-        let (_, max, step) = nice_scale(0.0, 125.0, 5);
-        assert!(max >= 125.0);
-        assert!(step > 0.0);
-        assert!((max / step).round() * step - max < 1e-6);
-    }
-
-    #[test]
-    fn polar_places_zero_angle_at_twelve_oclock() {
-        let (x, y) = polar(100.0, 100.0, 50.0, 0.0);
-        assert!((x - 100.0).abs() < 1e-6);
-        assert!((y - 50.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn collect_buckets_preserves_first_seen_order() {
-        let a_points = vec![
-            ChartPoint {
-                label: "Jan".into(),
-                value: 1.0,
-                color: None,
-            },
-            ChartPoint {
-                label: "Feb".into(),
-                value: 2.0,
-                color: None,
-            },
-        ];
-        let b_points = vec![
-            ChartPoint {
-                label: "Feb".into(),
-                value: 3.0,
-                color: None,
-            },
-            ChartPoint {
-                label: "Mar".into(),
-                value: 4.0,
-                color: None,
-            },
-        ];
-        let series = vec![
-            NormSeries {
-                label: "A",
-                color: None,
-                points: &a_points,
-            },
-            NormSeries {
-                label: "B",
-                color: None,
-                points: &b_points,
-            },
-        ];
-        let buckets = collect_buckets(&series);
-        assert_eq!(buckets, vec!["Jan", "Feb", "Mar"]);
-    }
-
-    #[test]
-    fn sankey_renders_svg_with_flows() {
-        let flows = vec![
-            crate::types::SankeyFlow {
-                source: "A".into(),
-                target: "B".into(),
-                value: 80.0,
-            },
-            crate::types::SankeyFlow {
-                source: "A".into(),
-                target: "C".into(),
-                value: 20.0,
-            },
-        ];
-        let colors = std::collections::HashMap::new();
-        let result = render_sankey(&Some("Test".into()), None, &flows, &colors);
-        assert!(result.html.contains("<svg"), "should contain SVG element");
-        assert!(result.html.contains("c-sankey"), "should have sankey class");
-        assert!(result.html.contains("Test"), "should contain title");
-    }
-
-    #[test]
-    fn sankey_empty_flows_renders_empty() {
-        let flows: Vec<crate::types::SankeyFlow> = vec![];
-        let colors = std::collections::HashMap::new();
-        let result = render_sankey(&None, None, &flows, &colors);
-        assert!(result.html.contains("No data"), "should show empty state");
-    }
-
-    #[test]
-    fn radar_renders_svg_with_curves() {
-        let curves = vec![
-            crate::types::RadarCurve {
-                label: "Before".into(),
-                values: vec![1.0, 4.0, 2.0],
-                color: None,
-            },
-            crate::types::RadarCurve {
-                label: "After".into(),
-                values: vec![9.0, 6.0, 8.0],
-                color: None,
-            },
-        ];
-        let axes = vec!["A".into(), "B".into(), "C".into()];
-        let result = render_radar(&Some("Test".into()), None, &axes, &curves, Some(10.0));
-        assert!(result.html.contains("<svg"), "should contain SVG");
-        assert!(result.html.contains("c-radar"), "should have radar class");
-        assert!(
-            result.html.contains("polygon"),
-            "should render data polygons"
-        );
-    }
-
-    #[test]
-    fn quadrant_renders_svg_with_points() {
-        let points = vec![
-            crate::types::QuadrantPoint {
-                label: "A".into(),
-                x: 0.9,
-                y: 0.9,
-                color: Some(crate::types::SemColor::Red),
-            },
-            crate::types::QuadrantPoint {
-                label: "B".into(),
-                x: 0.2,
-                y: 0.3,
-                color: None,
-            },
-        ];
-        let quads = vec!["Q1".into(), "Q2".into(), "Q3".into(), "Q4".into()];
-        let result = render_quadrant(&Some("Test".into()), None, "X", "Y", &quads, &points);
-        assert!(result.html.contains("<svg"), "should contain SVG");
-        assert!(
-            result.html.contains("c-quadrant"),
-            "should have quadrant class"
-        );
-        assert!(result.html.contains("Q1"), "should render quadrant labels");
-    }
-
-    #[test]
-    fn architecture_renders_svg_with_nodes() {
-        let nodes = vec![
-            crate::types::ArchNode {
-                id: "a".into(),
-                label: "Source".into(),
-                detail: None,
-                icon: None,
-                color: crate::types::SemColor::Teal,
-            },
-            crate::types::ArchNode {
-                id: "b".into(),
-                label: "Sink".into(),
-                detail: Some("Details".into()),
-                icon: None,
-                color: crate::types::SemColor::Green,
-            },
-        ];
-        let conns = vec![crate::types::ArchConnection {
-            from: "a".into(),
-            to: "b".into(),
-            label: Some("flow".into()),
-        }];
-        let result = render_architecture(
-            &Some("Test".into()),
-            None,
-            crate::types::ArchDirection::LeftToRight,
-            &nodes,
-            &conns,
-        );
-        assert!(result.html.contains("<svg"), "should contain SVG");
-        assert!(result.html.contains("c-arch"), "should have arch class");
-        assert!(result.html.contains("Source"), "should contain node label");
-        assert!(result.html.contains("flow"), "should contain edge label");
-    }
-}
-
 /// Emit a background-rect + text pair for an edge label.
 /// The rect gives the text a dark knockout so it stays readable over lines.
 /// `char_w` ~6.0 for the small font used in edge labels.
@@ -2087,8 +1902,7 @@ pub fn render_graph(
         // Cumulative x positions based on per-column max widths
         let mut col_cx: Vec<f64> = Vec::with_capacity(num_cols);
         let mut x_cursor = pad;
-        for ci in 0..num_cols {
-            let cw = col_max_w[ci];
+        for &cw in col_max_w.iter() {
             col_cx.push(x_cursor + cw / 2.0);
             x_cursor += cw + min_col_gap;
         }
@@ -2117,8 +1931,7 @@ pub fn render_graph(
     } else {
         let mut row_cy: Vec<f64> = Vec::with_capacity(num_cols);
         let mut y_cursor = pad;
-        for ci in 0..num_cols {
-            let ch = col_max_h[ci];
+        for &ch in col_max_h.iter() {
             row_cy.push(y_cursor + ch / 2.0);
             y_cursor += ch + min_col_gap;
         }
@@ -2417,7 +2230,7 @@ pub fn render_graph(
                 let ax = np.cx - fp.cx;
                 let ay = np.cy - fp.cy;
                 let proj = (ax * dx + ay * dy) / (len * len);
-                if proj < 0.02 || proj > 0.98 {
+                if !(0.02..=0.98).contains(&proj) {
                     continue;
                 }
                 let closest_x = fp.cx + proj * dx;
@@ -2575,4 +2388,189 @@ pub fn render_graph(
 
     svg.push_str("</svg>");
     wrap_chart("graph", title, &svg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fmt_num_trims_integer_and_decimal() {
+        assert_eq!(fmt_num(42.0), "42");
+        assert_eq!(fmt_num(42.5), "42.5");
+        assert_eq!(fmt_num(0.0), "0");
+        assert_eq!(fmt_num(1.10), "1.1");
+    }
+
+    #[test]
+    fn nice_scale_produces_round_steps() {
+        let (_, max, step) = nice_scale(0.0, 125.0, 5);
+        assert!(max >= 125.0);
+        assert!(step > 0.0);
+        assert!((max / step).round() * step - max < 1e-6);
+    }
+
+    #[test]
+    fn polar_places_zero_angle_at_twelve_oclock() {
+        let (x, y) = polar(100.0, 100.0, 50.0, 0.0);
+        assert!((x - 100.0).abs() < 1e-6);
+        assert!((y - 50.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn collect_buckets_preserves_first_seen_order() {
+        let a_points = vec![
+            ChartPoint {
+                label: "Jan".into(),
+                value: 1.0,
+                color: None,
+            },
+            ChartPoint {
+                label: "Feb".into(),
+                value: 2.0,
+                color: None,
+            },
+        ];
+        let b_points = vec![
+            ChartPoint {
+                label: "Feb".into(),
+                value: 3.0,
+                color: None,
+            },
+            ChartPoint {
+                label: "Mar".into(),
+                value: 4.0,
+                color: None,
+            },
+        ];
+        let series = vec![
+            NormSeries {
+                label: "A",
+                color: None,
+                points: &a_points,
+            },
+            NormSeries {
+                label: "B",
+                color: None,
+                points: &b_points,
+            },
+        ];
+        let buckets = collect_buckets(&series);
+        assert_eq!(buckets, vec!["Jan", "Feb", "Mar"]);
+    }
+
+    #[test]
+    fn sankey_renders_svg_with_flows() {
+        let flows = vec![
+            crate::types::SankeyFlow {
+                source: "A".into(),
+                target: "B".into(),
+                value: 80.0,
+            },
+            crate::types::SankeyFlow {
+                source: "A".into(),
+                target: "C".into(),
+                value: 20.0,
+            },
+        ];
+        let colors = std::collections::HashMap::new();
+        let result = render_sankey(&Some("Test".into()), None, &flows, &colors);
+        assert!(result.html.contains("<svg"), "should contain SVG element");
+        assert!(result.html.contains("c-sankey"), "should have sankey class");
+        assert!(result.html.contains("Test"), "should contain title");
+    }
+
+    #[test]
+    fn sankey_empty_flows_renders_empty() {
+        let flows: Vec<crate::types::SankeyFlow> = vec![];
+        let colors = std::collections::HashMap::new();
+        let result = render_sankey(&None, None, &flows, &colors);
+        assert!(result.html.contains("No data"), "should show empty state");
+    }
+
+    #[test]
+    fn radar_renders_svg_with_curves() {
+        let curves = vec![
+            crate::types::RadarCurve {
+                label: "Before".into(),
+                values: vec![1.0, 4.0, 2.0],
+                color: None,
+            },
+            crate::types::RadarCurve {
+                label: "After".into(),
+                values: vec![9.0, 6.0, 8.0],
+                color: None,
+            },
+        ];
+        let axes = vec!["A".into(), "B".into(), "C".into()];
+        let result = render_radar(&Some("Test".into()), None, &axes, &curves, Some(10.0));
+        assert!(result.html.contains("<svg"), "should contain SVG");
+        assert!(result.html.contains("c-radar"), "should have radar class");
+        assert!(
+            result.html.contains("polygon"),
+            "should render data polygons"
+        );
+    }
+
+    #[test]
+    fn quadrant_renders_svg_with_points() {
+        let points = vec![
+            crate::types::QuadrantPoint {
+                label: "A".into(),
+                x: 0.9,
+                y: 0.9,
+                color: Some(crate::types::SemColor::Red),
+            },
+            crate::types::QuadrantPoint {
+                label: "B".into(),
+                x: 0.2,
+                y: 0.3,
+                color: None,
+            },
+        ];
+        let quads = vec!["Q1".into(), "Q2".into(), "Q3".into(), "Q4".into()];
+        let result = render_quadrant(&Some("Test".into()), None, "X", "Y", &quads, &points);
+        assert!(result.html.contains("<svg"), "should contain SVG");
+        assert!(
+            result.html.contains("c-quadrant"),
+            "should have quadrant class"
+        );
+        assert!(result.html.contains("Q1"), "should render quadrant labels");
+    }
+
+    #[test]
+    fn architecture_renders_svg_with_nodes() {
+        let nodes = vec![
+            crate::types::ArchNode {
+                id: "a".into(),
+                label: "Source".into(),
+                detail: None,
+                icon: None,
+                color: crate::types::SemColor::Teal,
+            },
+            crate::types::ArchNode {
+                id: "b".into(),
+                label: "Sink".into(),
+                detail: Some("Details".into()),
+                icon: None,
+                color: crate::types::SemColor::Green,
+            },
+        ];
+        let conns = vec![crate::types::ArchConnection {
+            from: "a".into(),
+            to: "b".into(),
+            label: Some("flow".into()),
+        }];
+        let result = render_architecture(
+            &Some("Test".into()),
+            None,
+            crate::types::ArchDirection::LeftToRight,
+            &nodes,
+            &conns,
+        );
+        assert!(result.html.contains("<svg"), "should contain SVG");
+        assert!(result.html.contains("c-arch"), "should have arch class");
+        assert!(result.html.contains("Source"), "should contain node label");
+        assert!(result.html.contains("flow"), "should contain edge label");
+    }
 }

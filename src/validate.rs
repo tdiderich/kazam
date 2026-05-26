@@ -894,7 +894,7 @@ fn validate_component(
                         file,
                         format!("{}.edges[{}].from", path, i),
                         "cross_reference",
-                        &format!("edge references non-existent node '{}'", edge.from),
+                        format!("edge references non-existent node '{}'", edge.from),
                         None,
                     ));
                 }
@@ -903,7 +903,7 @@ fn validate_component(
                         file,
                         format!("{}.edges[{}].to", path, i),
                         "cross_reference",
-                        &format!("edge references non-existent node '{}'", edge.to),
+                        format!("edge references non-existent node '{}'", edge.to),
                         None,
                     ));
                 }
@@ -915,7 +915,7 @@ fn validate_component(
                             file,
                             format!("{}.groups[{}].parent", path, i),
                             "cross_reference",
-                            &format!("group parent '{}' not found", parent),
+                            format!("group parent '{}' not found", parent),
                             None,
                         ));
                     }
