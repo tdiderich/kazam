@@ -606,6 +606,8 @@ function renderBlock(text: string): React.ReactElement {
   let listItems: React.ReactNode[] = [];
   let listTag: "ul" | "ol" = "ul";
   let paraLines: string[] = [];
+  let codeLines: string[] | null = null;
+  let codeLang = "";
 
   const flushList = () => {
     if (listItems.length > 0) {
@@ -622,8 +624,40 @@ function renderBlock(text: string): React.ReactElement {
     }
   };
 
+  const flushCode = () => {
+    if (codeLines !== null) {
+      const code = codeLines.join("\n");
+      elements.push(
+        <pre key={key++} className="c-code" {...(codeLang ? { "data-lang": codeLang } : {})}>
+          <code>{code}</code>
+        </pre>
+      );
+      codeLines = null;
+      codeLang = "";
+    }
+  };
+
   for (const line of lines) {
     const trimmed = line.trimStart();
+
+    if (codeLines !== null) {
+      if (/^`{3,}\s*$/.test(trimmed)) {
+        flushCode();
+      } else {
+        codeLines.push(line);
+      }
+      continue;
+    }
+
+    const fenceMatch = trimmed.match(/^`{3,}(.*)$/);
+    if (fenceMatch) {
+      flushPara();
+      flushList();
+      codeLines = [];
+      codeLang = fenceMatch[1].trim();
+      continue;
+    }
+
     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
       flushPara();
       if (listTag !== "ul") flushList();
@@ -664,6 +698,7 @@ function renderBlock(text: string): React.ReactElement {
       paraLines.push(trimmed);
     }
   }
+  flushCode();
   flushPara();
   flushList();
   return <>{elements}</>;
