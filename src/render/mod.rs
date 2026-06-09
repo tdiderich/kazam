@@ -102,18 +102,17 @@ pub fn render_page(
 
     let mut rendered = Rendered::default();
 
-    // Inject the stale-review banner at the top of the page body when the
-    // freshness metadata is expired. Zero runtime JS — this is evaluated
-    // at build time against `KAZAM_TODAY` or the system clock.
-    if let Some(banner) = freshness_banner(page, base) {
-        rendered.html.push_str(&banner);
-    }
-
+    // One status banner per page, by priority: draft > stale/expired > archived.
+    // A page can be several of these at once; stacking banners buries the one
+    // that matters, so only the highest-priority state renders. Freshness is
+    // evaluated at build time against `KAZAM_TODAY` or the system clock.
     if page.draft {
         rendered.html.push_str(
             r#"<div class="c-callout c-callout-info c-freshness-banner"><div class="c-callout-title">Draft</div><div class="c-callout-body">This page is a draft and is not yet published. It is excluded from search and navigation.</div></div>"#,
         );
-    } else if page.archived && freshness_banner(page, base).is_none() {
+    } else if let Some(banner) = freshness_banner(page, base) {
+        rendered.html.push_str(&banner);
+    } else if page.archived {
         rendered.html.push_str(
             r#"<div class="c-callout c-callout-warn c-freshness-banner"><div class="c-callout-title">Archived</div><div class="c-callout-body">This page has been archived and is no longer maintained. It is excluded from search and navigation.</div></div>"#,
         );

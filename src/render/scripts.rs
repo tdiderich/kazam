@@ -105,17 +105,27 @@ const SEARCH: &str = r#"
   var overlay = document.getElementById('site-search');
   var input = document.getElementById('site-search-input');
   var results = document.getElementById('site-search-results');
+  var status = document.getElementById('site-search-status');
   if (!overlay || !input) return;
   var base = input.dataset.base || '';
   var index = null;
+  var loadFailed = false;
   var selected = -1;
+
+  function announce(msg) {
+    if (status) status.textContent = msg;
+  }
 
   function load() {
     if (index) return Promise.resolve(index);
+    results.innerHTML = '<div class="site-search-empty">Loading search index…</div>';
     return fetch(base + 'search.json', { cache: 'default' })
-      .then(function (r) { return r.json(); })
-      .then(function (data) { index = data.pages || []; return index; })
-      .catch(function () { index = []; return index; });
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) { index = data.pages || []; loadFailed = false; return index; })
+      .catch(function () { loadFailed = true; index = []; return index; });
   }
 
   function open() {
@@ -134,10 +144,20 @@ const SEARCH: &str = r#"
 
   function render(hits) {
     selected = -1;
-    if (hits.length === 0) {
-      results.innerHTML = '<div class="site-search-empty">No results</div>';
+    if (loadFailed) {
+      results.innerHTML = '<div class="site-search-empty">Search is unavailable — the index failed to load. Reload the page to retry.</div>';
+      announce('Search unavailable');
       return;
     }
+    if (hits.length === 0) {
+      var q = input.value.trim();
+      results.innerHTML = '<div class="site-search-empty">' +
+        (q ? 'No results for “' + esc(q) + '”. Try fewer or different words.' : 'No pages found.') +
+        '</div>';
+      announce('No results');
+      return;
+    }
+    announce(Math.min(hits.length, 20) + ' result' + (hits.length === 1 ? '' : 's'));
     var html = '';
     for (var i = 0; i < hits.length && i < 20; i++) {
       var h = hits[i];
@@ -276,6 +296,9 @@ document.querySelectorAll('[data-selectable-grid]').forEach(function (grid) {
     grid.querySelectorAll('.sel-card, .sel-dot').forEach(function (el) {
       var n = el.dataset.n;
       el.classList.remove('sel-active', 'sel-dimmed');
+      if (el.hasAttribute('aria-pressed')) {
+        el.setAttribute('aria-pressed', selected.has(n) ? 'true' : 'false');
+      }
       if (selected.size === 0) return;
       if (selected.has(n)) el.classList.add('sel-active');
       else if (dim) el.classList.add('sel-dimmed');
@@ -301,12 +324,18 @@ const TABLE: &str = r#"
 document.querySelectorAll('[data-kazam-table]').forEach(function (table) {
   var tbody = table.tBodies[0];
   var sortState = { col: null, dir: 1 };
+  var live = document.createElement('div');
+  live.className = 'sr-only';
+  live.setAttribute('aria-live', 'polite');
+  table.parentElement.appendChild(live);
   function parse(v) {
     var n = parseFloat(v.replace(/[^0-9.\-]/g, ''));
     return isNaN(n) ? v.toLowerCase() : n;
   }
   table.querySelectorAll('th[data-sortable]').forEach(function (th, i) {
-    th.addEventListener('click', function () {
+    th.tabIndex = 0;
+    th.setAttribute('aria-sort', 'none');
+    function sort() {
       if (sortState.col === i) sortState.dir = -sortState.dir;
       else { sortState.col = i; sortState.dir = 1; }
       var rows = Array.from(tbody.rows);
@@ -320,17 +349,29 @@ document.querySelectorAll('[data-kazam-table]').forEach(function (table) {
       rows.forEach(function (r) { tbody.appendChild(r); });
       table.querySelectorAll('th').forEach(function (h) {
         h.classList.remove('sort-asc', 'sort-desc');
+        if (h.hasAttribute('aria-sort')) h.setAttribute('aria-sort', 'none');
       });
-      th.classList.add(sortState.dir === 1 ? 'sort-asc' : 'sort-desc');
+      var asc = sortState.dir === 1;
+      th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+      th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+      live.textContent = 'Sorted by ' + th.textContent.trim() + ', ' + (asc ? 'ascending' : 'descending');
+    }
+    th.addEventListener('click', sort);
+    th.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sort(); }
     });
   });
   var filterInput = table.parentElement.querySelector('[data-table-filter]');
   if (filterInput) {
     filterInput.addEventListener('input', function () {
       var q = filterInput.value.toLowerCase();
+      var shown = 0;
       Array.from(tbody.rows).forEach(function (r) {
-        r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none';
+        var hit = r.textContent.toLowerCase().includes(q);
+        r.style.display = hit ? '' : 'none';
+        if (hit) shown++;
       });
+      live.textContent = shown + ' of ' + tbody.rows.length + ' rows shown';
     });
   }
 });
@@ -340,11 +381,25 @@ const TABS: &str = r#"
 document.querySelectorAll('[data-tabs]').forEach(function (root) {
   var buttons = root.querySelectorAll('.tab-btn');
   var panels = root.querySelectorAll('.tab-panel');
-  function show(i) {
-    buttons.forEach(function (b, j) { b.classList.toggle('tab-btn-active', i === j); });
+  function show(i, focus) {
+    buttons.forEach(function (b, j) {
+      b.classList.toggle('tab-btn-active', i === j);
+      b.setAttribute('aria-selected', i === j ? 'true' : 'false');
+      b.tabIndex = i === j ? 0 : -1;
+    });
     panels.forEach(function (p, j) { p.style.display = i === j ? '' : 'none'; });
+    if (focus && buttons[i]) buttons[i].focus();
   }
-  buttons.forEach(function (b, i) { b.addEventListener('click', function () { show(i); }); });
+  buttons.forEach(function (b, i) {
+    b.addEventListener('click', function () { show(i); });
+    b.addEventListener('keydown', function (e) {
+      var n = buttons.length;
+      if (e.key === 'ArrowRight') { e.preventDefault(); show((i + 1) % n, true); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); show((i - 1 + n) % n, true); }
+      else if (e.key === 'Home') { e.preventDefault(); show(0, true); }
+      else if (e.key === 'End') { e.preventDefault(); show(n - 1, true); }
+    });
+  });
   show(0);
 });
 "#;
@@ -354,10 +409,12 @@ document.querySelectorAll('[data-accordion-item]').forEach(function (item) {
   var btn = item.querySelector('.accordion-head');
   var body = item.querySelector('.accordion-body');
   body.style.display = 'none';
+  btn.setAttribute('aria-expanded', 'false');
   btn.addEventListener('click', function () {
     var open = body.style.display !== 'none';
     body.style.display = open ? 'none' : '';
     item.classList.toggle('accordion-open', !open);
+    btn.setAttribute('aria-expanded', open ? 'false' : 'true');
   });
 });
 "#;
@@ -444,10 +501,10 @@ const DECK: &str = r#"
     current = Math.max(0, Math.min(slides.length - 1, n));
     track.style.transform = 'translateX(-' + (current * 100) + '%)';
     label.textContent = labels[current];
-    if (current === 0) { prev.style.visibility = 'hidden'; }
-    else { prev.style.visibility = 'visible'; prev.textContent = '← ' + labels[current - 1]; }
-    if (current === slides.length - 1) { next.style.visibility = 'hidden'; }
-    else { next.style.visibility = 'visible'; next.textContent = labels[current + 1] + ' →'; }
+    prev.disabled = current === 0;
+    if (current > 0) prev.textContent = '← ' + labels[current - 1];
+    next.disabled = current === slides.length - 1;
+    if (current < slides.length - 1) next.textContent = labels[current + 1] + ' →';
     // Re-fit in case the just-revealed slide measured 0 while hidden.
     requestAnimationFrame(fit);
   }
@@ -501,6 +558,8 @@ const SOURCE_EDIT: &str = r#"
 
   var status = document.createElement('span');
   status.className = 'source-edit-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
 
   bar.appendChild(saveBtn);
   bar.appendChild(status);
@@ -508,8 +567,14 @@ const SOURCE_EDIT: &str = r#"
   wrap.appendChild(textarea);
   codeBlock.parentNode.replaceChild(wrap, codeBlock);
 
+  function setStatus(text, kind) {
+    status.textContent = text;
+    status.className = 'source-edit-status' +
+      (kind === 'error' ? ' source-edit-status-error' : kind === 'ok' ? ' source-edit-status-ok' : '');
+  }
+
   function save() {
-    status.textContent = 'Saving…';
+    setStatus('Saving…');
     saveBtn.disabled = true;
     fetch('/__kazam_write__', {
       method: 'POST',
@@ -517,12 +582,16 @@ const SOURCE_EDIT: &str = r#"
       body: JSON.stringify({ path: path, content: textarea.value })
     })
     .then(function (r) {
-      if (r.ok) { status.textContent = 'Saved'; }
-      else { r.text().then(function (t) { status.textContent = 'Error: ' + t; }); }
+      if (r.ok) { setStatus('Saved', 'ok'); }
+      else {
+        r.text().then(function (t) {
+          setStatus('Save failed: ' + t + ' — fix the YAML and press Save (or ⌘S) to retry.', 'error');
+        });
+      }
       saveBtn.disabled = false;
     })
     .catch(function (e) {
-      status.textContent = 'Error: ' + e.message;
+      setStatus('Save failed: ' + e.message + ' — is the dev server still running? Retry with Save (or ⌘S).', 'error');
       saveBtn.disabled = false;
     });
   }
@@ -558,10 +627,16 @@ const SOURCE_PILL: &str = r#"
   if (!pill) return;
   var btn = pill.querySelector('.source-pill-btn');
 
+  function items() {
+    return Array.from(pill.querySelectorAll('.source-pill-item'));
+  }
+
   function toggle(open) {
     if (open) {
       pill.setAttribute('data-open', '');
       btn.setAttribute('aria-expanded', 'true');
+      var first = items()[0];
+      if (first) first.focus();
     } else {
       pill.removeAttribute('data-open');
       btn.setAttribute('aria-expanded', 'false');
@@ -578,7 +653,25 @@ const SOURCE_PILL: &str = r#"
   });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') toggle(false);
+    if (e.key === 'Escape' && pill.hasAttribute('data-open')) {
+      toggle(false);
+      btn.focus();
+    }
+  });
+
+  pill.addEventListener('keydown', function (e) {
+    if (!pill.hasAttribute('data-open')) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+    var list = items();
+    if (list.length === 0) return;
+    e.preventDefault();
+    var i = list.indexOf(document.activeElement);
+    var n;
+    if (e.key === 'Home') n = 0;
+    else if (e.key === 'End') n = list.length - 1;
+    else if (e.key === 'ArrowDown') n = i < 0 ? 0 : (i + 1) % list.length;
+    else n = i < 0 ? list.length - 1 : (i - 1 + list.length) % list.length;
+    list[n].focus();
   });
 
   pill.querySelectorAll('[data-copy-prompt]').forEach(function (item) {

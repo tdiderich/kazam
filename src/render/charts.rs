@@ -52,17 +52,55 @@ pub fn render(spec: ChartSpec<'_>) -> Rendered {
         .unwrap_or_default();
 
     let legend = render_legend(spec.kind, &series_vec);
+    let table = data_table(&series_vec, &aria);
 
+    // role="img" lives on the SVG, not the figure: an img role on the figure
+    // would strip the legend and the screen-reader data table from the
+    // accessibility tree.
     let html = format!(
-        r#"<figure class="c-chart c-chart-{k}" role="img" aria-label="{aria}">{title}{svg}{legend}</figure>"#,
+        r#"<figure class="c-chart c-chart-{k}">{title}<div role="img" aria-label="{aria}">{svg}</div>{legend}{table}</figure>"#,
         k = kind_class(spec.kind),
         aria = esc(&aria),
         title = title_html,
         svg = svg,
         legend = legend,
+        table = table,
     );
 
     Rendered::new(html)
+}
+
+/// Visually-hidden data table so screen-reader users get the numbers behind
+/// the SVG. Single-series charts get label/value rows; multi-series charts
+/// get an extra leading series column.
+fn data_table(series: &[NormSeries], caption: &str) -> String {
+    if series.is_empty() || series.iter().all(|s| s.points.is_empty()) {
+        return String::new();
+    }
+    let multi = series.len() > 1;
+    let mut t = format!(
+        r#"<table class="sr-only"><caption>{}</caption><thead><tr>"#,
+        esc(caption)
+    );
+    if multi {
+        t.push_str(r#"<th scope="col">Series</th>"#);
+    }
+    t.push_str(r#"<th scope="col">Label</th><th scope="col">Value</th></tr></thead><tbody>"#);
+    for s in series {
+        for p in s.points {
+            t.push_str("<tr>");
+            if multi {
+                t.push_str(&format!("<td>{}</td>", esc(s.label)));
+            }
+            t.push_str(&format!(
+                "<td>{}</td><td>{}</td></tr>",
+                esc(&p.label),
+                p.value
+            ));
+        }
+    }
+    t.push_str("</tbody></table>");
+    t
 }
 
 fn kind_class(k: ChartKind) -> &'static str {

@@ -1427,7 +1427,7 @@ function ComponentView({
         <div
           id={id}
           className="c-stat-grid"
-          style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
+          style={{ "--stat-cols": columns } as React.CSSProperties}
         >
           {stats.map((s, i) => (
             <div key={i} className={`c-stat${s.color && s.color !== "default" ? ` c-stat-${s.color}` : ""}`}>
@@ -1603,7 +1603,7 @@ function ComponentView({
             </div>
           )}
           <div className="c-progress-track" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
-            <div className={`c-progress-fill c-progress-fill-${color}`} style={{ width: `${value}%` }} />
+            <div className={`c-progress-fill c-progress-fill-${color}`} style={{ "--progress": `${value}%` } as React.CSSProperties} />
           </div>
           {detail && <div className="c-progress-detail">{detail}</div>}
         </div>
@@ -1615,7 +1615,7 @@ function ComponentView({
       const title = (comp.title as string) || "Embedded video";
       const aspect = (comp.aspect as string) || "16/9";
       return (
-        <div id={id} className="c-embed" style={{ aspectRatio: aspect }}>
+        <div id={id} className="c-embed" style={{ "--embed-ratio": aspect } as React.CSSProperties}>
           <iframe src={src} title={title} frameBorder="0" allowFullScreen />
         </div>
       );
@@ -1643,7 +1643,7 @@ function ComponentView({
       return (
         <div id={id} className="c-split-compare">
           {[left, right].map((panel, pi) => (
-            <div key={pi} className={`c-sc-panel c-sc-${pi === 0 ? "left" : "right"}`} style={{ gridRow: `span ${rowSpan}` }}>
+            <div key={pi} className={`c-sc-panel c-sc-${pi === 0 ? "left" : "right"}`} style={{ "--sc-span": rowSpan } as React.CSSProperties}>
               <div className="c-sc-eyebrow">{panel.eyebrow || ""}</div>
               <div className="c-sc-title">{panel.title}</div>
               {(panel.stats || []).map((s, si) => (
@@ -1700,7 +1700,7 @@ function ComponentView({
       const cols = (comp.columns as ComponentData[][]) || [];
       const eqHeights = comp.equal_heights as boolean;
       return (
-        <div id={id} className={`c-columns${eqHeights ? " c-columns-stretch" : ""}`} style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr)` }}>
+        <div id={id} className={`c-columns${eqHeights ? " c-columns-stretch" : ""}`} style={{ "--cols": cols.length } as React.CSSProperties}>
           {cols.map((col, ci) => (
             <div key={ci} className="c-column">
               {col.map((c, i) => (
@@ -1847,7 +1847,7 @@ function ComponentView({
       const gridClass = connector === "arrow" ? "c-sel-cards c-sel-cards-arrow" : "c-sel-cards";
       return (
         <div id={id} className="c-selectable-grid">
-          <div className={gridClass}>
+          <div className={gridClass} style={{ "--sel-cols": cards.length } as React.CSSProperties}>
             {cards.map((card, i) => (
               <div key={i} className="sel-card">
                 {card.eyebrow && <div className="c-sel-eyebrow">{card.eyebrow}</div>}
@@ -2566,9 +2566,9 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
         </div>
       </div>
       <div className="deck-nav">
-        <button className="deck-arrow deck-prev" onClick={() => go(current - 1)} style={current === 0 ? { visibility: "hidden" } : undefined}>← {slides[current - 1]?.label}</button>
-        <span className="deck-nav-label">{slides[current]?.label}</span>
-        <button className="deck-arrow deck-next" onClick={() => go(current + 1)} style={current >= slides.length - 1 ? { visibility: "hidden" } : undefined}>{slides[current + 1]?.label} →</button>
+        <button className="deck-arrow deck-prev" onClick={() => go(current - 1)} disabled={current === 0} aria-label="Previous slide">← {slides[current - 1]?.label}</button>
+        <span className="deck-nav-label" aria-live="polite">{slides[current]?.label}</span>
+        <button className="deck-arrow deck-next" onClick={() => go(current + 1)} disabled={current >= slides.length - 1} aria-label="Next slide">{slides[current + 1]?.label} →</button>
       </div>
     </div>
   );

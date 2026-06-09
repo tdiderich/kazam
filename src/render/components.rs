@@ -288,9 +288,7 @@ fn card_grid(cards: &[Card], min_width: Option<u32>, connector: Connector, base:
     let mut h = if is_arrow {
         String::from(r#"<div class="c-card-grid c-card-grid-arrow">"#)
     } else {
-        format!(
-            r#"<div class="c-card-grid" style="grid-template-columns: repeat(auto-fill, minmax({mw}px, 1fr))">"#
-        )
+        format!(r#"<div class="c-card-grid" style="--card-min: {mw}px">"#)
     };
     for (i, card) in cards.iter().enumerate() {
         if is_arrow && i > 0 {
@@ -373,7 +371,7 @@ fn selectable_grid(
         h.push_str(r#"<div class="c-sel-cards c-sel-cards-arrow">"#);
     } else {
         h.push_str(&format!(
-            r#"<div class="c-sel-cards" style="grid-template-columns: repeat({}, 1fr)">"#,
+            r#"<div class="c-sel-cards" style="--sel-cols: {}">"#,
             cards.len().max(1)
         ));
     }
@@ -383,7 +381,7 @@ fn selectable_grid(
         }
         let n = i + 1;
         h.push_str(&format!(
-            r#"<button class="sel-card sel-card-{color}" data-n="{n}">"#,
+            r#"<button class="sel-card sel-card-{color}" data-n="{n}" aria-pressed="false">"#,
             color = sem_color_class(card.color),
         ));
         let eyebrow = card
@@ -443,9 +441,7 @@ fn timeline(items: &[TimelineItem]) -> Rendered {
 // ── Stat Grid ─────────────────────────────────────
 
 fn stat_grid(stats: &[Stat], columns: u32) -> Rendered {
-    let mut h = format!(
-        r#"<div class="c-stat-grid" style="grid-template-columns: repeat({columns}, 1fr)">"#
-    );
+    let mut h = format!(r#"<div class="c-stat-grid" style="--stat-cols: {columns}">"#);
     for s in stats {
         h.push_str(&format!(
             r#"<div class="c-stat" style="--stat-color: {color}"><div class="c-stat-label">{label}</div><div class="c-stat-value">{value}</div>"#,
@@ -504,7 +500,7 @@ fn split_compare(left: &ComparePanel, right: &ComparePanel) -> Rendered {
     let mut h = String::from(r#"<div class="c-split-compare">"#);
     for (panel, side) in [(left, "left"), (right, "right")] {
         h.push_str(&format!(
-            r#"<div class="c-sc-panel c-sc-{}" style="grid-row:span {}">"#,
+            r#"<div class="c-sc-panel c-sc-{}" style="--sc-span: {}">"#,
             side, row_span
         ));
         // Always render eyebrow for subgrid row alignment
@@ -750,18 +746,20 @@ fn code_block(language: &Option<String>, code: &str) -> Rendered {
 
 fn tabs_component(tabs: &[Tab], base: &str, config: &SiteConfig) -> Rendered {
     let mut body_html = String::from(r#"<div class="c-tabs" data-tabs>"#);
-    body_html.push_str(r#"<div class="c-tab-buttons">"#);
-    for tab in tabs {
+    body_html.push_str(r#"<div class="c-tab-buttons" role="tablist">"#);
+    for (i, tab) in tabs.iter().enumerate() {
         body_html.push_str(&format!(
-            r#"<button class="tab-btn">{}</button>"#,
-            esc(&tab.label)
+            r#"<button class="tab-btn" role="tab" aria-selected="{sel}" tabindex="{ti}">{label}</button>"#,
+            sel = i == 0,
+            ti = if i == 0 { "0" } else { "-1" },
+            label = esc(&tab.label)
         ));
     }
     body_html.push_str("</div>");
 
     let mut scripts: Vec<&'static str> = vec!["tabs"];
     for tab in tabs {
-        body_html.push_str(r#"<div class="tab-panel">"#);
+        body_html.push_str(r#"<div class="tab-panel" role="tabpanel">"#);
         for c in &tab.components {
             let r = render(c, base, config);
             body_html.push_str(&r.html);
@@ -832,7 +830,7 @@ fn columns_component(
         "c-columns"
     };
     r.html.push_str(&format!(
-        r#"<div class="{class}" style="grid-template-columns: repeat({}, 1fr)">"#,
+        r#"<div class="{class}" style="--cols: {}">"#,
         cols.len().max(1)
     ));
     for col in cols {
@@ -855,7 +853,7 @@ fn accordion(items: &[AccordionItem], base: &str, config: &SiteConfig) -> Render
         r.html
             .push_str(r#"<div class="c-accordion-item" data-accordion-item>"#);
         r.html.push_str(&format!(
-            r#"<button class="accordion-head">{}<span class="accordion-chevron">›</span></button>"#,
+            r#"<button class="accordion-head" aria-expanded="false">{}<span class="accordion-chevron" aria-hidden="true">›</span></button>"#,
             esc(&item.title)
         ));
         r.html.push_str(r#"<div class="accordion-body">"#);
@@ -1340,7 +1338,7 @@ fn image(
     let resolved_src = resolve_href(src, base);
     let alt_txt = alt.as_deref().unwrap_or("");
     let style = max_width
-        .map(|w| format!(r#" style="max-width: {w}px""#))
+        .map(|w| format!(r#" style="--img-max: {w}px""#))
         .unwrap_or_default();
     let mut h = format!(
         r#"<figure class="c-image {align}"{style}><img src="{src}" alt="{alt}">"#,
@@ -1362,7 +1360,7 @@ fn embed(src: &str, title: &Option<String>, aspect: &Option<String>) -> Rendered
     let ratio = aspect.as_deref().unwrap_or("16/9");
     let title_attr = title.as_deref().unwrap_or("Embedded video");
     let h = format!(
-        r#"<div class="c-embed" style="aspect-ratio: {ratio}"><iframe src="{src}" title="{title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>"#,
+        r#"<div class="c-embed" style="--embed-ratio: {ratio}"><iframe src="{src}" title="{title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>"#,
         ratio = esc(ratio),
         src = esc(src),
         title = esc(title_attr),
@@ -1669,7 +1667,7 @@ fn progress_bar(
         h.push_str("</div>");
     }
     h.push_str(&format!(
-        r#"<div class="c-progress-track" role="progressbar" aria-valuenow="{v}" aria-valuemin="0" aria-valuemax="100"><div class="c-progress-fill c-progress-fill-{color}" style="width: {v}%"></div></div>"#,
+        r#"<div class="c-progress-track" role="progressbar" aria-valuenow="{v}" aria-valuemin="0" aria-valuemax="100"><div class="c-progress-fill c-progress-fill-{color}" style="--progress: {v}%"></div></div>"#,
         v = clamped, color = color_class
     ));
     if let Some(d) = detail {
@@ -1738,7 +1736,14 @@ fn role_map(title: Option<&str>, config: &SiteConfig, base: &str) -> Rendered {
     html.push_str(r#"<div class="c-role-map-grid">"#);
 
     if config.roles.is_empty() {
-        html.push_str(r#"<p class="c-role-map-empty">No roles defined. Add a <code>roles:</code> section to kazam.yaml.</p>"#);
+        let empty = empty_state(
+            "No roles defined",
+            &Some("Add a roles: section to kazam.yaml to populate this map.".to_string()),
+            &None,
+            &Some("users".to_string()),
+            base,
+        );
+        html.push_str(&empty.html);
     } else {
         for role in &config.roles {
             let href = role

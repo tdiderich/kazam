@@ -344,12 +344,13 @@ fn search_overlay(base: &str) -> String {
     format!(
         r#"<div class="site-search-overlay" id="site-search" hidden>
 <div class="site-search-backdrop"></div>
-<div class="site-search-dialog" role="dialog" aria-label="Search">
+<div class="site-search-dialog" role="dialog" aria-modal="true" aria-label="Search">
 <div class="site-search-input-wrap">
 <svg class="site-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-<input type="search" class="site-search-input" id="site-search-input" placeholder="Search pages..." autocomplete="off" data-base="{base}">
+<input type="search" class="site-search-input" id="site-search-input" placeholder="Search pages..." aria-label="Search pages" autocomplete="off" data-base="{base}">
 <kbd class="site-search-kbd">esc</kbd>
 </div>
+<div class="sr-only" role="status" aria-live="polite" id="site-search-status"></div>
 <div class="site-search-results" id="site-search-results"></div>
 </div>
 </div>"#,
@@ -654,9 +655,9 @@ pub mod deck {
 {body}
 
 <div class="deck-nav">
-  <button class="deck-arrow deck-prev" id="deck-prev"></button>
-  <span class="deck-nav-label" id="deck-label"></span>
-  <button class="deck-arrow deck-next" id="deck-next"></button>
+  <button class="deck-arrow deck-prev" id="deck-prev" aria-label="Previous slide"></button>
+  <span class="deck-nav-label" id="deck-label" aria-live="polite"></span>
+  <button class="deck-arrow deck-next" id="deck-next" aria-label="Next slide"></button>
 </div>
 
 </div>

@@ -522,6 +522,16 @@ const STATIC_CSS: &str = r#"
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* Keyboard-only focus indicator; mouse focus stays unstyled. */
+:focus-visible { outline: 2px solid rgba(var(--accent-rgb), 0.8); outline-offset: 2px; }
+
+/* Visually hidden, available to assistive tech. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 body {
   background-color: var(--bg);
   color: var(--snow);
@@ -621,6 +631,7 @@ a.site-bar-brand:hover { opacity: 1; }
   display: flex; align-items: center; gap: 10px;
   padding: 14px 16px; border-bottom: 1px solid rgba(var(--text-rgb), 0.1);
 }
+.site-search-input-wrap:focus-within { border-bottom-color: rgba(var(--accent-rgb), 0.6); }
 .site-search-icon { flex-shrink: 0; color: rgba(var(--text-rgb), 0.4); }
 .site-search-input {
   flex: 1; background: none; border: none; outline: none;
@@ -981,6 +992,7 @@ body.shell-deck .deck-arrow {
 body.shell-deck .deck-prev { text-align: left; }
 body.shell-deck .deck-next { text-align: right; }
 body.shell-deck .deck-arrow:hover { color: var(--teal); }
+body.shell-deck .deck-arrow:disabled { visibility: hidden; }
 
 /* ──────────────────── Components ──────────────────── */
 
@@ -1091,7 +1103,7 @@ body.shell-deck .deck-arrow:hover { color: var(--teal); }
 .c-role-map-empty { color: var(--text-muted); font-style: italic; }
 
 /* Card Grid */
-.c-card-grid { display: grid; gap: 20px; }
+.c-card-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 320px), 1fr)); }
 .c-card-grid-arrow { display: flex; flex-direction: row; align-items: stretch; gap: 16px; grid-template-columns: unset !important; }
 .c-card-grid-arrow .c-card { flex: 1 1 0; min-width: 0; }
 .c-card-arrow {
@@ -1195,7 +1207,7 @@ a.c-card { color: inherit; }
   background: rgba(14, 42, 42, 1);
   color: var(--teal);
 }
-.c-sel-cards { display: grid; gap: 16px; }
+.c-sel-cards { display: grid; gap: 16px; grid-template-columns: repeat(var(--sel-cols, 1), 1fr); }
 .c-sel-cards-arrow { display: flex; flex-direction: row; align-items: stretch; gap: 16px; }
 .c-sel-cards-arrow .sel-card { flex: 1 1 0; min-width: 0; }
 .sel-card {
@@ -1265,7 +1277,7 @@ a.c-card { color: inherit; }
 .c-timeline-bar.active { background: var(--teal); }
 
 /* Stat Grid */
-.c-stat-grid { display: grid; gap: 14px; }
+.c-stat-grid { display: grid; gap: 14px; grid-template-columns: repeat(var(--stat-cols, 3), 1fr); }
 .c-stat {
   background: rgba(var(--text-rgb),0.05);
   border: 1px solid rgba(var(--text-rgb),0.1);
@@ -1315,7 +1327,7 @@ a.c-card { color: inherit; }
 
 /* Split Compare */
 .c-split-compare { display: grid; grid-template-columns: 1fr 1fr; column-gap: 2px; border-radius: 12px; overflow: hidden; }
-.c-sc-panel { padding: 32px; background: rgba(var(--text-rgb),0.04); display: grid; grid-template-rows: subgrid; align-content: start; }
+.c-sc-panel { padding: 32px; background: rgba(var(--text-rgb),0.04); display: grid; grid-template-rows: subgrid; align-content: start; grid-row: span var(--sc-span, 2); }
 .c-sc-left { border-right: 1px solid rgba(var(--text-rgb),0.08); }
 .c-sc-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(var(--text-rgb),0.4); margin-bottom: 8px; min-height: 1em; }
 .c-sc-right .c-sc-eyebrow { color: var(--teal); }
@@ -1441,7 +1453,7 @@ body.shell-document .doc-body strong { color: #fff; }
   font-family: inherit;
   max-width: 320px;
 }
-.c-table-filter:focus { outline: none; border-color: var(--card-hover-border); }
+.c-table-filter:focus { outline: none; border-color: rgba(var(--accent-rgb), 0.6); }
 .c-table {
   width: 100%;
   border-collapse: collapse;
@@ -1600,7 +1612,7 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-section-heading { font-size: 18px; font-weight: 600; }
 
 /* Columns */
-.c-columns { display: grid; gap: 24px; }
+.c-columns { display: grid; gap: 24px; grid-template-columns: repeat(var(--cols, 2), 1fr); }
 .c-column { display: flex; flex-direction: column; gap: 20px; }
 .c-column > *:last-child { margin-bottom: 0; }
 .c-columns-stretch .c-column > * { flex: 1; }
@@ -2006,6 +2018,7 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-image.align-center { margin-left: auto; margin-right: auto; align-self: center; }
 .c-image.align-right { margin-left: auto; margin-right: 0; align-self: flex-end; }
 .c-image img { width: 100%; height: auto; border-radius: 8px; display: block; }
+.c-image { max-width: var(--img-max, none); }
 .c-image figcaption {
   font-size: 13px;
   color: var(--muted);
@@ -2017,6 +2030,7 @@ body.shell-document .doc-body strong { color: #fff; }
   width: 100%;
   border-radius: 8px;
   overflow: hidden;
+  aspect-ratio: var(--embed-ratio, 16 / 9);
 }
 .c-embed iframe {
   position: absolute;
@@ -2255,6 +2269,7 @@ body.shell-document .doc-body strong { color: #fff; }
   height: 100%;
   border-radius: 100px;
   transition: width 0.3s ease;
+  width: var(--progress, 0%);
 }
 .c-progress-fill-default { background: var(--teal); }
 .c-progress-fill-green { background: var(--green); }
@@ -2540,6 +2555,8 @@ body.shell-document .doc-body strong { color: #fff; }
   font-size: 13px;
   color: var(--light-muted);
 }
+.source-edit-status-error { color: var(--red); }
+.source-edit-status-ok { color: var(--green); }
 
 /* ──────────────────── Print ──────────────────── */
 
@@ -2607,7 +2624,7 @@ body.shell-standard { page: standard-page; }
   .c-card-grid-arrow { flex-direction: row !important; }
   .c-card-grid .c-card { min-width: 0 !important; flex: 1 !important; }
   .c-card-arrow { transform: none !important; padding: 0 4px !important; }
-  .c-columns[style*="grid-template-columns"] { grid-template-columns: repeat(2, 1fr) !important; }
+  .c-columns { grid-template-columns: repeat(2, 1fr) !important; }
 
   /* ── Document shell ── (clean white-paper print) ── */
   body.shell-document { background: #fff !important; color: #000 !important; min-height: auto !important; }
@@ -2788,9 +2805,8 @@ body.shell-standard { page: standard-page; }
     border-bottom: none;
   }
 
-  /* Stack any inline-style multi-column grids: c-columns and c-stat-grid
-     both set grid-template-columns inline, so the override needs !important. */
-  .c-columns[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  /* Stack multi-column grids on tablet. */
+  .c-columns { grid-template-columns: 1fr !important; }
 
   /* Card-grid arrow stacking moved to dedicated breakpoint above. */
 
@@ -2813,8 +2829,8 @@ body.shell-standard { page: standard-page; }
 
 /* Phone (≤640px): collapse remaining grids, step down type, let tables scroll. */
 @media (max-width: 640px) {
-  /* Stat grid stacks to 1 column. The inline style needs !important. */
-  .c-stat-grid[style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  /* Stat grid stacks to 1 column. */
+  .c-stat-grid { grid-template-columns: 1fr !important; }
   .c-stat { padding: 16px 18px; }
   .c-stat-value { font-size: 24px; }
 
