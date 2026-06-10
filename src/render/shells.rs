@@ -516,6 +516,135 @@ pub mod standard {
 
 // ── Document shell ────────────────────────────────
 
+// ── Hub shell ────────────────────────────────────────
+//
+// Persistent customer masthead (identity + status + tab nav) over a wide
+// content area. Every page in the group carries the same `hub:` block, so
+// the masthead survives navigation and the active tab tracks the current
+// file. Falls back to a plain wide layout when no hub block is present.
+pub mod hub {
+    use super::*;
+    use crate::types::HubConfig;
+
+    fn masthead(hub: &HubConfig, base: &str, rel_path: &str) -> String {
+        let here = rel_path.rsplit('/').next().unwrap_or(rel_path);
+        let eyebrow = hub
+            .eyebrow
+            .as_deref()
+            .map(|e| format!(r#"<span class="hub-eyebrow">{}</span>"#, esc(e)))
+            .unwrap_or_default();
+        let status = hub
+            .status
+            .as_deref()
+            .map(|s| {
+                let color = hub
+                    .status_color
+                    .map(crate::render::components::sem_color_class)
+                    .unwrap_or("default");
+                format!(
+                    r#"<span class="hub-status hub-status-{color}">{label}</span>"#,
+                    color = color,
+                    label = esc(s)
+                )
+            })
+            .unwrap_or_default();
+
+        let mut nav = String::from(r#"<nav class="hub-nav" aria-label="Hub pages">"#);
+        for link in &hub.pages {
+            let resolved = resolve_href(&link.href, base);
+            let link_file = link
+                .href
+                .trim_end_matches('/')
+                .rsplit('/')
+                .next()
+                .unwrap_or(&link.href);
+            let active = link_file == here;
+            nav.push_str(&format!(
+                r#"<a class="hub-nav-link{active_cls}" href="{href}"{aria}>{label}</a>"#,
+                active_cls = if active { " hub-nav-link--active" } else { "" },
+                href = esc(&resolved),
+                aria = if active {
+                    r#" aria-current="page""#
+                } else {
+                    ""
+                },
+                label = esc(&link.label),
+            ));
+        }
+        nav.push_str("</nav>");
+
+        format!(
+            r#"<div class="hub-masthead">
+<div class="hub-masthead-inner">
+<div class="hub-id">{eyebrow}<span class="hub-name">{name}</span>{status}</div>
+{nav}
+</div>
+</div>"#,
+            eyebrow = eyebrow,
+            name = esc(&hub.name),
+            status = status,
+            nav = nav,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn wrap(
+        page: &Page,
+        config: &SiteConfig,
+        body: Rendered,
+        base: &str,
+        source_href: &str,
+        rel_path: &str,
+        release: bool,
+        yaml_path: &str,
+        page_title: &str,
+        edit_url: Option<&str>,
+    ) -> String {
+        let mut right = subtitle_span(page);
+        right.push_str(search_button());
+        let bar = site_bar(page, config, base, &right);
+        let search = search_overlay(base);
+        let masthead_html = page
+            .hub
+            .as_ref()
+            .map(|h| masthead(h, base, rel_path))
+            .unwrap_or_default();
+
+        let mut scripts = body.scripts.clone();
+        scripts.push("search");
+        if !release {
+            scripts.push("reload");
+        }
+        if !source_href.is_empty() {
+            scripts.push("source_pill");
+        }
+        let view_src = view_source_html(source_href, release, yaml_path, page_title, edit_url);
+
+        format!(
+            r#"<!DOCTYPE html>
+<html lang="en">
+{head}
+<body class="{cls}">
+{bar}{masthead}<main class="hub-content">
+{body}
+</main>
+{view_src}
+{search}
+{scripts}
+</body>
+</html>"#,
+            head = head(page, config, base, rel_path),
+            cls = Shell::Hub.class(),
+            bar = bar,
+            masthead = masthead_html,
+            body = body.html,
+            view_src = view_src,
+            search = search,
+            scripts = collect_scripts(&scripts),
+        )
+    }
+}
+
 pub mod document {
     use super::*;
 

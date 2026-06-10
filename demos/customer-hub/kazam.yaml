@@ -1,0 +1,9 @@
+name: Customer Hub Prototypes
+theme: dark
+nav:
+  - label: Compare
+    href: index.html
+  - label: "Option A"
+    href: a-acme.html
+  - label: "Option B"
+    href: b-acme.html

@@ -1,0 +1,36 @@
+title: "Acme Corp — Deployment Tracker (A)"
+shell: standard
+components:
+  - type: header
+    eyebrow: ACME CORP
+    title: Deployment Tracker
+
+  - type: button_group
+    buttons:
+      - { label: Overview, href: a-acme.html }
+      - { label: Priorities, href: a-priorities.html }
+      - { label: Account Plan, href: a-account-plan.html }
+      - { label: Deployment, href: a-deployment.html }
+      - { label: Notes, href: a-notes.html }
+  - type: timeline
+    items:
+      - { name: Planning, status: completed }
+      - { name: Initial config, status: completed }
+      - { name: Rollout, status: active }
+      - { name: Optimization, status: upcoming }
+
+  - type: tree
+    show_filter_toggle: true
+    nodes:
+      - label: "Phase 2: Rollout"
+        status: active
+        children:
+          - { label: EKS connector to prod, status: completed }
+          - { label: EC2 connector to prod, status: completed }
+          - { label: Auto-closing verification, status: active }
+          - { label: Alert routing to Slack, status: default }
+      - label: "Phase 3: Optimization"
+        status: upcoming
+        children:
+          - { label: Noise tuning round 2, status: default }
+          - { label: Splunk export, status: default }

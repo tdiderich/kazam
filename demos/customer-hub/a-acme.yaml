@@ -1,0 +1,47 @@
+title: "Acme Corp — Overview (A)"
+shell: standard
+components:
+  - type: header
+    eyebrow: CUSTOMER HUB
+    title: Acme Corp
+    subtitle: Mid-market · Security Engineering · CSM Tyler
+
+  - type: button_group
+    buttons:
+      - { label: Overview, href: a-acme.html }
+      - { label: Priorities, href: a-priorities.html }
+      - { label: Account Plan, href: a-account-plan.html }
+      - { label: Deployment, href: a-deployment.html }
+      - { label: Notes, href: a-notes.html }
+  - type: stat_grid
+    columns: 4
+    stats:
+      - { label: Deployment, value: Phase 2 of 4, color: teal }
+      - { label: Open priorities, value: "5", color: yellow }
+      - { label: Last QBR, value: May 28 }
+      - { label: Health, value: Green, color: green }
+
+  - type: card_grid
+    cards:
+      - title: Priorities
+        description: Current asks, open requests, and agenda topics.
+        href: a-priorities.html
+        badge: { label: 5 open, color: yellow }
+      - title: Account Plan
+        description: Success plan, milestones, stakeholders, next steps.
+        href: a-account-plan.html
+      - title: Deployment Tracker
+        description: Phase progress, environments, go-live timeline.
+        href: a-deployment.html
+        badge: { label: phase 2, color: teal }
+      - title: Meeting Notes
+        description: QBRs, syncs, and debriefs in one stream.
+        href: a-notes.html
+
+  - type: event_timeline
+    limit: 4
+    events:
+      - { date: 2026-06-08, title: EKS connector enabled in prod, severity: major }
+      - { date: 2026-06-05, title: Weekly sync — auto-closing verification pending, severity: minor }
+      - { date: 2026-05-28, title: QBR — expansion to platform team discussed, severity: major }
+      - { date: 2026-05-21, title: Phase 2 kickoff, severity: minor }

@@ -1,0 +1,39 @@
+title: "Acme Corp — Deployment Tracker (B)"
+shell: hub
+hub:
+  name: Acme Corp
+  eyebrow: CUSTOMER
+  status: Deploying
+  status_color: teal
+  pages:
+    - { label: Overview, href: b-acme.html }
+    - { label: Priorities, href: b-priorities.html }
+    - { label: Account Plan, href: b-account-plan.html }
+    - { label: Deployment, href: b-deployment.html }
+    - { label: Notes, href: b-notes.html }
+components:
+  - type: header
+    title: Deployment Tracker
+
+  - type: timeline
+    items:
+      - { name: Planning, status: completed }
+      - { name: Initial config, status: completed }
+      - { name: Rollout, status: active }
+      - { name: Optimization, status: upcoming }
+
+  - type: tree
+    show_filter_toggle: true
+    nodes:
+      - label: "Phase 2: Rollout"
+        status: active
+        children:
+          - { label: EKS connector to prod, status: completed }
+          - { label: EC2 connector to prod, status: completed }
+          - { label: Auto-closing verification, status: active }
+          - { label: Alert routing to Slack, status: default }
+      - label: "Phase 3: Optimization"
+        status: upcoming
+        children:
+          - { label: Noise tuning round 2, status: default }
+          - { label: Splunk export, status: default }

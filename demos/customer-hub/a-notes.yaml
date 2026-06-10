@@ -1,0 +1,29 @@
+title: "Acme Corp — Meeting Notes (A)"
+shell: standard
+components:
+  - type: header
+    eyebrow: ACME CORP
+    title: Meeting Notes
+
+  - type: button_group
+    buttons:
+      - { label: Overview, href: a-acme.html }
+      - { label: Priorities, href: a-priorities.html }
+      - { label: Account Plan, href: a-account-plan.html }
+      - { label: Deployment, href: a-deployment.html }
+      - { label: Notes, href: a-notes.html }
+  - type: event_timeline
+    show_filter_toggle: true
+    events:
+      - date: 2026-06-05
+        title: Weekly sync
+        summary: Auto-closing enabled; verification owed within a week. SCA timeline question raised again.
+        severity: minor
+      - date: 2026-05-28
+        title: QBR
+        summary: 86% noise reduction landed well. VP Security wants platform-team demo before renewal.
+        severity: major
+      - date: 2026-05-14
+        title: Deployment checkpoint
+        summary: EKS connector validated in staging; prod cutover scheduled.
+        severity: minor

@@ -9,6 +9,7 @@ pub enum Shell {
     Standard,
     Document,
     Deck,
+    Hub,
 }
 
 impl Shell {
@@ -17,8 +18,38 @@ impl Shell {
             Shell::Standard => "shell-standard",
             Shell::Document => "shell-document",
             Shell::Deck => "shell-deck",
+            Shell::Hub => "shell-hub",
         }
     }
+}
+
+// ── Hub shell config ─────────────────────────────────
+
+/// Groups sibling pages (a customer's account plan, priorities, deployment
+/// tracker, notes…) under a persistent masthead with tab navigation. Every
+/// page in the group declares the same `hub:` block; the active tab is
+/// detected from the page being rendered.
+#[derive(Deserialize, Clone)]
+pub struct HubConfig {
+    /// Hub identity shown in the masthead — usually the customer name.
+    pub name: String,
+    /// Small label above the name, e.g. "CUSTOMER" or the segment.
+    #[serde(default)]
+    pub eyebrow: Option<String>,
+    /// Status badge next to the name, e.g. "Deploying" or "Healthy".
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub status_color: Option<SemColor>,
+    /// Tabs, in order. Hrefs resolve like any page link.
+    #[serde(default)]
+    pub pages: Vec<HubLink>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct HubLink {
+    pub label: String,
+    pub href: String,
 }
 
 // ── Page ─────────────────────────────────────────────
@@ -51,6 +82,10 @@ pub struct Page {
     /// where the viewport is near-square and landscape PDFs letterbox badly.
     #[serde(default)]
     pub print_flow: Option<PrintFlow>,
+    /// Hub-shell grouping config. Required when `shell: hub`; ignored on
+    /// other shells.
+    #[serde(default)]
+    pub hub: Option<HubConfig>,
     /// Extra search keywords that don't appear in rendered content.
     /// Useful for aliases, acronyms, internal jargon.
     #[serde(default)]

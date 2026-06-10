@@ -60,6 +60,7 @@ pub fn render_source_view(
         texture: None,
         glow: None,
         print_flow: None,
+        hub: None,
         freshness: None,
         search_terms: Vec::new(),
         owner: None,
@@ -141,6 +142,18 @@ pub fn render_page(
 
     match page.shell {
         Shell::Standard => shells::standard::wrap(
+            page,
+            config,
+            rendered,
+            base,
+            source_href,
+            rel_path,
+            release,
+            yaml_path,
+            &page.title,
+            edit_url,
+        ),
+        Shell::Hub => shells::hub::wrap(
             page,
             config,
             rendered,
@@ -344,6 +357,7 @@ fn default_404_page() -> Page {
         texture: None,
         glow: None,
         print_flow: None,
+        hub: None,
         freshness: None,
         search_terms: Vec::new(),
         owner: None,

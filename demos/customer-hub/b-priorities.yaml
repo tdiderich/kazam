@@ -1,0 +1,33 @@
+title: "Acme Corp — Priorities (B)"
+shell: hub
+hub:
+  name: Acme Corp
+  eyebrow: CUSTOMER
+  status: Deploying
+  status_color: teal
+  pages:
+    - { label: Overview, href: b-acme.html }
+    - { label: Priorities, href: b-priorities.html }
+    - { label: Account Plan, href: b-account-plan.html }
+    - { label: Deployment, href: b-deployment.html }
+    - { label: Notes, href: b-notes.html }
+components:
+  - type: header
+    title: Priorities
+    subtitle: Current asks and open requests.
+
+  - type: callout
+    variant: info
+    body: Fully deployed on EKS + EC2 with 86% noise reduction. Auto-closing enabled June 5 — verification is this week's follow-up.
+
+  - type: table
+    columns:
+      - { key: ask, label: Ask }
+      - { key: status, label: Status }
+      - { key: owner, label: Owner }
+    rows:
+      - { ask: Auto-closing verification, status: In progress, owner: Tyler }
+      - { ask: SCA timeline update, status: Owed by team, owner: Maze }
+      - { ask: Splunk export, status: Scoping, owner: Maze }
+      - { ask: SSO group mapping, status: Blocked on Acme IT, owner: Acme }
+      - { ask: Quarterly exec readout, status: Scheduled Jun 24, owner: Tyler }

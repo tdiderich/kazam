@@ -1853,3 +1853,20 @@ tasks:
   updated: 2026-06-09T13:48:31.048540-05:00
   closed: 2026-06-09T13:48:31.048540-05:00
   close_reason: table kbd sort + aria-sort + live regions, tabs roving tabindex + arrows, accordion aria-expanded, inline styles -> CSS vars, chart sr-only data table + role=img moved to svg wrapper
+- id: kz-8572
+  title: 'Prototype: ''hub'' shell for customer landing — option A (existing components) vs option B (new shell)'
+  status: closed
+  priority: 2
+  task_type: task
+  assignee: claude
+  created: 2026-06-09T20:18:23.965706-05:00
+  updated: 2026-06-09T20:26:50.185327-05:00
+  closed: 2026-06-09T20:26:50.185327-05:00
+  close_reason: 'Both prototypes live on localhost:3003 — Option A (existing components: card_grid landing + button_group nav) and Option B (new shell:hub engine support — sticky masthead, status badge, tab nav w/ active detection). Engine: Shell::Hub + HubConfig + hub shell wrap + CSS + validator; 69 tests + clippy clean. Uncommitted pending Tyler review.'
+- id: kz-dbbd
+  title: 'Productionize hub shell: SDK emit (types+react), curata shell option, rollout'
+  status: open
+  priority: 2
+  task_type: task
+  created: 2026-06-10T08:43:50.281885-05:00
+  updated: 2026-06-10T08:43:50.281885-05:00

@@ -1,0 +1,46 @@
+title: "Acme Corp — Overview (B)"
+shell: hub
+hub:
+  name: Acme Corp
+  eyebrow: CUSTOMER
+  status: Deploying
+  status_color: teal
+  pages:
+    - { label: Overview, href: b-acme.html }
+    - { label: Priorities, href: b-priorities.html }
+    - { label: Account Plan, href: b-account-plan.html }
+    - { label: Deployment, href: b-deployment.html }
+    - { label: Notes, href: b-notes.html }
+components:
+  - type: stat_grid
+    columns: 4
+    stats:
+      - { label: Deployment, value: Phase 2 of 4, color: teal }
+      - { label: Open priorities, value: "5", color: yellow }
+      - { label: Last QBR, value: May 28 }
+      - { label: Health, value: Green, color: green }
+
+  - type: card_grid
+    cards:
+      - title: Priorities
+        description: Current asks, open requests, and agenda topics.
+        href: b-priorities.html
+        badge: { label: 5 open, color: yellow }
+      - title: Account Plan
+        description: Success plan, milestones, stakeholders, next steps.
+        href: b-account-plan.html
+      - title: Deployment Tracker
+        description: Phase progress, environments, go-live timeline.
+        href: b-deployment.html
+        badge: { label: phase 2, color: teal }
+      - title: Meeting Notes
+        description: QBRs, syncs, and debriefs in one stream.
+        href: b-notes.html
+
+  - type: event_timeline
+    limit: 4
+    events:
+      - { date: 2026-06-08, title: EKS connector enabled in prod, severity: major }
+      - { date: 2026-06-05, title: Weekly sync — auto-closing verification pending, severity: minor }
+      - { date: 2026-05-28, title: QBR — expansion to platform team discussed, severity: major }
+      - { date: 2026-05-21, title: Phase 2 kickoff, severity: minor }

@@ -1,0 +1,56 @@
+title: "Customer Hub — Two Prototypes"
+shell: document
+components:
+  - type: header
+    eyebrow: PROTOTYPE REVIEW
+    title: One landing page per customer
+    subtitle: Same four pages (Priorities, Account Plan, Deployment, Notes), two ways to tie them together.
+
+  - type: split_compare
+    left:
+      eyebrow: OPTION A
+      title: Existing components
+      stats:
+        - label: Engine changes
+          value: None
+          color: green
+        - label: Mechanism
+          value: card_grid landing + button_group nav on every page
+        - label: Nav persistence
+          value: Manual — each page repeats its own nav row
+          color: yellow
+        - label: Agent effort
+          value: Template convention only
+          color: green
+    right:
+      eyebrow: OPTION B
+      title: New hub shell
+      stats:
+        - label: Engine changes
+          value: "shell: hub + hub: config block"
+          color: teal
+        - label: Mechanism
+          value: Persistent masthead with name, status, and tab nav
+        - label: Nav persistence
+          value: Automatic — every page in the group gets the masthead
+          color: green
+        - label: Agent effort
+          value: Same hub block pasted on each page
+          color: yellow
+
+  - type: card_grid
+    cards:
+      - title: "Option A — Acme Corp"
+        description: Standard shell. Landing is a card grid; child pages carry a button-group nav row.
+        href: a-acme.html
+        badge: { label: no engine change, color: green }
+      - title: "Option B — Acme Corp"
+        description: New hub shell. Sticky customer masthead with status badge and tabs on every page.
+        href: b-acme.html
+        badge: { label: new shell, color: teal }
+
+  - type: callout
+    variant: info
+    title: What to feel for
+    body: |
+      Navigate Overview → Priorities → Deployment in each option. A relies on each page remembering to render its own nav; B carries the customer context everywhere automatically — and the tab bar stays put while you scroll.

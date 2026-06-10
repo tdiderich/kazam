@@ -207,6 +207,7 @@ fn generate_typescript() -> String {
     out.push_str("  texture?: Texture;\n");
     out.push_str("  glow?: Glow;\n");
     out.push_str("  print_flow?: PrintFlow;\n");
+    out.push_str("  hub?: HubConfig;\n");
     out.push_str("  search_terms?: string[];\n");
     out.push_str("  freshness?: \"never\" | Freshness;\n");
     out.push_str("  owner?: string;\n");
@@ -537,6 +538,14 @@ interface FreshnessData {
   expires?: string;
 }
 
+interface HubData {
+  name: string;
+  eyebrow?: string;
+  status?: string;
+  status_color?: string;
+  pages?: Array<{ label: string; href: string }>;
+}
+
 interface PageData {
   title: string;
   subtitle?: string;
@@ -544,6 +553,7 @@ interface PageData {
   components?: ComponentData[];
   slides?: SlideData[];
   freshness?: FreshnessData | "never";
+  hub?: HubData;
 }
 
 interface ComponentData {
@@ -556,6 +566,10 @@ interface PageRendererProps {
   renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
+  /** Map a hub link href to an environment URL (e.g. slug -> /pages/slug). Defaults to identity. */
+  resolveHubHref?: (href: string) => string;
+  /** The current page's href as written in the hub block — drives the active tab. */
+  activeHubHref?: string;
 }
 
 function esc(s: string): string {
@@ -2629,22 +2643,64 @@ function FreshnessBanner({ freshness }: { freshness?: FreshnessData | "never" })
   );
 }
 
-export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap }: PageRendererProps) {
-  if (page.shell === "deck" && page.slides && page.slides.length > 0) {
-    return <DeckRenderer slides={page.slides} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
-  }
-  const components = page.components ?? [];
+function HubMasthead({ hub, resolveHref, activeHref }: { hub: HubData; resolveHref?: (href: string) => string; activeHref?: string }) {
+  const links = hub.pages ?? [];
+  const colorClass = hub.status_color ? ` hub-status-${hub.status_color}` : " hub-status-default";
   return (
-    <div>
-      <FreshnessBanner freshness={page.freshness} />
-      {components.map((comp, i) => (
-        <ComponentView key={i} comp={comp} index={i} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
-      ))}
+    <div className="hub-masthead">
+      <div className="hub-masthead-inner">
+        <div className="hub-id">
+          {hub.eyebrow && <span className="hub-eyebrow">{hub.eyebrow}</span>}
+          <span className="hub-name">{hub.name}</span>
+          {hub.status && <span className={`hub-status${colorClass}`}>{hub.status}</span>}
+        </div>
+        {links.length > 0 && (
+          <nav className="hub-nav" aria-label="Hub pages">
+            {links.map((l) => {
+              const active = activeHref !== undefined && l.href === activeHref;
+              return (
+                <a
+                  key={l.href}
+                  className={`hub-nav-link${active ? " hub-nav-link--active" : ""}`}
+                  href={resolveHref ? resolveHref(l.href) : l.href}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {l.label}
+                </a>
+              );
+            })}
+          </nav>
+        )}
+      </div>
     </div>
   );
 }
 
-export { ComponentView, DeckRenderer, type SlideData, type PageData, type ComponentData, type PageRendererProps };
+export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap, resolveHubHref, activeHubHref }: PageRendererProps) {
+  if (page.shell === "deck" && page.slides && page.slides.length > 0) {
+    return <DeckRenderer slides={page.slides} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+  }
+  const components = page.components ?? [];
+  const body = (
+    <>
+      <FreshnessBanner freshness={page.freshness} />
+      {components.map((comp, i) => (
+        <ComponentView key={i} comp={comp} index={i} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+      ))}
+    </>
+  );
+  if (page.shell === "hub" && page.hub) {
+    return (
+      <div className="hub-root">
+        <HubMasthead hub={page.hub} resolveHref={resolveHubHref} activeHref={activeHubHref} />
+        <div className="hub-content">{body}</div>
+      </div>
+    );
+  }
+  return <div>{body}</div>;
+}
+
+export { ComponentView, DeckRenderer, HubMasthead, type SlideData, type PageData, type ComponentData, type PageRendererProps, type HubData };
 "####;
 
 fn generate_editor(out: &mut String) {

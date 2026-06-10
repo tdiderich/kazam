@@ -994,10 +994,101 @@ body.shell-deck .deck-next { text-align: right; }
 body.shell-deck .deck-arrow:hover { color: var(--teal); }
 body.shell-deck .deck-arrow:disabled { visibility: hidden; }
 
+/* ──────────────────── Hub shell ──────────────────── */
+
+body.shell-hub { min-height: 100vh; }
+
+.hub-masthead {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(var(--bg-rgb), 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(var(--text-rgb), 0.08);
+}
+
+.hub-masthead-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 18px 40px 0;
+}
+
+.hub-id {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.hub-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: rgba(var(--text-rgb), 0.4);
+}
+
+.hub-name {
+  font-size: 21px;
+  font-weight: 650;
+  color: var(--snow);
+}
+
+.hub-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 100px;
+  background: rgba(var(--text-rgb), 0.08);
+  color: var(--light-muted);
+  transform: translateY(-2px);
+}
+
+.hub-status-green { background: rgba(var(--accent-rgb), 0.15); color: var(--green); }
+.hub-status-teal { background: rgba(var(--accent-rgb), 0.15); color: var(--teal); }
+.hub-status-yellow { background: rgba(228, 230, 195, 0.12); color: var(--yellow); }
+.hub-status-red { background: rgba(201, 123, 138, 0.15); color: var(--red); }
+
+.hub-nav {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.hub-nav-link {
+  padding: 9px 14px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: rgba(var(--text-rgb), 0.55);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+
+.hub-nav-link:hover { color: var(--snow); }
+
+.hub-nav-link--active {
+  color: var(--snow);
+  border-bottom-color: var(--teal);
+}
+
+.hub-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 36px 40px 96px;
+}
+
+@media (max-width: 640px) {
+  .hub-masthead-inner { padding: 14px 16px 0; }
+  .hub-content { padding: 24px 16px 64px; }
+  .hub-name { font-size: 17px; }
+}
+
 /* ──────────────────── Components ──────────────────── */
 
 /* — stack spacing for components in main flow — */
-.main-content > *, .deck-inner > *, .doc-body > *, .c-section > *:not(.c-section-header), .tab-panel > * {
+.main-content > *, .deck-inner > *, .doc-body > *, .hub-content > *, .c-section > *:not(.c-section-header), .tab-panel > * {
   margin-bottom: 32px;
 }
 .main-content > *:last-child, .deck-inner > *:last-child, .doc-body > *:last-child { margin-bottom: 0; }

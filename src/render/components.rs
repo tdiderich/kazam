@@ -201,7 +201,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
     }
 }
 
-fn sem_color_class(c: SemColor) -> &'static str {
+pub(super) fn sem_color_class(c: SemColor) -> &'static str {
     c.class_suffix()
 }
 

@@ -338,6 +338,7 @@ mod tests {
             texture: None,
             glow: None,
             print_flow: None,
+            hub: None,
             freshness: None,
             search_terms: Vec::new(),
             owner: None,

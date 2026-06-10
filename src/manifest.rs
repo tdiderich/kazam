@@ -40,6 +40,7 @@ pub fn shell_name(shell: Shell) -> &'static str {
         Shell::Standard => "standard",
         Shell::Document => "document",
         Shell::Deck => "deck",
+        Shell::Hub => "hub",
     }
 }
 

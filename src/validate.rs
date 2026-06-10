@@ -287,6 +287,33 @@ fn validate_shell_structure(file: &str, page: &Page, errors: &mut Vec<Validation
                 ));
             }
         }
+        Shell::Hub => {
+            // Hub pages render components like standard pages and need a
+            // hub: block for the masthead.
+            if page
+                .components
+                .as_ref()
+                .map(|c| c.is_empty())
+                .unwrap_or(true)
+            {
+                errors.push(ValidationError::new(
+                    file,
+                    "components",
+                    "structural",
+                    "shell: hub pages must have at least one component under components:",
+                    Some("Add a components: list.".into()),
+                ));
+            }
+            if page.hub.is_none() {
+                errors.push(ValidationError::new(
+                    file,
+                    "hub",
+                    "structural",
+                    "shell: hub pages need a hub: block (name + pages) for the masthead",
+                    Some("Add hub: with name: and a pages: list of {label, href}.".into()),
+                ));
+            }
+        }
         Shell::Standard | Shell::Document => {
             // Non-deck pages must have components.
             if page
@@ -1073,6 +1100,7 @@ mod tests {
             texture: None,
             glow: None,
             print_flow: None,
+            hub: None,
             freshness: None,
             search_terms: Vec::new(),
             owner: None,
@@ -1126,6 +1154,7 @@ mod tests {
             texture: None,
             glow: None,
             print_flow: None,
+            hub: None,
             freshness: None,
             search_terms: Vec::new(),
             owner: None,

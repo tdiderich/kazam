@@ -1,0 +1,36 @@
+title: "Acme Corp — Account Plan (A)"
+shell: standard
+components:
+  - type: header
+    eyebrow: ACME CORP
+    title: Account Plan
+
+  - type: button_group
+    buttons:
+      - { label: Overview, href: a-acme.html }
+      - { label: Priorities, href: a-priorities.html }
+      - { label: Account Plan, href: a-account-plan.html }
+      - { label: Deployment, href: a-deployment.html }
+      - { label: Notes, href: a-notes.html }
+  - type: split_compare
+    left:
+      eyebrow: CURRENT
+      title: Where we are
+      stats:
+        - { label: Stage, value: Deploying, color: yellow }
+        - { label: Active users, value: "14" }
+        - { label: Connectors, value: EKS + EC2 }
+    right:
+      eyebrow: TARGET
+      title: Where we're going
+      stats:
+        - { label: Stage, value: Expanded, color: green }
+        - { label: Active users, value: "40+", color: green }
+        - { label: Connectors, value: + GCP, Splunk, color: teal }
+
+  - type: steps
+    numbered: true
+    items:
+      - { title: Verify auto-closing in prod, detail: Confirm closure rate holds after 1–2 weeks of production runs. }
+      - { title: Platform-team expansion, detail: Demo to platform eng leads — champion is VP Security. }
+      - { title: Renewal + expansion proposal, detail: Target August; anchor on noise-reduction metrics. }
