@@ -622,6 +622,43 @@ function renderBlock(text: string): React.ReactElement {
   let paraLines: string[] = [];
   let codeLines: string[] | null = null;
   let codeLang = "";
+  let tableLines: string[] = [];
+
+  const parseTableRow = (row: string): string[] =>
+    row.replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
+
+  const flushTable = () => {
+    if (tableLines.length < 2) {
+      tableLines.forEach(l => paraLines.push(l));
+      tableLines = [];
+      return;
+    }
+    const sepIdx = tableLines.findIndex(l => /^\|?[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)+\|?$/.test(l));
+    if (sepIdx < 1) {
+      tableLines.forEach(l => paraLines.push(l));
+      tableLines = [];
+      return;
+    }
+    const headers = parseTableRow(tableLines[sepIdx - 1]);
+    const bodyRows = tableLines.slice(sepIdx + 1).map(parseTableRow);
+    elements.push(
+      <div key={key++} className="c-table-wrap">
+        <table className="c-table">
+          <thead>
+            <tr>{headers.map((h, i) => <th key={i}>{renderInline(h)}</th>)}</tr>
+          </thead>
+          <tbody>
+            {bodyRows.map((cells, ri) => (
+              <tr key={ri}>
+                {headers.map((_, ci) => <td key={ci}>{renderInline(cells[ci] || "")}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+    tableLines = [];
+  };
 
   const flushList = () => {
     if (listItems.length > 0) {
@@ -672,6 +709,18 @@ function renderBlock(text: string): React.ReactElement {
       continue;
     }
 
+    const isTableLine = /^\|(.+\|)+\s*$/.test(trimmed) || /^\|?[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)+\|?\s*$/.test(trimmed);
+    if (isTableLine && (tableLines.length > 0 || /^\|(.+\|){2,}\s*$/.test(trimmed))) {
+      flushPara();
+      flushList();
+      tableLines.push(trimmed);
+      continue;
+    }
+
+    if (tableLines.length > 0) {
+      flushTable();
+    }
+
     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
       flushPara();
       if (listTag !== "ul") flushList();
@@ -713,6 +762,7 @@ function renderBlock(text: string): React.ReactElement {
     }
   }
   flushCode();
+  flushTable();
   flushPara();
   flushList();
   return <>{elements}</>;
