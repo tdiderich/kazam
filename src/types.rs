@@ -1244,14 +1244,30 @@ pub enum GraphEdgeStyle {
     Dashed,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct OrgPerson {
-    pub id: String,
+    #[serde(default)]
+    pub id: Option<String>,
     pub name: String,
     #[serde(default)]
     pub title: Option<String>,
     #[serde(default)]
+    pub color: SemColor,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub linkedin: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<OrgTag>,
+    #[serde(default)]
     pub reports: Vec<OrgPerson>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct OrgTag {
+    pub label: String,
+    #[serde(default)]
+    pub color: SemColor,
 }
 
 #[derive(Deserialize)]

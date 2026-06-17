@@ -1800,15 +1800,21 @@ fn count_all_people(people: &[OrgPerson]) -> usize {
 fn render_org_person(person: &OrgPerson, depth: usize, auto_depth: usize, html: &mut String) {
     let has_kids = !person.reports.is_empty();
     let open = depth < auto_depth;
-    let direct = person.reports.len();
     let total = count_all_reports(person);
+    let color_class = match person.color {
+        SemColor::Default => "",
+        SemColor::Green => " c-org-node--green",
+        SemColor::Yellow => " c-org-node--yellow",
+        SemColor::Red => " c-org-node--red",
+        SemColor::Teal => " c-org-node--teal",
+    };
 
     html.push_str("<div class=\"c-org-branch\">");
-    html.push_str("<div class=\"c-org-node");
+    html.push_str(&format!("<div class=\"c-org-node{}", color_class));
     if has_kids {
         html.push_str(" c-org-node--parent");
     }
-    if open {
+    if open && has_kids {
         html.push_str(" c-org-node--open");
     }
     html.push_str("\">");
@@ -1820,18 +1826,40 @@ fn render_org_person(person: &OrgPerson, depth: usize, auto_depth: usize, html: 
         html.push_str(&esc(title));
         html.push_str("</div>");
     }
-    if has_kids && !open {
-        html.push_str("<div class=\"c-org-node-count\">");
-        html.push_str(&format!("{} direct", direct));
-        if total > direct {
-            html.push_str(&format!(" · {} total", total));
+    if !person.tags.is_empty() {
+        html.push_str("<div class=\"c-org-node-tags\">");
+        for tag in &person.tags {
+            html.push_str(&format!(
+                "<span class=\"c-badge c-badge-{}\">{}</span>",
+                tag.color.class_suffix(),
+                esc(&tag.label)
+            ));
         }
         html.push_str("</div>");
     }
-    if has_kids {
-        html.push_str("<span class=\"c-org-chevron\">");
-        html.push_str(if open { "▾" } else { "▸" });
-        html.push_str("</span>");
+    if person.email.is_some() || person.linkedin.is_some() {
+        html.push_str("<div class=\"c-org-node-contact\">");
+        if let Some(ref email) = person.email {
+            html.push_str(&format!(
+                "<a href=\"mailto:{}\" title=\"{}\" class=\"c-org-contact-link\">✉</a>",
+                esc(email),
+                esc(email)
+            ));
+        }
+        if let Some(ref linkedin) = person.linkedin {
+            html.push_str(&format!(
+                "<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\" title=\"LinkedIn\" class=\"c-org-contact-link\">in</a>",
+                esc(linkedin)
+            ));
+        }
+        html.push_str("</div>");
+    }
+    if has_kids && !open {
+        let plural = if total != 1 { "s" } else { "" };
+        html.push_str(&format!(
+            "<div class=\"c-org-node-count\">{} report{}</div>",
+            total, plural
+        ));
     }
     html.push_str("</div>");
 
@@ -1871,8 +1899,15 @@ fn render_org_chart(
         html.push_str("</div>");
     }
     html.push_str("<div class=\"c-org-root\">");
+    let multi_root = people.len() > 1;
+    if multi_root {
+        html.push_str("<div class=\"c-org-children c-org-children--root\">");
+    }
     for p in people {
         render_org_person(p, 0, auto_depth, &mut html);
+    }
+    if multi_root {
+        html.push_str("</div>");
     }
     html.push_str("</div></div>");
     Rendered::new(html)

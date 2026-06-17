@@ -703,6 +703,20 @@
         "required": false
       }
     },
+    "OrgChartPerson": {
+      "id": { "type": "string", "required": false },
+      "name": { "type": "string", "required": true },
+      "title": { "type": "string", "required": false },
+      "color": { "type": "SemColor", "required": false },
+      "email": { "type": "string", "required": false },
+      "linkedin": { "type": "string", "required": false },
+      "tags": { "type": "OrgChartTag[]", "required": false },
+      "reports": { "type": "OrgChartPerson[]", "required": false }
+    },
+    "OrgChartTag": {
+      "label": { "type": "string", "required": true },
+      "color": { "type": "SemColor", "required": false }
+    },
     "Voice": {
       "tone": {
         "type": "string",
@@ -1306,6 +1320,20 @@
       },
       "default_collapsed": {
         "type": "boolean",
+        "required": false
+      }
+    },
+    "org_chart": {
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "people": {
+        "type": "OrgChartPerson[]",
+        "required": true
+      },
+      "default_open_depth": {
+        "type": "number",
         "required": false
       }
     },

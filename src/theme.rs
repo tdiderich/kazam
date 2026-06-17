@@ -1666,8 +1666,7 @@ body.shell-document .doc-body strong { color: #fff; }
   border-radius: 10px;
   padding: 10px 16px;
   text-align: center;
-  min-width: 120px;
-  max-width: 200px;
+  width: 180px;
   transition: border-color 0.15s, background 0.15s;
 }
 .c-org-node--parent { cursor: pointer; }
@@ -1735,6 +1734,46 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-org-children > .c-org-branch:first-child::after { left: 50%; }
 .c-org-children > .c-org-branch:last-child::after { right: 50%; }
 .c-org-children > .c-org-branch:only-child::after { display: none; }
+.c-org-node--green { border-left: 3px solid var(--green); }
+.c-org-node--red { border-left: 3px solid var(--red); }
+.c-org-node--yellow { border-left: 3px solid var(--yellow); }
+.c-org-node--teal { border-left: 3px solid var(--teal); }
+.c-org-node--default { border-left: 3px solid var(--card-border); }
+.c-org-node-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  justify-content: center;
+  min-height: 20px;
+}
+.c-org-node-tags .c-badge {
+  font-size: 9.5px;
+  padding: 2px 7px;
+}
+.c-org-node-contact {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 6px;
+  min-height: 18px;
+}
+.c-org-contact-link {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(var(--text-rgb), 0.06);
+  transition: color 0.15s, background 0.15s;
+  line-height: 1;
+}
+.c-org-contact-link:hover {
+  color: var(--teal);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+.c-org-children--root { padding-top: 0; align-items: flex-start; }
 
 /* Code */
 .c-code {
