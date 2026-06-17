@@ -1645,12 +1645,60 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-freshness-sources a:hover { text-decoration-color: var(--teal); }
 
 /* Org chart */
-.c-org-chart { padding: 8px 0; overflow-x: auto; }
+.c-org-chart { padding: 8px 0; }
 .c-org-chart-title {
   font-size: 15px;
   font-weight: 650;
   color: var(--snow);
   margin-bottom: 16px;
+}
+.c-org-zoom-wrap { position: relative; }
+.c-org-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 4px 0;
+  margin-bottom: 8px;
+}
+.c-org-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--light-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+  line-height: 1;
+  padding: 0;
+}
+.c-org-zoom-btn:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--snow);
+}
+.c-org-zoom-btn:disabled { opacity: 0.35; cursor: default; }
+.c-org-zoom-label {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 36px;
+  text-align: center;
+}
+.c-org-zoom-scroll {
+  overflow: auto;
+  max-height: 80vh;
+}
+.c-org-zoom-inner {
+  display: inline-block;
+  min-width: 100%;
+  transition: transform 0.15s ease;
 }
 .c-org-root { display: flex; flex-direction: column; align-items: center; }
 .c-org-branch {
@@ -1694,12 +1742,13 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-org-node--open::after {
   content: "";
   position: absolute;
-  bottom: -24px;
+  bottom: -25px;
   left: 50%;
-  width: 1px;
-  height: 24px;
-  background: rgba(var(--text-rgb), 0.15);
+  width: 2px;
+  height: 26px;
+  background: rgba(var(--text-rgb), 0.22);
   z-index: 1;
+  transform: translateX(-0.5px);
 }
 .c-org-children {
   display: flex;
@@ -1716,18 +1765,19 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-org-children > .c-org-branch::before {
   content: "";
   position: absolute;
-  top: 0;
+  top: -1px;
   left: 50%;
-  width: 1px;
-  height: 24px;
-  background: rgba(var(--text-rgb), 0.15);
+  width: 2px;
+  height: 26px;
+  background: rgba(var(--text-rgb), 0.22);
+  transform: translateX(-0.5px);
 }
 .c-org-children > .c-org-branch::after {
   content: "";
   position: absolute;
   top: 0;
-  height: 1px;
-  background: rgba(var(--text-rgb), 0.15);
+  height: 2px;
+  background: rgba(var(--text-rgb), 0.22);
   left: -8px;
   right: -8px;
 }

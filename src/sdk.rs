@@ -1389,6 +1389,27 @@ function OrgNode({ person, depth, autoDepth }: { person: any; depth: number; aut
   );
 }
 
+function OrgChartZoom({ children }: { children: React.ReactNode }) {
+  const STEPS = [0.5, 0.65, 0.8, 1, 1.2];
+  const [zi, setZi] = React.useState(3);
+  const scale = STEPS[zi];
+  return (
+    <div className="c-org-zoom-wrap">
+      <div className="c-org-zoom-controls">
+        <button type="button" className="c-org-zoom-btn" disabled={zi === 0} onClick={() => setZi(zi - 1)} title="Zoom out">−</button>
+        <span className="c-org-zoom-label">{Math.round(scale * 100)}%</span>
+        <button type="button" className="c-org-zoom-btn" disabled={zi === STEPS.length - 1} onClick={() => setZi(zi + 1)} title="Zoom in">+</button>
+        {zi !== 3 && <button type="button" className="c-org-zoom-btn" onClick={() => setZi(3)} title="Reset zoom">↺</button>}
+      </div>
+      <div className="c-org-zoom-scroll">
+        <div className="c-org-zoom-inner" style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AccordionView({
   id,
   items,
@@ -2630,15 +2651,17 @@ function ComponentView({
       return (
         <div id={id} className="c-org-chart">
           {chartTitle && <div className="c-org-chart-title">{chartTitle}</div>}
-          <div className="c-org-root">
-            {multiRoot ? (
-              <div className="c-org-children c-org-children--root">
-                {people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} autoDepth={autoDepth} />)}
-              </div>
-            ) : (
-              people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} autoDepth={autoDepth} />)
-            )}
-          </div>
+          <OrgChartZoom>
+            <div className="c-org-root">
+              {multiRoot ? (
+                <div className="c-org-children c-org-children--root">
+                  {people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} autoDepth={autoDepth} />)}
+                </div>
+              ) : (
+                people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} autoDepth={autoDepth} />)
+              )}
+            </div>
+          </OrgChartZoom>
         </div>
       );
     }
