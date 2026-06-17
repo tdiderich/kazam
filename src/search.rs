@@ -228,7 +228,8 @@ fn extract_searchable_text(
             | Component::Quadrant { .. }
             | Component::Architecture { .. }
             | Component::Pipeline { .. }
-            | Component::Graph { .. } => {}
+            | Component::Graph { .. }
+            | Component::OrgChart { .. } => {}
         }
     }
 }

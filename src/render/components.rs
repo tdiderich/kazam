@@ -198,6 +198,11 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             edges,
             groups,
         } => charts::render_graph(title, *height, *direction, nodes, edges, groups),
+        Component::OrgChart {
+            title,
+            people,
+            default_open_depth,
+        } => render_org_chart(title, people, *default_open_depth),
     }
 }
 
@@ -1775,6 +1780,100 @@ fn role_map(title: Option<&str>, config: &SiteConfig, base: &str) -> Rendered {
         }
     }
 
+    html.push_str("</div></div>");
+    Rendered::new(html)
+}
+
+fn count_all_reports(person: &OrgPerson) -> usize {
+    person
+        .reports
+        .iter()
+        .fold(0, |acc, r| acc + 1 + count_all_reports(r))
+}
+
+fn count_all_people(people: &[OrgPerson]) -> usize {
+    people
+        .iter()
+        .fold(0, |acc, p| acc + 1 + count_all_reports(p))
+}
+
+fn render_org_person(person: &OrgPerson, depth: usize, auto_depth: usize, html: &mut String) {
+    let has_kids = !person.reports.is_empty();
+    let open = depth < auto_depth;
+    let direct = person.reports.len();
+    let total = count_all_reports(person);
+
+    html.push_str("<div class=\"c-org-branch\">");
+    html.push_str("<div class=\"c-org-node");
+    if has_kids {
+        html.push_str(" c-org-node--parent");
+    }
+    if open {
+        html.push_str(" c-org-node--open");
+    }
+    html.push_str("\">");
+    html.push_str("<div class=\"c-org-node-name\">");
+    html.push_str(&esc(&person.name));
+    html.push_str("</div>");
+    if let Some(ref title) = person.title {
+        html.push_str("<div class=\"c-org-node-title\">");
+        html.push_str(&esc(title));
+        html.push_str("</div>");
+    }
+    if has_kids && !open {
+        html.push_str("<div class=\"c-org-node-count\">");
+        html.push_str(&format!("{} direct", direct));
+        if total > direct {
+            html.push_str(&format!(" · {} total", total));
+        }
+        html.push_str("</div>");
+    }
+    if has_kids {
+        html.push_str("<span class=\"c-org-chevron\">");
+        html.push_str(if open { "▾" } else { "▸" });
+        html.push_str("</span>");
+    }
+    html.push_str("</div>");
+
+    if has_kids && open {
+        html.push_str("<div class=\"c-org-children\">");
+        for r in &person.reports {
+            render_org_person(r, depth + 1, auto_depth, html);
+        }
+        html.push_str("</div>");
+    }
+    html.push_str("</div>");
+}
+
+fn render_org_chart(
+    title: &Option<String>,
+    people: &[OrgPerson],
+    default_open_depth: Option<u32>,
+) -> Rendered {
+    let total = count_all_people(people);
+    let auto_depth = match default_open_depth {
+        Some(d) => d as usize,
+        None => {
+            if total <= 15 {
+                99
+            } else if total <= 40 {
+                2
+            } else {
+                1
+            }
+        }
+    };
+
+    let mut html = String::from("<div class=\"c-org-chart\">");
+    if let Some(ref t) = title {
+        html.push_str("<div class=\"c-org-chart-title\">");
+        html.push_str(&esc(t));
+        html.push_str("</div>");
+    }
+    html.push_str("<div class=\"c-org-root\">");
+    for p in people {
+        render_org_person(p, 0, auto_depth, &mut html);
+    }
     html.push_str("</div></div>");
     Rendered::new(html)
 }

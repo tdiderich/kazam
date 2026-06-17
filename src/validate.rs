@@ -949,6 +949,17 @@ fn validate_component(
                 }
             }
         }
+        Component::OrgChart { people, .. } => {
+            if people.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.people", path),
+                    "missing_field",
+                    "org_chart requires at least one person",
+                    Some("Add people with id:, name:, and optional reports:.".into()),
+                ));
+            }
+        }
     }
 }
 

@@ -620,6 +620,12 @@ pub enum Component {
         #[serde(default)]
         groups: Vec<GraphGroup>,
     },
+    OrgChart {
+        title: Option<String>,
+        people: Vec<OrgPerson>,
+        #[serde(default)]
+        default_open_depth: Option<u32>,
+    },
 }
 
 // ── Supporting types ─────────────────────────────────
@@ -1236,6 +1242,16 @@ pub enum GraphEdgeStyle {
     #[default]
     Solid,
     Dashed,
+}
+
+#[derive(Deserialize)]
+pub struct OrgPerson {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub reports: Vec<OrgPerson>,
 }
 
 #[derive(Deserialize)]
