@@ -1745,7 +1745,6 @@ body.shell-document .doc-body strong { color: #fff; }
   gap: 4px;
   margin-top: 6px;
   justify-content: center;
-  min-height: 20px;
 }
 .c-org-node-tags .c-badge {
   font-size: 9.5px;
@@ -1756,7 +1755,6 @@ body.shell-document .doc-body strong { color: #fff; }
   gap: 6px;
   justify-content: center;
   margin-top: 6px;
-  min-height: 18px;
 }
 .c-org-contact-link {
   font-size: 11px;

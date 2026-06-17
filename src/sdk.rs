@@ -1367,13 +1367,17 @@ function OrgNode({ person, depth, autoDepth }: { person: any; depth: number; aut
       <div className={`c-org-node${colorClass}${hasReports ? " c-org-node--parent" : ""}${open && hasReports ? " c-org-node--open" : ""}`} onClick={() => hasReports && setOpen(!open)} style={{ cursor: hasReports ? "pointer" : "default" }}>
         <div className="c-org-node-name">{person.name}</div>
         {person.title && <div className="c-org-node-title">{person.title}</div>}
-        <div className="c-org-node-tags">
-          {tags.map((t, ti) => <span key={ti} className={`c-badge c-badge-${t.color || "default"}`}>{t.label}</span>)}
-        </div>
-        <div className="c-org-node-contact" onClick={(e) => e.stopPropagation()}>
-          {email && <a href={`mailto:${email}`} title={email} className="c-org-contact-link">✉</a>}
-          {linkedin && <a href={linkedin} target="_blank" rel="noopener noreferrer" title="LinkedIn" className="c-org-contact-link">in</a>}
-        </div>
+        {tags.length > 0 && (
+          <div className="c-org-node-tags">
+            {tags.map((t, ti) => <span key={ti} className={`c-badge c-badge-${t.color || "default"}`}>{t.label}</span>)}
+          </div>
+        )}
+        {(email || linkedin) && (
+          <div className="c-org-node-contact" onClick={(e) => e.stopPropagation()}>
+            {email && <a href={`mailto:${email}`} title={email} className="c-org-contact-link">✉</a>}
+            {linkedin && <a href={linkedin} target="_blank" rel="noopener noreferrer" title="LinkedIn" className="c-org-contact-link">in</a>}
+          </div>
+        )}
         {!open && hasReports && <div className="c-org-node-count">{total} report{total !== 1 ? "s" : ""}</div>}
       </div>
       {open && hasReports && (
