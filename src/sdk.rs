@@ -2582,6 +2582,43 @@ function ComponentView({
       return <GraphSVG id={id} comp={comp} />;
     }
 
+    case "org_chart": {
+      const chartTitle = comp.title as string | undefined;
+      const people = (comp.people || []) as any[];
+      const defaultDepth = (comp.default_open_depth as number) ?? 1;
+      const totalPeople = (() => { const count = (arr: any[]): number => arr.reduce((s: number, p: any) => s + 1 + count(p.reports || []), 0); return count(people); })();
+      const autoDepth = defaultDepth !== undefined ? defaultDepth : totalPeople <= 15 ? 99 : totalPeople <= 40 ? 2 : 1;
+      function OrgNode({ person, depth }: { person: any; depth: number }) {
+        const reports = (person.reports || []) as any[];
+        const hasReports = reports.length > 0;
+        const [open, setOpen] = React.useState(depth < autoDepth);
+        const countAll = (p: any): number => { const r = (p.reports || []) as any[]; return r.reduce((s: number, c: any) => s + 1 + countAll(c), 0); };
+        const total = countAll(person);
+        return (
+          <div className="c-org-branch">
+            <div className={`c-org-node${hasReports ? " c-org-node--parent" : ""}${open && hasReports ? " c-org-node--open" : ""}`} onClick={() => hasReports && setOpen(!open)} style={{ cursor: hasReports ? "pointer" : "default" }}>
+              <div className="c-org-node-name">{person.name}</div>
+              {person.title && <div className="c-org-node-title">{person.title}</div>}
+              {!open && hasReports && <div className="c-org-node-count">{total} report{total !== 1 ? "s" : ""}</div>}
+            </div>
+            {open && hasReports && (
+              <div className="c-org-children">
+                {reports.map((r: any, i: number) => <OrgNode key={r.id || i} person={r} depth={depth + 1} />)}
+              </div>
+            )}
+          </div>
+        );
+      }
+      return (
+        <div id={id} className="c-org-chart">
+          {chartTitle && <div className="c-org-chart-title">{chartTitle}</div>}
+          <div className="c-org-root">
+            {people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} />)}
+          </div>
+        </div>
+      );
+    }
+
     default:
       return (
         <div id={id} className="c-unsupported" data-type={comp.type}>
@@ -2971,6 +3008,7 @@ fn generate_editor(out: &mut String) {
         ("quadrant", "\u{229e}"),
         ("architecture", "\u{2b1a}"),
         ("pipeline", "\u{27a1}"),
+        ("org_chart", "\u{1f465}"),
     ];
 
     let get_icon = |comp_type: &str| -> String {

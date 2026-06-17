@@ -1644,6 +1644,98 @@ body.shell-document .doc-body strong { color: #fff; }
 }
 .c-freshness-sources a:hover { text-decoration-color: var(--teal); }
 
+/* Org chart */
+.c-org-chart { padding: 8px 0; overflow-x: auto; }
+.c-org-chart-title {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--snow);
+  margin-bottom: 16px;
+}
+.c-org-root { display: flex; flex-direction: column; align-items: center; }
+.c-org-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.c-org-node {
+  position: relative;
+  z-index: 2;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 10px 16px;
+  text-align: center;
+  min-width: 120px;
+  max-width: 200px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.c-org-node--parent { cursor: pointer; }
+.c-org-node--parent:hover {
+  border-color: var(--card-hover-border);
+  background: var(--overlay-hover);
+}
+.c-org-node-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--snow);
+  line-height: 1.3;
+}
+.c-org-node-title {
+  font-size: 11.5px;
+  color: var(--light-muted);
+  margin-top: 2px;
+}
+.c-org-node-count {
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-weight: 500;
+}
+.c-org-node--open::after {
+  content: "";
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  width: 1px;
+  height: 24px;
+  background: rgba(var(--text-rgb), 0.15);
+  z-index: 1;
+}
+.c-org-children {
+  display: flex;
+  justify-content: center;
+  gap: 0 16px;
+  margin-top: 0;
+  padding-top: 24px;
+  position: relative;
+}
+.c-org-children > .c-org-branch {
+  position: relative;
+  padding-top: 24px;
+}
+.c-org-children > .c-org-branch::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 24px;
+  background: rgba(var(--text-rgb), 0.15);
+}
+.c-org-children > .c-org-branch::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  height: 1px;
+  background: rgba(var(--text-rgb), 0.15);
+  left: -8px;
+  right: -8px;
+}
+.c-org-children > .c-org-branch:first-child::after { left: 50%; }
+.c-org-children > .c-org-branch:last-child::after { right: 50%; }
+.c-org-children > .c-org-branch:only-child::after { display: none; }
+
 /* Code */
 .c-code {
   background: rgba(var(--text-rgb), 0.07);
