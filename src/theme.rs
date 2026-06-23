@@ -2987,6 +2987,114 @@ body.shell-standard { page: standard-page; }
 }
 
 
+/* ──────────────────── Export mode ──────────────────── */
+
+/* Applied when PageRenderer renders with exportMode=true. Produces a clean,
+   datasheet-style layout suitable for PNG capture or PDF generation via
+   Playwright setContent(). Works in both screen (PNG) and print (PDF) modes. */
+
+.export-root {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 48px 56px;
+  background: var(--bg);
+  color: var(--snow);
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+/* Hub masthead in export: clean header, not sticky */
+.export-root .hub-masthead {
+  position: static;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: none;
+  padding: 0 0 32px 0;
+  margin-bottom: 8px;
+}
+.export-root .hub-masthead-inner {
+  padding: 0;
+}
+.export-root .hub-name {
+  font-size: 28px;
+}
+
+/* Hub content: visual separators between top-level blocks */
+.export-root .hub-content > * + * {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid rgba(var(--text-rgb), 0.1);
+}
+
+/* Sections: visual dividers, generous spacing */
+.export-root .c-section {
+  padding: 32px 0;
+}
+.export-root .c-section + .c-section {
+  border-top: 1px solid rgba(var(--text-rgb), 0.1);
+}
+
+/* Dividers: thin visible rule, not hidden */
+.export-root .c-divider {
+  display: block !important;
+  height: 0 !important;
+  margin: 24px 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(var(--text-rgb), 0.1) !important;
+}
+.export-root .c-divider-labeled {
+  height: auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  border-bottom: none !important;
+}
+
+/* Heroes: proportional, not fixed height */
+.export-root .c-hero {
+  height: auto;
+  min-height: 0;
+  padding: 40px 0;
+}
+
+/* Card grids: 2-column wrap for export (fits letter/A4 widths) */
+.export-root .c-card-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 16px !important;
+}
+.export-root .c-card-grid .c-card {
+  min-width: 0 !important;
+}
+
+/* Stat grids: keep horizontal */
+.export-root .c-stat-grid {
+  display: grid;
+}
+
+/* Tables: full width, clean borders */
+.export-root .c-table-wrap {
+  overflow-x: visible;
+}
+
+/* Trees: keep filter toggles visible for context */
+.export-root .c-tree-filter-toggle {
+  pointer-events: none;
+}
+
+/* Hide interactive elements that don't belong in a datasheet */
+.export-root .c-tree-chevron { visibility: hidden; }
+.export-root .c-tree-filter-toggle { display: none !important; }
+
+/* Kill glow shadows that render as ugly boxes in export */
+.export-root .c-timeline-dot,
+.export-root .c-tree-glyph,
+.export-root .c-event-dot { box-shadow: none !important; }
+
+
+
 /* ──────────────────── Mobile responsiveness ──────────────────── */
 
 /* Card-grid-arrow: flip to vertical earlier than other tablet breakpoints
