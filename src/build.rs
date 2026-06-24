@@ -769,12 +769,18 @@ fn generate_health_page(
                 value: total.to_string(),
                 detail: None,
                 color: SemColor::Default,
+                trend: None,
+                previous: None,
+                history: None,
             },
             Stat {
                 label: "Fresh".into(),
                 value: fresh_count.to_string(),
                 detail: None,
                 color: SemColor::Green,
+                trend: None,
+                previous: None,
+                history: None,
             },
             Stat {
                 label: "Due soon".into(),
@@ -785,6 +791,9 @@ fn generate_health_page(
                 } else {
                     SemColor::Default
                 },
+                trend: None,
+                previous: None,
+                history: None,
             },
             Stat {
                 label: "Overdue".into(),
@@ -795,6 +804,9 @@ fn generate_health_page(
                 } else {
                     SemColor::Default
                 },
+                trend: None,
+                previous: None,
+                history: None,
             },
         ],
         columns: 4,
@@ -815,6 +827,8 @@ fn generate_health_page(
             "{} of {} pages have freshness metadata",
             pages_with_freshness, total
         )),
+        target: None,
+        thresholds: HashMap::new(),
     });
 
     // 3. Overdue table (if any)
@@ -861,28 +875,33 @@ fn generate_health_page(
                     label: "Page".into(),
                     sortable: true,
                     align: Align::Left,
+                    color_map: HashMap::new(),
                 },
                 TableColumn {
                     key: "days_overdue".into(),
                     label: "Days overdue".into(),
                     sortable: true,
                     align: Align::Left,
+                    color_map: HashMap::new(),
                 },
                 TableColumn {
                     key: "cadence".into(),
                     label: "Cadence".into(),
                     sortable: false,
                     align: Align::Left,
+                    color_map: HashMap::new(),
                 },
                 TableColumn {
                     key: "owner".into(),
                     label: "Owner".into(),
                     sortable: true,
                     align: Align::Left,
+                    color_map: HashMap::new(),
                 },
             ],
             rows: overdue_rows,
             filterable: true,
+            summary: None,
         });
     }
 
@@ -925,28 +944,33 @@ fn generate_health_page(
                     label: "Page".into(),
                     sortable: true,
                     align: Align::Left,
+                    color_map: HashMap::new(),
                 },
                 TableColumn {
                     key: "due_in".into(),
                     label: "Due in".into(),
                     sortable: true,
                     align: Align::Left,
+                    color_map: HashMap::new(),
                 },
                 TableColumn {
                     key: "cadence".into(),
                     label: "Cadence".into(),
                     sortable: false,
                     align: Align::Left,
+                    color_map: HashMap::new(),
                 },
                 TableColumn {
                     key: "owner".into(),
                     label: "Owner".into(),
                     sortable: true,
                     align: Align::Left,
+                    color_map: HashMap::new(),
                 },
             ],
             rows: due_soon_rows,
             filterable: true,
+            summary: None,
         });
     }
 
@@ -1011,34 +1035,40 @@ fn generate_health_page(
                         label: "Owner".into(),
                         sortable: true,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "total".into(),
                         label: "Total".into(),
                         sortable: true,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "fresh".into(),
                         label: "Fresh".into(),
                         sortable: true,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "due_soon".into(),
                         label: "Due soon".into(),
                         sortable: true,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "overdue".into(),
                         label: "Overdue".into(),
                         sortable: true,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                 ],
                 rows: ownership_rows,
                 filterable: false,
+                summary: None,
             });
         }
     }

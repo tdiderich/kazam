@@ -384,6 +384,8 @@ pub enum Component {
         rows: Vec<HashMap<String, serde_yaml::Value>>,
         #[serde(default)]
         filterable: bool,
+        #[serde(default)]
+        summary: Option<TableSummary>,
     },
     Callout {
         #[serde(default)]
@@ -428,6 +430,10 @@ pub enum Component {
         show_filter_toggle: bool,
         #[serde(default)]
         limit: Option<u32>,
+        #[serde(default)]
+        filter_by: Vec<String>,
+        #[serde(default)]
+        group_by: Option<EventGroupBy>,
     },
     Tree {
         nodes: Vec<TreeNode>,
@@ -437,6 +443,14 @@ pub enum Component {
         show_filter_toggle: bool,
         #[serde(default)]
         default_collapsed: bool,
+        #[serde(default)]
+        default_depth: Option<u32>,
+        #[serde(default)]
+        show_counts: bool,
+        #[serde(default)]
+        show_summary: bool,
+        #[serde(default)]
+        default_view: TreeDefaultView,
     },
     Venn {
         sets: Vec<VennSet>,
@@ -518,6 +532,10 @@ pub enum Component {
         #[serde(default)]
         color: SemColor,
         detail: Option<String>,
+        #[serde(default)]
+        target: Option<u8>,
+        #[serde(default)]
+        thresholds: HashMap<String, SemColor>,
     },
     EmptyState {
         title: String,
@@ -625,6 +643,21 @@ pub enum Component {
         people: Vec<OrgPerson>,
         #[serde(default)]
         default_open_depth: Option<u32>,
+    },
+    Aside {
+        body: String,
+    },
+    RuleList {
+        items: Vec<RuleItem>,
+    },
+    Gauge {
+        items: Vec<GaugeItem>,
+        #[serde(default)]
+        title: Option<String>,
+        #[serde(default = "default_gauge_columns")]
+        columns: u32,
+        #[serde(default = "default_gauge_max")]
+        max: f64,
     },
 }
 
@@ -744,6 +777,38 @@ pub struct Stat {
     pub detail: Option<String>,
     #[serde(default)]
     pub color: SemColor,
+    #[serde(default)]
+    pub trend: Option<Trend>,
+    #[serde(default)]
+    pub previous: Option<String>,
+    #[serde(default)]
+    pub history: Option<Vec<f64>>,
+}
+
+#[derive(Deserialize, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum Trend {
+    Up,
+    Down,
+    Flat,
+}
+
+impl Trend {
+    pub fn class(&self) -> &'static str {
+        match self {
+            Trend::Up => "trend-up",
+            Trend::Down => "trend-down",
+            Trend::Flat => "trend-flat",
+        }
+    }
+
+    pub fn arrow(&self) -> &'static str {
+        match self {
+            Trend::Up => "↑",
+            Trend::Down => "↓",
+            Trend::Flat => "→",
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -784,6 +849,8 @@ pub struct TableColumn {
     pub sortable: bool,
     #[serde(default)]
     pub align: Align,
+    #[serde(default)]
+    pub color_map: HashMap<String, SemColor>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -850,6 +917,8 @@ pub struct EventItem {
     pub source: Option<String>,
     #[serde(default)]
     pub link: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -903,6 +972,15 @@ impl EventFilter {
     }
 }
 
+#[derive(Deserialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum EventGroupBy {
+    #[default]
+    Month,
+    Quarter,
+    Source,
+}
+
 #[derive(Deserialize, Clone)]
 pub struct TreeNode {
     pub label: String,
@@ -912,6 +990,8 @@ pub struct TreeNode {
     pub note: Option<String>,
     #[serde(default)]
     pub children: Vec<TreeNode>,
+    #[serde(default)]
+    pub owner: Option<String>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -934,6 +1014,14 @@ pub enum TreeFilter {
     Incomplete,
     Blocked,
     Priority,
+}
+
+#[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TreeDefaultView {
+    #[default]
+    Tree,
+    Summary,
 }
 
 impl TreeFilter {
@@ -989,6 +1077,29 @@ impl TreeStatus {
             TreeStatus::Upcoming => "upcoming",
         }
     }
+}
+
+#[derive(Deserialize)]
+pub struct TableSummary {
+    pub group_by: String,
+    #[serde(default)]
+    pub colors: HashMap<String, SemColor>,
+}
+
+#[derive(Deserialize)]
+pub struct GaugeItem {
+    pub label: String,
+    pub value: f64,
+    #[serde(default)]
+    pub color: SemColor,
+}
+
+#[derive(Deserialize)]
+pub struct RuleItem {
+    pub label: String,
+    pub body: String,
+    #[serde(default)]
+    pub color: SemColor,
 }
 
 #[derive(Deserialize)]
@@ -1722,6 +1833,12 @@ fn default_true() -> bool {
 }
 fn default_avatar_max() -> usize {
     5
+}
+fn default_gauge_columns() -> u32 {
+    3
+}
+fn default_gauge_max() -> f64 {
+    100.0
 }
 
 // ── Annotations ─────────────────────────────────────

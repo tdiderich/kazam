@@ -1,0 +1,297 @@
+title: Component Upgrades Demo
+shell: standard
+description: Visual review of all 10 component upgrade proposals
+components:
+  - type: header
+    title: Component Upgrades Demo
+    subtitle: All 10 proposals in one page
+
+  # ── 1. Table color_map ─────────────────────────
+  - type: section
+    heading: "1. Table color_map"
+    components:
+      - type: table
+        columns:
+          - key: name
+            label: Customer
+          - key: status
+            label: Status
+            color_map:
+              Healthy: green
+              At Risk: yellow
+              Churned: red
+          - key: tier
+            label: Tier
+            sortable: true
+        rows:
+          - name: Acme Corp
+            status: Healthy
+            tier: Enterprise
+          - name: Globex
+            status: At Risk
+            tier: Growth
+          - name: Initech
+            status: Churned
+            tier: Starter
+          - name: Umbrella
+            status: Healthy
+            tier: Enterprise
+          - name: Soylent
+            status: At Risk
+            tier: Growth
+
+  # ── 2. Stat trend + previous ───────────────────
+  - type: section
+    heading: "2. Stat trend + previous"
+    components:
+      - type: stat_grid
+        columns: 3
+        stats:
+          - label: Active Users
+            value: "12,847"
+            color: green
+            trend: up
+            previous: "11,203"
+          - label: Churn Rate
+            value: "2.1%"
+            color: red
+            trend: down
+            previous: "3.4%"
+          - label: NPS Score
+            value: "72"
+            color: teal
+            trend: flat
+            previous: "71"
+
+  # ── 3. Progress bar target + thresholds ────────
+  - type: section
+    heading: "3. Progress bar target + thresholds"
+    components:
+      - type: progress_bar
+        value: 73
+        label: Deployment Progress
+        target: 90
+        thresholds:
+          "0": red
+          "50": yellow
+          "80": green
+        detail: 73 of 100 instances migrated
+      - type: progress_bar
+        value: 45
+        label: Under threshold
+        target: 80
+        thresholds:
+          "0": red
+          "50": yellow
+          "80": green
+        detail: Still in red zone
+      - type: progress_bar
+        value: 92
+        label: Above target
+        target: 80
+        thresholds:
+          "0": red
+          "50": yellow
+          "80": green
+        detail: Past the target marker
+
+  # ── 4. Event timeline filter_by + tags ─────────
+  - type: section
+    heading: "4. Event timeline tags + filter_by"
+    components:
+      - type: event_timeline
+        show_filter_toggle: true
+        filter_by:
+          - deployment
+          - incident
+          - config
+        events:
+          - date: "2026-06-20"
+            title: Production deployment v3.2.1
+            severity: major
+            source: GitHub
+            tags:
+              - deployment
+            summary: Rolled out new auth middleware to all regions.
+          - date: "2026-06-18"
+            title: Config update — rate limits
+            severity: minor
+            source: Internal
+            tags:
+              - config
+          - date: "2026-06-15"
+            title: Incident — elevated error rates
+            severity: major
+            source: PagerDuty
+            tags:
+              - incident
+            summary: 5xx spike in us-east-1 for 12 minutes. Root cause was connection pool exhaustion.
+          - date: "2026-06-10"
+            title: Feature flag enabled — dark mode
+            severity: info
+            tags:
+              - config
+
+  # ── 5. Tree PM views ───────────────────────────
+  - type: section
+    heading: "5. Tree default_depth + show_counts + owner"
+    components:
+      - type: tree
+        show_filter_toggle: true
+        default_depth: 1
+        show_summary: true
+        default_view: summary
+        nodes:
+          - label: Platform Modernization
+            status: active
+            owner: "@sarah"
+            children:
+              - label: Auth service migration
+                status: completed
+                owner: "@mike"
+                children:
+                  - label: OAuth2 provider swap
+                    status: completed
+                    owner: "@mike"
+                  - label: Session token format
+                    status: completed
+                    owner: "@anna"
+              - label: Database consolidation
+                status: active
+                owner: "@chen"
+                children:
+                  - label: Schema migration
+                    status: active
+                    owner: "@chen"
+                  - label: Data backfill
+                    status: upcoming
+                    owner: "@mike"
+                  - label: Cutover plan
+                    status: blocked
+                    owner: "@chen"
+                    note: Waiting on DBA review
+              - label: API gateway
+                status: upcoming
+                owner: "@lisa"
+                children:
+                  - label: Route definitions
+                    status: upcoming
+                    owner: "@lisa"
+                  - label: Rate limiting
+                    status: upcoming
+
+  # ── 6. Aside ───────────────────────────────────
+  - type: section
+    heading: "6. Aside"
+    components:
+      - type: aside
+        body: |
+          This is a muted aside block. Use it for supplementary context that
+          doesn't warrant a full callout — background info, editorial notes,
+          or soft guidance. Supports **markdown** including [links](https://example.com).
+      - type: markdown
+        body: Regular content flows normally around asides. They're visually quieter than callouts.
+
+  # ── 7. Rule List ───────────────────────────────
+  - type: section
+    heading: "7. Rule List"
+    components:
+      - type: rule_list
+        items:
+          - label: Do
+            body: Ship small, incremental changes with clear rollback plans
+            color: green
+          - label: Don't
+            body: Bundle unrelated changes into a single deployment
+            color: red
+          - label: Prefer
+            body: Feature flags over long-lived branches for gradual rollouts
+            color: teal
+          - label: Avoid
+            body: Manual database migrations without a tested rollback script
+            color: yellow
+
+  # ── 8. Gauge ───────────────────────────────────
+  - type: section
+    heading: "8. Gauge"
+    components:
+      - type: gauge
+        title: Service Health
+        columns: 4
+        max: 100
+        items:
+          - label: API
+            value: 99.2
+            color: green
+          - label: Auth
+            value: 97.8
+            color: green
+          - label: Search
+            value: 84.5
+            color: yellow
+          - label: Billing
+            value: 62.1
+            color: red
+
+  # ── 9. Stat sparkline ──────────────────────────
+  - type: section
+    heading: "9. Stat history (sparkline)"
+    components:
+      - type: stat_grid
+        columns: 3
+        stats:
+          - label: Weekly Deploys
+            value: "14"
+            color: teal
+            history: [8, 12, 9, 15, 11, 13, 14]
+          - label: P99 Latency
+            value: 142ms
+            color: green
+            history: [210, 185, 170, 155, 148, 145, 142]
+          - label: Error Rate
+            value: "0.3%"
+            color: red
+            history: [0.1, 0.2, 0.15, 0.8, 0.5, 0.35, 0.3]
+
+  # ── 10. Table summary ─────────────────────────
+  - type: section
+    heading: "10. Table summary"
+    components:
+      - type: table
+        summary:
+          group_by: status
+          colors:
+            Healthy: green
+            At Risk: yellow
+            Churned: red
+        columns:
+          - key: name
+            label: Customer
+          - key: status
+            label: Status
+          - key: arr
+            label: ARR
+            align: right
+            sortable: true
+        rows:
+          - name: Acme Corp
+            status: Healthy
+            arr: "$240K"
+          - name: Globex
+            status: Healthy
+            arr: "$180K"
+          - name: Initech
+            status: At Risk
+            arr: "$95K"
+          - name: Umbrella
+            status: Healthy
+            arr: "$310K"
+          - name: Soylent
+            status: Churned
+            arr: "$45K"
+          - name: Wayne Ent
+            status: At Risk
+            arr: "$125K"
+          - name: Stark Ind
+            status: Healthy
+            arr: "$420K"

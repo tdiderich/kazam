@@ -44,7 +44,8 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             columns,
             rows,
             filterable,
-        } => table(columns, rows, *filterable),
+            summary,
+        } => table(columns, rows, *filterable, summary.as_ref()),
         Component::Callout {
             variant,
             title,
@@ -78,17 +79,35 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             default_filter,
             show_filter_toggle,
             limit,
-        } => event_timeline(events, *default_filter, *show_filter_toggle, *limit, base),
+            filter_by,
+            group_by,
+        } => event_timeline(
+            events,
+            *default_filter,
+            *show_filter_toggle,
+            *limit,
+            filter_by,
+            *group_by,
+            base,
+        ),
         Component::Tree {
             nodes,
             default_filter,
             show_filter_toggle,
             default_collapsed,
+            default_depth,
+            show_counts,
+            show_summary,
+            default_view,
         } => tree(
             nodes,
             *default_filter,
             *show_filter_toggle,
             *default_collapsed,
+            *default_depth,
+            *show_counts,
+            *show_summary,
+            *default_view,
         ),
         Component::Venn {
             sets,
@@ -126,7 +145,9 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             label,
             color,
             detail,
-        } => progress_bar(*value, label, *color, detail),
+            target,
+            thresholds,
+        } => progress_bar(*value, label, *color, detail, *target, thresholds),
         Component::EmptyState {
             title,
             body,
@@ -203,6 +224,14 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             people,
             default_open_depth,
         } => render_org_chart(title, people, *default_open_depth),
+        Component::Aside { body } => aside(body, base),
+        Component::RuleList { items } => rule_list(items),
+        Component::Gauge {
+            items,
+            title,
+            columns,
+            max,
+        } => gauge(items, title.as_deref(), *columns, *max),
     }
 }
 
@@ -457,10 +486,72 @@ fn stat_grid(stats: &[Stat], columns: u32) -> Rendered {
         if let Some(d) = &s.detail {
             h.push_str(&format!(r#"<div class="c-stat-detail">{}</div>"#, esc(d)));
         }
+        if s.trend.is_some() || s.previous.is_some() {
+            h.push_str(r#"<div class="c-stat-trend-row">"#);
+            if let Some(trend) = &s.trend {
+                h.push_str(&format!(
+                    r#"<span class="c-stat-trend {cls}">{arrow}</span>"#,
+                    cls = trend.class(),
+                    arrow = trend.arrow(),
+                ));
+            }
+            if let Some(prev) = &s.previous {
+                h.push_str(&format!(
+                    r#"<span class="c-stat-previous">was {}</span>"#,
+                    esc(prev)
+                ));
+            }
+            h.push_str("</div>");
+        }
+        if let Some(history) = &s.history {
+            if !history.is_empty() {
+                h.push_str(&render_sparkline(history));
+            }
+        }
         h.push_str("</div>");
     }
     h.push_str("</div>");
     Rendered::new(h)
+}
+
+fn render_sparkline(values: &[f64]) -> String {
+    if values.is_empty() {
+        return String::new();
+    }
+    let min = values.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = values.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let range = (max - min).max(1.0);
+    let w = 80.0;
+    let h_svg = 24.0;
+    let pad = 2.0;
+    let usable_h = h_svg - pad * 2.0;
+    let step = if values.len() > 1 {
+        w / (values.len() - 1) as f64
+    } else {
+        w
+    };
+
+    let points: Vec<String> = values
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            let x = i as f64 * step;
+            let y = pad + usable_h - ((v - min) / range) * usable_h;
+            format!("{x:.1},{y:.1}")
+        })
+        .collect();
+    let polyline = points.join(" ");
+    let last_x = (values.len() - 1) as f64 * step;
+    let last_y = pad + usable_h - ((values[values.len() - 1] - min) / range) * usable_h;
+
+    format!(
+        r#"<svg class="c-stat-sparkline" viewBox="0 0 {w} {h}" preserveAspectRatio="none"><polyline points="{pts}" fill="none" stroke="var(--stat-color, var(--teal))" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="{lx:.1}" cy="{ly:.1}" r="2" fill="var(--stat-color, var(--teal))"/></svg>"#,
+        w = w,
+        h = h_svg,
+        pts = polyline,
+        lx = last_x,
+        ly = last_y,
+    )
 }
 
 // ── Before / After ────────────────────────────────
@@ -670,8 +761,14 @@ fn table(
     columns: &[TableColumn],
     rows: &[std::collections::HashMap<String, serde_yaml::Value>],
     filterable: bool,
+    summary: Option<&TableSummary>,
 ) -> Rendered {
     let mut h = String::from(r#"<div class="c-table-wrap">"#);
+
+    if let Some(sum) = summary {
+        h.push_str(&render_table_summary(rows, sum));
+    }
+
     if filterable {
         h.push_str(
             r#"<input type="text" class="c-table-filter" data-table-filter placeholder="Filter…">"#,
@@ -692,9 +789,15 @@ fn table(
         h.push_str("<tr>");
         for col in columns {
             let v = row.get(&col.key).map(value_to_string).unwrap_or_default();
+            let color_class = col
+                .color_map
+                .get(&v)
+                .map(|c| format!(" cell-{}", c.class_suffix()))
+                .unwrap_or_default();
             h.push_str(&format!(
-                r#"<td class="{}">{}</td>"#,
+                r#"<td class="{}{}">{}</td>"#,
                 col.align.class(),
+                color_class,
                 render_cell(&v)
             ));
         }
@@ -702,6 +805,55 @@ fn table(
     }
     h.push_str("</tbody></table></div>");
     Rendered::new(h).with_script("table")
+}
+
+fn render_table_summary(
+    rows: &[std::collections::HashMap<String, serde_yaml::Value>],
+    summary: &TableSummary,
+) -> String {
+    let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for row in rows {
+        let val = row
+            .get(&summary.group_by)
+            .map(value_to_string)
+            .unwrap_or_default();
+        *counts.entry(val).or_insert(0) += 1;
+    }
+    let total = rows.len().max(1);
+    let mut h = String::from(r#"<div class="c-table-summary">"#);
+    h.push_str(r#"<div class="c-table-summary-dots">"#);
+    for (val, count) in &counts {
+        let color = summary
+            .colors
+            .get(val)
+            .copied()
+            .unwrap_or(SemColor::Default);
+        h.push_str(&format!(
+            r#"<span class="c-table-summary-item"><span class="c-table-summary-dot color-{color}"></span>{label} <strong>{count}</strong></span>"#,
+            color = color.class_suffix(),
+            label = esc(val),
+            count = count,
+        ));
+    }
+    h.push_str("</div>");
+    h.push_str(r#"<div class="c-table-summary-bar">"#);
+    for (val, count) in &counts {
+        let color = summary
+            .colors
+            .get(val)
+            .copied()
+            .unwrap_or(SemColor::Default);
+        let pct = (*count as f64 / total as f64) * 100.0;
+        h.push_str(&format!(
+            r#"<div class="c-table-summary-seg color-bg-{color}" style="width: {pct:.1}%" title="{label}: {count}"></div>"#,
+            color = color.class_suffix(),
+            pct = pct,
+            label = esc(val),
+            count = count,
+        ));
+    }
+    h.push_str("</div></div>");
+    h
 }
 
 // ── Callout ───────────────────────────────────────
@@ -879,6 +1031,8 @@ fn event_timeline(
     default_filter: EventFilter,
     show_filter_toggle: bool,
     limit: Option<u32>,
+    filter_by: &[String],
+    group_by: Option<EventGroupBy>,
     base: &str,
 ) -> Rendered {
     let mut r = Rendered::default();
@@ -897,18 +1051,7 @@ fn event_timeline(
             .collect()
     };
 
-    // Apply limit — take the last N events from the (possibly filtered) set.
-    let limited: Vec<&EventItem> = match limit {
-        Some(n) if (n as usize) < filtered.len() => filtered
-            .into_iter()
-            .rev()
-            .take(n as usize)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
-            .collect(),
-        _ => filtered,
-    };
+    let _total_filtered = filtered.len();
 
     r.html.push_str(&format!(
         r#"<div class="c-event-timeline {}" data-filter="{}">"#,
@@ -938,24 +1081,52 @@ fn event_timeline(
         r.html.push_str("</div>");
     }
 
+    if !filter_by.is_empty() {
+        r.html
+            .push_str(r#"<div class="c-event-tag-filters" data-event-tag-filter>"#);
+        for tag in filter_by {
+            let count = filtered
+                .iter()
+                .filter(|e| e.tags.iter().any(|t| t == tag))
+                .count();
+            r.html.push_str(&format!(
+                r#"<button type="button" class="c-event-tag-pill" data-tag="{}">{} <span class="c-event-tag-count">{}</span></button>"#,
+                esc(tag),
+                esc(tag),
+                count
+            ));
+        }
+        r.html.push_str("</div>");
+    }
+
     r.html.push_str(r#"<ol class="c-event-list">"#);
-    for ev in &limited {
+    for (i, ev) in filtered.iter().enumerate() {
         let has_summary = ev
             .summary
             .as_deref()
             .map(|s| !s.trim().is_empty())
             .unwrap_or(false);
 
+        let tags_attr = if !ev.tags.is_empty() {
+            format!(
+                r#" data-tags="{}""#,
+                ev.tags.iter().map(|t| esc(t)).collect::<Vec<_>>().join(",")
+            )
+        } else {
+            String::new()
+        };
+
         r.html.push_str(&format!(
-            r#"<li class="c-event {sev}" data-severity="{sev_label}">"#,
+            r#"<li class="c-event {sev}" data-severity="{sev_label}"{tags}>"#,
             sev = ev.severity.class(),
             sev_label = ev.severity.label(),
+            tags = tags_attr,
         ));
         r.html
             .push_str(r#"<div class="c-event-rail"><span class="c-event-dot"></span></div>"#);
         r.html.push_str(r#"<div class="c-event-body">"#);
 
-        // Meta row: date · severity · source · link
+        // Meta row: date · severity · source · tags · link
         r.html.push_str(r#"<div class="c-event-meta">"#);
         r.html.push_str(&format!(
             r#"<time class="c-event-date">{}</time>"#,
@@ -972,6 +1143,10 @@ fn event_timeline(
                     esc(src)
                 ));
             }
+        }
+        for t in &ev.tags {
+            r.html
+                .push_str(&format!(r#"<span class="c-event-tag">{}</span>"#, esc(t)));
         }
         if let Some(href) = &ev.link {
             if !href.trim().is_empty() {
@@ -1018,6 +1193,10 @@ fn tree(
     default_filter: TreeFilter,
     show_filter_toggle: bool,
     default_collapsed: bool,
+    default_depth: Option<u32>,
+    _show_counts: bool,
+    show_summary: bool,
+    default_view: TreeDefaultView,
 ) -> Rendered {
     let mut r = Rendered::default();
     let collapsed_class = if default_collapsed {
@@ -1025,43 +1204,78 @@ fn tree(
     } else {
         ""
     };
+    let depth_attr = default_depth
+        .map(|d| format!(r#" data-default-depth="{}""#, d))
+        .unwrap_or_default();
+    let view_attr = if show_summary {
+        match default_view {
+            TreeDefaultView::Summary => r#" data-view="summary""#,
+            TreeDefaultView::Tree => r#" data-view="tree""#,
+        }
+    } else {
+        ""
+    };
     r.html.push_str(&format!(
-        r#"<div class="c-tree {}{}" data-filter="{}">"#,
+        r#"<div class="c-tree {}{}" data-filter="{}"{}{}>
+"#,
         default_filter.class(),
         collapsed_class,
         default_filter.label(),
+        depth_attr,
+        view_attr,
     ));
 
-    if show_filter_toggle {
+    if show_filter_toggle || show_summary {
         r.html
             .push_str(r#"<div class="c-tree-filter-toggle" data-tree-filter-toggle>"#);
-        for f in &[
-            TreeFilter::All,
-            TreeFilter::Incomplete,
-            TreeFilter::Blocked,
-            TreeFilter::Priority,
-        ] {
-            let active = *f == default_filter;
-            let label = match f {
-                TreeFilter::All => "All",
-                TreeFilter::Incomplete => "Incomplete only",
-                TreeFilter::Blocked => "Blocked only",
-                TreeFilter::Priority => "Priority only",
-            };
+        if show_summary {
+            let active_summary = default_view == TreeDefaultView::Summary;
             r.html.push_str(&format!(
-                r#"<button type="button" data-filter="{val}"{active}>{label}</button>"#,
-                val = f.label(),
-                active = if active { r#" class="active""# } else { "" },
-                label = label,
+                r#"<button type="button" data-filter="summary"{}>{}</button>"#,
+                if active_summary {
+                    r#" class="active""#
+                } else {
+                    ""
+                },
+                "Summary",
             ));
+        }
+        if show_filter_toggle {
+            for f in &[TreeFilter::All, TreeFilter::Incomplete] {
+                let active = !show_summary && *f == default_filter
+                    || show_summary
+                        && default_view == TreeDefaultView::Tree
+                        && *f == default_filter;
+                let label = match f {
+                    TreeFilter::All => "All",
+                    TreeFilter::Incomplete => "Incomplete",
+                    _ => unreachable!(),
+                };
+                r.html.push_str(&format!(
+                    r#"<button type="button" data-filter="{val}"{active}>{label}</button>"#,
+                    val = f.label(),
+                    active = if active { r#" class="active""# } else { "" },
+                    label = label,
+                ));
+            }
         }
         r.html.push_str("</div>");
     }
 
-    // When the toggle is hidden and filter is non-All, prune the tree at
-    // build time — only render nodes matching the filter plus their ancestor
-    // chain. When the toggle is shown, all nodes must be in the DOM so JS
-    // can switch between filters.
+    if show_summary {
+        render_tree_summary(nodes, &mut r.html);
+    }
+
+    let tree_hidden = show_summary && default_view == TreeDefaultView::Summary;
+    r.html.push_str(&format!(
+        r#"<div class="c-tree-body"{}>"#,
+        if tree_hidden {
+            r#" style="display:none""#
+        } else {
+            ""
+        },
+    ));
+
     let render_nodes: Vec<TreeNode> = if show_filter_toggle || default_filter == TreeFilter::All {
         nodes.to_vec()
     } else {
@@ -1069,12 +1283,87 @@ fn tree(
     };
 
     render_tree_level(&render_nodes, &mut r.html, "c-tree-root");
-    r.html.push_str("</div>");
+    r.html.push_str("</div></div>");
 
-    if show_filter_toggle || nodes.iter().any(|n| !n.children.is_empty()) {
+    if show_filter_toggle || show_summary || nodes.iter().any(|n| !n.children.is_empty()) {
         r.scripts.push("tree");
     }
     r
+}
+
+fn collect_tree_stats(
+    nodes: &[TreeNode],
+    owners: &mut std::collections::HashMap<String, (usize, usize)>,
+) {
+    for node in nodes {
+        let key = node.owner.as_deref().unwrap_or("Unassigned").to_string();
+        let entry = owners.entry(key).or_insert((0, 0));
+        if matches!(node.status, TreeStatus::Completed) {
+            entry.1 += 1;
+        } else {
+            entry.0 += 1;
+        }
+        collect_tree_stats(&node.children, owners);
+    }
+}
+
+fn count_phase_progress(nodes: &[TreeNode]) -> (usize, usize) {
+    let mut total = 0usize;
+    let mut done = 0usize;
+    for node in nodes {
+        total += 1;
+        if matches!(node.status, TreeStatus::Completed) {
+            done += 1;
+        }
+        let (t, d) = count_phase_progress(&node.children);
+        total += t;
+        done += d;
+    }
+    (total, done)
+}
+
+fn render_phase_bar(node: &TreeNode, h: &mut String, depth: usize) {
+    let (child_total, child_done) = count_phase_progress(&node.children);
+    let total = child_total + 1;
+    let done = if matches!(node.status, TreeStatus::Completed) {
+        child_done + 1
+    } else {
+        child_done
+    };
+    let pct = if total > 0 {
+        (done as f64 / total as f64 * 100.0) as u32
+    } else {
+        0
+    };
+    let indent_class = if depth > 0 { " c-tree-summary-sub" } else { "" };
+    h.push_str(&format!(
+        r#"<div class="c-tree-summary-phase{}"><div class="c-tree-summary-phase-label">{} <span class="c-tree-summary-pct">{}/{} done · {}%</span></div><div class="c-progress-track"><div class="c-progress-fill color-{}" style="width:{}%"></div></div></div>"#,
+        indent_class,
+        esc(&node.label),
+        done,
+        total,
+        pct,
+        if pct == 100 { "green" } else if pct >= 50 { "yellow" } else { "default" },
+        pct,
+    ));
+    for child in &node.children {
+        if !child.children.is_empty() {
+            render_phase_bar(child, h, depth + 1);
+        }
+    }
+}
+
+fn render_tree_summary(nodes: &[TreeNode], h: &mut String) {
+    h.push_str(r#"<div class="c-tree-summary" data-tree-summary>"#);
+
+    h.push_str(r#"<div class="c-tree-summary-phases">"#);
+    h.push_str(r#"<div class="c-tree-summary-heading">Phase Progress</div>"#);
+    for phase in nodes {
+        render_phase_bar(phase, h, 0);
+    }
+    h.push_str("</div>");
+
+    h.push_str("</div>");
 }
 
 /// Walk the tree and return whether `node` (or any descendant) is blocked.
@@ -1124,6 +1413,7 @@ fn prune_tree_node(node: &TreeNode, filter: TreeFilter) -> Option<TreeNode> {
         status: node.status,
         note: node.note.clone(),
         children: pruned_children,
+        owner: node.owner.clone(),
     })
 }
 
@@ -1134,6 +1424,12 @@ fn node_matches_filter(node: &TreeNode, filter: TreeFilter) -> bool {
         TreeFilter::Blocked => matches!(node.status, TreeStatus::Blocked),
         TreeFilter::Priority => matches!(node.status, TreeStatus::Priority),
     }
+}
+
+fn count_tree_descendants(nodes: &[TreeNode]) -> usize {
+    nodes
+        .iter()
+        .fold(0, |acc, n| acc + 1 + count_tree_descendants(&n.children))
 }
 
 fn render_tree_level(nodes: &[TreeNode], h: &mut String, list_class: &str) {
@@ -1181,6 +1477,15 @@ fn render_tree_level(nodes: &[TreeNode], h: &mut String, list_class: &str) {
             r#"<span class="c-tree-label">{}</span>"#,
             esc(&node.label)
         ));
+        if let Some(owner) = &node.owner {
+            if !owner.trim().is_empty() {
+                h.push_str(&format!(
+                    r#"<span class="c-tree-owner" title="Owner: {}">&#128100; {}</span>"#,
+                    esc(owner),
+                    esc(owner)
+                ));
+            }
+        }
         if let Some(note) = &node.note {
             if !note.trim().is_empty() {
                 h.push_str(&format!(
@@ -1650,9 +1955,16 @@ fn progress_bar(
     label: &Option<String>,
     color: SemColor,
     detail: &Option<String>,
+    target: Option<u8>,
+    thresholds: &std::collections::HashMap<String, SemColor>,
 ) -> Rendered {
     let clamped = value.min(100);
-    let color_class = sem_color_class(color);
+    let effective_color = if !thresholds.is_empty() {
+        resolve_threshold_color(clamped, thresholds).unwrap_or(color)
+    } else {
+        color
+    };
+    let color_class = sem_color_class(effective_color);
 
     let mut h = String::from(r#"<div class="c-progress">"#);
     if label.is_some() || detail.is_some() {
@@ -1672,9 +1984,17 @@ fn progress_bar(
         h.push_str("</div>");
     }
     h.push_str(&format!(
-        r#"<div class="c-progress-track" role="progressbar" aria-valuenow="{v}" aria-valuemin="0" aria-valuemax="100"><div class="c-progress-fill c-progress-fill-{color}" style="--progress: {v}%"></div></div>"#,
+        r#"<div class="c-progress-track" role="progressbar" aria-valuenow="{v}" aria-valuemin="0" aria-valuemax="100"><div class="c-progress-fill c-progress-fill-{color}" style="--progress: {v}%"></div>"#,
         v = clamped, color = color_class
     ));
+    if let Some(t) = target {
+        let t_clamped = t.min(100);
+        h.push_str(&format!(
+            r#"<div class="c-progress-target" style="left: {}%" title="Target: {}%"></div>"#,
+            t_clamped, t_clamped
+        ));
+    }
+    h.push_str("</div>");
     if let Some(d) = detail {
         h.push_str(&format!(
             r#"<div class="c-progress-detail">{}</div>"#,
@@ -1683,6 +2003,29 @@ fn progress_bar(
     }
     h.push_str("</div>");
     Rendered::new(h)
+}
+
+fn resolve_threshold_color(
+    value: u8,
+    thresholds: &std::collections::HashMap<String, SemColor>,
+) -> Option<SemColor> {
+    let mut best: Option<(u8, SemColor)> = None;
+    for (key, color) in thresholds {
+        if let Ok(threshold) = key.parse::<u8>() {
+            if value >= threshold {
+                match best {
+                    Some((prev, _)) if threshold > prev => {
+                        best = Some((threshold, *color));
+                    }
+                    None => {
+                        best = Some((threshold, *color));
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    best.map(|(_, c)| c)
 }
 
 // ── Empty State ──────────────────────────────────
@@ -1871,6 +2214,82 @@ fn render_org_person(person: &OrgPerson, depth: usize, auto_depth: usize, html: 
         html.push_str("</div>");
     }
     html.push_str("</div>");
+}
+
+// ── Aside ────────────────────────────────────────
+
+fn aside(body: &str, base: &str) -> Rendered {
+    Rendered::new(format!(
+        r#"<div class="c-aside"><div class="c-aside-body c-markdown">{}</div></div>"#,
+        parse_markdown(body, base)
+    ))
+}
+
+// ── Rule List ────────────────────────────────────
+
+fn rule_list(items: &[RuleItem]) -> Rendered {
+    let mut h = String::from(r#"<div class="c-rule-list">"#);
+    for item in items {
+        let color_class = if matches!(item.color, SemColor::Default) {
+            String::new()
+        } else {
+            format!(" c-rule-{}", item.color.class_suffix())
+        };
+        h.push_str(&format!(
+            r#"<div class="c-rule-item{}"><span class="c-rule-label">{}</span><span class="c-rule-body">{}</span></div>"#,
+            color_class,
+            esc(&item.label),
+            esc(&item.body),
+        ));
+    }
+    h.push_str("</div>");
+    Rendered::new(h)
+}
+
+// ── Gauge ────────────────────────────────────────
+
+fn gauge(items: &[GaugeItem], title: Option<&str>, columns: u32, max: f64) -> Rendered {
+    let max_val = if max <= 0.0 { 100.0 } else { max };
+    let mut h = format!(
+        r#"<div class="c-gauge-grid" style="--gauge-cols: {}">"#,
+        columns
+    );
+    if let Some(t) = title {
+        h.push_str(&format!(r#"<div class="c-gauge-title">{}</div>"#, esc(t)));
+    }
+    for item in items {
+        let pct = (item.value / max_val).min(1.0);
+        let r = 26.0;
+        let circumference = 2.0 * std::f64::consts::PI * r;
+        let dash = circumference * pct;
+        let gap = circumference - dash;
+        let color = item.color.hex();
+        h.push_str(r#"<div class="c-gauge-item">"#);
+        h.push_str(&format!(
+            r#"<svg class="c-gauge-ring" viewBox="0 0 64 64"><circle cx="32" cy="32" r="{r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/><circle cx="32" cy="32" r="{r}" fill="none" stroke="{color}" stroke-width="6" stroke-dasharray="{dash:.1} {gap:.1}" stroke-dashoffset="{offset:.1}" stroke-linecap="round" transform="rotate(-90 32 32)"/><text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="c-gauge-value">{val}</text></svg>"#,
+            r = r,
+            color = color,
+            dash = dash,
+            gap = gap,
+            offset = 0.0,
+            val = format_gauge_value(item.value),
+        ));
+        h.push_str(&format!(
+            r#"<div class="c-gauge-label">{}</div>"#,
+            esc(&item.label)
+        ));
+        h.push_str("</div>");
+    }
+    h.push_str("</div>");
+    Rendered::new(h)
+}
+
+fn format_gauge_value(v: f64) -> String {
+    if v.fract() == 0.0 {
+        format!("{}", v as i64)
+    } else {
+        format!("{:.1}", v)
+    }
 }
 
 fn render_org_chart(

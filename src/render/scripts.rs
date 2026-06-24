@@ -435,30 +435,89 @@ document.querySelectorAll('[data-event-filter-toggle]').forEach(function (toggle
     });
   });
 });
+document.querySelectorAll('[data-event-tag-filter]').forEach(function (wrap) {
+  var timeline = wrap.closest('.c-event-timeline');
+  if (!timeline) return;
+  var pills = wrap.querySelectorAll('.c-event-tag-pill');
+  pills.forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      pill.classList.toggle('active');
+      var active = wrap.querySelectorAll('.c-event-tag-pill.active');
+      var tags = [];
+      active.forEach(function (a) { tags.push(a.getAttribute('data-tag')); });
+      timeline.querySelectorAll('.c-event').forEach(function (ev) {
+        var evTags = (ev.getAttribute('data-tags') || '').split(',').filter(Boolean);
+        if (tags.length === 0) {
+          ev.style.display = '';
+        } else {
+          var match = tags.some(function (t) { return evTags.indexOf(t) !== -1; });
+          ev.style.display = match ? '' : 'none';
+        }
+      });
+    });
+  });
+});
+document.querySelectorAll('[data-event-show-all]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var timeline = btn.closest('.c-event-timeline');
+    if (!timeline) return;
+    timeline.querySelectorAll('.c-event-overflow').forEach(function (ev) {
+      ev.style.display = '';
+      ev.classList.remove('c-event-overflow');
+    });
+    btn.remove();
+  });
+});
 "#;
 
 const TREE: &str = r#"
 document.querySelectorAll('[data-tree-filter-toggle]').forEach(function (toggle) {
   var tree = toggle.closest('.c-tree');
   if (!tree) return;
+  var summary = tree.querySelector('[data-tree-summary]');
+  var body = tree.querySelector('.c-tree-body');
   toggle.querySelectorAll('button[data-filter]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var val = btn.getAttribute('data-filter');
-      tree.classList.remove('filter-all', 'filter-incomplete', 'filter-blocked', 'filter-priority');
-      tree.classList.add('filter-' + val);
-      tree.setAttribute('data-filter', val);
       toggle.querySelectorAll('button[data-filter]').forEach(function (b) {
         b.classList.toggle('active', b === btn);
       });
+      if (val === 'summary') {
+        tree.setAttribute('data-view', 'summary');
+        if (summary) summary.style.display = '';
+        if (body) body.style.display = 'none';
+      } else {
+        tree.setAttribute('data-view', 'tree');
+        if (summary) summary.style.display = 'none';
+        if (body) body.style.display = '';
+        tree.classList.remove('filter-all', 'filter-incomplete', 'filter-blocked', 'filter-priority');
+        tree.classList.add('filter-' + val);
+        tree.setAttribute('data-filter', val);
+      }
     });
   });
 });
 document.querySelectorAll('.c-tree').forEach(function (tree) {
   var startCollapsed = tree.classList.contains('c-tree-collapsed');
+  var defaultDepth = tree.getAttribute('data-default-depth');
+  var maxDepth = defaultDepth ? parseInt(defaultDepth, 10) : null;
+  function getDepth(node) {
+    var d = 0;
+    var el = node.parentElement;
+    while (el && !el.classList.contains('c-tree')) {
+      if (el.classList.contains('c-tree-node')) d++;
+      el = el.parentElement;
+    }
+    return d;
+  }
   tree.querySelectorAll('.c-tree-node').forEach(function (node) {
     var children = node.querySelector(':scope > .c-tree-children');
     if (!children) return;
-    if (startCollapsed) node.classList.add('collapsed');
+    if (startCollapsed) {
+      node.classList.add('collapsed');
+    } else if (maxDepth !== null && getDepth(node) >= maxDepth) {
+      node.classList.add('collapsed');
+    }
   });
   tree.classList.remove('c-tree-collapsed');
   tree.addEventListener('click', function (e) {

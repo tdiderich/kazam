@@ -960,6 +960,71 @@ fn validate_component(
                 ));
             }
         }
+
+        Component::Aside { body } => {
+            if body.trim().is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.body", path),
+                    "missing_field",
+                    "aside requires a non-empty body",
+                    Some("Add body: with the aside content.".into()),
+                ));
+            }
+        }
+
+        Component::RuleList { items } => {
+            if items.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.items", path),
+                    "missing_field",
+                    "rule_list requires at least one item",
+                    Some("Add items with label: and body:.".into()),
+                ));
+            }
+            for (i, item) in items.iter().enumerate() {
+                if item.label.trim().is_empty() {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.items[{}].label", path, i),
+                        "missing_field",
+                        "rule_list item requires a non-empty label",
+                        Some("Add label: to this item.".into()),
+                    ));
+                }
+                if item.body.trim().is_empty() {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.items[{}].body", path, i),
+                        "missing_field",
+                        "rule_list item requires a non-empty body",
+                        Some("Add body: to this item.".into()),
+                    ));
+                }
+            }
+        }
+
+        Component::Gauge { items, max, .. } => {
+            if items.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.items", path),
+                    "missing_field",
+                    "gauge requires at least one item",
+                    Some("Add items with label: and value:.".into()),
+                ));
+            }
+            if *max <= 0.0 {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.max", path),
+                    "invalid_value",
+                    format!("gauge max must be > 0, got {}", max),
+                    Some("Set max to a positive number.".into()),
+                ));
+            }
+        }
     }
 }
 
@@ -1238,6 +1303,7 @@ mod tests {
                 columns: vec![],
                 rows: vec![],
                 filterable: false,
+                summary: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1314,6 +1380,8 @@ mod tests {
                 label: None,
                 color: Default::default(),
                 detail: None,
+                target: None,
+                thresholds: std::collections::HashMap::new(),
             }]),
         );
         let errors = validate_page("test.yaml", &page);

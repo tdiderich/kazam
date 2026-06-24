@@ -1546,6 +1546,9 @@ function ComponentView({
         value: string;
         detail?: string;
         color?: string;
+        trend?: string;
+        previous?: string;
+        history?: number[];
       }>) || [];
       const columns = (comp.columns as number) || stats.length;
       return (
@@ -1554,13 +1557,35 @@ function ComponentView({
           className="c-stat-grid"
           style={{ "--stat-cols": columns } as React.CSSProperties}
         >
-          {stats.map((s, i) => (
-            <div key={i} className={`c-stat${s.color && s.color !== "default" ? ` c-stat-${s.color}` : ""}`}>
-              <div className="c-stat-label">{s.label}</div>
-              <div className="c-stat-value">{s.value}</div>
-              {s.detail && <div className="c-stat-detail">{renderInline(s.detail)}</div>}
-            </div>
-          ))}
+          {stats.map((s, i) => {
+            const trendClass = s.trend === "up" ? "c-stat-trend-up" : s.trend === "down" ? "c-stat-trend-down" : "c-stat-trend-neutral";
+            const trendArrow = s.trend === "up" ? "▲" : s.trend === "down" ? "▼" : "→";
+            let sparkline: React.ReactNode = null;
+            if (s.history && s.history.length > 1) {
+              const pts = s.history;
+              const minV = Math.min(...pts), maxV = Math.max(...pts);
+              const range = maxV - minV || 1;
+              const w = 80, h = 24, pad = 2;
+              const xs = pts.map((_, idx) => pad + (idx / (pts.length - 1)) * (w - pad * 2));
+              const ys = pts.map(v => (h - pad) - ((v - minV) / range) * (h - pad * 2));
+              const d = xs.map((x, idx) => `${idx === 0 ? "M" : "L"}${x.toFixed(1)},${ys[idx].toFixed(1)}`).join(" ");
+              sparkline = (
+                <svg className="c-stat-sparkline" viewBox={`0 0 ${w} ${h}`} width={w} height={h} aria-hidden="true">
+                  <polyline points={xs.map((x, idx) => `${x.toFixed(1)},${ys[idx].toFixed(1)}`).join(" ")} fill="none" strokeWidth={1.5} className="c-stat-spark-line" />
+                </svg>
+              );
+            }
+            return (
+              <div key={i} className={`c-stat${s.color && s.color !== "default" ? ` c-stat-${s.color}` : ""}`}>
+                <div className="c-stat-label">{s.label}</div>
+                <div className="c-stat-value">{s.value}</div>
+                {s.detail && <div className="c-stat-detail">{renderInline(s.detail)}</div>}
+                {s.trend && <span className={`c-stat-trend ${trendClass}`}>{trendArrow}</span>}
+                {s.previous && <span className="c-stat-previous">was {s.previous}</span>}
+                {sparkline}
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -1625,10 +1650,34 @@ function ComponentView({
     }
 
     case "table": {
-      const columns = (comp.columns as Array<{ key: string; label: string }>) || [];
+      const columns = (comp.columns as Array<{ key: string; label: string; color_map?: Record<string, string> }>) || [];
       const rows = (comp.rows as Array<Record<string, unknown>>) || [];
+      const summary = comp.summary as Array<{ label: string; value: number; color?: string }> | undefined;
+      const summaryTotal = summary ? summary.reduce((acc, item) => acc + item.value, 0) : 0;
       return (
         <div id={id} className="c-table-wrap">
+          {summary && summary.length > 0 && (
+            <div className="c-table-summary">
+              <div className="c-table-summary-dots">
+                {summary.map((item, si) => (
+                  <span key={si} className={`c-table-summary-dot c-table-summary-dot-${item.color || "default"}`}>
+                    <span className="c-dot" />
+                    <span className="c-dot-label">{item.label}: {item.value}</span>
+                  </span>
+                ))}
+              </div>
+              <div className="c-table-summary-bar">
+                {summary.map((item, si) => (
+                  <div
+                    key={si}
+                    className={`c-table-summary-seg c-table-summary-seg-${item.color || "default"}`}
+                    style={{ width: `${summaryTotal > 0 ? (item.value / summaryTotal * 100).toFixed(1) : 0}%` } as React.CSSProperties}
+                    title={`${item.label}: ${item.value}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           <table className="c-table">
             <thead>
               <tr>
@@ -1640,9 +1689,13 @@ function ComponentView({
             <tbody>
               {rows.map((row, ri) => (
                 <tr key={ri}>
-                  {columns.map((col, ci) => (
-                    <td key={ci}>{renderInline(String(row[col.key] ?? ""))}</td>
-                  ))}
+                  {columns.map((col, ci) => {
+                    const cellVal = String(row[col.key] ?? "");
+                    const mappedColor = col.color_map ? col.color_map[cellVal] : undefined;
+                    return (
+                      <td key={ci} className={mappedColor ? `cell-${mappedColor}` : undefined}>{renderInline(cellVal)}</td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -1717,8 +1770,16 @@ function ComponentView({
     case "progress_bar": {
       const value = Math.min(100, (comp.value as number) || 0);
       const label = comp.label as string | undefined;
-      const color = (comp.color as string) || "default";
       const detail = comp.detail as string | undefined;
+      const target = comp.target as number | undefined;
+      const thresholds = comp.thresholds as Array<{ at: number; color: string }> | undefined;
+      let autoColor = (comp.color as string) || "default";
+      if (thresholds && thresholds.length > 0) {
+        const sorted = [...thresholds].sort((a, b) => b.at - a.at);
+        const matched = sorted.find(t => value >= t.at);
+        if (matched) autoColor = matched.color;
+      }
+      const targetPct = target != null ? Math.min(100, Math.max(0, target)) : undefined;
       return (
         <div id={id} className="c-progress">
           {(label || true) && (
@@ -1727,8 +1788,11 @@ function ComponentView({
               <span className="c-progress-value">{value}%</span>
             </div>
           )}
-          <div className="c-progress-track" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
-            <div className={`c-progress-fill c-progress-fill-${color}`} style={{ "--progress": `${value}%` } as React.CSSProperties} />
+          <div className="c-progress-track" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100} style={{ position: "relative" } as React.CSSProperties}>
+            <div className={`c-progress-fill c-progress-fill-${autoColor}`} style={{ "--progress": `${value}%` } as React.CSSProperties} />
+            {targetPct != null && (
+              <div className="c-progress-target" style={{ left: `${targetPct}%` } as React.CSSProperties} aria-label={`Target: ${targetPct}%`} />
+            )}
           </div>
           {detail && <div className="c-progress-detail">{detail}</div>}
         </div>
@@ -1864,11 +1928,40 @@ function ComponentView({
     }
 
     case "event_timeline": {
-      const events = (comp.events as Array<{ date: string; title: string; summary?: string; severity?: string; source?: string; link?: string }>) || [];
+      const events = (comp.events as Array<{ date: string; title: string; summary?: string; severity?: string; source?: string; link?: string; tags?: string[] }>) || [];
+      const filterBy = comp.filter_by as string[] | undefined;
+      const etRef = React.useRef<HTMLDivElement>(null);
+      const [activeTags, setActiveTags] = React.useState<Set<string>>(new Set());
+      const handleTagFilter = (tag: string) => {
+        setActiveTags(prev => {
+          const next = new Set(prev);
+          if (next.has(tag)) next.delete(tag); else next.add(tag);
+          return next;
+        });
+      };
+      React.useEffect(() => {
+        const el = etRef.current;
+        if (!el) return;
+        el.querySelectorAll("[data-event-tags]").forEach(ev => {
+          const tags = (ev.getAttribute("data-event-tags") || "").split(",").filter(Boolean);
+          (ev as HTMLElement).style.display = activeTags.size === 0 || tags.some(t => activeTags.has(t)) ? "" : "none";
+        });
+      }, [activeTags]);
+      const tagCounts: Record<string, number> = {};
+      if (filterBy) filterBy.forEach(tag => {
+        tagCounts[tag] = events.filter(e => (e.tags || []).includes(tag)).length;
+      });
       return (
-        <div id={id} className="c-event-timeline">
+        <div id={id} ref={etRef} className="c-event-timeline">
+          {filterBy && filterBy.length > 0 && (
+            <div className="c-event-tag-filters">
+              {filterBy.map((tag, ti) => (
+                <button key={ti} className={`c-event-tag-pill${activeTags.has(tag) ? " active" : ""}`} data-tag={tag} onClick={() => handleTagFilter(tag)}>{tag} <span className="c-event-tag-count">{tagCounts[tag] || 0}</span></button>
+              ))}
+            </div>
+          )}
           {events.map((ev, i) => (
-            <div key={i} className={`c-event severity-${ev.severity || "minor"}`} data-severity={ev.severity || "minor"}>
+            <div key={i} className={`c-event severity-${ev.severity || "minor"}`} data-severity={ev.severity || "minor"} {...(ev.tags && ev.tags.length > 0 ? { "data-event-tags": ev.tags.join(",") } : {})}>
               <div className="c-event-rail">
                 <div className="c-event-dot" />
               </div>
@@ -1880,6 +1973,11 @@ function ComponentView({
                 </div>
                 <div className="c-event-title">{ev.link ? <a href={ev.link}>{ev.title}</a> : ev.title}</div>
                 {ev.summary && <p className="c-event-summary">{renderInline(ev.summary)}</p>}
+                {ev.tags && ev.tags.length > 0 && (
+                  <div className="c-event-tags">
+                    {ev.tags.map((tag, ti) => <span key={ti} className="c-event-tag">{tag}</span>)}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -1892,6 +1990,7 @@ function ComponentView({
       const showFilterToggle = (comp.show_filter_toggle as boolean) ?? true;
       const defaultFilter = (comp.default_filter as string) || "all";
       const defaultCollapsed = (comp.default_collapsed as boolean) || false;
+      const defaultDepth = comp.default_depth as number | undefined;
       const statusGlyphs: Record<string, string> = { completed: "✓", active: "●", blocked: "✕", priority: "!", upcoming: "○" };
       const filters = ["all", "incomplete", "blocked", "priority"];
       const filterLabels: Record<string, string> = { all: "All", incomplete: "Incomplete only", blocked: "Blocked only", priority: "Priority only" };
@@ -1906,6 +2005,10 @@ function ComponentView({
         if ((node.status as string) === "priority") return true;
         return children.some(hasPriorityDescendant);
       };
+      const countDescendants = (node: Record<string, unknown>): number => {
+        const children = (node.children as Array<Record<string, unknown>>) || [];
+        return children.reduce((acc, c) => acc + 1 + countDescendants(c), 0);
+      };
 
       const renderNode = (node: Record<string, unknown>, depth: number): React.JSX.Element => {
         const children = (node.children as Array<Record<string, unknown>>) || [];
@@ -1914,9 +2017,11 @@ function ComponentView({
         const isLeaf = !hasChildren;
         const blockedDesc = status !== "blocked" && children.some(hasBlockedDescendant);
         const priorityDesc = status !== "priority" && children.some(hasPriorityDescendant);
+        const shouldCollapse = defaultDepth != null ? depth >= defaultDepth : defaultCollapsed;
+        const descCount = countDescendants(node);
         return (
           <li
-            className={`c-tree-node status-${status}${defaultCollapsed && hasChildren ? " collapsed" : ""}`}
+            className={`c-tree-node status-${status}${shouldCollapse && hasChildren ? " collapsed" : ""}`}
             data-status={status}
             {...(isLeaf ? { "data-leaf": "true" } : {})}
             {...(blockedDesc ? { "data-has-blocked-descendant": "true" } : {})}
@@ -1929,6 +2034,8 @@ function ComponentView({
               }}>▶</span>}
               <span className="c-tree-glyph" aria-hidden="true">{statusGlyphs[status] || "·"}</span>
               <span className="c-tree-label">{node.label as string}</span>
+              {node.owner && <span className="c-tree-owner">{node.owner as string}</span>}
+              {hasChildren && <span className="c-tree-count">{descCount}</span>}
               {node.note ? <span className="c-tree-note">{node.note as string}</span> : null}
             </div>
             {hasChildren && (
@@ -2665,6 +2772,82 @@ function ComponentView({
             </div>
           </OrgChartZoom>
         </div>
+      );
+    }
+
+    case "aside": {
+      const body = (comp.body as string) || "";
+      return (
+        <div id={id} className="c-aside">
+          <div className="c-aside-body">{md(body)}</div>
+        </div>
+      );
+    }
+
+    case "rule_list": {
+      const items = (comp.items as Array<{ label: string; body: string; color?: string }>) || [];
+      return (
+        <div id={id} className="c-rule-list">
+          {items.map((item, i) => (
+            <div key={i} className={`c-rule-item${item.color && item.color !== "default" ? ` c-rule-item-${item.color}` : ""}`}>
+              <div className="c-rule-label">{item.label}</div>
+              <div className="c-rule-body">{renderInline(item.body)}</div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "gauge": {
+      const items = (comp.items as Array<{ label: string; value: number; color?: string }>) || [];
+      const maxVal = (comp.max as number) || 100;
+      const cx = 32, cy = 32, r = 26, strokeW = 6;
+      const circ = 2 * Math.PI * r;
+      const total = items.reduce((acc, it) => acc + it.value, 0);
+      const title = comp.title as string | undefined;
+      let offset = 0;
+      const arcs = items.map((item, i) => {
+        const fraction = maxVal > 0 ? Math.min(item.value / maxVal, 1) : 0;
+        const dash = fraction * circ;
+        const gap = circ - dash;
+        const arc = (
+          <circle
+            key={i}
+            cx={cx}
+            cy={cy}
+            r={r}
+            fill="none"
+            strokeWidth={strokeW}
+            className={`c-gauge-arc c-gauge-arc-${item.color || "default"}`}
+            strokeDasharray={`${dash.toFixed(2)} ${gap.toFixed(2)}`}
+            strokeDashoffset={(-offset * circ / (maxVal > 0 ? maxVal : 1)).toFixed(2)}
+            transform={`rotate(-90 ${cx} ${cy})`}
+          >
+            <title>{item.label}: {item.value}</title>
+          </circle>
+        );
+        offset += item.value;
+        return arc;
+      });
+      return (
+        <figure id={id} className="c-gauge">
+          {title && <figcaption className="c-gauge-title">{title}</figcaption>}
+          <svg viewBox="0 0 64 64" width={64} height={64} className="c-gauge-svg" aria-label={title || "Gauge"}>
+            <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={strokeW} className="c-gauge-track" />
+            {arcs}
+            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" className="c-gauge-total">{total}</text>
+          </svg>
+          {items.length > 0 && (
+            <ul className="c-gauge-legend">
+              {items.map((item, i) => (
+                <li key={i} className={`c-gauge-legend-item c-gauge-legend-item-${item.color || "default"}`}>
+                  <span className="c-gauge-swatch" />
+                  <span>{item.label}: {item.value}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </figure>
       );
     }
 

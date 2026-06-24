@@ -132,6 +132,9 @@ fn component_type_name(c: &Component) -> String {
         Component::Pipeline { .. } => "pipeline",
         Component::Graph { .. } => "graph",
         Component::OrgChart { .. } => "org_chart",
+        Component::Aside { .. } => "aside",
+        Component::RuleList { .. } => "rule_list",
+        Component::Gauge { .. } => "gauge",
     }
     .to_string()
 }

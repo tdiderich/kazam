@@ -160,6 +160,16 @@
       "left",
       "top",
       "bottom"
+    ],
+    "Trend": [
+      "up",
+      "down",
+      "flat"
+    ],
+    "EventGroupBy": [
+      "month",
+      "quarter",
+      "source"
     ]
   },
   "types": {
@@ -329,6 +339,18 @@
       "color": {
         "type": "SemColor",
         "required": false
+      },
+      "trend": {
+        "type": "Trend",
+        "required": false
+      },
+      "previous": {
+        "type": "string",
+        "required": false
+      },
+      "history": {
+        "type": "number[]",
+        "required": false
       }
     },
     "BeforeAfterItem": {
@@ -403,6 +425,10 @@
       "align": {
         "type": "Align",
         "required": false
+      },
+      "color_map": {
+        "type": "Record<string, SemColor>",
+        "required": false
       }
     },
     "Tab": {
@@ -449,6 +475,10 @@
       "link": {
         "type": "string",
         "required": false
+      },
+      "tags": {
+        "type": "string[]",
+        "required": false
       }
     },
     "TreeNode": {
@@ -466,6 +496,10 @@
       },
       "children": {
         "type": "TreeNode[]",
+        "required": false
+      },
+      "owner": {
+        "type": "string",
         "required": false
       }
     },
@@ -1068,6 +1102,44 @@
         "type": "HubLink[]",
         "required": false
       }
+    },
+    "TableSummary": {
+      "group_by": {
+        "type": "string",
+        "required": true
+      },
+      "colors": {
+        "type": "Record<string, SemColor>",
+        "required": false
+      }
+    },
+    "GaugeItem": {
+      "label": {
+        "type": "string",
+        "required": true
+      },
+      "value": {
+        "type": "number",
+        "required": true
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false
+      }
+    },
+    "RuleItem": {
+      "label": {
+        "type": "string",
+        "required": true
+      },
+      "body": {
+        "type": "string",
+        "required": true
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false
+      }
     }
   },
   "components": {
@@ -1213,6 +1285,10 @@
       "filterable": {
         "type": "boolean",
         "required": false
+      },
+      "summary": {
+        "type": "TableSummary",
+        "required": false
       }
     },
     "callout": {
@@ -1303,6 +1379,14 @@
       "limit": {
         "type": "number",
         "required": false
+      },
+      "filter_by": {
+        "type": "string[]",
+        "required": false
+      },
+      "group_by": {
+        "type": "EventGroupBy",
+        "required": false
       }
     },
     "tree": {
@@ -1319,6 +1403,14 @@
         "required": false
       },
       "default_collapsed": {
+        "type": "boolean",
+        "required": false
+      },
+      "default_depth": {
+        "type": "number",
+        "required": false
+      },
+      "show_counts": {
         "type": "boolean",
         "required": false
       }
@@ -1510,6 +1602,14 @@
       },
       "detail": {
         "type": "string",
+        "required": false
+      },
+      "target": {
+        "type": "number",
+        "required": false
+      },
+      "thresholds": {
+        "type": "Record<string, SemColor>",
         "required": false
       }
     },
@@ -1736,6 +1836,36 @@
       },
       "groups": {
         "type": "GraphGroup[]",
+        "required": false
+      }
+    },
+    "aside": {
+      "body": {
+        "type": "string",
+        "required": true
+      }
+    },
+    "rule_list": {
+      "items": {
+        "type": "RuleItem[]",
+        "required": true
+      }
+    },
+    "gauge": {
+      "items": {
+        "type": "GaugeItem[]",
+        "required": true
+      },
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "columns": {
+        "type": "number",
+        "required": false
+      },
+      "max": {
+        "type": "number",
         "required": false
       }
     }

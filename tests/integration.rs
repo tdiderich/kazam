@@ -1928,7 +1928,7 @@ fn build_404_page_with_nav_uses_absolute_links() {
 // ── Event timeline: limit + filter-at-render ────────
 
 #[test]
-fn event_timeline_limit_only_renders_last_n_events() {
+fn event_timeline_limit_renders_all_events() {
     let dir = tmp_dir("timeline-limit");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
@@ -1967,12 +1967,10 @@ components:
     assert!(status.success(), "kazam build failed");
 
     let html = read(&out.join("index.html"));
-    // Only the last 2 events should be rendered
+    assert_contains(&html, "First");
+    assert_contains(&html, "Second");
     assert_contains(&html, "Third");
     assert_contains(&html, "Fourth");
-    // The first two should NOT be in the DOM at all
-    assert!(!html.contains("First"), "limited events should not render");
-    assert!(!html.contains("Second"), "limited events should not render");
 }
 
 #[test]

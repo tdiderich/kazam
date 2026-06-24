@@ -104,6 +104,23 @@ fn extract_searchable_text(
                     headings.push(col.label.clone());
                 }
             }
+            Component::Aside { body } => {
+                push_snippet(snippets, body);
+            }
+            Component::RuleList { items } => {
+                for item in items {
+                    headings.push(item.label.clone());
+                    push_snippet(snippets, &item.body);
+                }
+            }
+            Component::Gauge { items, title, .. } => {
+                if let Some(t) = title {
+                    headings.push(t.clone());
+                }
+                for item in items {
+                    headings.push(item.label.clone());
+                }
+            }
             Component::Accordion { items } => {
                 for item in items {
                     headings.push(item.title.clone());

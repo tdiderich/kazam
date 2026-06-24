@@ -119,12 +119,18 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 value: open.to_string(),
                 detail: None,
                 color: SemColor::Teal,
+                trend: None,
+                previous: None,
+                history: None,
             },
             Stat {
                 label: "Active".into(),
                 value: active.to_string(),
                 detail: None,
                 color: SemColor::Green,
+                trend: None,
+                previous: None,
+                history: None,
             },
             Stat {
                 label: "Blocked".into(),
@@ -135,12 +141,18 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 } else {
                     SemColor::Default
                 },
+                trend: None,
+                previous: None,
+                history: None,
             },
             Stat {
                 label: "Closed".into(),
                 value: closed.to_string(),
                 detail: None,
                 color: SemColor::Default,
+                trend: None,
+                previous: None,
+                history: None,
             },
         ],
         columns: 4,
@@ -201,6 +213,10 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             default_filter: TreeFilter::Incomplete,
             show_filter_toggle: true,
             default_collapsed: false,
+            default_depth: None,
+            show_counts: false,
+            show_summary: false,
+            default_view: TreeDefaultView::Tree,
         }],
     };
 
@@ -218,12 +234,18 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                             value: anatomy.files.len().to_string(),
                             detail: None,
                             color: SemColor::Default,
+                            trend: None,
+                            previous: None,
+                            history: None,
                         },
                         Stat {
                             label: "Total tokens".into(),
                             value: format!("~{}", format_token_count(total_tokens)),
                             detail: None,
                             color: SemColor::Default,
+                            trend: None,
+                            previous: None,
+                            history: None,
                         },
                     ],
                     columns: 2,
@@ -233,6 +255,10 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                     default_filter: TreeFilter::All,
                     show_filter_toggle: false,
                     default_collapsed: true,
+                    default_depth: None,
+                    show_counts: false,
+                    show_summary: false,
+                    default_view: TreeDefaultView::Tree,
                 },
             ],
         }
@@ -257,6 +283,8 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             default_filter: EventFilter::All,
             show_filter_toggle: true,
             limit: Some(25),
+            filter_by: vec![],
+            group_by: None,
         });
     }
     if !learnings.learnings.is_empty() {
@@ -284,22 +312,26 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                         label: "Category".into(),
                         sortable: true,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "learning".into(),
                         label: "Learning".into(),
                         sortable: false,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "id".into(),
                         label: "ID".into(),
                         sortable: false,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                 ],
                 rows: learn_rows,
                 filterable: false,
+                summary: None,
             }],
             align: Align::Left,
             id: None,
@@ -347,28 +379,33 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                         label: "Status".into(),
                         sortable: true,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "symptom".into(),
                         label: "Symptom".into(),
                         sortable: false,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "file".into(),
                         label: "File".into(),
                         sortable: true,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                     TableColumn {
                         key: "fix".into(),
                         label: "Fix".into(),
                         sortable: false,
                         align: Align::Left,
+                        color_map: HashMap::new(),
                     },
                 ],
                 rows: bug_rows,
                 filterable: false,
+                summary: None,
             }],
             align: Align::Left,
             id: None,
@@ -447,6 +484,7 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
             status,
             note,
             children: build_level(Some(&t.id), children_map),
+            owner: None,
         }
     }
 
@@ -494,6 +532,7 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
                 status,
                 note: t.note.clone(),
                 children: vec![],
+                owner: None,
             }
         })
         .collect();
@@ -508,6 +547,7 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
                 if incomplete_human.len() == 1 { "" } else { "s" }
             )),
             children: incomplete_human,
+            owner: None,
         });
     }
 
@@ -582,6 +622,7 @@ fn anatomy_to_tree_nodes(files: &[crate::ctx::types::FileEntry]) -> Vec<TreeNode
                     dir.file_count()
                 )),
                 children: build(dir),
+                owner: None,
             });
         }
         for (name, tokens, desc) in &node.files {
@@ -596,6 +637,7 @@ fn anatomy_to_tree_nodes(files: &[crate::ctx::types::FileEntry]) -> Vec<TreeNode
                 status: TreeStatus::Default,
                 note: Some(note),
                 children: vec![],
+                owner: None,
             });
         }
         out
@@ -629,6 +671,7 @@ fn log_to_events(log: &LogStore) -> Vec<EventItem> {
                 severity,
                 source: e.source.clone(),
                 link: None,
+                tags: vec![],
             }
         })
         .collect()
