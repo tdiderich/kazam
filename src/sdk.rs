@@ -2034,7 +2034,7 @@ function ComponentView({
               }}>▶</span>}
               <span className="c-tree-glyph" aria-hidden="true">{statusGlyphs[status] || "·"}</span>
               <span className="c-tree-label">{node.label as string}</span>
-              {node.owner && <span className="c-tree-owner">{node.owner as string}</span>}
+              {node.owner && <span className="c-tree-owner">{String(node.owner)}</span>}
               {hasChildren && <span className="c-tree-count">{descCount}</span>}
               {node.note ? <span className="c-tree-note">{node.note as string}</span> : null}
             </div>
