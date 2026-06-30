@@ -2997,6 +2997,22 @@ function HubMasthead({ hub, resolveHref, activeHref, exportMode }: { hub: HubDat
 
 export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap, resolveHubHref, activeHubHref, exportMode }: PageRendererProps) {
   if (page.shell === "deck" && page.slides && page.slides.length > 0) {
+    if (exportMode) {
+      return (
+        <div className="deck-export">
+          {page.slides.map((slide, si) => (
+            <div key={si} className={`deck-slide${slide.hide_label || slide.cover ? " deck-slide-cover" : ""}`} data-label={slide.label}>
+              <div className="deck-inner">
+                {!slide.hide_label && <div className="deck-label">{slide.label}</div>}
+                {(slide.components ?? []).map((comp, ci) => (
+                  <ComponentView key={ci} comp={comp} index={ci} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
     return <DeckRenderer slides={page.slides} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
   }
   const components = page.components ?? [];

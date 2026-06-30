@@ -540,6 +540,11 @@ body {
 }
 body.shell-standard, body.shell-document { min-height: 100vh; }
 body.shell-deck { height: 100vh; overflow: hidden; }
+body.shell-deck .app-shell { height: 100vh; }
+body.shell-deck .app-main { height: 100vh; display: flex; flex-direction: column; }
+body.shell-deck .page-detail-layout { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+body.shell-deck .page-content-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+body.shell-deck .page-detail-content { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0; }
 
 a { color: inherit; text-decoration: none; }
 h1, h2, h3 { font-weight: 600; color: var(--snow); }
@@ -913,10 +918,19 @@ body.shell-document .doc-footer {
 /* ──────────────────── Deck shell ──────────────────── */
 
 body.shell-deck .deck-root {
-  position: fixed;
-  inset: 0;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Deck export mode: all slides stacked vertically for full-page screenshot */
+.deck-export .deck-slide { page-break-inside: avoid; margin-bottom: 32px; padding-bottom: 32px; border-bottom: 1px solid rgba(var(--text-rgb), 0.08); }
+.deck-export .deck-slide:last-child { border-bottom: none; margin-bottom: 0; }
+.deck-export .deck-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 56px;
 }
 
 body.shell-deck .deck-viewport { flex: 1; overflow: hidden; position: relative; }
