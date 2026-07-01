@@ -2800,13 +2800,32 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-rule-red .c-rule-label { color: #F87171; }
 .c-rule-teal .c-rule-label { color: #3CCECE; }
 
-/* Gauge */
+/* Gauge — grid variant (Rust renderer) */
 .c-gauge-grid { display: grid; grid-template-columns: repeat(var(--gauge-cols, 3), 1fr); gap: 20px; }
-.c-gauge-title { grid-column: 1 / -1; font-size: 14px; font-weight: 600; color: var(--snow); }
+.c-gauge-grid .c-gauge-title { grid-column: 1 / -1; }
 .c-gauge-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .c-gauge-ring { width: 64px; height: 64px; }
 .c-gauge-value { font-size: 13px; font-weight: 600; fill: var(--snow); }
 .c-gauge-label { font-size: 12px; color: rgba(var(--text-rgb),0.6); text-align: center; }
+
+/* Gauge — donut variant (TSX renderer) */
+.c-gauge { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; margin: 0; }
+.c-gauge-title { font-size: 14px; font-weight: 600; color: var(--snow); }
+.c-gauge-svg { display: block; }
+.c-gauge-track { stroke: rgba(var(--text-rgb), 0.08); }
+.c-gauge-total { font-size: 13px; font-weight: 600; fill: var(--snow); }
+.c-gauge-arc-default { stroke: var(--muted); }
+.c-gauge-arc-green { stroke: var(--green); }
+.c-gauge-arc-yellow { stroke: var(--yellow); }
+.c-gauge-arc-red { stroke: var(--red); }
+.c-gauge-arc-teal { stroke: var(--teal); }
+.c-gauge-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0; margin: 8px 0 0; }
+.c-gauge-legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: rgba(var(--text-rgb), 0.7); }
+.c-gauge-swatch { width: 8px; height: 8px; border-radius: 50%; background: var(--gauge-swatch, var(--muted)); flex-shrink: 0; }
+.c-gauge-legend-item-green .c-gauge-swatch { --gauge-swatch: var(--green); }
+.c-gauge-legend-item-yellow .c-gauge-swatch { --gauge-swatch: var(--yellow); }
+.c-gauge-legend-item-red .c-gauge-swatch { --gauge-swatch: var(--red); }
+.c-gauge-legend-item-teal .c-gauge-swatch { --gauge-swatch: var(--teal); }
 
 /* Source pill (bottom-right floating dropdown) */
 .source-pill {
