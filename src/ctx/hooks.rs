@@ -71,6 +71,11 @@ Nested paths use `--` as separator: `frontend/src/app` → `anatomy/frontend--sr
 
 Summary → detail → source. Three reads, zero exploration.
 
+**For multi-file exploration** (where is X, what calls Y, bug hunts across
+directories), dispatch the `kazam-scout` agent instead of exploring in your
+own context. It navigates anatomy-first and returns compact `file:line`
+citations, keeping file dumps out of the main conversation.
+
 **When delegating to subagents:** subagents don't see these rules, so you
 must brief them. Include in every subagent prompt:
 1. **Anatomy:** "Read `.kazam/ctx/anatomy.tsv` for project layout, then
@@ -122,6 +127,48 @@ You may edit `.kazam/track/tasks.yaml` or `.kazam/ctx/*.yaml` directly.
 The board (`kazam board`) auto-refreshes on any `.kazam/*.yaml` change.
 "#;
 
+const SCOUT_AGENT: &str = r#"---
+name: kazam-scout
+description: Read-only repository scout. Locates code fast and returns compact file:line citations instead of file dumps. Use for "where is X defined", "what calls Y", "which files handle Z" before making changes. Navigates via the kazam anatomy index instead of blind grep.
+tools: Read, Glob, Grep, Bash
+model: haiku
+---
+
+You are kazam-scout, a repository exploration subagent. Your job is to find
+code and return citations — never to fix, refactor, or judge it.
+
+## Protocol
+
+1. Read `.kazam/ctx/anatomy.tsv` first — root files and directory rollups.
+2. Drill into `.kazam/ctx/anatomy/<dir>.tsv` for the directories that matter.
+   Nested paths use `--` as separator: `src/app/api` → `anatomy/src--app--api.tsv`.
+3. Confirm with targeted Read/Grep on specific files. Issue independent
+   searches in parallel, not one at a time.
+4. Verify every citation by reading the actual lines before reporting.
+
+## Output contract
+
+Return ONLY this format:
+
+FINDINGS
+- path/to/file.rs:42-58 — router definition, handles the auth redirect
+- path/to/other.ts:101-119 — the only caller
+
+NOT FOUND (only if applicable)
+- searched: <patterns and directories covered>
+
+Rules:
+- Max 10 citations, ranked by relevance.
+- One line of "why it matters" per citation. No code blocks longer than 3 lines.
+- Never propose fixes, improvements, or opinions on code quality.
+- If anatomy lists a file that doesn't exist on disk, note it as stale and move on.
+
+## Enrichment
+
+After reading a file whose anatomy description is empty or generic, run:
+`kazam ctx describe <path> "<one line on what it actually does>"`
+"#;
+
 pub fn install(project: &Path, agent: &str, skunkworks: bool) -> Result<()> {
     let hooks_dir = crate::workspace::root(project).join("hooks");
     fs::create_dir_all(&hooks_dir).context("create hooks dir")?;
@@ -160,6 +207,11 @@ pub fn install(project: &Path, agent: &str, skunkworks: bool) -> Result<()> {
 
     fs::write(rules_dir.join("kazam-workspace.md"), &rules).context("write workspace rules")?;
 
+    // Write the scout agent definition (anatomy-first repository explorer)
+    let agents_dir = project.join(".claude").join("agents");
+    fs::create_dir_all(&agents_dir).context("create .claude/agents")?;
+    fs::write(agents_dir.join("kazam-scout.md"), SCOUT_AGENT).context("write kazam-scout agent")?;
+
     let settings_name = if skunkworks {
         "settings.local.json"
     } else {
@@ -170,6 +222,7 @@ pub fn install(project: &Path, agent: &str, skunkworks: bool) -> Result<()> {
         println!("  ✓ Claude Code hooks registered in .claude/{settings_name}");
     }
     println!("  ✓ workspace rules written to .claude/rules/kazam-workspace.md");
+    println!("  ✓ scout agent written to .claude/agents/kazam-scout.md");
     if override_path.exists() {
         println!("  ✓ team overrides applied from .kazam/ctx/rules-override.md");
     }
@@ -186,6 +239,11 @@ pub fn uninstall(project: &Path) -> Result<()> {
     let rules_file = project.join(".claude/rules/kazam-workspace.md");
     if rules_file.exists() {
         fs::remove_file(&rules_file).context("remove workspace rules")?;
+    }
+
+    let scout_file = project.join(".claude/agents/kazam-scout.md");
+    if scout_file.exists() {
+        fs::remove_file(&scout_file).context("remove kazam-scout agent")?;
     }
 
     // Remove only kazam entries from .claude/settings.json, preserve everything else

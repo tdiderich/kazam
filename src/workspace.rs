@@ -92,7 +92,11 @@ pub fn ensure(project: &Path) -> Result<PathBuf> {
 pub fn apply_skunkworks(project: &Path) -> Result<()> {
     let gi = project.join(".gitignore");
     let content = fs::read_to_string(&gi).unwrap_or_default();
-    let entries = [".kazam/", ".claude/rules/kazam-workspace.md"];
+    let entries = [
+        ".kazam/",
+        ".claude/rules/kazam-workspace.md",
+        ".claude/agents/kazam-scout.md",
+    ];
     use std::io::Write;
     let needs: Vec<&str> = entries
         .iter()
@@ -133,7 +137,12 @@ pub fn disable_skunkworks(project: &Path) -> Result<()> {
 
     let gi = project.join(".gitignore");
     if let Ok(content) = fs::read_to_string(&gi) {
-        let remove = [".kazam/", ".kazam", ".claude/rules/kazam-workspace.md"];
+        let remove = [
+            ".kazam/",
+            ".kazam",
+            ".claude/rules/kazam-workspace.md",
+            ".claude/agents/kazam-scout.md",
+        ];
         let filtered: Vec<&str> = content
             .lines()
             .filter(|l| !remove.contains(&l.trim()))
