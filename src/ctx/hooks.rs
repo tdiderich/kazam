@@ -131,7 +131,7 @@ const SCOUT_AGENT: &str = r#"---
 name: kazam-scout
 description: Read-only repository scout. Locates code fast and returns compact file:line citations instead of file dumps. Use for "where is X defined", "what calls Y", "which files handle Z" before making changes. Navigates via the kazam anatomy index instead of blind grep.
 tools: Read, Glob, Grep, Bash
-model: haiku
+model: sonnet
 ---
 
 You are kazam-scout, a repository exploration subagent. Your job is to find
