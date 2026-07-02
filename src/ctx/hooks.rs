@@ -139,12 +139,21 @@ code and return citations — never to fix, refactor, or judge it.
 
 ## Protocol
 
-1. Read `.kazam/ctx/anatomy.tsv` first — root files and directory rollups.
+1. Check for `.kazam/ctx/anatomy.tsv`. If it exists, read it first — root
+   files and directory rollups. If it does not exist, skip to the fallback
+   protocol below.
 2. Drill into `.kazam/ctx/anatomy/<dir>.tsv` for the directories that matter.
    Nested paths use `--` as separator: `src/app/api` → `anatomy/src--app--api.tsv`.
 3. Confirm with targeted Read/Grep on specific files. Issue independent
    searches in parallel, not one at a time.
 4. Verify every citation by reading the actual lines before reporting.
+
+## Fallback protocol (no kazam workspace)
+
+No anatomy index? Explore directly: Glob for structure (`**/*.<ext>`,
+config files, entry points), Grep for symbols, Read only the files that
+match. Same parallel-search discipline, same output contract. Never
+error out just because kazam isn't set up.
 
 ## Output contract
 
