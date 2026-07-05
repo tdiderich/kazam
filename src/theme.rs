@@ -928,7 +928,7 @@ body.shell-deck .deck-root {
 .deck-export .deck-slide { page-break-inside: avoid; margin-bottom: 32px; padding-bottom: 32px; border-bottom: 1px solid rgba(var(--text-rgb), 0.08); }
 .deck-export .deck-slide:last-child { border-bottom: none; margin-bottom: 0; }
 .deck-export .deck-inner {
-  max-width: 1100px;
+  max-width: min(1100px, 90%);
   margin: 0 auto;
   padding: 32px 56px;
 }
@@ -941,7 +941,7 @@ body.shell-deck .deck-track {
 }
 body.shell-deck .deck-slide { min-width: 100%; height: 100%; overflow: hidden; }
 body.shell-deck .deck-inner {
-  max-width: 1100px;
+  max-width: min(1100px, 90%);
   margin: 0 auto;
   padding: 56px 56px 88px;
   display: flex;
