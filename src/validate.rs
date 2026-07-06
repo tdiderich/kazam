@@ -14,7 +14,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::types::{Component, Page, Shell, SiteConfig};
+use crate::types::{Component, Page, Shell, Slide, SiteConfig};
 
 // ── Error type ────────────────────────────────────────
 
@@ -66,6 +66,9 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
         for (i, slide) in slides.iter().enumerate() {
             let path = format!("slides[{}].components", i);
             validate_components(file, &path, &slide.components, &mut errors);
+        }
+        if matches!(page.shell, Shell::Deck) {
+            validate_slide_density(file, slides, &mut errors);
         }
     }
     if let Some(fv) = &page.freshness {
@@ -340,6 +343,70 @@ fn validate_shell_structure(file: &str, page: &Page, errors: &mut Vec<Validation
                     Some("Remove slides: or change shell to deck.".into()),
                 ));
             }
+        }
+    }
+}
+
+// ── Slide density validation ─────────────────────────
+
+const SLIDE_DENSITY_LIMIT: u32 = 8;
+
+fn component_height_cost(c: &Component) -> u32 {
+    match c {
+        Component::Header { subtitle, .. } => if subtitle.is_some() { 2 } else { 1 },
+        Component::Callout { .. } => 2,
+        Component::Blockquote { .. } => 2,
+        Component::StatGrid { stats, .. } => 2 + (stats.len() as u32 / 5),
+        Component::CardGrid { cards, .. } => 1 + cards.len() as u32,
+        Component::SelectableGrid { cards, .. } => 2 + (cards.len() as u32 / 3),
+        Component::Steps { items, .. } => 1 + items.len() as u32,
+        Component::Table { rows, .. } => 2 + rows.len() as u32,
+        Component::Pipeline { .. } => 5,
+        Component::SplitCompare { .. } => 4,
+        Component::Chart { .. } => 4,
+        Component::Radar { .. } => 4,
+        Component::Sankey { .. } => 4,
+        Component::Graph { .. } => 4,
+        Component::Architecture { .. } => 4,
+        Component::Quadrant { .. } => 4,
+        Component::OrgChart { .. } => 5,
+        Component::Venn { .. } => 3,
+        Component::Timeline { items, .. } => 1 + items.len() as u32,
+        Component::EventTimeline { events, .. } => 2 + events.len() as u32,
+        Component::DefinitionList { items, .. } => 1 + items.len() as u32,
+        Component::Accordion { items, .. } => 1 + items.len() as u32,
+        Component::BeforeAfter { items, .. } => 2 + items.len() as u32,
+        Component::Columns { columns, .. } => {
+            columns.iter().map(|col| col.iter().map(component_height_cost).sum::<u32>()).max().unwrap_or(0)
+        }
+        Component::Section { components, .. } => {
+            1 + components.iter().map(component_height_cost).sum::<u32>()
+        }
+        Component::Tabs { tabs, .. } => 2 + tabs.len().min(1) as u32,
+        Component::Markdown { body, .. } => 1 + (body.lines().count() as u32 / 4),
+        Component::Code { code, .. } => 2 + (code.lines().count() as u32 / 3),
+        Component::Image { .. } | Component::Embed { .. } => 4,
+        Component::Gauge { items, .. } => 2 + items.len() as u32,
+        Component::RuleList { items, .. } => 1 + items.len() as u32,
+        Component::Tree { .. } => 4,
+        _ => 1,
+    }
+}
+
+fn validate_slide_density(file: &str, slides: &[Slide], errors: &mut Vec<ValidationError>) {
+    for (i, slide) in slides.iter().enumerate() {
+        let cost: u32 = slide.components.iter().map(component_height_cost).sum();
+        if cost > SLIDE_DENSITY_LIMIT {
+            errors.push(ValidationError::new(
+                file,
+                format!("slides[{}]", i),
+                "density",
+                format!(
+                    "Slide {:?} has ~{} content units (limit {}). Content will likely overflow the viewport.",
+                    slide.label, cost, SLIDE_DENSITY_LIMIT
+                ),
+                Some("Split into two slides, or remove components to fit one screen.".into()),
+            ));
         }
     }
 }
