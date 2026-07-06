@@ -14,7 +14,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::types::{Component, Page, Shell, Slide, SiteConfig};
+use crate::types::{Component, Page, Shell, SiteConfig, Slide};
 
 // ── Error type ────────────────────────────────────────
 
@@ -349,11 +349,17 @@ fn validate_shell_structure(file: &str, page: &Page, errors: &mut Vec<Validation
 
 // ── Slide density validation ─────────────────────────
 
-const SLIDE_DENSITY_LIMIT: u32 = 8;
+const SLIDE_DENSITY_LIMIT: u32 = 9;
 
 fn component_height_cost(c: &Component) -> u32 {
     match c {
-        Component::Header { subtitle, .. } => if subtitle.is_some() { 2 } else { 1 },
+        Component::Header { subtitle, .. } => {
+            if subtitle.is_some() {
+                2
+            } else {
+                1
+            }
+        }
         Component::Callout { .. } => 2,
         Component::Blockquote { .. } => 2,
         Component::StatGrid { stats, .. } => 2 + (stats.len() as u32 / 5),
@@ -376,9 +382,11 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::DefinitionList { items, .. } => 1 + items.len() as u32,
         Component::Accordion { items, .. } => 1 + items.len() as u32,
         Component::BeforeAfter { items, .. } => 2 + items.len() as u32,
-        Component::Columns { columns, .. } => {
-            columns.iter().map(|col| col.iter().map(component_height_cost).sum::<u32>()).max().unwrap_or(0)
-        }
+        Component::Columns { columns, .. } => columns
+            .iter()
+            .map(|col| col.iter().map(component_height_cost).sum::<u32>())
+            .max()
+            .unwrap_or(0),
         Component::Section { components, .. } => {
             1 + components.iter().map(component_height_cost).sum::<u32>()
         }
@@ -395,7 +403,12 @@ fn component_height_cost(c: &Component) -> u32 {
 
 fn validate_slide_density(file: &str, slides: &[Slide], errors: &mut Vec<ValidationError>) {
     for (i, slide) in slides.iter().enumerate() {
-        let cost: u32 = slide.components.iter().map(component_height_cost).sum();
+        let mut cost: u32 = slide.components.iter().map(component_height_cost).sum();
+        // The slide header (eyebrow + title + optional subtitle) is not a
+        // component but still consumes vertical space; count it toward density.
+        if slide.title.is_some() || slide.eyebrow.is_some() {
+            cost += if slide.subtitle.is_some() { 2 } else { 1 };
+        }
         if cost > SLIDE_DENSITY_LIMIT {
             errors.push(ValidationError::new(
                 file,
@@ -1291,6 +1304,12 @@ mod tests {
             slides: Some(vec![Slide {
                 label: "Slide 1".into(),
                 components: vec![header_component()],
+                title: None,
+                eyebrow: None,
+                subtitle: None,
+                align: None,
+                valign: None,
+                cover: false,
                 hide_label: false,
             }]),
             unlisted: false,

@@ -352,7 +352,10 @@ fn card_grid(cards: &[Card], min_width: Option<u32>, connector: Connector, base:
         }
         h.push_str("</div>");
         if let Some(d) = &card.description {
-            h.push_str(&format!(r#"<p class="c-card-desc">{}</p>"#, esc(d)));
+            h.push_str(&format!(
+                r#"<p class="c-card-desc">{}</p>"#,
+                parse_markdown_inline(d)
+            ));
         }
         if let Some(links) = &card.links {
             h.push_str(r#"<div class="c-card-links">"#);

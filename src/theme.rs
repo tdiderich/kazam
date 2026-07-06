@@ -950,10 +950,32 @@ body.shell-deck .deck-inner {
   min-height: 100%;
   gap: 28px;
 }
+/* Standalone build: deck-root sits directly under body (no app-main wrapper),
+   so give it viewport height here. Scoped with > so the curata app shell,
+   where deck-root is nested, is unaffected. */
+body.shell-deck > .deck-root { min-height: 100vh; }
+/* Opt out of vertical centering per slide with valign: top. */
+body.shell-deck .deck-slide-top .deck-inner { justify-content: flex-start; }
 body.shell-deck .deck-slide-cover .deck-inner {
   align-items: center;
   text-align: center;
 }
+
+/* First-class slide header: eyebrow + title + subtitle, left-aligned by default. */
+body.shell-deck .deck-slide-header { display: flex; flex-direction: column; }
+body.shell-deck .deck-slide-eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--teal);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+}
+body.shell-deck .deck-slide-title { font-size: 40px; line-height: 1.15; font-weight: 600; margin: 0; }
+body.shell-deck .deck-slide-subtitle { font-size: 18px; color: var(--light-muted); margin-top: 8px; }
+body.shell-deck .deck-slide-cover .deck-slide-header { align-items: center; }
+body.shell-deck .deck-slide-cover .deck-slide-title { font-size: 56px; letter-spacing: -0.01em; }
+body.shell-deck .deck-slide-cover .deck-slide-subtitle { font-size: 20px; }
 
 /* Deck-scale typography: every content primitive steps up one tier so a
    slide reads as a slide, not a doc page. */

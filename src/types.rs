@@ -304,8 +304,27 @@ pub enum PrintFlow {
 pub struct Slide {
     pub label: String,
     pub components: Vec<Component>,
-    /// Hide the top-left "OVERVIEW"-style label on this slide. Typically used
-    /// for a cover/title slide where the centered title is the only text.
+    /// Slide heading, rendered left-aligned by default. When set, the slide
+    /// owns its title directly and no nested section is needed.
+    #[serde(default)]
+    pub title: Option<String>,
+    /// Kicker above the title (e.g. "STAGE 1").
+    #[serde(default)]
+    pub eyebrow: Option<String>,
+    /// Optional supporting line under the title.
+    #[serde(default)]
+    pub subtitle: Option<String>,
+    /// Content alignment: "left" (default) or "center".
+    #[serde(default)]
+    pub align: Option<String>,
+    /// Vertical alignment of slide content: "center" (default) or "top".
+    #[serde(default)]
+    pub valign: Option<String>,
+    /// Cover/title slide: centered, oversized hero layout.
+    #[serde(default)]
+    pub cover: bool,
+    /// Hide the nav label from the slide body. Does NOT affect alignment;
+    /// use `cover` or `align: center` for centered layouts.
     #[serde(default)]
     pub hide_label: bool,
 }

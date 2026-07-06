@@ -83,17 +83,6 @@ fn generate_typescript() -> String {
         emit_interface(&mut out, name, &field_refs);
     }
 
-    // Slide type (not in schema, stays hardcoded)
-    emit_interface(
-        &mut out,
-        "Slide",
-        &[
-            ("label", "string"),
-            ("components", "Component[]"),
-            ("hide_label?", "boolean"),
-        ],
-    );
-
     // Component union (tagged by "type")
     out.push_str("export type Component =\n");
     let components = component_defs();
@@ -527,8 +516,12 @@ import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 interface SlideData {
   label: string;
   components?: ComponentData[];
-  hide_label?: boolean;
+  title?: string;
+  eyebrow?: string;
+  subtitle?: string;
+  align?: "left" | "center";
   cover?: boolean;
+  hide_label?: boolean;
 }
 
 interface FreshnessData {
@@ -1722,8 +1715,9 @@ function ComponentView({
       const heading = comp.heading as string | undefined;
       const eyebrow = comp.eyebrow as string | undefined;
       const children = (comp.components as ComponentData[]) || [];
+      const sectionAlign = comp.align as string | undefined;
       return (
-        <section id={id} className="c-section">
+        <section id={id} className={`c-section${sectionAlign ? ` align-${sectionAlign}` : ""}`}>
           {(eyebrow || heading) && (
             <div className="c-section-header">
               {eyebrow && <div className="c-section-eyebrow">{eyebrow}</div>}
@@ -2887,9 +2881,15 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
       <div className="deck-viewport">
         <div className="deck-track" ref={trackRef} style={{ transform: `translateX(-${current * 100}%)` }}>
           {slides.map((slide, si) => (
-            <div key={si} className={`deck-slide${slide.hide_label || slide.cover ? " deck-slide-cover" : ""}`} data-label={slide.label}>
+            <div key={si} className={`deck-slide${slide.cover || slide.align === "center" ? " deck-slide-cover" : ""}${slide.valign === "top" ? " deck-slide-top" : ""}`} data-label={slide.label}>
               <div className="deck-inner">
-                {!slide.hide_label && <div className="deck-label">{slide.label}</div>}
+                {(slide.eyebrow || slide.title || slide.subtitle) ? (
+                  <div className="deck-slide-header">
+                    {slide.eyebrow && <div className="deck-slide-eyebrow">{slide.eyebrow}</div>}
+                    {slide.title && <h1 className="deck-slide-title">{slide.title}</h1>}
+                    {slide.subtitle && <div className="deck-slide-subtitle">{slide.subtitle}</div>}
+                  </div>
+                ) : (!slide.hide_label && <div className="deck-label">{slide.label}</div>)}
                 {(slide.components ?? []).map((comp, ci) => (
                   <ComponentView key={ci} comp={comp} index={ci} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
                 ))}
@@ -3001,9 +3001,15 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
       return (
         <div className="deck-export">
           {page.slides.map((slide, si) => (
-            <div key={si} className={`deck-slide${slide.hide_label || slide.cover ? " deck-slide-cover" : ""}`} data-label={slide.label}>
+            <div key={si} className={`deck-slide${slide.cover || slide.align === "center" ? " deck-slide-cover" : ""}${slide.valign === "top" ? " deck-slide-top" : ""}`} data-label={slide.label}>
               <div className="deck-inner">
-                {!slide.hide_label && <div className="deck-label">{slide.label}</div>}
+                {(slide.eyebrow || slide.title || slide.subtitle) ? (
+                  <div className="deck-slide-header">
+                    {slide.eyebrow && <div className="deck-slide-eyebrow">{slide.eyebrow}</div>}
+                    {slide.title && <h1 className="deck-slide-title">{slide.title}</h1>}
+                    {slide.subtitle && <div className="deck-slide-subtitle">{slide.subtitle}</div>}
+                  </div>
+                ) : (!slide.hide_label && <div className="deck-label">{slide.label}</div>)}
                 {(slide.components ?? []).map((comp, ci) => (
                   <ComponentView key={ci} comp={comp} index={ci} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
                 ))}

@@ -640,6 +640,30 @@
         "type": "Component[]",
         "required": true
       },
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "eyebrow": {
+        "type": "string",
+        "required": false
+      },
+      "subtitle": {
+        "type": "string",
+        "required": false
+      },
+      "align": {
+        "type": "Align",
+        "required": false
+      },
+      "valign": {
+        "type": "string",
+        "required": false
+      },
+      "cover": {
+        "type": "boolean",
+        "required": false
+      },
       "hide_label": {
         "type": "boolean",
         "required": false

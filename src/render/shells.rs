@@ -720,19 +720,44 @@ pub mod deck {
         out.html
             .push_str(r#"<div class="deck-viewport"><div class="deck-track">"#);
         for slide in slides {
-            let (label_html, slide_cls) = if slide.hide_label {
-                (String::new(), " deck-slide-cover")
-            } else {
-                (
-                    format!(r#"<div class="deck-label">{}</div>"#, esc(&slide.label)),
-                    "",
-                )
-            };
+            let is_cover = slide.cover || slide.align.as_deref() == Some("center");
+            let mut slide_cls = String::new();
+            if is_cover {
+                slide_cls.push_str(" deck-slide-cover");
+            }
+            if slide.valign.as_deref() == Some("top") {
+                slide_cls.push_str(" deck-slide-top");
+            }
+            let header_html =
+                if slide.eyebrow.is_some() || slide.title.is_some() || slide.subtitle.is_some() {
+                    let mut h = String::from(r#"<div class="deck-slide-header">"#);
+                    if let Some(e) = &slide.eyebrow {
+                        h.push_str(&format!(
+                            r#"<div class="deck-slide-eyebrow">{}</div>"#,
+                            esc(e)
+                        ));
+                    }
+                    if let Some(t) = &slide.title {
+                        h.push_str(&format!(r#"<h1 class="deck-slide-title">{}</h1>"#, esc(t)));
+                    }
+                    if let Some(s) = &slide.subtitle {
+                        h.push_str(&format!(
+                            r#"<div class="deck-slide-subtitle">{}</div>"#,
+                            esc(s)
+                        ));
+                    }
+                    h.push_str("</div>");
+                    h
+                } else if !slide.hide_label {
+                    format!(r#"<div class="deck-label">{}</div>"#, esc(&slide.label))
+                } else {
+                    String::new()
+                };
             out.html.push_str(&format!(
-                r#"<div class="deck-slide{cls}" data-label="{label}"><div class="deck-inner">{label_html}"#,
+                r#"<div class="deck-slide{cls}" data-label="{label}"><div class="deck-inner">{header_html}"#,
                 cls = slide_cls,
                 label = esc(&slide.label),
-                label_html = label_html,
+                header_html = header_html,
             ));
             for c in &slide.components {
                 out.extend(components::render(c, base, config));
