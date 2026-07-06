@@ -538,11 +538,16 @@ const DECK: &str = r#"
   var next = document.getElementById('deck-next');
   var labels = Array.from(slides).map(function (s) { return s.dataset.label; });
   var current = 0;
+  var presenting = false;
+  var fadeTimer;
+  var overlay = document.getElementById('deck-present-overlay');
+  var progressBar = document.getElementById('deck-present-progress-bar');
+  var counter = document.getElementById('deck-present-counter');
+  var presentBtn = document.getElementById('deck-present-btn');
   function fit() {
     slides.forEach(function (slide) {
       var inner = slide.querySelector('.deck-inner');
       if (!inner) return;
-      // Reset any previous transform so we measure natural content.
       inner.style.transform = '';
       inner.style.transformOrigin = '';
       var availH = slide.clientHeight;
@@ -550,11 +555,22 @@ const DECK: &str = r#"
       var needH = inner.scrollHeight;
       if (!needH) return;
       var k = availH / needH;
-      if (k >= 0.99) return; // already fits, leave at natural size
+      if (k >= 0.99) return;
       k = Math.max(0.4, k);
       inner.style.transformOrigin = 'top center';
       inner.style.transform = 'scale(' + k + ')';
     });
+  }
+  function updateOverlay() {
+    if (!overlay) return;
+    if (progressBar) progressBar.style.width = ((current + 1) / slides.length * 100) + '%';
+    if (counter) counter.textContent = (current + 1) + ' / ' + slides.length;
+  }
+  function resetFade() {
+    if (!overlay) return;
+    overlay.classList.remove('deck-overlay-hidden');
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(function () { overlay.classList.add('deck-overlay-hidden'); }, 3000);
   }
   function go(n) {
     current = Math.max(0, Math.min(slides.length - 1, n));
@@ -564,22 +580,60 @@ const DECK: &str = r#"
     if (current > 0) prev.textContent = '← ' + labels[current - 1];
     next.disabled = current === slides.length - 1;
     if (current < slides.length - 1) next.textContent = labels[current + 1] + ' →';
-    // Re-fit in case the just-revealed slide measured 0 while hidden.
+    updateOverlay();
+    if (presenting) resetFade();
     requestAnimationFrame(fit);
   }
+  function enterPresentation() {
+    var root = document.querySelector('.deck-root');
+    if (!root) return;
+    if (root.requestFullscreen) root.requestFullscreen();
+    else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+  }
+  function exitPresentation() {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
+  }
+  function onFsChange() {
+    var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    presenting = isFs;
+    if (isFs) {
+      document.body.classList.add('presenting');
+      if (overlay) overlay.style.display = '';
+      resetFade();
+    } else {
+      document.body.classList.remove('presenting');
+      if (overlay) overlay.style.display = 'none';
+      clearTimeout(fadeTimer);
+    }
+    requestAnimationFrame(fit);
+  }
+  document.addEventListener('fullscreenchange', onFsChange);
+  document.addEventListener('webkitfullscreenchange', onFsChange);
+  if (overlay) overlay.style.display = 'none';
   prev.addEventListener('click', function () { go(current - 1); });
   next.addEventListener('click', function () { go(current + 1); });
+  if (presentBtn) presentBtn.addEventListener('click', enterPresentation);
+  var exitBtn = document.getElementById('deck-present-exit');
+  if (exitBtn) exitBtn.addEventListener('click', exitPresentation);
+  var overlayPrev = document.getElementById('deck-present-prev');
+  var overlayNext = document.getElementById('deck-present-next');
+  if (overlayPrev) overlayPrev.addEventListener('click', function () { go(current - 1); });
+  if (overlayNext) overlayNext.addEventListener('click', function () { go(current + 1); });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') go(current + 1);
     if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') go(current - 1);
+    if ((e.key === 'f' || e.key === 'F') && !presenting && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') enterPresentation();
   });
-  var fitTimer;
+  document.addEventListener('mousemove', function () {
+    if (presenting) resetFade();
+  });
+  var fitResizeTimer;
   window.addEventListener('resize', function () {
-    clearTimeout(fitTimer);
-    fitTimer = setTimeout(fit, 80);
+    clearTimeout(fitResizeTimer);
+    fitResizeTimer = setTimeout(fit, 80);
   });
   go(0);
-  // Wait for fonts/images to settle before measuring.
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(fit);
   }

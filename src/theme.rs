@@ -1030,6 +1030,176 @@ body.shell-deck .deck-next { text-align: right; }
 body.shell-deck .deck-arrow:hover { color: var(--teal); }
 body.shell-deck .deck-arrow:disabled { visibility: hidden; }
 
+/* Present button (inline with deck nav or toolbar) */
+.deck-present-btn {
+  font-size: 12px; font-weight: 600;
+  color: rgba(var(--text-rgb),0.5);
+  background: none; border: 1px solid rgba(var(--text-rgb),0.12);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px 14px;
+  transition: color 0.15s, border-color 0.15s;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.deck-present-btn:hover { color: var(--teal); border-color: var(--teal); }
+
+/* ──── Presentation mode ──── */
+
+body.presenting .page-toolbar,
+body.presenting .sidebar,
+body.presenting .ann-margin,
+body.presenting .deck-nav,
+body.presenting .site-bar,
+body.presenting .public-page-footer { display: none !important; }
+
+body.presenting .app-main { margin-left: 0 !important; padding: 0 !important; }
+
+.deck-root:fullscreen,
+.deck-root:-webkit-full-screen {
+  background: var(--bg);
+  width: 100vw;
+  height: 100vh;
+}
+
+body.presenting .deck-root {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+body.presenting .deck-viewport,
+.deck-root:fullscreen .deck-viewport,
+.deck-root:-webkit-full-screen .deck-viewport { height: 100vh; }
+
+.deck-present-overlay {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 16px;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.deck-present-overlay.deck-overlay-hidden { opacity: 0; }
+.deck-present-overlay > * { pointer-events: auto; }
+
+.deck-present-progress {
+  width: 100%;
+  height: 3px;
+  background: rgba(var(--text-rgb), 0.06);
+  margin-bottom: 12px;
+}
+.deck-present-progress-bar {
+  height: 100%;
+  background: var(--teal);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0 2px 2px 0;
+}
+
+.deck-present-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 6px 20px;
+  border-radius: 10px;
+  background: rgba(var(--bg-rgb, 0,0,0), 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(var(--text-rgb), 0.08);
+}
+
+.deck-present-counter {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(var(--text-rgb), 0.4);
+  letter-spacing: 1px;
+  min-width: 48px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.deck-present-arrow {
+  font-size: 14px;
+  color: rgba(var(--text-rgb), 0.4);
+  background: none; border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.15s;
+  line-height: 1;
+}
+.deck-present-arrow:hover { color: var(--teal); }
+.deck-present-arrow:disabled { opacity: 0.2; cursor: default; }
+
+.deck-present-exit {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(var(--text-rgb), 0.3);
+  background: none; border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.15s;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.deck-present-exit:hover { color: rgba(var(--text-rgb), 0.6); }
+
+/* ──────────────────── Talking Points ──────────────────── */
+
+.tp-bubble {
+  position: absolute;
+  z-index: 20;
+  pointer-events: auto;
+  animation: tp-fade-in 0.2s ease;
+}
+@keyframes tp-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tp-bubble-tail {
+  width: 10px;
+  height: 10px;
+  margin-left: 12px;
+  background: rgba(var(--bg-rgb), 0.92);
+  border: 1px solid rgba(var(--text-rgb), 0.12);
+  border-bottom: none;
+  border-right: none;
+  transform: rotate(45deg);
+  margin-bottom: -6px;
+}
+.tp-bubble-content {
+  background: rgba(var(--bg-rgb), 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(var(--text-rgb), 0.12);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(var(--text-rgb), 0.85);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  min-width: 120px;
+}
+.tp-bubble-text {
+  display: block;
+}
+.tp-bubble-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(var(--text-rgb), 0.45);
+}
+.ann-target-highlight[data-ann] {
+  cursor: pointer;
+}
+
 /* ──────────────────── Hub shell ──────────────────── */
 
 body.shell-hub { min-height: 100vh; }

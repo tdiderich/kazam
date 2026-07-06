@@ -783,6 +783,9 @@ pub mod deck {
     ) -> String {
         let mut right = subtitle_span(page);
         right.push_str(
+            r#"<button class="deck-present-btn" id="deck-present-btn">Present</button>"#,
+        );
+        right.push_str(
             r#"<button class="site-bar-print-btn" onclick="window.print()">Download PDF</button>"#,
         );
         let bar = site_bar(page, config, base, &right);
@@ -815,6 +818,17 @@ pub mod deck {
 </div>
 
 </div>
+
+<div class="deck-present-overlay" id="deck-present-overlay">
+  <div class="deck-present-progress"><div class="deck-present-progress-bar" id="deck-present-progress-bar"></div></div>
+  <div class="deck-present-controls">
+    <button class="deck-present-arrow" id="deck-present-prev" aria-label="Previous slide">←</button>
+    <span class="deck-present-counter" id="deck-present-counter"></span>
+    <button class="deck-present-arrow" id="deck-present-next" aria-label="Next slide">→</button>
+    <button class="deck-present-exit" id="deck-present-exit" aria-label="Exit presentation">ESC</button>
+  </div>
+</div>
+
 {scripts}
 </body>
 </html>"#,

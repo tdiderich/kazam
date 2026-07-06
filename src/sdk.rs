@@ -2857,20 +2857,76 @@ function ComponentView({
 
 function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { slides: SlideData[]; renderMarkdown?: (md: string) => string; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
   const [current, setCurrent] = React.useState(0);
+  const [presenting, setPresenting] = React.useState(false);
+  const [overlayVisible, setOverlayVisible] = React.useState(true);
   const trackRef = React.useRef<HTMLDivElement>(null);
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const fadeTimer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const go = React.useCallback((n: number) => {
     setCurrent(Math.max(0, Math.min(slides.length - 1, n)));
   }, [slides.length]);
 
+  const resetFade = React.useCallback(() => {
+    setOverlayVisible(true);
+    clearTimeout(fadeTimer.current);
+    fadeTimer.current = setTimeout(() => setOverlayVisible(false), 3000);
+  }, []);
+
+  const enterPresentation = React.useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+  }, []);
+
+  const exitPresentation = React.useCallback(() => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if ((document as any).webkitFullscreenElement) (document as any).webkitExitFullscreen();
+  }, []);
+
+  React.useEffect(() => {
+    const handler = () => {
+      const isFs = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setPresenting(isFs);
+      if (isFs) {
+        document.body.classList.add("presenting");
+        resetFade();
+      } else {
+        document.body.classList.remove("presenting");
+        setOverlayVisible(true);
+        clearTimeout(fadeTimer.current);
+      }
+    };
+    document.addEventListener("fullscreenchange", handler);
+    document.addEventListener("webkitfullscreenchange", handler);
+    return () => {
+      document.removeEventListener("fullscreenchange", handler);
+      document.removeEventListener("webkitfullscreenchange", handler);
+      document.body.classList.remove("presenting");
+    };
+  }, [resetFade]);
+
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") setCurrent(c => Math.min(slides.length - 1, c + 1));
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp") setCurrent(c => Math.max(0, c - 1));
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") { setCurrent(c => Math.min(slides.length - 1, c + 1)); if (presenting) resetFade(); }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { setCurrent(c => Math.max(0, c - 1)); if (presenting) resetFade(); }
+      if (e.key === "f" || e.key === "F") { if (!presenting && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) enterPresentation(); }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [slides.length]);
+  }, [slides.length, presenting, enterPresentation, resetFade]);
+
+  React.useEffect(() => {
+    if (!presenting) return;
+    const handler = () => resetFade();
+    document.addEventListener("mousemove", handler);
+    return () => document.removeEventListener("mousemove", handler);
+  }, [presenting, resetFade]);
+
+  React.useEffect(() => {
+    document.dispatchEvent(new CustomEvent("deckslidechange", { detail: { index: current, label: slides[current]?.label } }));
+  }, [current, slides]);
 
   React.useEffect(() => {
     document.body.classList.add("shell-deck");
@@ -2878,7 +2934,7 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
   }, []);
 
   return (
-    <div className="deck-root">
+    <div className="deck-root" ref={rootRef}>
       <div className="deck-viewport">
         <div className="deck-track" ref={trackRef} style={{ transform: `translateX(-${current * 100}%)` }}>
           {slides.map((slide, si) => (
@@ -2899,11 +2955,24 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
           ))}
         </div>
       </div>
-      <div className="deck-nav">
-        <button className="deck-arrow deck-prev" onClick={() => go(current - 1)} disabled={current === 0} aria-label="Previous slide">← {slides[current - 1]?.label}</button>
-        <span className="deck-nav-label" aria-live="polite">{slides[current]?.label}</span>
-        <button className="deck-arrow deck-next" onClick={() => go(current + 1)} disabled={current >= slides.length - 1} aria-label="Next slide">{slides[current + 1]?.label} →</button>
-      </div>
+      {presenting ? (
+        <div className={`deck-present-overlay${overlayVisible ? "" : " deck-overlay-hidden"}`}>
+          <div className="deck-present-progress"><div className="deck-present-progress-bar" style={{ width: `${((current + 1) / slides.length) * 100}%` }} /></div>
+          <div className="deck-present-controls">
+            <button className="deck-present-arrow" onClick={() => go(current - 1)} disabled={current === 0} aria-label="Previous slide">{"←"}</button>
+            <span className="deck-present-counter">{current + 1} / {slides.length}</span>
+            <button className="deck-present-arrow" onClick={() => go(current + 1)} disabled={current >= slides.length - 1} aria-label="Next slide">{"→"}</button>
+            <button className="deck-present-exit" onClick={exitPresentation} aria-label="Exit presentation">ESC</button>
+          </div>
+        </div>
+      ) : (
+        <div className="deck-nav">
+          <button className="deck-arrow deck-prev" onClick={() => go(current - 1)} disabled={current === 0} aria-label="Previous slide">← {slides[current - 1]?.label}</button>
+          <span className="deck-nav-label" aria-live="polite">{slides[current]?.label}</span>
+          <button className="deck-present-btn" onClick={enterPresentation}>Present</button>
+          <button className="deck-arrow deck-next" onClick={() => go(current + 1)} disabled={current >= slides.length - 1} aria-label="Next slide">{slides[current + 1]?.label} →</button>
+        </div>
+      )}
     </div>
   );
 }
