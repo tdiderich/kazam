@@ -520,6 +520,7 @@ interface SlideData {
   eyebrow?: string;
   subtitle?: string;
   align?: "left" | "center";
+  valign?: "top" | "center";
   cover?: boolean;
   hide_label?: boolean;
 }
