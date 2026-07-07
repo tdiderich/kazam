@@ -2856,7 +2856,12 @@ function ComponentView({
 }
 
 function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { slides: SlideData[]; renderMarkdown?: (md: string) => string; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
-  const [current, setCurrent] = React.useState(0);
+  const [current, setCurrent] = React.useState(() => {
+    if (typeof window === "undefined") return 0;
+    const p = new URLSearchParams(window.location.search);
+    const s = parseInt(p.get("slide") ?? "", 10);
+    return isNaN(s) || s < 1 ? 0 : Math.min(s - 1, slides.length - 1);
+  });
   const [presenting, setPresenting] = React.useState(false);
   const [overlayVisible, setOverlayVisible] = React.useState(true);
   const trackRef = React.useRef<HTMLDivElement>(null);
@@ -2930,12 +2935,6 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
     u.searchParams.set("slide", String(current + 1));
     history.replaceState(null, "", u);
   }, [current, slides]);
-
-  React.useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    const s = parseInt(p.get("slide") ?? "", 10);
-    if (!isNaN(s) && s >= 1) setCurrent(Math.min(s - 1, slides.length - 1));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     document.body.classList.add("shell-deck");
