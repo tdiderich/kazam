@@ -2926,7 +2926,16 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
 
   React.useEffect(() => {
     document.dispatchEvent(new CustomEvent("deckslidechange", { detail: { index: current, label: slides[current]?.label } }));
+    const u = new URL(window.location.href);
+    u.searchParams.set("slide", String(current + 1));
+    history.replaceState(null, "", u);
   }, [current, slides]);
+
+  React.useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const s = parseInt(p.get("slide") ?? "", 10);
+    if (!isNaN(s) && s >= 1) setCurrent(Math.min(s - 1, slides.length - 1));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     document.body.classList.add("shell-deck");

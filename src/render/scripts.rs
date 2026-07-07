@@ -582,6 +582,9 @@ const DECK: &str = r#"
     if (current < slides.length - 1) next.textContent = labels[current + 1] + ' →';
     updateOverlay();
     if (presenting) resetFade();
+    var u = new URL(window.location);
+    u.searchParams.set('slide', String(current + 1));
+    history.replaceState(null, '', u);
     requestAnimationFrame(fit);
   }
   function enterPresentation() {
@@ -633,7 +636,9 @@ const DECK: &str = r#"
     clearTimeout(fitResizeTimer);
     fitResizeTimer = setTimeout(fit, 80);
   });
-  go(0);
+  var sp = new URLSearchParams(window.location.search);
+  var initSlide = parseInt(sp.get('slide'), 10);
+  go(isNaN(initSlide) || initSlide < 1 ? 0 : initSlide - 1);
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(fit);
   }
