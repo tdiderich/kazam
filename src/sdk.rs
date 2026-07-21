@@ -513,6 +513,11 @@ const RENDERER_RAW: &str = r####""use client";
 import React from "react";
 import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 
+export const DeckControlContext = React.createContext<{
+  slide?: number;
+  onSlideChange?: (index: number) => void;
+} | null>(null);
+
 interface SlideData {
   label: string;
   components?: ComponentData[];
@@ -1925,7 +1930,6 @@ function ComponentView({
     case "event_timeline": {
       const events = (comp.events as Array<{ date: string; title: string; summary?: string; severity?: string; source?: string; link?: string; tags?: string[] }>) || [];
       const filterBy = comp.filter_by as string[] | undefined;
-      const etRef = React.useRef<HTMLDivElement>(null);
       const [activeTags, setActiveTags] = React.useState<Set<string>>(new Set());
       const handleTagFilter = (tag: string) => {
         setActiveTags(prev => {
@@ -1934,20 +1938,13 @@ function ComponentView({
           return next;
         });
       };
-      React.useEffect(() => {
-        const el = etRef.current;
-        if (!el) return;
-        el.querySelectorAll("[data-event-tags]").forEach(ev => {
-          const tags = (ev.getAttribute("data-event-tags") || "").split(",").filter(Boolean);
-          (ev as HTMLElement).style.display = activeTags.size === 0 || tags.some(t => activeTags.has(t)) ? "" : "none";
-        });
-      }, [activeTags]);
       const tagCounts: Record<string, number> = {};
       if (filterBy) filterBy.forEach(tag => {
         tagCounts[tag] = events.filter(e => (e.tags || []).includes(tag)).length;
       });
+      const visibleEvents = activeTags.size === 0 ? events : events.filter(ev => (ev.tags || []).some(t => activeTags.has(t)));
       return (
-        <div id={id} ref={etRef} className="c-event-timeline">
+        <div id={id} className="c-event-timeline">
           {filterBy && filterBy.length > 0 && (
             <div className="c-event-tag-filters">
               {filterBy.map((tag, ti) => (
@@ -1955,7 +1952,7 @@ function ComponentView({
               ))}
             </div>
           )}
-          {events.map((ev, i) => (
+          {visibleEvents.map((ev, i) => (
             <div key={i} className={`c-event severity-${ev.severity || "minor"}`} data-severity={ev.severity || "minor"} {...(ev.tags && ev.tags.length > 0 ? { "data-event-tags": ev.tags.join(",") } : {})}>
               <div className="c-event-rail">
                 <div className="c-event-dot" />
@@ -1990,6 +1987,31 @@ function ComponentView({
       const filters = ["all", "incomplete", "blocked", "priority"];
       const filterLabels: Record<string, string> = { all: "All", incomplete: "Incomplete only", blocked: "Blocked only", priority: "Priority only" };
 
+      const [activeFilter, setActiveFilter] = React.useState(defaultFilter);
+      const [collapsed, setCollapsed] = React.useState<Set<string>>(() => {
+        const set = new Set<string>();
+        function walk(nodeList: Array<Record<string, unknown>>, depth: number, prefix: string) {
+          for (let i = 0; i < nodeList.length; i++) {
+            const path = prefix ? `${prefix}.${i}` : String(i);
+            const ch = (nodeList[i].children as Array<Record<string, unknown>>) || [];
+            if (ch.length > 0) {
+              if (defaultDepth != null ? depth >= defaultDepth : defaultCollapsed) set.add(path);
+              walk(ch, depth + 1, path);
+            }
+          }
+        }
+        walk(nodes, 0, "");
+        return set;
+      });
+
+      const toggleCollapse = React.useCallback((path: string) => {
+        setCollapsed(prev => {
+          const next = new Set(prev);
+          if (next.has(path)) next.delete(path); else next.add(path);
+          return next;
+        });
+      }, []);
+
       const hasBlockedDescendant = (node: Record<string, unknown>): boolean => {
         const children = (node.children as Array<Record<string, unknown>>) || [];
         if ((node.status as string) === "blocked") return true;
@@ -2005,28 +2027,25 @@ function ComponentView({
         return children.reduce((acc, c) => acc + 1 + countDescendants(c), 0);
       };
 
-      const renderNode = (node: Record<string, unknown>, depth: number): React.JSX.Element => {
+      const renderNode = (node: Record<string, unknown>, depth: number, path: string): React.JSX.Element => {
         const children = (node.children as Array<Record<string, unknown>>) || [];
         const status = (node.status as string) || "default";
         const hasChildren = children.length > 0;
         const isLeaf = !hasChildren;
+        const isCollapsed = collapsed.has(path);
         const blockedDesc = status !== "blocked" && children.some(hasBlockedDescendant);
         const priorityDesc = status !== "priority" && children.some(hasPriorityDescendant);
-        const shouldCollapse = defaultDepth != null ? depth >= defaultDepth : defaultCollapsed;
         const descCount = countDescendants(node);
         return (
           <li
-            className={`c-tree-node status-${status}${shouldCollapse && hasChildren ? " collapsed" : ""}`}
+            className={`c-tree-node status-${status}${isCollapsed && hasChildren ? " collapsed" : ""}`}
             data-status={status}
             {...(isLeaf ? { "data-leaf": "true" } : {})}
             {...(blockedDesc ? { "data-has-blocked-descendant": "true" } : {})}
             {...(priorityDesc ? { "data-has-priority-descendant": "true" } : {})}
           >
             <div className="c-tree-row">
-              {hasChildren && <span className="c-tree-chevron" aria-hidden="true" onClick={(e) => {
-                const node = (e.target as HTMLElement).closest(".c-tree-node");
-                if (node) node.classList.toggle("collapsed");
-              }}>▶</span>}
+              {hasChildren && <span className="c-tree-chevron" aria-hidden="true" onClick={() => toggleCollapse(path)}>▶</span>}
               <span className="c-tree-glyph" aria-hidden="true">{statusGlyphs[status] || "·"}</span>
               <span className="c-tree-label">{node.label as string}</span>
               {node.owner ? <span className="c-tree-owner">{String(node.owner)}</span> : null}
@@ -2035,35 +2054,26 @@ function ComponentView({
             </div>
             {hasChildren && (
               <ul className="c-tree-children">
-                {children.map((child, i) => <React.Fragment key={i}>{renderNode(child, depth + 1)}</React.Fragment>)}
+                {children.map((child, i) => {
+                  const childPath = path ? `${path}.${i}` : String(i);
+                  return <React.Fragment key={i}>{renderNode(child, depth + 1, childPath)}</React.Fragment>;
+                })}
               </ul>
             )}
           </li>
         );
       };
 
-      const treeRef = React.useRef<HTMLDivElement>(null);
-      const handleFilter = (filter: string) => {
-        const tree = treeRef.current;
-        if (!tree) return;
-        tree.classList.remove("filter-all", "filter-incomplete", "filter-blocked", "filter-priority");
-        tree.classList.add("filter-" + filter);
-        tree.setAttribute("data-filter", filter);
-        tree.querySelectorAll("[data-tree-filter-toggle] button").forEach((btn) => {
-          btn.classList.toggle("active", btn.getAttribute("data-filter") === filter);
-        });
-      };
-
       return (
-        <div id={id} ref={treeRef} className={`c-tree filter-${defaultFilter}`} data-filter={defaultFilter}>
+        <div id={id} className={`c-tree filter-${activeFilter}`} data-filter={activeFilter}>
           {showFilterToggle && (
-            <div className="c-tree-filter-toggle" data-tree-filter-toggle>
+            <div className="c-tree-filter-toggle">
               {filters.map((f) => (
-                <button key={f} type="button" data-filter={f} className={f === defaultFilter ? "active" : ""} onClick={() => handleFilter(f)}>{filterLabels[f]}</button>
+                <button key={f} type="button" className={f === activeFilter ? "active" : ""} onClick={() => setActiveFilter(f)}>{filterLabels[f]}</button>
               ))}
             </div>
           )}
-          <ul className="c-tree-root">{nodes.map((n, i) => <React.Fragment key={i}>{renderNode(n, 0)}</React.Fragment>)}</ul>
+          <ul className="c-tree-root">{nodes.map((n, i) => <React.Fragment key={i}>{renderNode(n, 0, String(i))}</React.Fragment>)}</ul>
         </div>
       );
     }
@@ -2856,12 +2866,17 @@ function ComponentView({
 }
 
 function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { slides: SlideData[]; renderMarkdown?: (md: string) => string; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
-  const [current, setCurrent] = React.useState(() => {
+  const control = React.useContext(DeckControlContext);
+  const [internalCurrent, setInternalCurrent] = React.useState(() => {
+    if (control?.slide !== undefined) return control.slide;
     if (typeof window === "undefined") return 0;
     const p = new URLSearchParams(window.location.search);
     const s = parseInt(p.get("slide") ?? "", 10);
     return isNaN(s) || s < 1 ? 0 : Math.min(s - 1, slides.length - 1);
   });
+  const controlled = control?.slide !== undefined;
+  const rawCurrent = controlled ? control.slide! : internalCurrent;
+  const current = Math.max(0, Math.min(slides.length - 1, rawCurrent));
   const [presenting, setPresenting] = React.useState(false);
   const [overlayVisible, setOverlayVisible] = React.useState(true);
   const trackRef = React.useRef<HTMLDivElement>(null);
@@ -2869,8 +2884,10 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
   const fadeTimer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const go = React.useCallback((n: number) => {
-    setCurrent(Math.max(0, Math.min(slides.length - 1, n)));
-  }, [slides.length]);
+    const clamped = Math.max(0, Math.min(slides.length - 1, n));
+    if (control?.onSlideChange) control.onSlideChange(clamped);
+    else setInternalCurrent(clamped);
+  }, [slides.length, control]);
 
   const resetFade = React.useCallback(() => {
     setOverlayVisible(true);
@@ -2914,13 +2931,15 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
 
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") { setCurrent(c => Math.min(slides.length - 1, c + 1)); if (presenting) resetFade(); }
-      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { setCurrent(c => Math.max(0, c - 1)); if (presenting) resetFade(); }
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") { go(current + 1); if (presenting) resetFade(); }
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") { go(current - 1); if (presenting) resetFade(); }
+      if (e.key === "Home") { go(0); }
+      if (e.key === "End") { go(slides.length - 1); }
       if (e.key === "f" || e.key === "F") { if (!presenting && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) enterPresentation(); }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [slides.length, presenting, enterPresentation, resetFade]);
+  }, [slides.length, presenting, enterPresentation, resetFade, go, current]);
 
   React.useEffect(() => {
     if (!presenting) return;
@@ -2930,11 +2949,16 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
   }, [presenting, resetFade]);
 
   React.useEffect(() => {
-    document.dispatchEvent(new CustomEvent("deckslidechange", { detail: { index: current, label: slides[current]?.label } }));
+    if (controlled && rawCurrent !== current && control?.onSlideChange) {
+      control.onSlideChange(current);
+    }
+  }, [controlled, rawCurrent, current, control]);
+
+  React.useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     p.set("slide", String(current + 1));
     try { history.replaceState(history.state, "", window.location.pathname + "?" + p.toString()); } catch {}
-  }, [current, slides]);
+  }, [current]);
 
   React.useEffect(() => {
     document.body.classList.add("shell-deck");
