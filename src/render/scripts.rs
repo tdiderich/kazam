@@ -582,9 +582,9 @@ const DECK: &str = r#"
     if (current < slides.length - 1) next.textContent = labels[current + 1] + ' →';
     updateOverlay();
     if (presenting) resetFade();
-    var u = new URL(window.location);
-    u.searchParams.set('slide', String(current + 1));
-    history.replaceState(history.state, '', u);
+    var p = new URLSearchParams(window.location.search);
+    p.set('slide', String(current + 1));
+    try { history.replaceState(history.state, '', window.location.pathname + '?' + p.toString()); } catch {}
     requestAnimationFrame(fit);
   }
   function enterPresentation() {

@@ -2931,9 +2931,9 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
 
   React.useEffect(() => {
     document.dispatchEvent(new CustomEvent("deckslidechange", { detail: { index: current, label: slides[current]?.label } }));
-    const u = new URL(window.location.href);
-    u.searchParams.set("slide", String(current + 1));
-    history.replaceState(history.state, "", u);
+    const p = new URLSearchParams(window.location.search);
+    p.set("slide", String(current + 1));
+    try { history.replaceState(history.state, "", window.location.pathname + "?" + p.toString()); } catch {}
   }, [current, slides]);
 
   React.useEffect(() => {
