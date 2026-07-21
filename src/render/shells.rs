@@ -782,9 +782,8 @@ pub mod deck {
         _edit_url: Option<&str>,
     ) -> String {
         let mut right = subtitle_span(page);
-        right.push_str(
-            r#"<button class="deck-present-btn" id="deck-present-btn">Present</button>"#,
-        );
+        right
+            .push_str(r#"<button class="deck-present-btn" id="deck-present-btn">Present</button>"#);
         right.push_str(
             r#"<button class="site-bar-print-btn" onclick="window.print()">Download PDF</button>"#,
         );

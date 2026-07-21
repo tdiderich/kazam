@@ -2933,7 +2933,7 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
     document.dispatchEvent(new CustomEvent("deckslidechange", { detail: { index: current, label: slides[current]?.label } }));
     const u = new URL(window.location.href);
     u.searchParams.set("slide", String(current + 1));
-    history.replaceState(null, "", u);
+    history.replaceState(history.state, "", u);
   }, [current, slides]);
 
   React.useEffect(() => {

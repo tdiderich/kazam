@@ -584,7 +584,7 @@ const DECK: &str = r#"
     if (presenting) resetFade();
     var u = new URL(window.location);
     u.searchParams.set('slide', String(current + 1));
-    history.replaceState(null, '', u);
+    history.replaceState(history.state, '', u);
     requestAnimationFrame(fit);
   }
   function enterPresentation() {

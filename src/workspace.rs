@@ -90,8 +90,8 @@ pub fn ensure(project: &Path) -> Result<PathBuf> {
 }
 
 pub fn apply_skunkworks(project: &Path) -> Result<()> {
-    let gi = project.join(".gitignore");
-    let content = fs::read_to_string(&gi).unwrap_or_default();
+    let exclude = project.join(".git/info/exclude");
+    let content = fs::read_to_string(&exclude).unwrap_or_default();
     let entries = [
         ".kazam/",
         ".claude/rules/kazam-workspace.md",
@@ -104,11 +104,14 @@ pub fn apply_skunkworks(project: &Path) -> Result<()> {
         .copied()
         .collect();
     if !needs.is_empty() {
+        if let Some(parent) = exclude.parent() {
+            fs::create_dir_all(parent).context("create .git/info/")?;
+        }
         let mut f = fs::OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&gi)
-            .context("append to .gitignore")?;
+            .open(&exclude)
+            .context("append to .git/info/exclude")?;
         if !content.is_empty() && !content.ends_with('\n') {
             writeln!(f)?;
         }
@@ -125,7 +128,7 @@ pub fn set_skunkworks(project: &Path) -> Result<()> {
     config.skunkworks = true;
     write_yaml(&config_path, &config)?;
     apply_skunkworks(project)?;
-    println!("  ✓ skunkworks mode — .kazam/ added to .gitignore");
+    println!("  ✓ skunkworks mode -- .kazam/ added to .git/info/exclude");
     Ok(())
 }
 
@@ -135,8 +138,8 @@ pub fn disable_skunkworks(project: &Path) -> Result<()> {
     config.skunkworks = false;
     write_yaml(&config_path, &config)?;
 
-    let gi = project.join(".gitignore");
-    if let Ok(content) = fs::read_to_string(&gi) {
+    let exclude = project.join(".git/info/exclude");
+    if let Ok(content) = fs::read_to_string(&exclude) {
         let remove = [
             ".kazam/",
             ".kazam",
@@ -147,10 +150,10 @@ pub fn disable_skunkworks(project: &Path) -> Result<()> {
             .lines()
             .filter(|l| !remove.contains(&l.trim()))
             .collect();
-        fs::write(&gi, filtered.join("\n") + "\n").context("rewrite .gitignore")?;
+        fs::write(&exclude, filtered.join("\n") + "\n").context("rewrite .git/info/exclude")?;
     }
 
-    println!("  ✓ skunkworks disabled — .kazam/ removed from .gitignore");
+    println!("  ✓ skunkworks disabled -- .kazam/ removed from .git/info/exclude");
     Ok(())
 }
 
