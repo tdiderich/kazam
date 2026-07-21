@@ -1033,9 +1033,9 @@ fn event_timeline(
     events: &[EventItem],
     default_filter: EventFilter,
     show_filter_toggle: bool,
-    limit: Option<u32>,
+    _limit: Option<u32>,
     filter_by: &[String],
-    group_by: Option<EventGroupBy>,
+    _group_by: Option<EventGroupBy>,
     base: &str,
 ) -> Rendered {
     let mut r = Rendered::default();
@@ -1103,7 +1103,7 @@ fn event_timeline(
     }
 
     r.html.push_str(r#"<ol class="c-event-list">"#);
-    for (i, ev) in filtered.iter().enumerate() {
+    for ev in &filtered {
         let has_summary = ev
             .summary
             .as_deref()
@@ -1191,6 +1191,7 @@ fn event_timeline(
 
 // ── Tree ──────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn tree(
     nodes: &[TreeNode],
     default_filter: TreeFilter,
@@ -1245,10 +1246,8 @@ fn tree(
         }
         if show_filter_toggle {
             for f in &[TreeFilter::All, TreeFilter::Incomplete] {
-                let active = !show_summary && *f == default_filter
-                    || show_summary
-                        && default_view == TreeDefaultView::Tree
-                        && *f == default_filter;
+                let active = *f == default_filter
+                    && (!show_summary || default_view == TreeDefaultView::Tree);
                 let label = match f {
                     TreeFilter::All => "All",
                     TreeFilter::Incomplete => "Incomplete",
@@ -1292,22 +1291,6 @@ fn tree(
         r.scripts.push("tree");
     }
     r
-}
-
-fn collect_tree_stats(
-    nodes: &[TreeNode],
-    owners: &mut std::collections::HashMap<String, (usize, usize)>,
-) {
-    for node in nodes {
-        let key = node.owner.as_deref().unwrap_or("Unassigned").to_string();
-        let entry = owners.entry(key).or_insert((0, 0));
-        if matches!(node.status, TreeStatus::Completed) {
-            entry.1 += 1;
-        } else {
-            entry.0 += 1;
-        }
-        collect_tree_stats(&node.children, owners);
-    }
 }
 
 fn count_phase_progress(nodes: &[TreeNode]) -> (usize, usize) {
@@ -1427,12 +1410,6 @@ fn node_matches_filter(node: &TreeNode, filter: TreeFilter) -> bool {
         TreeFilter::Blocked => matches!(node.status, TreeStatus::Blocked),
         TreeFilter::Priority => matches!(node.status, TreeStatus::Priority),
     }
-}
-
-fn count_tree_descendants(nodes: &[TreeNode]) -> usize {
-    nodes
-        .iter()
-        .fold(0, |acc, n| acc + 1 + count_tree_descendants(&n.children))
 }
 
 fn render_tree_level(nodes: &[TreeNode], h: &mut String, list_class: &str) {

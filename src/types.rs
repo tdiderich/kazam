@@ -1377,6 +1377,7 @@ pub enum GraphEdgeStyle {
 #[derive(Deserialize, Clone)]
 pub struct OrgPerson {
     #[serde(default)]
+    #[allow(dead_code)]
     pub id: Option<String>,
     pub name: String,
     #[serde(default)]
