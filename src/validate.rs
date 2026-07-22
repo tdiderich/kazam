@@ -150,16 +150,14 @@ fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
                     ));
                 }
             }
-            PackHook::Allowlist { allow, .. } => {
-                if allow.is_empty() {
-                    errors.push(ValidationError::new(
-                        file,
-                        &path,
-                        "structural",
-                        "allowlist needs at least one allowed value",
-                        None,
-                    ));
-                }
+            PackHook::Allowlist { allow, .. } if allow.is_empty() => {
+                errors.push(ValidationError::new(
+                    file,
+                    &path,
+                    "structural",
+                    "allowlist needs at least one allowed value",
+                    None,
+                ));
             }
             _ => {}
         }

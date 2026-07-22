@@ -437,18 +437,15 @@ fn find_unfilled_var(text: &str) -> Option<&str> {
     let mut rest = text;
     while let Some(start) = rest.find("{{") {
         let after = &rest[start + 2..];
-        if let Some(end) = after.find("}}") {
-            let name = &after[..end];
-            if !name.is_empty()
-                && name.len() <= 64
-                && name.chars().all(|c| c.is_alphanumeric() || c == '_')
-            {
-                return Some(name);
-            }
-            rest = &after[end + 2..];
-        } else {
-            return None;
+        let end = after.find("}}")?;
+        let name = &after[..end];
+        if !name.is_empty()
+            && name.len() <= 64
+            && name.chars().all(|c| c.is_alphanumeric() || c == '_')
+        {
+            return Some(name);
         }
+        rest = &after[end + 2..];
     }
     None
 }
