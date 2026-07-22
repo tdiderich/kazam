@@ -89,7 +89,7 @@ enum Command {
         /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
         #[arg(long)]
         api_key: Option<String>,
-        /// Directory to write config files into
+        /// Directory to write config files into (implies --repo if not "."; repo scope)
         #[arg(short, long, default_value = ".")]
         dir: PathBuf,
         /// Install even if the page has no pack: marker
@@ -103,6 +103,14 @@ enum Command {
         /// registers the kazam runner in .claude/settings.json). Off by default.
         #[arg(long)]
         allow_hooks: bool,
+        /// Install for the current user (~/.claude), shared across every
+        /// project. This is the default when no scope flag is given.
+        #[arg(long)]
+        user: bool,
+        /// Install into this repo only (writes at --dir). Mutually exclusive
+        /// with --user.
+        #[arg(long)]
+        repo: bool,
     },
     /// Check installed packs for drift against their curata source pages
     Check {
@@ -121,6 +129,11 @@ enum Command {
         /// Index of the hook within the pack's config
         #[arg(long)]
         index: usize,
+        /// Absolute path to the hook config, set automatically by install.
+        /// When absent (pre-1.8.0 installs), falls back to walking up from
+        /// `dir` for the old `.kazam/packs/` location.
+        #[arg(long)]
+        config: Option<PathBuf>,
         /// Project directory (default: current directory)
         #[arg(long, default_value = ".")]
         dir: PathBuf,
@@ -339,6 +352,49 @@ enum WishCommand {
     },
 }
 
+/// Resolve `kazam install`'s scope from CLI flags, prompting interactively
+/// when the scope is ambiguous. Kept deterministic input-wise (no hidden
+/// state beyond argv/stdin) so the CLI stays scriptable: an explicit `--dir`
+/// implies `--repo`, protecting scripted installs from a surprise prompt.
+fn resolve_install_scope(user: bool, repo: bool, dir: PathBuf) -> Result<install::InstallScope> {
+    use std::io::IsTerminal;
+
+    if user && repo {
+        anyhow::bail!("--user and --repo are mutually exclusive: pick one");
+    }
+    if repo {
+        return Ok(install::InstallScope::Repo(dir));
+    }
+    if user {
+        return Ok(install::InstallScope::User);
+    }
+
+    let dir_explicit = dir.as_path() != std::path::Path::new(".");
+    if dir_explicit {
+        return Ok(install::InstallScope::Repo(dir));
+    }
+
+    if std::io::stdin().is_terminal() {
+        use std::io::Write;
+        print!(
+            "Install for all your projects (user) or just this repo? [user/repo] (default: user): "
+        );
+        std::io::stdout().flush().ok();
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).ok();
+        let choice = line.trim().to_lowercase();
+        return if choice == "repo" || choice == "r" {
+            println!("Installing into this repo ({}).", dir.display());
+            Ok(install::InstallScope::Repo(dir))
+        } else {
+            println!("Installing for all your projects (user scope, ~/.claude).");
+            Ok(install::InstallScope::User)
+        };
+    }
+
+    Ok(install::InstallScope::User)
+}
+
 fn parse_mode(s: &str) -> types::Mode {
     match s {
         "light" => types::Mode::Light,
@@ -396,9 +452,19 @@ fn main() -> Result<()> {
             force,
             cli,
             allow_hooks,
-        } => install::run(&url, api_key, &dir, force, &cli, allow_hooks),
+            user,
+            repo,
+        } => {
+            let scope = resolve_install_scope(user, repo, dir)?;
+            install::run(&url, api_key, scope, force, &cli, allow_hooks)
+        }
         Command::Check { dir, api_key } => install::check(&dir, api_key),
-        Command::PackHook { pack, index, dir } => packhook::run(&pack, index, &dir),
+        Command::PackHook {
+            pack,
+            index,
+            config,
+            dir,
+        } => packhook::run(&pack, index, config, &dir),
         Command::Wish { command } => match command {
             WishCommand::List { json } => wish::list(json),
             WishCommand::Init { name, dir, force } => wish::init(&name, dir, force),

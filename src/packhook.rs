@@ -13,11 +13,33 @@ use std::path::Path;
 
 use crate::types::{MatchMode, PackHook};
 
-/// Where a pack's hook config lives, relative to the install dir.
+/// Where a pack's hook config lives, relative to the install dir. Used when
+/// writing the config at install time (the dir is known and correct).
 pub fn config_path(dir: &Path, slug: &str) -> std::path::PathBuf {
     dir.join(".kazam")
         .join("packs")
         .join(format!("{}.hooks.yaml", slug))
+}
+
+/// Locate a pack's hook config at hook-run time. The command registered in
+/// settings.json carries no `--dir`, so `dir` defaults to the harness cwd,
+/// which may be a subdirectory of the repo (or wherever the session started).
+/// Walk up from `dir` to find the nearest ancestor holding
+/// `.kazam/packs/<slug>.hooks.yaml`, the same way git finds `.git/`. Falls back
+/// to the cwd-relative path so a genuine "not installed" error still points at
+/// the expected location.
+pub fn resolve_config_path(dir: &Path, slug: &str) -> std::path::PathBuf {
+    let rel = Path::new(".kazam")
+        .join("packs")
+        .join(format!("{}.hooks.yaml", slug));
+    let start = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+    for ancestor in start.ancestors() {
+        let candidate = ancestor.join(&rel);
+        if candidate.is_file() {
+            return candidate;
+        }
+    }
+    config_path(dir, slug)
 }
 
 #[derive(Debug, PartialEq)]
@@ -52,14 +74,56 @@ fn unescape(pattern: &str) -> String {
     out
 }
 
-/// Text a block/require primitive scans: the serialized `tool_input`, falling
-/// back to the whole payload. Mirrors how the existing shell guards grep the
-/// full hook input.
-fn scan_text(payload: &serde_json::Value) -> String {
-    match payload.get("tool_input") {
-        Some(v) => v.to_string(),
-        None => payload.to_string(),
+/// Text a block/require primitive scans. With `field`, scan just that
+/// `tool_input` field (string value verbatim, non-string serialized) — lets an
+/// MCP-tool hook target one arg like a Slack message body. Without `field`,
+/// scan the whole serialized `tool_input`, falling back to the whole payload.
+/// Mirrors how the existing shell guards grep the full hook input.
+fn scan_text(payload: &serde_json::Value, field: Option<&str>) -> String {
+    let tool_input = payload.get("tool_input");
+    match (tool_input, field) {
+        (Some(ti), Some(f)) => ti
+            .get(f)
+            .map(|v| {
+                v.as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| v.to_string())
+            })
+            .unwrap_or_default(),
+        (Some(ti), None) => ti.to_string(),
+        (None, _) => payload.to_string(),
     }
+}
+
+/// A word char for word-boundary matching: alphanumeric or underscore, the
+/// same class `\w` uses.
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// Whether `pat` occurs in `text` with non-word chars (or string edges) on both
+/// sides of at least one occurrence. Case-sensitive, matching substring mode.
+fn word_match(text: &str, pat: &str) -> bool {
+    if pat.is_empty() {
+        return false;
+    }
+    let mut start = 0;
+    while let Some(pos) = text[start..].find(pat) {
+        let abs = start + pos;
+        let end = abs + pat.len();
+        let before_ok = text[..abs]
+            .chars()
+            .next_back()
+            .is_none_or(|c| !is_word_char(c));
+        let after_ok = text[end..].chars().next().is_none_or(|c| !is_word_char(c));
+        if before_ok && after_ok {
+            return true;
+        }
+        // `end` is a valid char boundary (end of a found substring); advance
+        // past this occurrence and keep scanning for a boundary-aligned one.
+        start = end;
+    }
+    false
 }
 
 fn today() -> String {
@@ -71,16 +135,22 @@ fn apply(hook: &PackHook, payload: &serde_json::Value) -> Result<Decision> {
     match hook {
         PackHook::BlockOnMatch {
             mode,
+            field,
             patterns,
             message,
             ..
         } => {
             if *mode == MatchMode::Regex {
-                bail!("regex match mode is not supported yet; use substring patterns");
+                bail!("regex match mode is not supported yet; use substring or word patterns");
             }
-            let text = scan_text(payload);
+            let text = scan_text(payload, field.as_deref());
             for p in patterns {
-                if text.contains(&unescape(p)) {
+                let pat = unescape(p);
+                let hit = match mode {
+                    MatchMode::Word => word_match(&text, &pat),
+                    _ => text.contains(&pat),
+                };
+                if hit {
                     return Ok(Decision::Block(message.clone()));
                 }
             }
@@ -89,7 +159,7 @@ fn apply(hook: &PackHook, payload: &serde_json::Value) -> Result<Decision> {
         PackHook::BlockUnlessMatch {
             require, message, ..
         } => {
-            let text = scan_text(payload);
+            let text = scan_text(payload, None);
             if text.contains(&unescape(require)) {
                 Ok(Decision::Allow)
             } else {
@@ -125,10 +195,14 @@ fn apply(hook: &PackHook, payload: &serde_json::Value) -> Result<Decision> {
     }
 }
 
-/// CLI entry: load `.kazam/packs/<pack>.hooks.yaml`, apply hook `index` to the
-/// stdin payload, map the decision to the harness hook protocol.
-pub fn run(pack: &str, index: usize, dir: &Path) -> Result<()> {
-    let path = config_path(dir, pack);
+/// CLI entry: load the pack's hook config, apply hook `index` to the stdin
+/// payload, map the decision to the harness hook protocol. `config` is the
+/// absolute path installs since 1.8.0 register in settings.json; when absent
+/// (a pre-1.8.0 install with no `--config` on the registered command), fall
+/// back to `resolve_config_path`'s upward walk for the old `.kazam/packs/`
+/// location.
+pub fn run(pack: &str, index: usize, config: Option<std::path::PathBuf>, dir: &Path) -> Result<()> {
+    let path = config.unwrap_or_else(|| resolve_config_path(dir, pack));
     let raw = std::fs::read_to_string(&path)
         .with_context(|| format!("no hook config at {}", path.display()))?;
     let hooks: Vec<PackHook> = serde_yaml::from_str(&raw)
@@ -172,6 +246,19 @@ mod tests {
                 tool: "Write".into(),
             },
             mode: MatchMode::Substring,
+            field: None,
+            patterns: patterns.iter().map(|s| s.to_string()).collect(),
+            message: "blocked".into(),
+        }
+    }
+
+    fn word_hook(patterns: &[&str]) -> PackHook {
+        PackHook::BlockOnMatch {
+            on: HookMatch {
+                tool: "Write".into(),
+            },
+            mode: MatchMode::Word,
+            field: None,
             patterns: patterns.iter().map(|s| s.to_string()).collect(),
             message: "blocked".into(),
         }
@@ -254,12 +341,68 @@ mod tests {
     }
 
     #[test]
+    fn word_mode_respects_boundaries() {
+        let h = word_hook(&["foster"]);
+        // whole word blocked
+        assert_eq!(
+            apply(&h, &write_payload("we foster growth")).unwrap(),
+            Decision::Block("blocked".into())
+        );
+        // word at string edge (inside serialized tool_input) blocked
+        assert_eq!(
+            apply(&h, &write_payload("foster")).unwrap(),
+            Decision::Block("blocked".into())
+        );
+        // substring inside a larger word is NOT blocked
+        assert_eq!(
+            apply(&h, &write_payload("fostering a culture")).unwrap(),
+            Decision::Allow
+        );
+        assert_eq!(
+            apply(&h, &write_payload("a defoster unit")).unwrap(),
+            Decision::Allow
+        );
+    }
+
+    #[test]
+    fn word_mode_unescapes() {
+        // em dash via escape, word_match on a non-word char pattern still hits
+        let h = word_hook(&["\\u2014"]);
+        assert_eq!(
+            apply(&h, &write_payload("a \u{2014} b")).unwrap(),
+            Decision::Block("blocked".into())
+        );
+    }
+
+    #[test]
+    fn field_scopes_the_scan() {
+        // Scanning only tool_input.text: a match in `text` blocks, and a slop
+        // word appearing only in another field (or a field name) does not.
+        let h = PackHook::BlockOnMatch {
+            on: HookMatch {
+                tool: "mcp__claude_ai_Slack__slack_send_message".into(),
+            },
+            mode: MatchMode::Word,
+            field: Some("text".into()),
+            patterns: vec!["delve".into()],
+            message: "blocked".into(),
+        };
+        let hit =
+            serde_json::json!({ "tool_input": { "text": "let us delve in", "channel": "C1" } });
+        let miss =
+            serde_json::json!({ "tool_input": { "text": "clean copy", "channel": "delve" } });
+        assert_eq!(apply(&h, &hit).unwrap(), Decision::Block("blocked".into()));
+        assert_eq!(apply(&h, &miss).unwrap(), Decision::Allow);
+    }
+
+    #[test]
     fn regex_mode_errors() {
         let h = PackHook::BlockOnMatch {
             on: HookMatch {
                 tool: "Write".into(),
             },
             mode: MatchMode::Regex,
+            field: None,
             patterns: vec!["a.*b".into()],
             message: "x".into(),
         };

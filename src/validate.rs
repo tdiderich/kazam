@@ -145,7 +145,7 @@ fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
                         file,
                         &path,
                         "invalid_value",
-                        "regex match mode is not supported yet; use substring patterns",
+                        "regex match mode is not supported yet; use substring or word patterns",
                         None,
                     ));
                 }

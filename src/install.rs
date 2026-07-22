@@ -9,9 +9,66 @@
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const TARGETS: [&str; 2] = ["CLAUDE.md", ".cursorrules"];
+
+/// Where an installed pack's files live: a specific repo, or the current
+/// user's home directory (`~/.claude`), shared across every project on the
+/// machine. Resolution (flags, prompt, defaults) happens in the CLI layer;
+/// `run` just takes the already-decided scope so it stays deterministic and
+/// testable.
+pub enum InstallScope {
+    Repo(PathBuf),
+    User,
+}
+
+impl InstallScope {
+    /// The `.claude` directory for this scope: `<repo>/.claude` for `Repo`,
+    /// `~/.claude` for `User`. Hook config and `settings.json` both live here.
+    pub fn claude_dir(&self) -> Result<PathBuf> {
+        match self {
+            InstallScope::Repo(base) => Ok(base.join(".claude")),
+            InstallScope::User => Ok(home_dir()?.join(".claude")),
+        }
+    }
+}
+
+/// Resolve `$HOME`. macOS/Linux only — there is no Windows user-scope mapping
+/// yet.
+fn home_dir() -> Result<PathBuf> {
+    match std::env::var_os("HOME") {
+        Some(h) => Ok(PathBuf::from(h)),
+        None => bail!(
+            "HOME is not set — cannot resolve a user-scope install path (macOS/Linux only). \
+             Pass --repo to install into this directory instead."
+        ),
+    }
+}
+
+/// Where to write a resolved target's rules file for a scope. Repo scope
+/// writes every target at the repo root, unchanged from before user scope
+/// existed. User scope only supports the `claude` target, written inside
+/// `claude_dir` (i.e. `~/.claude/CLAUDE.md`) — other tools have no shared
+/// user-level config home, so this returns `None` and the caller warns and
+/// skips. Takes `claude_dir` already resolved so it is unit-testable without
+/// touching the real `HOME`.
+fn rules_path(scope: &InstallScope, claude_dir: &Path, target: &'static str) -> Option<PathBuf> {
+    match scope {
+        InstallScope::Repo(base) => Some(base.join(target)),
+        InstallScope::User if target == "CLAUDE.md" => Some(claude_dir.join(target)),
+        InstallScope::User => None,
+    }
+}
+
+/// Where a pack's hook config lives for a scope: beside `settings.json` under
+/// `.claude/kazam-packs/`, so it works from any cwd and travels with the
+/// harness config it drives (replaces the old `.kazam/packs/` location).
+fn hook_config_path(claude_dir: &Path, slug: &str) -> PathBuf {
+    claude_dir
+        .join("kazam-packs")
+        .join(format!("{}.hooks.yaml", slug))
+}
 
 #[derive(Deserialize)]
 struct PackPage {
@@ -506,7 +563,7 @@ fn resolve_targets(targets: &[String]) -> Result<Vec<&'static str>> {
 pub fn run(
     url: &str,
     api_key: Option<String>,
-    dir: &Path,
+    scope: InstallScope,
     force: bool,
     cli_override: &[String],
     allow_hooks: bool,
@@ -582,8 +639,19 @@ pub fn run(
         println!("  warning: pack content {}", warning);
     }
 
+    let claude_dir = scope.claude_dir()?;
     for target in targets {
-        let path = dir.join(target);
+        let path = match rules_path(&scope, &claude_dir, target) {
+            Some(p) => p,
+            None => {
+                println!(
+                    "  warning: target '{}' has no user-level home; skipping \
+                     (use --repo for it, or the claude target)",
+                    target
+                );
+                continue;
+            }
+        };
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)
@@ -624,7 +692,7 @@ pub fn run(
     if !hooks.is_empty() {
         if allow_hooks {
             reject_unsafe_hook_fields(&yaml)?;
-            install_hooks(dir, &slug, hooks)?;
+            install_hooks(&scope, &slug, hooks)?;
         } else {
             println!(
                 "\nThis pack declares {} hook{}. Re-run with --allow-hooks to install them \
@@ -721,7 +789,7 @@ fn strip_pack_hooks(settings: &mut serde_json::Value, slug: &str) {
 /// Write the pack's declarative hook config and register the trusted kazam
 /// runner in .claude/settings.json. The registered command is always the kazam
 /// binary reading the config; the pack never becomes an executable on disk.
-fn install_hooks(dir: &Path, slug: &str, hooks: &[crate::types::PackHook]) -> Result<()> {
+fn install_hooks(scope: &InstallScope, slug: &str, hooks: &[crate::types::PackHook]) -> Result<()> {
     // review_prompt has no real gate yet: it would register as a plain command
     // hook that only injects text, giving a false sense of a review gate.
     // Refuse rather than install a no-op that looks like protection.
@@ -735,7 +803,8 @@ fn install_hooks(dir: &Path, slug: &str, hooks: &[crate::types::PackHook]) -> Re
         );
     }
 
-    let cfg_path = crate::packhook::config_path(dir, slug);
+    let claude_dir = scope.claude_dir()?;
+    let cfg_path = hook_config_path(&claude_dir, slug);
     if let Some(parent) = cfg_path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create {}", parent.display()))?;
@@ -744,7 +813,14 @@ fn install_hooks(dir: &Path, slug: &str, hooks: &[crate::types::PackHook]) -> Re
     fs::write(&cfg_path, cfg_yaml)
         .with_context(|| format!("failed to write {}", cfg_path.display()))?;
 
-    let settings_path = dir.join(".claude").join("settings.json");
+    // Registered in settings.json as an absolute path so the hook resolves its
+    // config correctly no matter what directory the harness runs the command
+    // from (a subdirectory, a different repo, or a fresh session cwd).
+    let abs_cfg_path = cfg_path
+        .canonicalize()
+        .with_context(|| format!("failed to resolve absolute path for {}", cfg_path.display()))?;
+
+    let settings_path = claude_dir.join("settings.json");
     let mut settings: serde_json::Value = if settings_path.exists() {
         let raw = fs::read_to_string(&settings_path)
             .with_context(|| format!("failed to read {}", settings_path.display()))?;
@@ -775,7 +851,12 @@ fn install_hooks(dir: &Path, slug: &str, hooks: &[crate::types::PackHook]) -> Re
 
     for (i, hook) in hooks.iter().enumerate() {
         let event = hook_event(hook);
-        let command = format!("kazam pack-hook --pack {} --index {}", slug, i);
+        let command = format!(
+            "kazam pack-hook --pack {} --index {} --config \"{}\"",
+            slug,
+            i,
+            abs_cfg_path.display()
+        );
         let inner = serde_json::json!({ "type": "command", "command": command });
         let mut entry = serde_json::Map::new();
         if let Some(m) = hook_matcher(hook) {
@@ -859,8 +940,10 @@ fn scan_blocks(text: &str, file: &str) -> Vec<InstalledPack> {
     out
 }
 
-/// Collect installed packs across all known config files in `dir`, deduped by
-/// (slug, hash) so a pack in both CLAUDE.md and .cursorrules is checked once.
+/// Collect installed packs across all known config files in `dir`, plus the
+/// user scope's `~/.claude/CLAUDE.md` if it exists, deduped by (slug, hash) so
+/// a pack present in more than one file (or in both repo and user scope) is
+/// checked once.
 fn collect_installed(dir: &Path) -> Result<Vec<InstalledPack>> {
     let mut found = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -874,6 +957,19 @@ fn collect_installed(dir: &Path) -> Result<Vec<InstalledPack>> {
         for pack in scan_blocks(&text, target) {
             if seen.insert((pack.slug.clone(), pack.hash.clone())) {
                 found.push(pack);
+            }
+        }
+    }
+    if let Ok(home) = home_dir() {
+        let user_path = home.join(".claude").join("CLAUDE.md");
+        if user_path.exists() {
+            let text = fs::read_to_string(&user_path)
+                .with_context(|| format!("failed to read {}", user_path.display()))?;
+            let label = user_path.display().to_string();
+            for pack in scan_blocks(&text, &label) {
+                if seen.insert((pack.slug.clone(), pack.hash.clone())) {
+                    found.push(pack);
+                }
             }
         }
     }
@@ -1239,5 +1335,151 @@ components:
         let block = render_block("pk", "https://h/pk", "abc", "2026-07-21", "Pack", "rules");
         let corrupt = "<!-- kazam-pack:start pk -->\nno end here\n";
         assert!(upsert_block(Some(corrupt), "pk", &block).is_err());
+    }
+
+    // ── Scope path mapping ──────────────────────────────────────
+    // These take `claude_dir` as an explicit argument rather than resolving
+    // HOME, so they're unit-testable without touching the real environment.
+
+    #[test]
+    fn rules_path_maps_repo_scope_at_repo_root() {
+        let repo = PathBuf::from("/tmp/kazam-test-repo-scope");
+        let claude_dir = PathBuf::from("/tmp/kazam-test-repo-scope/.claude");
+        let scope = InstallScope::Repo(repo.clone());
+        assert_eq!(
+            rules_path(&scope, &claude_dir, "CLAUDE.md"),
+            Some(repo.join("CLAUDE.md"))
+        );
+        assert_eq!(
+            rules_path(&scope, &claude_dir, ".cursorrules"),
+            Some(repo.join(".cursorrules"))
+        );
+        assert_eq!(
+            rules_path(&scope, &claude_dir, "AGENTS.md"),
+            Some(repo.join("AGENTS.md"))
+        );
+    }
+
+    #[test]
+    fn rules_path_user_scope_supports_only_claude_target() {
+        let claude_dir = PathBuf::from("/tmp/kazam-test-home/.claude");
+        let scope = InstallScope::User;
+        assert_eq!(
+            rules_path(&scope, &claude_dir, "CLAUDE.md"),
+            Some(claude_dir.join("CLAUDE.md"))
+        );
+        // Every other target has no user-level home: skipped (None), not an error.
+        for target in [
+            ".cursorrules",
+            "AGENTS.md",
+            ".windsurfrules",
+            ".github/copilot-instructions.md",
+            "GEMINI.md",
+            "CONVENTIONS.md",
+        ] {
+            assert_eq!(
+                rules_path(&scope, &claude_dir, target),
+                None,
+                "expected {} to be skipped in user scope",
+                target
+            );
+        }
+    }
+
+    #[test]
+    fn hook_config_path_lives_beside_settings_under_kazam_packs() {
+        let claude_dir = PathBuf::from("/tmp/kazam-test-home/.claude");
+        assert_eq!(
+            hook_config_path(&claude_dir, "my-pack"),
+            claude_dir.join("kazam-packs").join("my-pack.hooks.yaml")
+        );
+    }
+
+    #[test]
+    fn claude_dir_for_repo_scope_is_dir_dot_claude() {
+        let repo = PathBuf::from("/tmp/kazam-test-repo-scope-2");
+        let scope = InstallScope::Repo(repo.clone());
+        assert_eq!(scope.claude_dir().unwrap(), repo.join(".claude"));
+    }
+
+    fn sample_hook() -> crate::types::PackHook {
+        crate::types::PackHook::BlockOnMatch {
+            on: crate::types::HookMatch {
+                tool: "Write".into(),
+            },
+            mode: crate::types::MatchMode::Substring,
+            field: None,
+            patterns: vec!["delve".into()],
+            message: "no ai-slop".into(),
+        }
+    }
+
+    #[test]
+    fn install_hooks_registers_absolute_quoted_config_and_is_idempotent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let scope = InstallScope::Repo(tmp.path().to_path_buf());
+        let hooks = vec![sample_hook()];
+
+        install_hooks(&scope, "pk", &hooks).unwrap();
+
+        let cfg_path = tmp
+            .path()
+            .join(".claude")
+            .join("kazam-packs")
+            .join("pk.hooks.yaml");
+        assert!(cfg_path.exists());
+        let abs_cfg_path = cfg_path.canonicalize().unwrap();
+
+        let settings_path = tmp.path().join(".claude").join("settings.json");
+        let settings: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
+        let pre_tool_use = settings["hooks"]["PreToolUse"].as_array().unwrap();
+        assert_eq!(pre_tool_use.len(), 1);
+        let command = pre_tool_use[0]["hooks"][0]["command"].as_str().unwrap();
+        let expected_prefix = "kazam pack-hook --pack pk --index 0 --config \"";
+        assert!(
+            command.starts_with(expected_prefix),
+            "unexpected command: {}",
+            command
+        );
+        assert!(command.contains(abs_cfg_path.to_str().unwrap()));
+        assert!(command.ends_with('"'));
+
+        // Reinstalling replaces the entry rather than duplicating it
+        // (strip_pack_hooks still matches the new command shape).
+        install_hooks(&scope, "pk", &hooks).unwrap();
+        let settings2: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
+        assert_eq!(
+            settings2["hooks"]["PreToolUse"].as_array().unwrap().len(),
+            1
+        );
+    }
+
+    #[test]
+    fn install_hooks_uses_user_scope_claude_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Point HOME at a tempdir for this test only; keep it self-contained
+        // (env is process-global) by restoring the prior value afterward.
+        let prev_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", tmp.path());
+
+        let hooks = vec![sample_hook()];
+        let result = install_hooks(&InstallScope::User, "pk", &hooks);
+
+        match prev_home {
+            Some(v) => std::env::set_var("HOME", v),
+            None => std::env::remove_var("HOME"),
+        }
+        result.unwrap();
+
+        let settings_path = tmp.path().join(".claude").join("settings.json");
+        assert!(settings_path.exists());
+        let cfg_path = tmp
+            .path()
+            .join(".claude")
+            .join("kazam-packs")
+            .join("pk.hooks.yaml");
+        assert!(cfg_path.exists());
     }
 }

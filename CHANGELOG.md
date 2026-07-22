@@ -6,6 +6,41 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-22
+
+### Added
+- **User-level install scope**: `kazam install` now defaults to a user-level
+  install (`~/.claude`), so a personal guardrail pack applies across every
+  project. `--repo` pins the install to the current project instead, and an
+  explicit `--dir` still implies repo scope. When neither flag is given and the
+  session is interactive, install prompts for the scope. User scope writes the
+  `claude` target (`~/.claude/CLAUDE.md`) and its hooks; other rules targets
+  have no shared user home, so they warn and are skipped under `--user`.
+- **Pack hook `mode: word`**: `block_on_match` gains word-boundary matching
+  alongside the default `substring`. A `word` pattern only matches when the
+  characters on either side are non-word, so `foster` blocks the standalone
+  word but not `fostering`. (regex mode is still rejected at validate time.)
+- **Pack hook `field:`**: `block_on_match` can scope its scan to a single
+  `tool_input` field instead of the whole serialized input. Makes MCP-tool
+  guards precise, like `field: text` to scan only a Slack message body.
+
+### Changed
+- **Hook config moved out of `.kazam/` to `.claude/kazam-packs/`** (repo scope)
+  or `~/.claude/kazam-packs/` (user scope), and the runner command registered in
+  `settings.json` now carries an absolute `--config` path. Hooks resolve their
+  config no matter what directory the harness runs the command from. Fixes a bug
+  where a hook installed at a repo root failed when the session ran from a
+  subdirectory. Pre-existing installs keep working via an upward-walk fallback
+  and re-point on the next install.
+
+### Docs
+- Clarified that a hook's `on.tool` is a verbatim harness matcher: MCP tool
+  names and prefixes (`mcp__...`) work, not only `Write` or `Edit`.
+
+### Docs
+- Clarified that a hook's `on.tool` is a verbatim harness matcher: MCP tool
+  names and prefixes (`mcp__...`) work, not only `Write` or `Edit`.
+
 ## [1.7.0] - 2026-07-22
 
 The packs buildout. `kazam install` grows from a rules-only writer into a full

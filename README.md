@@ -168,9 +168,22 @@ pack:
 
 Targets map to files: `claude` (CLAUDE.md), `cursor` (.cursorrules), `agents` (AGENTS.md, read by 30+ tools), plus `windsurf`, `copilot`, `gemini`, `aider`.
 
+### Install scope: user (default) or repo
+
+`kazam install` defaults to a **user** install (`~/.claude`), so a personal guardrail pack (a voice or de-AI ruleset) applies to every project you work in:
+
+```bash
+kazam install curata.ai/p/maze/voice-rules --user --allow-hooks   # explicit
+kazam install curata.ai/p/maze/voice-rules --allow-hooks          # same (user is default)
+```
+
+Use `--repo` to pin the install to the current project instead (writes the project's `CLAUDE.md`, `.cursorrules`, etc.). An explicit `--dir` also implies repo scope. When you pass neither flag and the terminal is interactive, install asks which scope you want.
+
+User scope writes the `claude` target (`~/.claude/CLAUDE.md`) and any hooks. Other rules targets have no shared user-level home, so under `--user` they warn and are skipped; install them with `--repo` if you need them.
+
 ### Declarative hooks (optional)
 
-A pack can carry guardrail hooks. Packs never ship executable code: a hook is declarative config (block-on-match, allowlist, inject, review) that the trusted `kazam pack-hook` runner interprets. Install them with `--allow-hooks`, which writes the config and registers the runner in `.claude/settings.json`:
+A pack can carry guardrail hooks. Packs never ship executable code: a hook is declarative config (block-on-match, allowlist, inject, review) that the trusted `kazam pack-hook` runner interprets. Install them with `--allow-hooks`, which writes the config to `.claude/kazam-packs/<slug>.hooks.yaml` (or `~/.claude/kazam-packs/` at user scope) and registers the runner in `settings.json` with an absolute path to that config, so the hook resolves no matter what directory the session runs from:
 
 ```yaml
 pack:
@@ -178,9 +191,12 @@ pack:
   hooks:
     - kind: block_on_match
       on: { tool: "Write|Edit" }
-      patterns: ["delve", "furthermore"]
+      mode: word                # substring (default) | word (word-boundary)
+      patterns: ["delve", "foster"]
       message: "Blocked: AI-slop word. Use plain language."
 ```
+
+`on.tool` is passed to the harness verbatim, so it matches any tool the harness knows, not only `Write|Edit`. An MCP tool by full name (`mcp__claude_ai_Slack__slack_send_message`) or prefix works too. On `block_on_match`, `mode: word` matches only on word boundaries (so `foster` won't trip on `fostering`), and an optional `field:` scopes the scan to one `tool_input` argument (like `field: text` for a Slack message body) instead of the whole tool input.
 
 The runner has no network or arbitrary-write capability, so a hostile pack can at worst block your own tool calls or inject visible text, never exfiltrate. Hook-bearing packs stay off by default; `--allow-hooks` is the consent.
 

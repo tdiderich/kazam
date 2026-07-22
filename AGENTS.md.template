@@ -172,8 +172,17 @@ A pack may also carry declarative guardrail **hooks** under `pack.hooks`. These
 are data, never code: each hook is one of `block_on_match`, `block_unless_match`,
 `allowlist`, `inject`, or `review_prompt`, interpreted by the trusted
 `kazam pack-hook` runner. `kazam install --allow-hooks` writes the hook config
-and registers the runner in `.claude/settings.json`. The runner can only block a
+and registers the runner in `settings.json`. The runner can only block a
 tool call or inject text, so a pack can never run arbitrary code or exfiltrate.
+
+`kazam install` defaults to **user** scope (`~/.claude`), so a personal
+guardrail pack applies in every project. Pass `--repo` to pin it to the current
+project instead (an explicit `--dir` implies repo scope too); with no flag on an
+interactive terminal, install asks. Hook config lives beside the `settings.json`
+it patches (`.claude/kazam-packs/<slug>.hooks.yaml`, or `~/.claude/...` at user
+scope) and is registered by absolute path, so hooks resolve from any cwd. User
+scope writes the `claude` target only; other rules targets warn and skip under
+`--user`.
 
 ```yaml
 pack:
@@ -181,8 +190,24 @@ pack:
   hooks:
     - kind: block_on_match
       on: { tool: "Write|Edit" }
-      patterns: ["delve", "furthermore"]
+      mode: word                # substring (default) | word. word only matches
+                                # on word boundaries, so "foster" won't hit
+                                # "fostering". regex is not supported yet.
+      patterns: ["delve", "foster"]
       message: "Blocked: AI-slop word. Use plain language."
+```
+
+`on.tool` is passed to the harness verbatim, so any matcher it understands
+works, not only `Write|Edit`. Match MCP tool calls by their full name or a
+prefix, and use `field` to scan one argument instead of the whole tool input:
+
+```yaml
+    - kind: block_on_match
+      on: { tool: "mcp__claude_ai_Slack__slack_send_message" }
+      field: text               # scan only tool_input.text (the message body)
+      mode: word
+      patterns: ["delve", "furthermore"]
+      message: "Blocked: AI-slop word in Slack message."
 ```
 
 ### Link graph (automatic)

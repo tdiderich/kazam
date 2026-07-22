@@ -66,7 +66,10 @@ pub struct PackMeta {
 }
 
 /// Which tool call a PreToolUse/PostToolUse hook applies to. `tool` is a
-/// matcher pattern (like "Write|Edit") passed through to the harness.
+/// matcher pattern passed through verbatim to the harness, so any matcher the
+/// harness understands works: a single tool ("Write"), a pipe alternation
+/// ("Write|Edit"), or an MCP tool name / prefix
+/// ("mcp__claude_ai_Slack__slack_send_message", "mcp__.*").
 #[derive(Deserialize, Serialize, Clone)]
 pub struct HookMatch {
     pub tool: String,
@@ -77,6 +80,10 @@ pub struct HookMatch {
 pub enum MatchMode {
     #[default]
     Substring,
+    /// Substring match constrained to word boundaries: the pattern only matches
+    /// when the characters on either side are non-word (not alphanumeric or
+    /// `_`). Blocks "delve" but not "fostering" for a "foster" pattern.
+    Word,
     Regex,
 }
 
@@ -99,6 +106,12 @@ pub enum PackHook {
         on: HookMatch,
         #[serde(default)]
         mode: MatchMode,
+        /// Which `tool_input` field to scan. Unset = scan the whole serialized
+        /// `tool_input` (fine for Write/Edit `content`). Set it to target one
+        /// field on an MCP tool, e.g. `text` for a Slack message body, so the
+        /// scan doesn't false-positive on other args or field names.
+        #[serde(default)]
+        field: Option<String>,
         patterns: Vec<String>,
         message: String,
     },
