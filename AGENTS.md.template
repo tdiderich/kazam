@@ -162,10 +162,28 @@ Rules a pack page must follow, enforced by `kazam validate`:
 
 On the install side, `kazam install` refuses a page with no `pack:` block
 (`--force` overrides) and hard-errors if the compiled text still contains an
-unfilled `{{variable}}` — so a page created from a template must have its
+unfilled `{{variable}}` so a page created from a template must have its
 variables filled before it can be installed. Installs are idempotent: the
 managed block carries a source URL + content hash header, reinstalling replaces
 the block in place, and multiple packs coexist (one block per page slug).
+`kazam check` re-fetches each installed pack and reports drift.
+
+A pack may also carry declarative guardrail **hooks** under `pack.hooks`. These
+are data, never code: each hook is one of `block_on_match`, `block_unless_match`,
+`allowlist`, `inject`, or `review_prompt`, interpreted by the trusted
+`kazam pack-hook` runner. `kazam install --allow-hooks` writes the hook config
+and registers the runner in `.claude/settings.json`. The runner can only block a
+tool call or inject text, so a pack can never run arbitrary code or exfiltrate.
+
+```yaml
+pack:
+  targets: [claude, cursor]
+  hooks:
+    - kind: block_on_match
+      on: { tool: "Write|Edit" }
+      patterns: ["delve", "furthermore"]
+      message: "Blocked: AI-slop word. Use plain language."
+```
 
 ### Link graph (automatic)
 

@@ -1,6 +1,6 @@
 [package]
 name = "kazam"
-version = "1.6.0"
+version = "1.7.0"
 edition = "2021"
 description = "Agent workspace and static site generator. Codebase indexing, task tracking, visual board — one Rust binary."
 license = "MIT"
@@ -27,6 +27,7 @@ notify = "8"
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 ureq = "2"
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3"

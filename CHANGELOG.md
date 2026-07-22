@@ -6,6 +6,36 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-07-22
+
+The packs buildout. `kazam install` grows from a rules-only writer into a full
+config installer with drift detection, cross-tool output, and safe declarative
+hooks, plus anonymous install of public packs.
+
+### Added
+- **`kazam check`**: drift detection. Scans installed packs across all target
+  files, re-fetches each source, and reports which have drifted from their
+  curata page. The compared hash is computed locally (sha256 of the fetched
+  YAML), so a compromised instance cannot report a false "fresh".
+- **Cross-tool targets**: `agents` (AGENTS.md, the 30+-tool standard) plus
+  `windsurf`, `copilot`, `gemini`, `aider`, on top of `claude`/`cursor`. New
+  `--cli` flag overrides a pack's declared targets at install time.
+- **Declarative hooks**: packs can carry deny/inject/review guardrail config
+  (never executable code). `install --allow-hooks` writes the config and
+  registers the trusted `kazam pack-hook` runner in `.claude/settings.json`.
+  The runner has no network or arbitrary-write capability, so a hostile pack
+  can at worst block the user's own tool calls or inject visible text.
+- **Public anonymous install**: `kazam install <instance>/p/<org>/<slug>`
+  fetches a public pack over the unauthenticated raw route, no key needed.
+- Prompt-injection heuristic warns when compiled pack rules contain suspicious
+  phrases before they land in CLAUDE.md.
+
+### Security
+- The URL-derived pack slug is now validated (`^[A-Za-z0-9_-]+$`) before it
+  flows into file paths or the settings.json hook command, closing a command
+  injection. Plaintext-http pack URLs to non-local hosts are refused so the API
+  key never travels in cleartext.
+
 ## [1.6.0] - 2026-07-22
 
 The packs release. kazam gains `kazam install` and the `pack:` page marker, so a

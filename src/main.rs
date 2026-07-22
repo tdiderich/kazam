@@ -21,6 +21,7 @@ mod llms;
 mod manifest;
 mod mcp;
 mod minify;
+mod packhook;
 mod prompts;
 mod render;
 mod sdk;
@@ -94,6 +95,35 @@ enum Command {
         /// Install even if the page has no pack: marker
         #[arg(long)]
         force: bool,
+        /// Override the pack's declared targets. Repeatable or comma-separated.
+        /// Supported: claude, cursor, agents, windsurf, copilot, gemini, aider
+        #[arg(long, value_delimiter = ',')]
+        cli: Vec<String>,
+        /// Also install the pack's declarative hooks (writes hook config +
+        /// registers the kazam runner in .claude/settings.json). Off by default.
+        #[arg(long)]
+        allow_hooks: bool,
+    },
+    /// Check installed packs for drift against their curata source pages
+    Check {
+        /// Directory to scan for installed packs
+        #[arg(short, long, default_value = ".")]
+        dir: PathBuf,
+        /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
+        #[arg(long)]
+        api_key: Option<String>,
+    },
+    /// Internal: run a declarative pack hook (registered in settings by install)
+    PackHook {
+        /// Pack slug whose hook config to load
+        #[arg(long)]
+        pack: String,
+        /// Index of the hook within the pack's config
+        #[arg(long)]
+        index: usize,
+        /// Project directory (default: current directory)
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
     },
     /// Grant a wish — install a recipe for self-refreshing docs
     Wish {
@@ -364,7 +394,11 @@ fn main() -> Result<()> {
             api_key,
             dir,
             force,
-        } => install::run(&url, api_key, &dir, force),
+            cli,
+            allow_hooks,
+        } => install::run(&url, api_key, &dir, force, &cli, allow_hooks),
+        Command::Check { dir, api_key } => install::check(&dir, api_key),
+        Command::PackHook { pack, index, dir } => packhook::run(&pack, index, &dir),
         Command::Wish { command } => match command {
             WishCommand::List { json } => wish::list(json),
             WishCommand::Init { name, dir, force } => wish::init(&name, dir, force),

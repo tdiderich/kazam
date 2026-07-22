@@ -148,14 +148,41 @@ kazam install curata.ai/pages/pack-maze-engineering-standards
 
 # Private instances: pass a key, or set KAZAM_CURATA_API_KEY
 kazam install my-curata.internal/pages/company-standards --api-key <key>
+
+# Public pack, no key needed (the shareable /p/ URL)
+kazam install curata.ai/p/maze/company-standards
+
+# Pick which tools to write, regardless of what the pack declares
+kazam install curata.ai/pages/company-standards --cli claude,agents
+
+# Check installed packs for drift against their source pages
+kazam check
 ```
 
 A pack is an ordinary curata page (see the `ai-tool-pack` template) carrying a top-level `pack:` block:
 
 ```yaml
 pack:
-  targets: [claude, cursor]   # optional - omit to write all targets
+  targets: [claude, cursor]   # optional - omit for the default pair
 ```
+
+Targets map to files: `claude` (CLAUDE.md), `cursor` (.cursorrules), `agents` (AGENTS.md, read by 30+ tools), plus `windsurf`, `copilot`, `gemini`, `aider`.
+
+### Declarative hooks (optional)
+
+A pack can carry guardrail hooks. Packs never ship executable code: a hook is declarative config (block-on-match, allowlist, inject, review) that the trusted `kazam pack-hook` runner interprets. Install them with `--allow-hooks`, which writes the config and registers the runner in `.claude/settings.json`:
+
+```yaml
+pack:
+  targets: [claude]
+  hooks:
+    - kind: block_on_match
+      on: { tool: "Write|Edit" }
+      patterns: ["delve", "furthermore"]
+      message: "Blocked: AI-slop word. Use plain language."
+```
+
+The runner has no network or arbitrary-write capability, so a hostile pack can at worst block your own tool calls or inject visible text, never exfiltrate. Hook-bearing packs stay off by default; `--allow-hooks` is the consent.
 
 Pages without the marker are refused (`--force` overrides), and pages with unfilled `{{template}}` variables never install. `kazam validate` enforces pack structure server-side too: a `pack:` page must have at least one non-empty markdown component. The markdown components compile, in order, into a managed block inside `CLAUDE.md` and `.cursorrules`:
 

@@ -86,7 +86,9 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
 fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
     let Some(pack) = &page.pack else { return };
 
-    const VALID_TARGETS: [&str; 2] = ["claude", "cursor"];
+    const VALID_TARGETS: [&str; 7] = [
+        "claude", "cursor", "agents", "windsurf", "copilot", "gemini", "aider",
+    ];
     for (i, target) in pack.targets.iter().enumerate() {
         if !VALID_TARGETS.contains(&target.as_str()) {
             errors.push(ValidationError::new(
@@ -94,7 +96,10 @@ fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
                 format!("pack.targets[{}]", i),
                 "invalid_value",
                 format!("unknown pack target \"{}\"", target),
-                Some("Valid targets: claude, cursor. Omit targets: to write all.".into()),
+                Some(format!(
+                    "Valid targets: {}. Omit targets: to write all.",
+                    VALID_TARGETS.join(", ")
+                )),
             ));
         }
     }
@@ -119,6 +124,45 @@ fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
             "pack pages need at least one non-empty markdown component — that's what `kazam install` compiles into tool config files",
             Some("Add a markdown component (top level or inside a section) with the pack's rules, or remove the pack: block.".into()),
         ));
+    }
+
+    use crate::types::{MatchMode, PackHook};
+    for (i, hook) in pack.hooks.iter().enumerate() {
+        let path = format!("pack.hooks[{}]", i);
+        match hook {
+            PackHook::BlockOnMatch { patterns, mode, .. } => {
+                if patterns.is_empty() {
+                    errors.push(ValidationError::new(
+                        file,
+                        &path,
+                        "structural",
+                        "block_on_match needs at least one pattern",
+                        None,
+                    ));
+                }
+                if *mode == MatchMode::Regex {
+                    errors.push(ValidationError::new(
+                        file,
+                        &path,
+                        "invalid_value",
+                        "regex match mode is not supported yet; use substring patterns",
+                        None,
+                    ));
+                }
+            }
+            PackHook::Allowlist { allow, .. } => {
+                if allow.is_empty() {
+                    errors.push(ValidationError::new(
+                        file,
+                        &path,
+                        "structural",
+                        "allowlist needs at least one allowed value",
+                        None,
+                    ));
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -1316,6 +1360,7 @@ mod tests {
     fn pack_meta(targets: &[&str]) -> crate::types::PackMeta {
         crate::types::PackMeta {
             targets: targets.iter().map(|s| s.to_string()).collect(),
+            hooks: Vec::new(),
         }
     }
 
@@ -1380,7 +1425,7 @@ mod tests {
                 body: "rules".into(),
             }]),
         );
-        page.pack = Some(pack_meta(&["claude", "windsurf"]));
+        page.pack = Some(pack_meta(&["claude", "notatool"]));
         let errors = validate_page("p.yaml", &page);
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].path, "pack.targets[1]");

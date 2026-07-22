@@ -56,9 +56,74 @@ pub struct HubLink {
 #[derive(Deserialize)]
 pub struct PackMeta {
     /// Which tool config files to write. Empty = all supported targets.
-    /// Valid values: "claude" (CLAUDE.md), "cursor" (.cursorrules).
+    /// Valid values: claude, cursor, agents, windsurf, copilot, gemini, aider.
     #[serde(default)]
     pub targets: Vec<String>,
+    /// Declarative guardrail hooks. Packs never ship executable code; each hook
+    /// is data the trusted kazam runner interprets. Deny/inject/review only.
+    #[serde(default)]
+    pub hooks: Vec<PackHook>,
+}
+
+/// Which tool call a PreToolUse/PostToolUse hook applies to. `tool` is a
+/// matcher pattern (like "Write|Edit") passed through to the harness.
+#[derive(Deserialize, Serialize, Clone)]
+pub struct HookMatch {
+    pub tool: String,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchMode {
+    #[default]
+    Substring,
+    Regex,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum InjectEvent {
+    SessionStart,
+    UserPromptSubmit,
+}
+
+/// A declarative guardrail primitive. Tagged by `kind`. None of these can read
+/// arbitrary files, make network calls, or write data anywhere: the runner that
+/// executes them has no egress capability, so a hostile pack can at worst block
+/// the user's own tool calls or inject visible text.
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PackHook {
+    /// Block a tool call if the content matches any pattern.
+    BlockOnMatch {
+        on: HookMatch,
+        #[serde(default)]
+        mode: MatchMode,
+        patterns: Vec<String>,
+        message: String,
+    },
+    /// Block a tool call unless the content matches a required pattern.
+    BlockUnlessMatch {
+        on: HookMatch,
+        require: String,
+        message: String,
+    },
+    /// Block unless a named tool_input field is in an allowed set.
+    Allowlist {
+        on: HookMatch,
+        field: String,
+        allow: Vec<String>,
+        message: String,
+    },
+    /// Add static or templated text to context (supports {{date}}).
+    Inject { event: InjectEvent, text: String },
+    /// Run an LLM review with a supplied prompt (harness runs the model).
+    ReviewPrompt {
+        on: HookMatch,
+        prompt: String,
+        #[serde(default)]
+        model_tier: Option<String>,
+    },
 }
 
 // ── Page ─────────────────────────────────────────────
