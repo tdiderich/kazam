@@ -15,6 +15,7 @@ mod icons;
 mod id;
 mod ingest;
 mod init;
+mod install;
 mod links;
 mod llms;
 mod manifest;
@@ -80,6 +81,20 @@ enum Command {
     Init { name: String },
     /// Print the LLM authoring guide (full AGENTS.md to stdout)
     Agents,
+    /// Install an AI tool pack from a curata instance (writes CLAUDE.md + .cursorrules)
+    Install {
+        /// Pack URL: https://<instance>/pages/<slug>, /p/<org>/<slug>, or <instance>/<slug>
+        url: String,
+        /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
+        #[arg(long)]
+        api_key: Option<String>,
+        /// Directory to write config files into
+        #[arg(short, long, default_value = ".")]
+        dir: PathBuf,
+        /// Install even if the page has no pack: marker
+        #[arg(long)]
+        force: bool,
+    },
     /// Grant a wish — install a recipe for self-refreshing docs
     Wish {
         #[command(subcommand)]
@@ -344,6 +359,12 @@ fn main() -> Result<()> {
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),
         Command::Agents => agents::run(),
+        Command::Install {
+            url,
+            api_key,
+            dir,
+            force,
+        } => install::run(&url, api_key, &dir, force),
         Command::Wish { command } => match command {
             WishCommand::List { json } => wish::list(json),
             WishCommand::Init { name, dir, force } => wish::init(&name, dir, force),

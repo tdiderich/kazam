@@ -449,6 +449,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
         draft: false,
         nav_layout: None,
         nav: None,
+        pack: None,
     })
 }
 

@@ -76,7 +76,50 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
             validate_freshness(file, "freshness", freshness, &mut errors);
         }
     }
+    validate_pack(file, page, &mut errors);
     errors
+}
+
+/// Pack pages (`pack:` present) must actually be installable: at least one
+/// non-empty markdown component reachable the way `kazam install` collects
+/// them (top level or nested in sections), and only known target names.
+fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
+    let Some(pack) = &page.pack else { return };
+
+    const VALID_TARGETS: [&str; 2] = ["claude", "cursor"];
+    for (i, target) in pack.targets.iter().enumerate() {
+        if !VALID_TARGETS.contains(&target.as_str()) {
+            errors.push(ValidationError::new(
+                file,
+                format!("pack.targets[{}]", i),
+                "invalid_value",
+                format!("unknown pack target \"{}\"", target),
+                Some("Valid targets: claude, cursor. Omit targets: to write all.".into()),
+            ));
+        }
+    }
+
+    fn has_installable_markdown(components: &[Component]) -> bool {
+        components.iter().any(|c| match c {
+            Component::Markdown { body } => !body.trim().is_empty(),
+            Component::Section { components, .. } => has_installable_markdown(components),
+            _ => false,
+        })
+    }
+
+    let ok = page
+        .components
+        .as_deref()
+        .is_some_and(has_installable_markdown);
+    if !ok {
+        errors.push(ValidationError::new(
+            file,
+            "pack",
+            "structural",
+            "pack pages need at least one non-empty markdown component — that's what `kazam install` compiles into tool config files",
+            Some("Add a markdown component (top level or inside a section) with the pack's rules, or remove the pack: block.".into()),
+        ));
+    }
 }
 
 /// Validate a single YAML file. Parses it as a [`Page`] and runs semantic
@@ -1266,7 +1309,82 @@ mod tests {
             draft: false,
             nav_layout: None,
             nav: None,
+            pack: None,
         }
+    }
+
+    fn pack_meta(targets: &[&str]) -> crate::types::PackMeta {
+        crate::types::PackMeta {
+            targets: targets.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn pack_with_markdown_passes() {
+        let mut page = make_page(
+            Shell::Standard,
+            Some(vec![Component::Markdown {
+                body: "rules".into(),
+            }]),
+        );
+        page.pack = Some(pack_meta(&[]));
+        assert!(validate_page("p.yaml", &page).is_empty());
+    }
+
+    #[test]
+    fn pack_with_markdown_in_section_passes() {
+        let mut page = make_page(
+            Shell::Standard,
+            Some(vec![Component::Section {
+                heading: Some("Rules".into()),
+                eyebrow: None,
+                components: vec![Component::Markdown {
+                    body: "rules".into(),
+                }],
+                align: Default::default(),
+                id: None,
+            }]),
+        );
+        page.pack = Some(pack_meta(&["claude", "cursor"]));
+        assert!(validate_page("p.yaml", &page).is_empty());
+    }
+
+    #[test]
+    fn pack_without_markdown_fails_structural() {
+        let mut page = make_page(Shell::Standard, Some(vec![header_component()]));
+        page.pack = Some(pack_meta(&[]));
+        let errors = validate_page("p.yaml", &page);
+        assert!(errors
+            .iter()
+            .any(|e| e.error_type == "structural" && e.path == "pack"));
+    }
+
+    #[test]
+    fn pack_with_empty_markdown_fails_structural() {
+        let mut page = make_page(
+            Shell::Standard,
+            Some(vec![Component::Markdown { body: "   ".into() }]),
+        );
+        page.pack = Some(pack_meta(&[]));
+        let errors = validate_page("p.yaml", &page);
+        assert!(errors
+            .iter()
+            .any(|e| e.error_type == "structural" && e.path == "pack"));
+    }
+
+    #[test]
+    fn pack_with_unknown_target_fails() {
+        let mut page = make_page(
+            Shell::Standard,
+            Some(vec![Component::Markdown {
+                body: "rules".into(),
+            }]),
+        );
+        page.pack = Some(pack_meta(&["claude", "windsurf"]));
+        let errors = validate_page("p.yaml", &page);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].path, "pack.targets[1]");
+        assert_eq!(errors[0].error_type, "invalid_value");
     }
 
     fn header_component() -> Component {
@@ -1326,6 +1444,7 @@ mod tests {
             draft: false,
             nav_layout: None,
             nav: None,
+            pack: None,
         };
         let errors = validate_page("deck.yaml", &page);
         assert!(

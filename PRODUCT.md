@@ -6,7 +6,9 @@
 
 ### kazam (OSS CLI) — free forever
 
-The full Rust binary. Build sites, track freshness, run audits, ingest from Notion, scaffold wishes, MCP server with annotation tools, agent workspace — everything in this repo.
+The full Rust binary. Build sites, track freshness, run audits, ingest from Notion, scaffold wishes, install AI tool packs, MCP server with annotation tools, agent workspace: everything in this repo.
+
+**AI tool packs** are the newest capability and the tightest tie to the curata story: `kazam install <curata-url>` pulls a pack page from a curata instance and compiles it into a repo's CLAUDE.md / .cursorrules. Org knowledge authored in curata flows straight into every engineer's AI tools, and the content hash makes drift from the source page detectable. The pack catalog (curata-managed first, community later) is where the OSS install command becomes a distribution channel for the platform.
 
 Users install via `cargo install` or Homebrew, run locally or in CI, own everything. Every curata customer starts here.
 

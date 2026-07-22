@@ -70,6 +70,7 @@ pub fn render_source_view(
         draft: false,
         nav_layout: None,
         nav: None,
+        pack: None,
     };
 
     shells::standard::wrap(
@@ -367,6 +368,7 @@ fn default_404_page() -> Page {
         draft: false,
         nav_layout: None,
         nav: None,
+        pack: None,
     }
 }
 

@@ -52,6 +52,15 @@ pub struct HubLink {
     pub href: String,
 }
 
+/// `pack:` block on a page — marks it as an AI tool pack.
+#[derive(Deserialize)]
+pub struct PackMeta {
+    /// Which tool config files to write. Empty = all supported targets.
+    /// Valid values: "claude" (CLAUDE.md), "cursor" (.cursorrules).
+    #[serde(default)]
+    pub targets: Vec<String>,
+}
+
 // ── Page ─────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -104,6 +113,12 @@ pub struct Page {
     /// the stale-page report when no freshness block is present.
     #[serde(default)]
     pub owner: Option<String>,
+    /// AI tool pack marker. Present = this page is installable via
+    /// `kazam install` — its markdown components compile into local AI
+    /// config files. Validation requires at least one non-empty markdown
+    /// component (top-level or inside a section) when this is set.
+    #[serde(default)]
+    pub pack: Option<PackMeta>,
     /// Links to sources of truth that inform this page's content.
     /// Each entry has a URL and an optional note explaining what it references.
     #[serde(default)]

@@ -366,6 +366,7 @@ mod tests {
             draft: false,
             nav_layout: None,
             nav: None,
+            pack: None,
         }
     }
 

@@ -19,6 +19,7 @@ kazam fixes this with structured YAML pages, not wiki pages. Every page can decl
 - **Sidecar annotations** — human context stored as YAML files in `.kazam/annotations/`, with 14-day decay, status tracking, and build-time rendering
 - **MCP server** — 8 tools: agents read, search, write, annotate, and update content directly. stdio + HTTP transports with bearer token auth for remote access
 - **Annotation-aware refresh** — prompt templates read annotations as highest-priority source; agents update annotation status after each cycle
+- **AI tool packs**: `kazam install <curata-url>` compiles a curata pack page into managed CLAUDE.md / .cursorrules blocks; idempotent, drift-detectable via content hash
 - **Wishes** — portable agent recipes: deal-360, debrief, audit-fix, freshness-notifier, and more
 - **Notion ingest** — import databases, pages, and child pages with `--all` discovery mode
 - **Audit** — structural quality checks: freshness compliance, component validation, annotation health
@@ -137,7 +138,35 @@ kazam mcp --transport http --remote --token $KAZAM_MCP_TOKEN --port 8080
 
 The `--local` flag (default) binds to 127.0.0.1. The `--remote` flag binds to 0.0.0.0 and requires a bearer token via `--token` or `KAZAM_MCP_TOKEN` env var.
 
-## curata — the hosted platform
+## AI tool packs
+
+Install shared AI agent rules straight from a curata instance into your repo:
+
+```bash
+# Fetch a pack page and write CLAUDE.md + .cursorrules
+kazam install curata.ai/pages/pack-maze-engineering-standards
+
+# Private instances: pass a key, or set KAZAM_CURATA_API_KEY
+kazam install my-curata.internal/pages/company-standards --api-key <key>
+```
+
+A pack is an ordinary curata page (see the `ai-tool-pack` template) carrying a top-level `pack:` block:
+
+```yaml
+pack:
+  targets: [claude, cursor]   # optional - omit to write all targets
+```
+
+Pages without the marker are refused (`--force` overrides), and pages with unfilled `{{template}}` variables never install. `kazam validate` enforces pack structure server-side too: a `pack:` page must have at least one non-empty markdown component. The markdown components compile, in order, into a managed block inside `CLAUDE.md` and `.cursorrules`:
+
+- Content outside the block is never touched, so your existing rules survive.
+- Reinstalling replaces the block in place; installs are idempotent.
+- Multiple packs coexist, one block per pack slug.
+- The block header records source URL and content hash, so drift against the source page is detectable.
+
+Because packs are pages, they inherit everything the platform already does: versioning, annotations, freshness tracking, search, and MCP access.
+
+## curata - the hosted platform
 
 **kazam** is the OSS engine. A Rust CLI that builds structured YAML pages into themed HTML, with freshness tracking, sidecar annotations, and an MCP server. Free forever, MIT licensed.
 

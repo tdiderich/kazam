@@ -6,6 +6,24 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-22
+
+The packs release. kazam gains `kazam install` and the `pack:` page marker, so a
+curata page can be compiled straight into a repo's AI tool config files.
+
+### Added
+- **AI tool packs**: `kazam install <instance-url>/pages/<slug>` fetches a pack
+  page from a curata instance and compiles its markdown components into managed
+  blocks in `CLAUDE.md` and `.cursorrules`. Fetches via the curata REST shim
+  (`POST /api/mcp`) with a streamable-HTTP fallback (`/api/mcp/stream`); API key
+  via `--api-key` or `KAZAM_CURATA_API_KEY`.
+- **`pack:` page marker**: a new top-level Page field (`pack.targets: [claude, cursor]`)
+  marks a page as an installable pack. `kazam validate` now checks pack pages
+  have at least one non-empty markdown component and only known target values.
+- Install safety: pages without a `pack:` marker are refused (`--force` overrides),
+  and pages with unfilled `{{variables}}` never install. Managed blocks are
+  idempotent, carry a source + content-hash header, and coexist one-per-pack.
+
 ## [1.5.0] — 2026-05-07
 
 The annotation release. kazam gains a sidecar annotation system, annotation-aware

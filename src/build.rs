@@ -1113,6 +1113,7 @@ fn generate_health_page(
         draft: false,
         nav_layout: None,
         nav: None,
+        pack: None,
     };
 
     let mut html = render::render_page(&page, config, "", "", "", false, "", None);

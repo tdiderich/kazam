@@ -137,6 +137,36 @@ Refreshing the content is the agent's job: when a reader (or an agent
 working on the page) clicks through, they read the source and propose
 updates.
 
+### Pack pages (optional)
+
+A page with a top-level `pack:` block is an **AI tool pack** — installable into
+a repo with `kazam install <instance-url>/pages/<slug>`. The page's markdown
+components are concatenated in order (recursing into sections) and written into
+a managed block in local AI tool config files.
+
+```yaml
+pack:
+  targets: [claude, cursor]   # optional — omit to write every supported target
+```
+
+`targets` selects which config files to write: `claude` → `CLAUDE.md`,
+`cursor` → `.cursorrules`. Omit `targets:` (or use `pack: {}`) to write all of
+them.
+
+Rules a pack page must follow, enforced by `kazam validate`:
+
+- At least one non-empty `markdown` component (top level or nested in a
+  `section`). That markdown is the payload; other component types are page
+  metadata and are not installed.
+- Only known `targets` values.
+
+On the install side, `kazam install` refuses a page with no `pack:` block
+(`--force` overrides) and hard-errors if the compiled text still contains an
+unfilled `{{variable}}` — so a page created from a template must have its
+variables filled before it can be installed. Installs are idempotent: the
+managed block carries a source URL + content hash header, reinstalling replaces
+the block in place, and multiple packs coexist (one block per page slug).
+
 ### Link graph (automatic)
 
 Every `kazam build` also runs a link-graph pass. Two things surface in the
