@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const DIR: &str = ".kazam";
+pub const DIR: &str = ".kazam";
 
 fn is_false(b: &bool) -> bool {
     !b

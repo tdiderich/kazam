@@ -583,12 +583,16 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
         serde_json::json!({})
     };
 
-    let hooks_dir = crate::workspace::root(project).join("hooks");
-    let hooks_abs = hooks_dir
-        .canonicalize()
-        .unwrap_or(hooks_dir.clone())
-        .to_string_lossy()
-        .to_string();
+    // Reference the hook scripts through $CLAUDE_PROJECT_DIR rather than a
+    // canonicalized absolute path. .claude/settings.json is committed in plenty
+    // of repos, and an absolute path pins those hooks to whichever machine ran
+    // `workspace init` — every teammate then gets commands pointing at a
+    // directory that does not exist for them. Falls back to the working
+    // directory if the variable is ever absent.
+    let hooks_abs = format!(
+        "\"${{CLAUDE_PROJECT_DIR:-.}}\"/{}/hooks",
+        crate::workspace::DIR
+    );
 
     let obj = settings.as_object_mut().unwrap();
     let hooks = obj
