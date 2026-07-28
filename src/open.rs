@@ -41,6 +41,7 @@ pub fn run(path: &Path, port: u16) -> Result<()> {
         disk: std::sync::RwLock::new(content),
         buffer: std::sync::RwLock::new(None),
         conflict: AtomicBool::new(false),
+        path: path.clone(),
         file_name,
         ext,
     });
@@ -80,6 +81,7 @@ struct State {
     disk: std::sync::RwLock<String>,
     buffer: std::sync::RwLock<Option<String>>,
     conflict: AtomicBool,
+    path: PathBuf,
     file_name: String,
     ext: String,
 }
@@ -131,6 +133,8 @@ fn handle(req: tiny_http::Request, st: &State) -> Result<()> {
             server::respond_plain(req, &json)
         }
 
+        ("/api/save", _, true) => handle_save(req, st),
+
         // Conflict resolution: keep the buffer, or throw it away for disk.
         ("/api/keep-mine", _, true) => {
             st.conflict.store(false, Ordering::SeqCst);
@@ -179,6 +183,57 @@ fn handle_post_content(mut req: tiny_http::Request, st: &State) -> Result<()> {
         .with_header(server::hdr("Content-Type", "application/json"))
         .with_header(server::hdr("Cache-Control", "no-store"));
     req.respond(resp).context("respond")
+}
+
+/// Write the edit buffer to disk. Refuses while a conflict is unresolved,
+/// since the file moved underneath the buffer and saving would clobber it.
+fn handle_save(req: tiny_http::Request, st: &State) -> Result<()> {
+    if st.has_conflict() {
+        let payload = format!(
+            r#"{{"ok":false,"error":{}}}"#,
+            json_string(Some(
+                "the file changed on disk, resolve the conflict before saving"
+            )),
+        );
+        return server::respond_plain(req, &payload);
+    }
+
+    let Some(text) = st.buffer.read().unwrap().clone() else {
+        // Nothing unsaved, so saving is a no-op rather than an error.
+        return server::respond_plain(req, r#"{"ok":true,"saved":false}"#);
+    };
+
+    let payload = match write_atomic(&st.path, &text) {
+        Ok(()) => {
+            // Adopt the text as the new disk state and drop the buffer, so the
+            // watcher event this write triggers is recognized as our own.
+            *st.disk.write().unwrap() = text;
+            *st.buffer.write().unwrap() = None;
+            println!("  ✓ saved {}", st.path.display());
+            r#"{"ok":true,"saved":true}"#.to_string()
+        }
+        Err(e) => {
+            eprintln!("  save failed: {e:#}");
+            format!(
+                r#"{{"ok":false,"error":{}}}"#,
+                json_string(Some(&e.to_string()))
+            )
+        }
+    };
+    server::respond_plain(req, &payload)
+}
+
+/// Write via temp file plus rename so a crash cannot leave the file truncated.
+fn write_atomic(path: &Path, content: &str) -> Result<()> {
+    let dir = path.parent().unwrap_or(Path::new("."));
+    let stem = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "file".to_string());
+    let tmp = dir.join(format!(".{stem}.kazam-tmp"));
+    std::fs::write(&tmp, content).with_context(|| format!("write {}", tmp.display()))?;
+    std::fs::rename(&tmp, path).with_context(|| format!("rename into {}", path.display()))?;
+    Ok(())
 }
 
 /// Minimal JSON string encoder for the handful of strings we emit.
@@ -461,6 +516,7 @@ body.editing .edit-mode {{ display: block; }}
   <button id="viewBtn" class="active" onclick="setMode('view')">View</button>
   <button id="editBtn" onclick="setMode('edit')">Edit</button>
   <button id="copyBtn" onclick="copyFile()">Copy</button>
+  <button id="saveBtn" onclick="saveFile()">Save</button>
 </div>
 {banner}
 <div class="syntax-err" id="syntaxErr"></div>
@@ -579,6 +635,20 @@ function copyFile(){{
   fetch('/api/content').then(function(r){{return r.text()}})
     .then(function(t){{copyText(t,'copied file');}}).catch(function(){{}});
 }}
+// Writes the buffer to disk. Flushes any debounced POST first so the save
+// includes the most recent keystroke.
+function saveFile(){{
+  (dirty?postContent():queue).then(function(){{
+    return fetch('/api/save',{{method:'POST'}}).then(function(r){{return r.json()}});
+  }}).then(function(j){{
+    if(!j.ok){{flash('save failed: '+j.error);return;}}
+    flash(j.saved?'saved to disk':'nothing to save');
+    if(j.saved) refreshView();
+  }}).catch(function(){{flash('save failed');}});
+}}
+document.addEventListener('keydown',function(e){{
+  if((e.metaKey||e.ctrlKey)&&e.key==='s'){{e.preventDefault();saveFile();}}
+}});
 // Selecting text copies it, in the rendered view and the textarea both.
 function copySelection(){{
   var a=document.activeElement, t='';
@@ -842,6 +912,12 @@ fn watch_file(path: PathBuf, st: Arc<State>) {
             Ok(new_content) => {
                 // Never discard unsaved browser edits. If the file moved
                 // underneath one, flag a conflict and let the human pick.
+                // Our own save already adopted this content, so there is
+                // nothing to tell the browser about.
+                if *st.disk.read().unwrap() == new_content {
+                    continue;
+                }
+
                 let dirty = st.is_dirty();
                 let same = *st.buffer.read().unwrap() == Some(new_content.clone());
                 *st.disk.write().unwrap() = new_content;

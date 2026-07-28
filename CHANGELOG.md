@@ -4,6 +4,21 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-07-28
+
+### Added
+- **`kazam open` can write to disk**: a Save button and Cmd+S (Ctrl+S) commit the
+  edit buffer to the file, and `POST /api/save` does the same for agents. Saving
+  is explicit on purpose, since autosaving every keystroke would churn the file
+  and fire agent hooks repeatedly. Writes go through a temp file and a rename so
+  a crash cannot leave the file truncated, and a save is refused while a conflict
+  is unresolved rather than clobbering whatever changed on disk.
+
+### Changed
+- **The watcher ignores kazam's own writes**: after a save the new text is adopted
+  as the disk state, so the resulting filesystem event no longer bumps the version
+  and reloads the page for no reason.
+
 ## [1.9.0] - 2026-07-28
 
 ### Added

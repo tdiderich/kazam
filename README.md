@@ -137,7 +137,9 @@ Both take one file, `.md`, `.yaml`, or `.json`. Anything else is rejected by nam
 
 `kazam open` serves a small API next to the page, which is the point: you type notes in the browser, the agent reads them over `GET /api/content` without you saving anything. `GET /api/status` reports whether you have unsaved edits, whether the file still parses, and the parse error if it doesn't.
 
-Unsaved edits are never discarded. If the file changes on disk while your buffer is dirty, the page shows a conflict bar with **Keep mine** and **Load from disk** instead of reloading over your work.
+Hit Save or Cmd+S to write the file. Nothing autosaves, because writing on every keystroke would churn the file and fire your agent hooks over and over.
+
+Unsaved edits are never discarded. If the file changes on disk while your buffer is dirty, the page shows a conflict bar with **Keep mine** and **Load from disk** instead of reloading over your work, and Save is refused until you pick one.
 
 ## MCP server
 

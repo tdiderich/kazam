@@ -211,6 +211,8 @@ components:
             does: Raw text. Unsaved browser edits take priority over what is on disk
           - route: POST /api/content
             does: Replaces the in-memory buffer. Reports whether the text still parses
+          - route: POST /api/save
+            does: Writes the buffer to disk. Refused while a conflict is unresolved
           - route: GET /api/rendered
             does: Rendered HTML for the current text
           - route: GET /api/status
@@ -226,12 +228,17 @@ components:
           `GET /api/status` before writing a file someone has open.
 
       - type: callout
-        variant: warn
-        title: The buffer is memory only
+        variant: info
+        title: Saving is explicit
         body: |
-          Browser edits live in the server process, not on disk. Stop the server and
-          they are gone. That is deliberate: the agent decides when to persist. Nothing
-          in `kazam open` writes your file for you.
+          Edits sit in memory until you hit Save or press Cmd+S. Nothing autosaves,
+          because writing on every keystroke would churn the file and fire your agent
+          hooks over and over. Agents can save too, with `POST /api/save`.
+
+          The write goes to a temp file and then gets renamed, so a crash cannot leave
+          a half-written file. A save is refused while the conflict bar is up, since
+          the file moved underneath your buffer and saving would overwrite whatever
+          landed there.
 
   # ── Hooks ─────────────────────────────────
   - type: section

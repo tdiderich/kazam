@@ -87,3 +87,97 @@ jobs:
             --notes "Built from main branch commit ${{ github.sha }}" \
             kazam-linux-amd64 \
             kazam-darwin-arm64
+
+  # Only fires when Cargo.toml's version changed in this push. The rolling
+  # `latest` release moves on every commit, but crates.io and Homebrew are
+  # version-based and cannot accept the same version twice.
+  publish:
+    name: publish version
+    needs: [release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # need the parent commit to diff the version
+
+      - name: Detect version change
+        id: check
+        run: |
+          new=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/.*"(.*)".*/\1/')
+          old=$(git show HEAD~1:Cargo.toml 2>/dev/null | grep -m1 '^version = ' | sed -E 's/.*"(.*)".*/\1/' || true)
+          echo "version=$new" >> "$GITHUB_OUTPUT"
+          if [ "$new" = "$old" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Version unchanged at $new. Nothing to publish."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Version ${old:-none} -> $new"
+          fi
+
+      - name: Tag the version
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v="${{ steps.check.outputs.version }}"
+          if git ls-remote --tags origin "refs/tags/v$v" | grep -q .; then
+            echo "Tag v$v already exists."
+          else
+            git tag -a "v$v" -m "kazam $v"
+            git push origin "v$v"
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.check.outputs.changed == 'true'
+
+      - name: Publish to crates.io
+        if: steps.check.outputs.changed == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          v="${{ steps.check.outputs.version }}"
+          if [ -z "$CARGO_REGISTRY_TOKEN" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN is not set, skipping crates.io. Add it with: gh secret set CARGO_REGISTRY_TOKEN --repo tdiderich/kazam"
+            exit 0
+          fi
+          if curl -sf https://index.crates.io/ka/za/kazam | grep -q "\"vers\":\"$v\""; then
+            echo "kazam $v is already on crates.io."
+          else
+            cargo publish
+          fi
+
+      - name: Update the Homebrew formula
+        if: steps.check.outputs.changed == 'true'
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          v="${{ steps.check.outputs.version }}"
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set, skipping the tap. Needs a PAT with write access to tdiderich/homebrew-tap."
+            exit 0
+          fi
+          url="https://github.com/tdiderich/kazam/archive/refs/tags/v$v.tar.gz"
+
+          # The tag was just pushed, so the archive can lag by a few seconds.
+          for i in 1 2 3 4 5; do
+            if curl -sfL "$url" -o src.tar.gz; then break; fi
+            echo "Archive not ready, retry $i"; sleep 5
+          done
+          sha=$(sha256sum src.tar.gz | awk '{print $1}')
+          echo "sha256 $sha"
+
+          git clone --depth 1 "https://x-access-token:$TAP_TOKEN@github.com/tdiderich/homebrew-tap.git" tap
+          cd tap
+          sed -i -E "s|archive/refs/tags/v[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz|archive/refs/tags/v$v.tar.gz|" Formula/kazam.rb
+          sed -i -E "s|sha256 \"[a-f0-9]{64}\"|sha256 \"$sha\"|" Formula/kazam.rb
+
+          if git diff --quiet; then
+            echo "Formula already points at $v."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -am "kazam $v"
+          git push
