@@ -1,1 +1,5 @@
-learnings: []
+learnings:
+- id: kz-b738
+  text: 'kazam changes that only add CLI commands (no components/renderer/theme/schema) need Phase 1 only. Verify by running pnpm generate in curata and diffing the generated files: if the diff is unchanged, Phases 2-5 are no-ops and empty redeploy commits are pure churn.'
+  category: correction
+  created: 2026-07-28T14:22:00.886496-05:00
