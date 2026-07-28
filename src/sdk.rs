@@ -2138,20 +2138,24 @@ function ComponentView({
         return (horizonRank[dateUrg] ?? 3) < (horizonRank[horizonUrg] ?? 3);
       };
 
-      const filterOptions = ["all", "overdue", "two-weeks", "blocked"];
-      const filterLabels: Record<string, string> = { all: "All", overdue: "Overdue", "two-weeks": "Next two weeks", blocked: "Blocked" };
-      const [activeFilter, setActiveFilter] = React.useState("all");
+      const [query, setQuery] = React.useState("");
+      const [openOverride, setOpenOverride] = React.useState<Record<string, boolean>>({});
+      const trimmedQuery = filterable ? query.toLowerCase().trim() : "";
 
       const filteredItems = React.useMemo(() => {
-        if (!filterable || activeFilter === "all") return items;
+        if (!trimmedQuery) return items;
         return items.filter((item) => {
-          const urgency = getUrgency(item);
-          if (activeFilter === "overdue") return urgency === "overdue";
-          if (activeFilter === "two-weeks") return urgency === "soon";
-          if (activeFilter === "blocked") return urgency === "blocked";
-          return true;
+          const tags = (item.tags as Array<{ label?: string }> | undefined) || [];
+          const haystack = [
+            item.label as string | undefined,
+            item.detail as string | undefined,
+            item.owner as string | undefined,
+            item.due as string | undefined,
+            ...tags.map((t) => t.label),
+          ];
+          return haystack.some((part) => typeof part === "string" && part.toLowerCase().includes(trimmedQuery));
         });
-      }, [items, activeFilter, filterable, today, twoWeekEnd]);
+      }, [items, trimmedQuery]);
 
       type QueueGroup = { key: string; label: string; groupItems: Array<Record<string, unknown>> };
 
@@ -2191,10 +2195,10 @@ function ComponentView({
         }
 
         if (groupBy === "horizon") {
-          const horizonMap: Record<string, string> = { overdue: "now", two_weeks: "now", two_to_eight: "next", later: "later", none: "later" };
+          const horizonMap: Record<string, string> = { overdue: "now", two_weeks: "now", two_to_eight: "next", later: "later", none: "none" };
           for (const item of filteredItems) { pushTo(horizonMap[itemBucket(item)] || "later", item); }
-          const fixedOrder = ["now", "next", "later"];
-          const labels: Record<string, string> = { now: "Now", next: "Next", later: "Later" };
+          const fixedOrder = ["now", "next", "later", "none"];
+          const labels: Record<string, string> = { now: "Now", next: "Next", later: "Later", none: "No date" };
           return fixedOrder.filter((k) => buckets.has(k)).map((k) => ({ key: k, label: labels[k], groupItems: buckets.get(k)! }));
         }
 
@@ -2263,27 +2267,45 @@ function ComponentView({
         );
       };
 
+      const defaultOpen = (groupKey: string, index: number): boolean => {
+        if (groupBy === "none") return true;
+        if (groupBy === "urgency") return groupKey === "overdue" || groupKey === "two_weeks";
+        if (groupBy === "horizon") return groupKey === "now";
+        return index === 0;
+      };
+
+      const toggleGroup = (groupKey: string, open: boolean) => {
+        setOpenOverride((prev) => ({ ...prev, [groupKey]: !open }));
+      };
+
       return (
         <div id={id} className="c-queue">
           {title && <div className="c-queue-title">{title}</div>}
           {filterable && (
-            <div className="c-queue-filter-toggle">
-              {filterOptions.map((f) => (
-                <button key={f} type="button" className={f === activeFilter ? "active" : ""} onClick={() => setActiveFilter(f)}>{filterLabels[f]}</button>
-              ))}
+            <div className="c-queue-search">
+              <input
+                type="text"
+                className="c-queue-search-input"
+                placeholder="Filter items…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
             </div>
           )}
-          {groups.map((group) => (
-            <div key={group.key} className="c-queue-group">
-              {groupBy !== "none" && (
-                <div className="c-queue-group-header">
-                  <span className="c-queue-group-label">{group.label}</span>
-                  {showCounts && <span className="c-queue-group-count">{group.groupItems.length}</span>}
-                </div>
-              )}
-              {group.groupItems.map((item, i) => renderItem(item, i))}
-            </div>
-          ))}
+          {groups.map((group, gi) => {
+            const open = trimmedQuery ? true : (openOverride[group.key] ?? defaultOpen(group.key, gi));
+            return (
+              <div key={group.key} className={`c-queue-group${open ? "" : " collapsed"}`}>
+                {groupBy !== "none" && (
+                  <div className="c-queue-group-header" onClick={() => toggleGroup(group.key, open)}>
+                    <span className="c-queue-group-label">{group.label}</span>
+                    {showCounts && <span className="c-queue-group-count">{group.groupItems.length}</span>}
+                  </div>
+                )}
+                {group.groupItems.map((item, i) => renderItem(item, i))}
+              </div>
+            );
+          })}
         </div>
       );
     }

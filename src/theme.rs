@@ -3163,9 +3163,9 @@ body.shell-document .doc-body strong { color: #fff; }
   max-width: 320px;
   padding: 7px 12px 7px 32px;
   font-size: 13px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--card-border);
   border-radius: 6px;
-  background: var(--bg);
+  background: rgba(var(--text-rgb), 0.05);
   color: var(--snow);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -3176,8 +3176,8 @@ body.shell-document .doc-body strong { color: #fff; }
 }
 .c-queue-search-input:focus {
   outline: none;
-  border-color: var(--link);
-  box-shadow: 0 0 0 2px rgba(var(--link-rgb, 99, 102, 241), 0.15);
+  border-color: rgba(var(--accent-rgb), 0.6);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.15);
 }
 .c-queue-group {
   margin-bottom: 16px;
