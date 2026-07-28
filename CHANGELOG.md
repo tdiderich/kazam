@@ -4,7 +4,7 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.9.0] - 2026-07-28
 
 ### Added
 - **`kazam open <path>`**: opens a single `.md`, `.yaml`, `.yml`, or `.json` file
@@ -34,6 +34,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Board server boilerplate**: port binding, browser launch, response helpers,
   and the shutdown handler moved to a shared `server` module instead of living
   in `board.rs`.
+- **`kazam show` dimmed YAML list scalars**: list items were routed through the
+  map-value colorizer, which expects a `": "` prefix, so they fell through to the
+  catch-all branch. `- 42` is now yellow like `count: 42` already was.
+- **`docs/workspace.yaml` named the wrong board port**: it said `localhost:3000`
+  while the default is 3001.
 
 ## [1.8.0] - 2026-07-22
 
