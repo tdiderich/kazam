@@ -21,11 +21,14 @@ mod llms;
 mod manifest;
 mod mcp;
 mod minify;
+mod open;
 mod packhook;
 mod prompts;
 mod render;
 mod sdk;
 mod search;
+mod server;
+mod show;
 mod theme;
 mod track;
 mod types;
@@ -166,6 +169,18 @@ enum Command {
         dir: PathBuf,
         #[arg(short, long, default_value_t = 3001)]
         port: u16,
+    },
+    /// Open a file (.md, .yaml, .json) in the browser with live reload and inline editing.
+    Open {
+        /// Path to the file to open
+        path: PathBuf,
+        #[arg(short, long, default_value_t = 3002)]
+        port: u16,
+    },
+    /// Pretty-print a file (.md, .yaml, .json) in the terminal.
+    Show {
+        /// Path to the file to show
+        path: PathBuf,
     },
     /// Initialize the full agent workspace (track + ctx + hooks) in one shot.
     Workspace {
@@ -472,6 +487,8 @@ fn main() -> Result<()> {
         Command::Track { command, dir } => track::run(command, &dir),
         Command::Ctx { command, dir } => ctx::run(command, &dir),
         Command::Board { dir, port } => board::run(&dir, port),
+        Command::Open { path, port } => open::run(&path, port),
+        Command::Show { path } => show::run(&path),
         Command::Workspace { command, dir } => workspace::run_command(command, &dir),
         Command::Validate { dir, file, pretty } => {
             let errors = if let Some(file_path) = file {

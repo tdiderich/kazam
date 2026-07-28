@@ -124,6 +124,21 @@ kazam board
 
 Auto-refreshing local dashboard — task status, codebase anatomy, activity log. Built with kazam's own rendering engine.
 
+### Reading files: `open` and `show`
+
+Agents can open a browser tab. They can't reach into your editor and put the right file in front of you.
+
+```bash
+kazam open notes.md        # browser: rendered, live-reloading, editable
+kazam show config.yaml     # terminal: pretty-printed with syntax colors
+```
+
+Both take one file, `.md`, `.yaml`, or `.json`. Anything else is rejected by name.
+
+`kazam open` serves a small API next to the page, which is the point: you type notes in the browser, the agent reads them over `GET /api/content` without you saving anything. `GET /api/status` reports whether you have unsaved edits, whether the file still parses, and the parse error if it doesn't.
+
+Unsaved edits are never discarded. If the file changes on disk while your buffer is dirty, the page shows a conflict bar with **Keep mine** and **Load from disk** instead of reloading over your work.
+
 ## MCP server
 
 ```bash

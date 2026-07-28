@@ -6,6 +6,35 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **`kazam open <path>`**: opens a single `.md`, `.yaml`, `.yml`, or `.json` file
+  in the browser with live reload. Rendered markdown or line-numbered syntax
+  highlighting, a View/Edit/Copy toolbar, and selection auto-copy. Edits are held
+  in memory and exposed over `GET /api/content`, so an agent can read what you
+  typed without the file being saved first. `POST /api/content` writes the buffer,
+  `GET /api/rendered` returns the rendered HTML, and `GET /api/status` reports
+  `dirty`, `conflict`, `valid`, and `error`. Unsupported extensions are rejected
+  with the list of supported ones; invalid YAML or JSON is reported, not blocked,
+  since text is transiently invalid while you type. Defaults to port 3002.
+- **`kazam show <path>`**: pretty-prints the same three formats in the terminal
+  with ANSI colors. Headings and lists for markdown, line numbers and per-token
+  coloring for YAML and JSON. JSON is reformatted when it parses.
+
+### Changed
+- **Port selection**: `kazam board` and `kazam open` try the requested port, then
+  fall back to an OS-assigned free port. Previously `board` walked the next ten
+  ports in sequence, which could land on a port another tool had reserved.
+- **Shutdown**: Ctrl+C on `kazam board` and `kazam open` now exits cleanly and
+  releases the port instead of leaving the socket bound.
+
+### Fixed
+- **JSON syntax highlighting dropped delimiters**: `take_while` consumed the
+  character that ended a `true`, `false`, or `null` token, so every trailing
+  comma after those values was swallowed. The keyword arms are now peek-driven.
+- **Board server boilerplate**: port binding, browser launch, response helpers,
+  and the shutdown handler moved to a shared `server` module instead of living
+  in `board.rs`.
+
 ## [1.8.0] - 2026-07-22
 
 ### Added

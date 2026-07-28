@@ -1,1 +1,9 @@
-bugs: []
+bugs:
+- id: kz-8195
+  symptom: id::tests::ids_are_unique_across_rapid_calls flakes in full-suite runs (timing-based) but passes in isolation and on retry. Pre-existing, unrelated to packs. Retry the suite rather than debugging pack code.
+  file_path: src/id.rs
+  created: 2026-07-22T16:13:03.032972-05:00
+- id: kz-4545
+  symptom: docs/workspace.yaml says 'kazam board' opens at localhost:3000, but the default port is 3001 (main.rs Board default_value_t). Pre-existing doc error, unrelated to the open/show work.
+  file_path: docs/workspace.yaml
+  created: 2026-07-28T14:06:01.100476-05:00

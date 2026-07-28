@@ -46,6 +46,9 @@ src/
   workspace.rs         .kazam/ directory init, config read/write, atomic YAML persistence
   id.rs                Hash-based ID gen (kz-XXXX, no rand dep)
   board.rs             kazam board — live dashboard rendering .kazam/ state
+  server.rs            Shared HTTP helpers: port binding, browser launch, responses, shutdown
+  open.rs              kazam open, single-file browser viewer/editor for md/yaml/json
+  show.rs              kazam show, single-file terminal pretty-printer for md/yaml/json
   track/
     mod.rs             kazam track CLI dispatch (11 subcommands)
     types.rs           Task, TaskStatus, TaskType, LogEntry, LogSeverity

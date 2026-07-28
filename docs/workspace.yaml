@@ -167,7 +167,71 @@ components:
       - type: code
         language: bash
         code: |
-          kazam board     # opens at localhost:3000, watches .kazam/ for changes
+          kazam board     # opens at localhost:3001, watches .kazam/ for changes
+
+  # ── Reading files ─────────────────────────
+  - type: section
+    eyebrow: Handoff
+    heading: Putting a file in front of you
+    components:
+      - type: markdown
+        body: |
+          An agent can open a browser tab. It cannot find the right window in your
+          editor and scroll to the right file. `kazam open` and `kazam show` close
+          that gap.
+
+          Both take exactly one file, and only `.md`, `.yaml`, `.yml`, or `.json`.
+          Any other extension is rejected by name, so a typo fails loudly instead
+          of rendering garbage.
+
+      - type: code
+        language: bash
+        code: |
+          kazam open notes.md        # browser, live reload, editable
+          kazam show config.yaml     # terminal, syntax colored
+
+      - type: markdown
+        body: |
+          `kazam open` renders markdown as HTML and shows YAML or JSON with line
+          numbers and per-token coloring. The toolbar has View, Edit, and Copy.
+          Selecting text copies it, in the rendered view and in the editor both.
+
+          The reason it is a server and not a preview window is the API sitting
+          next to the page. You type notes in the browser and the agent reads them
+          without you saving anything:
+
+      - type: table
+        columns:
+          - key: route
+            label: Route
+          - key: does
+            label: Returns
+        rows:
+          - route: GET /api/content
+            does: Raw text. Unsaved browser edits take priority over what is on disk
+          - route: POST /api/content
+            does: Replaces the in-memory buffer. Reports whether the text still parses
+          - route: GET /api/rendered
+            does: Rendered HTML for the current text
+          - route: GET /api/status
+            does: dirty, conflict, valid, and the parse error when there is one
+
+      - type: callout
+        variant: info
+        title: Unsaved edits survive a disk write
+        body: |
+          If the file changes on disk while your buffer is dirty, the page does not
+          reload over your work. It shows a conflict bar with Keep mine and Load
+          from disk, and leaves the choice to you. Agents should check
+          `GET /api/status` before writing a file someone has open.
+
+      - type: callout
+        variant: warn
+        title: The buffer is memory only
+        body: |
+          Browser edits live in the server process, not on disk. Stop the server and
+          they are gone. That is deliberate: the agent decides when to persist. Nothing
+          in `kazam open` writes your file for you.
 
   # ── Hooks ─────────────────────────────────
   - type: section

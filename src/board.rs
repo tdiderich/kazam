@@ -5,9 +5,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use notify::{RecursiveMode, Watcher};
-use tiny_http::{Header, Method, Response, Server};
 
 use crate::ctx::types::{AnatomyStore, BugStore, LearningStore};
 use crate::render;
@@ -31,15 +30,17 @@ pub fn run(project: &Path, port: u16) -> Result<()> {
     let html_clone = html_arc.clone();
     thread::spawn(move || watch_loop(project_clone, config_clone, ver_clone, html_clone));
 
+    crate::server::install_shutdown_handler();
+
     // HTTP server
-    let (server, actual_port) = bind_next_available(port)?;
+    let (server, actual_port) = crate::server::bind_next_available(port)?;
     if actual_port != port {
         println!("\n  ⚠ port {port} is in use — serving on {actual_port} instead");
     }
     let url = format!("http://localhost:{actual_port}");
     println!("\n  ➜ {url}");
     println!("  watching .kazam/\n");
-    open_browser(&url);
+    crate::server::open_browser(&url);
 
     for req in server.incoming_requests() {
         let ver = version.clone();
@@ -743,80 +744,27 @@ impl Clone for SiteConfig {
 
 // ── Server ───────────────────────────────────────
 
-const PORT_FALLBACK_ATTEMPTS: u16 = 10;
-
-fn bind_next_available(start: u16) -> Result<(Server, u16)> {
-    use std::net::TcpListener;
-    let mut last_err: Option<String> = None;
-    for p in start..start.saturating_add(PORT_FALLBACK_ATTEMPTS) {
-        let addr = format!("0.0.0.0:{p}");
-        if TcpListener::bind(&addr).is_err() {
-            last_err = Some(format!("port {p} already in use"));
-            continue;
-        }
-        match Server::http(&addr) {
-            Ok(s) => return Ok((s, p)),
-            Err(e) => last_err = Some(e.to_string()),
-        }
-    }
-    let tail = start
-        .saturating_add(PORT_FALLBACK_ATTEMPTS)
-        .saturating_sub(1);
-    anyhow::bail!(
-        "no free port in range {start}..={tail} — last error: {}",
-        last_err.unwrap_or_else(|| "unknown".to_string())
-    );
-}
-
 fn handle(
     req: tiny_http::Request,
     version: &AtomicU64,
     html: &std::sync::RwLock<String>,
 ) -> Result<()> {
-    if req.method() != &Method::Get {
-        return req
-            .respond(Response::from_string("method not allowed").with_status_code(405))
-            .context("respond");
+    if !crate::server::is_get(&req) {
+        return crate::server::respond_405(req);
     }
 
     let url = req.url().split('?').next().unwrap_or("/");
 
     if url == "/__kazam_version__" {
-        let v = version.load(Ordering::SeqCst).to_string();
-        let resp = Response::from_string(v)
-            .with_header(hdr("Content-Type", "text/plain"))
-            .with_header(hdr("Cache-Control", "no-store"));
-        return req.respond(resp).context("respond");
+        return crate::server::respond_version(req, version);
     }
 
     if url == "/" || url == "/index.html" {
         let content = html.read().unwrap().clone();
-        let resp = Response::from_string(content)
-            .with_header(hdr("Content-Type", "text/html; charset=utf-8"))
-            .with_header(hdr("Cache-Control", "no-store"));
-        return req.respond(resp).context("respond");
+        return crate::server::respond_html(req, &content);
     }
 
-    req.respond(Response::from_string("404").with_status_code(404))
-        .context("respond")
-}
-
-fn hdr(name: &str, value: &str) -> Header {
-    Header::from_bytes(name.as_bytes(), value.as_bytes()).unwrap()
-}
-
-fn open_browser(url: &str) {
-    #[cfg(target_os = "macos")]
-    let cmd = "open";
-    #[cfg(target_os = "linux")]
-    let cmd = "xdg-open";
-    #[cfg(target_os = "windows")]
-    let cmd = "explorer";
-    let _ = std::process::Command::new(cmd)
-        .arg(url)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn();
+    crate::server::respond_404(req)
 }
 
 fn watch_loop(
