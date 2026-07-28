@@ -237,6 +237,7 @@ fn extract_searchable_text(
             | Component::ProgressBar { .. }
             | Component::Icon { .. }
             | Component::Tree { .. }
+            | Component::PriorityQueue { .. }
             | Component::HeroBanner { .. }
             | Component::RoleMap { .. }
             | Component::SplitCompare { .. }

@@ -232,6 +232,21 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             columns,
             max,
         } => gauge(items, title.as_deref(), *columns, *max),
+        Component::PriorityQueue {
+            items,
+            group_by,
+            show_dates,
+            show_counts,
+            filterable,
+            title,
+        } => priority_queue(
+            items,
+            *group_by,
+            *show_dates,
+            *show_counts,
+            *filterable,
+            title.as_deref(),
+        ),
     }
 }
 
@@ -1400,6 +1415,8 @@ fn prune_tree_node(node: &TreeNode, filter: TreeFilter) -> Option<TreeNode> {
         note: node.note.clone(),
         children: pruned_children,
         owner: node.owner.clone(),
+        due: node.due.clone(),
+        original_due: node.original_due.clone(),
     })
 }
 
@@ -1409,6 +1426,7 @@ fn node_matches_filter(node: &TreeNode, filter: TreeFilter) -> bool {
         TreeFilter::Incomplete => !matches!(node.status, TreeStatus::Completed),
         TreeFilter::Blocked => matches!(node.status, TreeStatus::Blocked),
         TreeFilter::Priority => matches!(node.status, TreeStatus::Priority),
+        TreeFilter::Overdue => false,
     }
 }
 
@@ -1481,6 +1499,523 @@ fn render_tree_level(nodes: &[TreeNode], h: &mut String, list_class: &str) {
         h.push_str("</li>");
     }
     h.push_str("</ul>");
+}
+
+// ── Priority Queue ────────────────────────────────
+
+/// Urgency bucket derived from an item's `due` date relative to "today" plus
+/// the two group boundaries (`week_end`, `two_week_end`). Drives both the
+/// `Urgency`/`Horizon` group headers and the per-row stripe color.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum QueueBucket {
+    Overdue,
+    TwoWeeks,
+    TwoToEight,
+    Later,
+    NoDate,
+}
+
+impl QueueBucket {
+    fn urgency_label(&self) -> &'static str {
+        match self {
+            QueueBucket::Overdue => "Overdue",
+            QueueBucket::TwoWeeks => "Next two weeks",
+            QueueBucket::TwoToEight => "2-8 weeks",
+            QueueBucket::Later => "Later",
+            QueueBucket::NoDate => "No date",
+        }
+    }
+
+    fn horizon_label(&self) -> &'static str {
+        match self {
+            QueueBucket::Overdue | QueueBucket::TwoWeeks => "Now",
+            QueueBucket::TwoToEight => "Next",
+            QueueBucket::Later => "Later",
+            QueueBucket::NoDate => "No date",
+        }
+    }
+
+    fn urgency_rank(&self) -> u8 {
+        match self {
+            QueueBucket::Overdue => 0,
+            QueueBucket::TwoWeeks => 1,
+            QueueBucket::TwoToEight => 2,
+            QueueBucket::Later => 3,
+            QueueBucket::NoDate => 4,
+        }
+    }
+}
+
+/// `TreeStatus` doesn't derive `PartialEq` (it's defined in types.rs, which
+/// this module doesn't own), so grouping by status needs a manual compare.
+fn tree_status_eq(a: TreeStatus, b: TreeStatus) -> bool {
+    matches!(
+        (a, b),
+        (TreeStatus::Default, TreeStatus::Default)
+            | (TreeStatus::Completed, TreeStatus::Completed)
+            | (TreeStatus::Active, TreeStatus::Active)
+            | (TreeStatus::Blocked, TreeStatus::Blocked)
+            | (TreeStatus::Priority, TreeStatus::Priority)
+            | (TreeStatus::Upcoming, TreeStatus::Upcoming)
+    )
+}
+
+fn queue_bucket_from_date(
+    item: &QueueItem,
+    today: &str,
+    two_week_end: &str,
+    eight_week_end: &str,
+) -> QueueBucket {
+    match item.due.as_deref() {
+        None => QueueBucket::NoDate,
+        Some(due) => {
+            let completed = matches!(item.status, TreeStatus::Completed);
+            if due < today {
+                if completed {
+                    QueueBucket::TwoWeeks
+                } else {
+                    QueueBucket::Overdue
+                }
+            } else if due <= two_week_end {
+                QueueBucket::TwoWeeks
+            } else if due <= eight_week_end {
+                QueueBucket::TwoToEight
+            } else {
+                QueueBucket::Later
+            }
+        }
+    }
+}
+
+fn horizon_to_bucket(h: QueueHorizon) -> QueueBucket {
+    match h {
+        QueueHorizon::Now => QueueBucket::TwoWeeks,
+        QueueHorizon::Next => QueueBucket::TwoToEight,
+        QueueHorizon::Later => QueueBucket::Later,
+    }
+}
+
+fn queue_bucket(
+    item: &QueueItem,
+    today: &str,
+    two_week_end: &str,
+    eight_week_end: &str,
+) -> QueueBucket {
+    match item.horizon {
+        Some(h) => horizon_to_bucket(h),
+        None => queue_bucket_from_date(item, today, two_week_end, eight_week_end),
+    }
+}
+
+fn queue_has_drift(
+    item: &QueueItem,
+    today: &str,
+    two_week_end: &str,
+    eight_week_end: &str,
+) -> bool {
+    let explicit = match item.horizon {
+        Some(h) => h,
+        None => return false,
+    };
+    if item.due.is_none() {
+        return false;
+    }
+    let date_bucket = queue_bucket_from_date(item, today, two_week_end, eight_week_end);
+    let horizon_bucket = horizon_to_bucket(explicit);
+    date_bucket.urgency_rank() < horizon_bucket.urgency_rank()
+}
+
+/// CSS stripe class for a row. Blocked items always render as blocked
+/// regardless of date, overriding whatever bucket their due date implies.
+fn queue_urgency_class(item: &QueueItem, bucket: QueueBucket) -> &'static str {
+    if matches!(item.status, TreeStatus::Blocked) {
+        return "urgency-blocked";
+    }
+    match bucket {
+        QueueBucket::Overdue => "urgency-overdue",
+        QueueBucket::TwoWeeks => "urgency-soon",
+        QueueBucket::TwoToEight | QueueBucket::Later => "urgency-track",
+        QueueBucket::NoDate => "urgency-none",
+    }
+}
+
+/// Gregorian (y, m, d) → Julian day number.
+fn queue_julian_day(y: i32, m: i32, d: i32) -> i32 {
+    let a = (14 - m) / 12;
+    let y2 = y + 4800 - a;
+    let m2 = m + 12 * a - 3;
+    d + (153 * m2 + 2) / 5 + 365 * y2 + y2 / 4 - y2 / 100 + y2 / 400 - 32045
+}
+
+/// Julian day number → Gregorian (y, m, d). Inverse of `queue_julian_day`.
+fn queue_from_julian_day(jdn: i32) -> (i32, i32, i32) {
+    let a = jdn + 32044;
+    let b = (4 * a + 3) / 146097;
+    let c = a - (146097 * b) / 4;
+    let d = (4 * c + 3) / 1461;
+    let e = c - (1461 * d) / 4;
+    let m = (5 * e + 2) / 153;
+    let day = e - (153 * m + 2) / 5 + 1;
+    let month = m + 3 - 12 * (m / 10);
+    let year = 100 * b + d - 4800 + m / 10;
+    (year, month, day)
+}
+
+/// Add (or subtract) `days` from a `YYYY-MM-DD` string. Malformed input is
+/// returned unchanged so a bad date never panics the build.
+fn add_days_to_date(date: &str, days: i32) -> String {
+    let parts: Vec<&str> = date.split('-').collect();
+    if parts.len() != 3 {
+        return date.to_string();
+    }
+    let (y, m, d) = match (
+        parts[0].parse::<i32>(),
+        parts[1].parse::<i32>(),
+        parts[2].parse::<i32>(),
+    ) {
+        (Ok(y), Ok(m), Ok(d)) => (y, m, d),
+        _ => return date.to_string(),
+    };
+    let jdn = queue_julian_day(y, m, d) + days;
+    let (ny, nm, nd) = queue_from_julian_day(jdn);
+    format!("{:04}-{:02}-{:02}", ny, nm, nd)
+}
+
+/// Format a `YYYY-MM-DD` string as "Mon D" (e.g. "Jun 20"). Falls back to
+/// the raw string on malformed input.
+fn format_queue_date(date: &str) -> String {
+    let parts: Vec<&str> = date.split('-').collect();
+    if parts.len() != 3 {
+        return date.to_string();
+    }
+    let month = match parts[1] {
+        "01" => "Jan",
+        "02" => "Feb",
+        "03" => "Mar",
+        "04" => "Apr",
+        "05" => "May",
+        "06" => "Jun",
+        "07" => "Jul",
+        "08" => "Aug",
+        "09" => "Sep",
+        "10" => "Oct",
+        "11" => "Nov",
+        "12" => "Dec",
+        _ => return date.to_string(),
+    };
+    let day: u32 = match parts[2].parse() {
+        Ok(d) => d,
+        Err(_) => return date.to_string(),
+    };
+    format!("{} {}", month, day)
+}
+
+/// Render the optional "was {date}" / "pulled in" slip indicator, comparing
+/// `due` against `original_due` as `YYYY-MM-DD` strings (zero-padded, so
+/// lexicographic comparison is equivalent to chronological comparison).
+fn render_queue_slip(due: Option<&str>, original_due: Option<&str>) -> String {
+    let (due, original) = match (due, original_due) {
+        (Some(d), Some(o)) => (d, o),
+        _ => return String::new(),
+    };
+    if due == original {
+        return String::new();
+    }
+    if due > original {
+        format!(
+            r#"<span class="c-queue-slip">was {}</span>"#,
+            esc(&format_queue_date(original))
+        )
+    } else {
+        r#"<span class="c-queue-slip pulled">pulled in</span>"#.to_string()
+    }
+}
+
+fn render_queue_row(
+    item: &QueueItem,
+    bucket: QueueBucket,
+    show_dates: bool,
+    drift: bool,
+    h: &mut String,
+) {
+    let urgency_class = queue_urgency_class(item, bucket);
+    let completed_class = if matches!(item.status, TreeStatus::Completed) {
+        " completed"
+    } else {
+        ""
+    };
+    let drift_class = if drift { " drift" } else { "" };
+    let tag = if item.href.is_some() { "a" } else { "div" };
+    let href_attr = item
+        .href
+        .as_deref()
+        .map(|href| format!(r#" href="{}""#, esc(href)))
+        .unwrap_or_default();
+
+    h.push_str(&format!(
+        r#"<{tag} class="c-queue-row {status} {urgency}{completed}{drift}" data-status="{status_label}"{href}>"#,
+        tag = tag,
+        status = item.status.class(),
+        urgency = urgency_class,
+        completed = completed_class,
+        drift = drift_class,
+        status_label = item.status.label(),
+        href = href_attr,
+    ));
+    h.push_str(r#"<div class="c-queue-stripe"></div>"#);
+    h.push_str(r#"<div class="c-queue-main">"#);
+    h.push_str(r#"<div class="c-queue-label-line">"#);
+    h.push_str(&format!(
+        r#"<span class="c-queue-label">{}</span>"#,
+        esc(&item.label)
+    ));
+    if let Some(owner) = &item.owner {
+        if !owner.trim().is_empty() {
+            h.push_str(&format!(
+                r#"<span class="c-queue-owner">{}</span>"#,
+                esc(owner)
+            ));
+        }
+    }
+    h.push_str("</div>");
+    if let Some(detail) = &item.detail {
+        if !detail.trim().is_empty() {
+            h.push_str(&format!(
+                r#"<div class="c-queue-detail">{}</div>"#,
+                esc(detail)
+            ));
+        }
+    }
+    if !item.tags.is_empty() {
+        h.push_str(r#"<div class="c-queue-tags">"#);
+        for t in &item.tags {
+            let emphasis_class = if t.emphasis { " emphasis" } else { "" };
+            h.push_str(&format!(
+                r#"<span class="c-queue-tag color-{color}{emphasis}">{label}</span>"#,
+                color = t.color.class_suffix(),
+                emphasis = emphasis_class,
+                label = esc(&t.label),
+            ));
+        }
+        h.push_str("</div>");
+    }
+    h.push_str("</div>");
+    if show_dates {
+        if let Some(due) = &item.due {
+            h.push_str(r#"<div class="c-queue-date">"#);
+            h.push_str(&format!(
+                r#"<span class="c-queue-due">{}</span>"#,
+                esc(&format_queue_date(due))
+            ));
+            h.push_str(&render_queue_slip(
+                Some(due.as_str()),
+                item.original_due.as_deref(),
+            ));
+            h.push_str("</div>");
+        }
+    }
+    h.push_str(&format!("</{tag}>"));
+}
+
+fn priority_queue(
+    items: &[QueueItem],
+    group_by: QueueGroup,
+    show_dates: bool,
+    show_counts: bool,
+    filterable: bool,
+    title: Option<&str>,
+) -> Rendered {
+    let mut h = String::from(r#"<div class="c-queue">"#);
+    if let Some(t) = title {
+        h.push_str(&format!(r#"<div class="c-queue-title">{}</div>"#, esc(t)));
+    }
+    if filterable {
+        h.push_str(r#"<div class="c-queue-search"><input type="text" class="c-queue-search-input" placeholder="Filter items…" data-queue-search></div>"#);
+    }
+
+    let today = crate::freshness::today_iso();
+    let two_week_end = add_days_to_date(&today, 13);
+    let eight_week_end = add_days_to_date(&today, 55);
+
+    let bucket_of = |item: &QueueItem| queue_bucket(item, &today, &two_week_end, &eight_week_end);
+    let drift_of = |item: &QueueItem| queue_has_drift(item, &today, &two_week_end, &eight_week_end);
+    match group_by {
+        QueueGroup::None => {
+            for item in items {
+                let bucket = bucket_of(item);
+                render_queue_row(item, bucket, show_dates, drift_of(item), &mut h);
+            }
+        }
+        QueueGroup::Urgency => {
+            let order = [
+                QueueBucket::Overdue,
+                QueueBucket::TwoWeeks,
+                QueueBucket::TwoToEight,
+                QueueBucket::Later,
+                QueueBucket::NoDate,
+            ];
+            for bucket in order {
+                let group_items: Vec<&QueueItem> =
+                    items.iter().filter(|it| bucket_of(it) == bucket).collect();
+                if group_items.is_empty() {
+                    continue;
+                }
+                let collapse = !matches!(bucket, QueueBucket::Overdue | QueueBucket::TwoWeeks);
+                render_queue_group(
+                    bucket.urgency_label(),
+                    &group_items,
+                    show_counts,
+                    collapse,
+                    |it, h| {
+                        render_queue_row(it, bucket, show_dates, drift_of(it), h);
+                    },
+                    &mut h,
+                );
+            }
+        }
+        QueueGroup::Horizon => {
+            let order = ["Now", "Next", "Later", "No date"];
+            for label in order {
+                let group_items: Vec<&QueueItem> = items
+                    .iter()
+                    .filter(|it| bucket_of(it).horizon_label() == label)
+                    .collect();
+                if group_items.is_empty() {
+                    continue;
+                }
+                render_queue_group(
+                    label,
+                    &group_items,
+                    show_counts,
+                    label != "Now",
+                    |it, h| {
+                        let bucket = bucket_of(it);
+                        render_queue_row(it, bucket, show_dates, drift_of(it), h);
+                    },
+                    &mut h,
+                );
+            }
+        }
+        QueueGroup::Owner => {
+            let mut owners: Vec<String> = Vec::new();
+            for item in items {
+                let owner = item
+                    .owner
+                    .as_deref()
+                    .filter(|o| !o.trim().is_empty())
+                    .unwrap_or("Unassigned")
+                    .to_string();
+                if !owners.contains(&owner) {
+                    owners.push(owner);
+                }
+            }
+            for owner in &owners {
+                let group_items: Vec<&QueueItem> = items
+                    .iter()
+                    .filter(|it| {
+                        let o = it
+                            .owner
+                            .as_deref()
+                            .filter(|o| !o.trim().is_empty())
+                            .unwrap_or("Unassigned");
+                        o == owner
+                    })
+                    .collect();
+                if group_items.is_empty() {
+                    continue;
+                }
+                render_queue_group(
+                    owner,
+                    &group_items,
+                    show_counts,
+                    owner != &owners[0],
+                    |it, h| {
+                        let bucket = bucket_of(it);
+                        render_queue_row(it, bucket, show_dates, drift_of(it), h);
+                    },
+                    &mut h,
+                );
+            }
+        }
+        QueueGroup::Status => {
+            let order = [
+                TreeStatus::Priority,
+                TreeStatus::Blocked,
+                TreeStatus::Active,
+                TreeStatus::Upcoming,
+                TreeStatus::Default,
+                TreeStatus::Completed,
+            ];
+            let mut first_rendered = false;
+            for status in order {
+                let group_items: Vec<&QueueItem> = items
+                    .iter()
+                    .filter(|it| tree_status_eq(it.status, status))
+                    .collect();
+                if group_items.is_empty() {
+                    continue;
+                }
+                let collapse = first_rendered;
+                first_rendered = true;
+                render_queue_group(
+                    status.label(),
+                    &group_items,
+                    show_counts,
+                    collapse,
+                    |it, h| {
+                        let bucket = bucket_of(it);
+                        render_queue_row(it, bucket, show_dates, drift_of(it), h);
+                    },
+                    &mut h,
+                );
+            }
+        }
+    }
+
+    h.push_str("</div>");
+    let mut r = Rendered::new(h);
+    if !matches!(group_by, QueueGroup::None) {
+        r = r.with_script("queue_collapse");
+    }
+    if filterable {
+        r = r.with_script("queue_filter");
+    }
+    r
+}
+
+/// Render one `c-queue-group` with a header (label + optional count) and a
+/// caller-provided closure for rendering each item's row.
+fn render_queue_group<F>(
+    label: &str,
+    items: &[&QueueItem],
+    show_counts: bool,
+    collapsed: bool,
+    mut render_row: F,
+    h: &mut String,
+) where
+    F: FnMut(&QueueItem, &mut String),
+{
+    if collapsed {
+        h.push_str(r#"<div class="c-queue-group collapsed">"#);
+    } else {
+        h.push_str(r#"<div class="c-queue-group">"#);
+    }
+    h.push_str(r#"<div class="c-queue-group-header">"#);
+    h.push_str(&format!(
+        r#"<span class="c-queue-group-label">{}</span>"#,
+        esc(&label.to_uppercase())
+    ));
+    if show_counts {
+        h.push_str(&format!(
+            r#"<span class="c-queue-group-count">{}</span>"#,
+            items.len()
+        ));
+    }
+    h.push_str("</div>");
+    for item in items {
+        render_row(item, h);
+    }
+    h.push_str("</div>");
 }
 
 // ── Venn ──────────────────────────────────────────
@@ -2381,5 +2916,180 @@ mod tests {
     fn render_cell_leaves_unmatched_brackets_alone() {
         assert_eq!(render_cell("[not a link"), "[not a link");
         assert_eq!(render_cell("[text](no scheme)"), "[text](no scheme)");
+    }
+
+    #[test]
+    fn add_days_to_date_crosses_month_and_year_boundaries() {
+        assert_eq!(add_days_to_date("2026-07-28", 6), "2026-08-03");
+        assert_eq!(add_days_to_date("2026-12-30", 5), "2027-01-04");
+        assert_eq!(add_days_to_date("2026-02-27", 2), "2026-03-01");
+    }
+
+    #[test]
+    fn format_queue_date_drops_leading_zero_on_day() {
+        assert_eq!(format_queue_date("2026-06-20"), "Jun 20");
+        assert_eq!(format_queue_date("2026-07-09"), "Jul 9");
+    }
+
+    fn item(due: Option<&str>, original_due: Option<&str>, status: TreeStatus) -> QueueItem {
+        QueueItem {
+            label: "Item".to_string(),
+            detail: None,
+            due: due.map(|s| s.to_string()),
+            original_due: original_due.map(|s| s.to_string()),
+            owner: None,
+            status,
+            tags: Vec::new(),
+            href: None,
+            horizon: None,
+        }
+    }
+
+    #[test]
+    fn queue_bucket_classifies_relative_to_today() {
+        let today = "2026-07-28";
+        let two_week_end = add_days_to_date(today, 13); // 2026-08-10
+        let eight_week_end = add_days_to_date(today, 55); // 2026-09-21
+
+        let overdue = item(Some("2026-07-20"), None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&overdue, today, &two_week_end, &eight_week_end),
+            QueueBucket::Overdue
+        ));
+
+        let due_today = item(Some(today), None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&due_today, today, &two_week_end, &eight_week_end),
+            QueueBucket::TwoWeeks
+        ));
+
+        let two_to_eight = item(Some("2026-08-20"), None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&two_to_eight, today, &two_week_end, &eight_week_end),
+            QueueBucket::TwoToEight
+        ));
+
+        let later = item(Some("2026-10-01"), None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&later, today, &two_week_end, &eight_week_end),
+            QueueBucket::Later
+        ));
+
+        let no_date = item(None, None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&no_date, today, &two_week_end, &eight_week_end),
+            QueueBucket::NoDate
+        ));
+
+        let completed_overdue = item(Some("2026-07-01"), None, TreeStatus::Completed);
+        assert!(matches!(
+            queue_bucket(&completed_overdue, today, &two_week_end, &eight_week_end),
+            QueueBucket::TwoWeeks
+        ));
+    }
+
+    #[test]
+    fn queue_urgency_class_blocked_overrides_bucket() {
+        let blocked = item(Some("2026-09-01"), None, TreeStatus::Blocked);
+        assert_eq!(
+            queue_urgency_class(&blocked, QueueBucket::Later),
+            "urgency-blocked"
+        );
+        let active = item(Some("2026-09-01"), None, TreeStatus::Active);
+        assert_eq!(
+            queue_urgency_class(&active, QueueBucket::Later),
+            "urgency-track"
+        );
+    }
+
+    #[test]
+    fn render_queue_slip_detects_pull_and_push() {
+        assert_eq!(
+            render_queue_slip(Some("2026-07-09"), Some("2026-06-20")),
+            r#"<span class="c-queue-slip">was Jun 20</span>"#
+        );
+        assert_eq!(
+            render_queue_slip(Some("2026-06-01"), Some("2026-06-20")),
+            r#"<span class="c-queue-slip pulled">pulled in</span>"#
+        );
+        assert_eq!(
+            render_queue_slip(Some("2026-06-20"), Some("2026-06-20")),
+            ""
+        );
+        assert_eq!(render_queue_slip(None, Some("2026-06-20")), "");
+    }
+
+    #[test]
+    fn priority_queue_groups_by_urgency_with_counts() {
+        std::env::set_var("KAZAM_TODAY", "2026-07-28");
+        let items = vec![
+            item(Some("2026-07-20"), None, TreeStatus::Active),
+            item(None, None, TreeStatus::Active),
+        ];
+        let r = priority_queue(
+            &items,
+            QueueGroup::Urgency,
+            true,
+            true,
+            false,
+            Some("Tracker"),
+        );
+        std::env::remove_var("KAZAM_TODAY");
+        assert!(r.html.contains("c-queue-title\">Tracker"));
+        assert!(r.html.contains("OVERDUE"));
+        assert!(r.html.contains("NO DATE"));
+        assert!(r.html.contains("urgency-overdue"));
+        assert!(r.html.contains("urgency-none"));
+        assert!(r
+            .html
+            .contains(r#"<span class="c-queue-group-count">1</span>"#));
+    }
+
+    #[test]
+    fn priority_queue_none_grouping_has_no_group_headers() {
+        std::env::set_var("KAZAM_TODAY", "2026-07-28");
+        let items = vec![item(Some("2026-07-20"), None, TreeStatus::Active)];
+        let r = priority_queue(&items, QueueGroup::None, true, true, false, None);
+        std::env::remove_var("KAZAM_TODAY");
+        assert!(!r.html.contains("c-queue-group-header"));
+        assert!(r.html.contains("c-queue-row"));
+    }
+
+    #[test]
+    fn horizon_field_deserializes_from_yaml() {
+        let yaml = "label: Test\nhorizon: later\n";
+        let item: QueueItem = serde_yaml::from_str(yaml).unwrap();
+        assert!(item.horizon.is_some(), "horizon should deserialize");
+        assert!(matches!(item.horizon.unwrap(), QueueHorizon::Later));
+    }
+
+    #[test]
+    fn horizon_in_component_deserializes() {
+        let yaml = "type: priority_queue\nitems:\n  - label: Test\n    due: \"2026-07-30\"\n    horizon: later\n  - label: Dateless\n    horizon: next\n";
+        let comp: Component = serde_yaml::from_str(yaml).unwrap();
+        if let Component::PriorityQueue { items, .. } = &comp {
+            assert!(items[0].horizon.is_some(), "item 0 horizon should be Some");
+            assert!(items[1].horizon.is_some(), "item 1 horizon should be Some");
+        } else {
+            panic!("Expected PriorityQueue");
+        }
+    }
+
+    #[test]
+    fn explicit_horizon_overrides_date_bucket() {
+        let today = "2026-07-28";
+        let two_week_end = add_days_to_date(today, 13);
+        let eight_week_end = add_days_to_date(today, 55);
+        let mut it = item(Some("2026-07-30"), None, TreeStatus::Active);
+        it.horizon = Some(QueueHorizon::Later);
+        let bucket = queue_bucket(&it, today, &two_week_end, &eight_week_end);
+        assert!(
+            matches!(bucket, QueueBucket::Later),
+            "explicit horizon should override date"
+        );
+        assert!(
+            queue_has_drift(&it, today, &two_week_end, &eight_week_end),
+            "should detect drift"
+        );
     }
 }

@@ -3143,6 +3143,244 @@ body.shell-document .doc-body strong { color: #fff; }
 .source-edit-status-error { color: var(--red); }
 .source-edit-status-ok { color: var(--green); }
 
+/* ── Priority Queue ──────────────────────────── */
+
+.c-queue {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.c-queue-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--snow);
+  margin-bottom: 12px;
+}
+.c-queue-search {
+  margin-bottom: 12px;
+}
+.c-queue-search-input {
+  width: 100%;
+  max-width: 320px;
+  padding: 7px 12px 7px 32px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--snow);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+}
+.c-queue-search-input::placeholder {
+  color: rgba(var(--text-rgb), 0.35);
+}
+.c-queue-search-input:focus {
+  outline: none;
+  border-color: var(--link);
+  box-shadow: 0 0 0 2px rgba(var(--link-rgb, 99, 102, 241), 0.15);
+}
+.c-queue-group {
+  margin-bottom: 16px;
+}
+.c-queue-group:last-child {
+  margin-bottom: 0;
+}
+.c-queue-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(var(--text-rgb), 0.08);
+  cursor: pointer;
+  user-select: none;
+}
+.c-queue-group-header::before {
+  content: '';
+  display: inline-block;
+  width: 0; height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid rgba(var(--text-rgb), 0.4);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.c-queue-group.collapsed .c-queue-group-header::before {
+  transform: rotate(-90deg);
+}
+.c-queue-group.collapsed .c-queue-row {
+  display: none;
+}
+.c-queue-group-label {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(var(--text-rgb), 0.5);
+}
+.c-queue-group-count {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: rgba(var(--text-rgb), 0.35);
+}
+
+/* Row: stripe | main | date */
+.c-queue-row {
+  display: grid;
+  grid-template-columns: 4px 1fr max-content;
+  gap: 0 12px;
+  padding: 8px 0;
+  align-items: start;
+}
+.c-queue-row + .c-queue-row {
+  border-top: 1px solid rgba(var(--text-rgb), 0.06);
+}
+
+/* Urgency stripe */
+.c-queue-stripe {
+  width: 4px;
+  border-radius: 2px;
+  min-height: 100%;
+  align-self: stretch;
+}
+.c-queue-row.urgency-overdue .c-queue-stripe { background: var(--red); }
+.c-queue-row.urgency-soon .c-queue-stripe { background: var(--yellow); }
+.c-queue-row.urgency-track .c-queue-stripe { background: var(--green); }
+.c-queue-row.urgency-blocked .c-queue-stripe { background: rgba(var(--text-rgb), 0.25); }
+.c-queue-row.urgency-none .c-queue-stripe { background: transparent; }
+
+/* Main content area */
+.c-queue-main {
+  min-width: 0;
+}
+.c-queue-label-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.c-queue-label {
+  font-weight: 500;
+  color: var(--snow);
+}
+a.c-queue-label {
+  text-decoration: none;
+  color: var(--teal);
+}
+a.c-queue-label:hover {
+  text-decoration: underline;
+}
+.c-queue-row.status-completed .c-queue-label {
+  text-decoration: line-through;
+  color: rgba(var(--text-rgb), 0.5);
+}
+.c-queue-owner {
+  font-size: 12px;
+  color: rgba(var(--text-rgb), 0.5);
+}
+.c-queue-detail {
+  font-size: 13px;
+  color: rgba(var(--text-rgb), 0.6);
+  margin-top: 2px;
+}
+.c-queue-row.status-completed .c-queue-detail {
+  color: rgba(var(--text-rgb), 0.35);
+}
+
+/* Tags */
+.c-queue-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.c-queue-tag {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(var(--text-rgb), 0.12);
+  color: rgba(var(--text-rgb), 0.6);
+  white-space: nowrap;
+}
+.c-queue-tag.color-teal {
+  color: var(--teal);
+  border-color: rgba(var(--accent-rgb), 0.25);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.c-queue-tag.color-red {
+  color: var(--red);
+  border-color: rgba(255, 107, 107, 0.25);
+}
+.c-queue-tag.color-yellow {
+  color: var(--yellow);
+  border-color: rgba(251, 191, 36, 0.25);
+}
+.c-queue-tag.color-green {
+  color: var(--green);
+  border-color: rgba(126, 217, 87, 0.25);
+}
+.c-queue-tag.emphasis {
+  font-weight: 600;
+  background: rgba(var(--text-rgb), 0.06);
+}
+.c-queue-tag.color-red.emphasis {
+  background: rgba(255, 107, 107, 0.1);
+}
+
+/* Date column */
+.c-queue-date {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.c-queue-due {
+  font-size: 13px;
+  color: rgba(var(--text-rgb), 0.7);
+}
+.c-queue-row.urgency-overdue .c-queue-due {
+  color: var(--red);
+  font-weight: 500;
+}
+.c-queue-slip {
+  display: block;
+  font-size: 11px;
+  color: rgba(var(--text-rgb), 0.4);
+}
+.c-queue-slip.pulled {
+  color: var(--green);
+}
+
+/* Status glyphs on rows */
+.c-queue-row.status-blocked .c-queue-label {
+  color: rgba(var(--text-rgb), 0.7);
+}
+
+/* Drift: explicit horizon is less urgent than date implies */
+.c-queue-row.drift {
+  background: rgba(251, 191, 36, 0.06);
+  border-radius: 4px;
+  padding-left: 4px;
+  margin-left: -4px;
+}
+.c-queue-row.drift .c-queue-stripe {
+  background: var(--yellow);
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
+}
+.c-queue-row.drift .c-queue-date::before {
+  content: "drift";
+  display: block;
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--yellow);
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+
 /* ──────────────────── Print ──────────────────── */
 
 /* Default @page — portrait content pages; deck in slides mode forces

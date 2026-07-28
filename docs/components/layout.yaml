@@ -267,6 +267,76 @@ components:
                     status: blocked
                     note: "Waiting on change-window approval"
 
+  # ── priority_queue ──────────────────────────────────
+  - type: section
+    eyebrow: priority_queue
+    heading: Priority queue
+    components:
+      - type: markdown
+        body: |
+          Renders a grouped list of items sorted by urgency, horizon, owner, or status.
+          Each item carries optional due and original_due dates. When a date slips
+          (due after original_due), the row shows the original date as context.
+
+          **group_by** controls bucketing: `urgency` (default) splits into
+          Overdue / This week / Next two weeks / Later / No date.
+          `horizon` collapses to Now / Next / Later. `none` renders a flat list
+          (agenda mode). `owner` and `status` group by those fields.
+
+          Reuses `TreeStatus` for item status and `SemColor` for tag colors.
+
+      - type: priority_queue
+        title: Deployment tracker
+        show_counts: true
+        items:
+          - label: Deploy remaining stacks
+            detail: Terraform approach agreed. Not started since.
+            due: "2026-06-20"
+            owner: Jonathan
+            status: default
+            tags:
+              - label: Cohere
+                color: teal
+              - label: Blocks coverage
+                color: red
+                emphasis: true
+          - label: Finalize SSO configuration
+            due: "2026-07-28"
+            owner: Nathan
+            status: active
+            tags:
+              - label: Forge
+                color: teal
+          - label: Write runbook for on-call rotation
+            owner: Sarah
+            status: upcoming
+            tags:
+              - label: Acme
+                color: teal
+
+      - type: code
+        language: yaml
+        code: |
+          - type: priority_queue
+            title: Deployment tracker
+            group_by: urgency          # urgency | horizon | owner | status | none
+            show_dates: true           # default true
+            show_counts: true          # default true
+            items:
+              - label: Deploy remaining stacks
+                detail: Terraform approach agreed.
+                due: "2026-06-20"
+                original_due: "2026-06-20"
+                owner: Jonathan
+                status: default          # reuses TreeStatus
+                href: https://example.com/issue/123
+                tags:
+                  - label: Cohere
+                    color: teal          # SemColor
+                  - label: Blocks coverage
+                    color: red
+                    emphasis: true
+
   # ── venn ──────────────────────────────────
   - type: section
     eyebrow: venn

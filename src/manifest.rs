@@ -103,6 +103,7 @@ fn component_type_name(c: &Component) -> String {
         Component::Accordion { .. } => "accordion",
         Component::EventTimeline { .. } => "event_timeline",
         Component::Tree { .. } => "tree",
+        Component::PriorityQueue { .. } => "priority_queue",
         Component::Venn { .. } => "venn",
         Component::Image { .. } => "image",
         Component::Badge { .. } => "badge",

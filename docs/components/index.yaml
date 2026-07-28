@@ -53,9 +53,9 @@ components:
 
       - title: Layout
         badge:
-          label: "10"
+          label: "11"
           color: default
-        description: "section, columns, divider, timeline, event_timeline, tree, venn, steps, progress_bar, empty_state"
+        description: "section, columns, divider, timeline, event_timeline, tree, priority_queue, venn, steps, progress_bar, empty_state"
         links:
           - label: Open →
             href: layout.html

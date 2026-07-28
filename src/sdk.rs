@@ -2078,6 +2078,216 @@ function ComponentView({
       );
     }
 
+    case "priority_queue": {
+      const items = (comp.items as Array<Record<string, unknown>>) || [];
+      const groupBy = (comp.group_by as string) || "urgency";
+      const showDates = (comp.show_dates as boolean) ?? true;
+      const showCounts = (comp.show_counts as boolean) ?? true;
+      const filterable = (comp.filterable as boolean) ?? false;
+      const title = comp.title as string | undefined;
+
+      const today = (() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      })();
+
+      const addDays = (dateStr: string, n: number): string => {
+        const d = new Date(dateStr + "T00:00:00");
+        d.setDate(d.getDate() + n);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+
+      const fmtDate = (d: string): string => {
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const [, m, day] = d.split("-");
+        return `${months[parseInt(m, 10) - 1]} ${parseInt(day, 10)}`;
+      };
+
+      const twoWeekEnd = addDays(today, 13);
+      const eightWeekEnd = addDays(today, 55);
+
+      const getDateUrgency = (item: Record<string, unknown>): string => {
+        const status = (item.status as string) || "default";
+        if (status === "blocked") return "blocked";
+        const due = item.due as string | undefined;
+        if (!due) return "none";
+        if (due < today) {
+          return status === "completed" ? "soon" : "overdue";
+        }
+        if (due <= twoWeekEnd) return "soon";
+        if (due <= eightWeekEnd) return "track";
+        return "track";
+      };
+
+      const getUrgency = (item: Record<string, unknown>): string => {
+        const horizon = item.horizon as string | undefined;
+        if (horizon) {
+          if (horizon === "now") return "soon";
+          return "track";
+        }
+        return getDateUrgency(item);
+      };
+
+      const horizonRank: Record<string, number> = { overdue: 0, soon: 1, track: 2, none: 3, blocked: 2 };
+
+      const hasDrift = (item: Record<string, unknown>): boolean => {
+        const horizon = item.horizon as string | undefined;
+        if (!horizon || !item.due) return false;
+        const dateUrg = getDateUrgency(item);
+        const horizonUrg = horizon === "now" ? "soon" : "track";
+        return (horizonRank[dateUrg] ?? 3) < (horizonRank[horizonUrg] ?? 3);
+      };
+
+      const filterOptions = ["all", "overdue", "two-weeks", "blocked"];
+      const filterLabels: Record<string, string> = { all: "All", overdue: "Overdue", "two-weeks": "Next two weeks", blocked: "Blocked" };
+      const [activeFilter, setActiveFilter] = React.useState("all");
+
+      const filteredItems = React.useMemo(() => {
+        if (!filterable || activeFilter === "all") return items;
+        return items.filter((item) => {
+          const urgency = getUrgency(item);
+          if (activeFilter === "overdue") return urgency === "overdue";
+          if (activeFilter === "two-weeks") return urgency === "soon";
+          if (activeFilter === "blocked") return urgency === "blocked";
+          return true;
+        });
+      }, [items, activeFilter, filterable, today, twoWeekEnd]);
+
+      type QueueGroup = { key: string; label: string; groupItems: Array<Record<string, unknown>> };
+
+      const groups = React.useMemo<QueueGroup[]>(() => {
+        if (groupBy === "none") return [{ key: "all", label: "", groupItems: filteredItems }];
+
+        const buckets = new Map<string, Array<Record<string, unknown>>>();
+        const order: string[] = [];
+        const pushTo = (key: string, item: Record<string, unknown>) => {
+          if (!buckets.has(key)) { buckets.set(key, []); order.push(key); }
+          buckets.get(key)!.push(item);
+        };
+
+        const itemBucket = (item: Record<string, unknown>): string => {
+          const horizon = item.horizon as string | undefined;
+          const due = item.due as string | undefined;
+          const status = (item.status as string) || "default";
+          if (horizon) {
+            if (horizon === "now") return "two_weeks";
+            if (horizon === "next") return "two_to_eight";
+            return "later";
+          }
+          if (!due) return "none";
+          if (due < today) {
+            return status === "completed" ? "two_weeks" : "overdue";
+          }
+          if (due <= twoWeekEnd) return "two_weeks";
+          if (due <= eightWeekEnd) return "two_to_eight";
+          return "later";
+        };
+
+        if (groupBy === "urgency") {
+          for (const item of filteredItems) { pushTo(itemBucket(item), item); }
+          const fixedOrder = ["overdue", "two_weeks", "two_to_eight", "later", "none"];
+          const labels: Record<string, string> = { overdue: "Overdue", two_weeks: "Next two weeks", two_to_eight: "2-8 weeks", later: "Later", none: "No date" };
+          return fixedOrder.filter((k) => buckets.has(k)).map((k) => ({ key: k, label: labels[k], groupItems: buckets.get(k)! }));
+        }
+
+        if (groupBy === "horizon") {
+          const horizonMap: Record<string, string> = { overdue: "now", two_weeks: "now", two_to_eight: "next", later: "later", none: "later" };
+          for (const item of filteredItems) { pushTo(horizonMap[itemBucket(item)] || "later", item); }
+          const fixedOrder = ["now", "next", "later"];
+          const labels: Record<string, string> = { now: "Now", next: "Next", later: "Later" };
+          return fixedOrder.filter((k) => buckets.has(k)).map((k) => ({ key: k, label: labels[k], groupItems: buckets.get(k)! }));
+        }
+
+        if (groupBy === "owner") {
+          for (const item of filteredItems) {
+            const owner = (item.owner as string) || "Unassigned";
+            pushTo(owner, item);
+          }
+          return order.map((k) => ({ key: k, label: k, groupItems: buckets.get(k)! }));
+        }
+
+        if (groupBy === "status") {
+          for (const item of filteredItems) {
+            const status = (item.status as string) || "default";
+            pushTo(status, item);
+          }
+          return order.map((k) => ({ key: k, label: k.charAt(0).toUpperCase() + k.slice(1), groupItems: buckets.get(k)! }));
+        }
+
+        return [{ key: "all", label: "", groupItems: filteredItems }];
+      }, [filteredItems, groupBy, today, twoWeekEnd, eightWeekEnd]);
+
+      const renderSlip = (item: Record<string, unknown>): React.JSX.Element | null => {
+        const due = item.due as string | undefined;
+        const originalDue = item.original_due as string | undefined;
+        if (!due || !originalDue) return null;
+        if (due > originalDue) return <span className="c-queue-slip">was {fmtDate(originalDue)}</span>;
+        if (due < originalDue) return <span className="c-queue-slip pulled">pulled in</span>;
+        return null;
+      };
+
+      const renderItem = (item: Record<string, unknown>, i: number): React.JSX.Element => {
+        const status = (item.status as string) || "default";
+        const urgency = getUrgency(item);
+        const drift = hasDrift(item);
+        const label = item.label as string;
+        const detail = item.detail as string | undefined;
+        const owner = item.owner as string | undefined;
+        const href = item.href as string | undefined;
+        const due = item.due as string | undefined;
+        const tags = (item.tags as Array<{ label: string; color?: string; emphasis?: boolean }>) || [];
+        return (
+          <div key={i} className={`c-queue-row status-${status} urgency-${urgency}${drift ? " drift" : ""}`}>
+            <div className="c-queue-stripe"></div>
+            <div className="c-queue-main">
+              <div className="c-queue-label-line">
+                {href ? <a className="c-queue-label" href={href}>{label}</a> : <span className="c-queue-label">{label}</span>}
+                {owner && <span className="c-queue-owner">{owner}</span>}
+              </div>
+              {detail && <div className="c-queue-detail">{detail}</div>}
+              {tags.length > 0 && (
+                <div className="c-queue-tags">
+                  {tags.map((tag, ti) => (
+                    <span key={ti} className={`c-queue-tag color-${tag.color || "default"}${tag.emphasis ? " emphasis" : ""}`}>{tag.label}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {showDates && due && (
+              <div className="c-queue-date">
+                <span className="c-queue-due">{fmtDate(due)}</span>
+                {renderSlip(item)}
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <div id={id} className="c-queue">
+          {title && <div className="c-queue-title">{title}</div>}
+          {filterable && (
+            <div className="c-queue-filter-toggle">
+              {filterOptions.map((f) => (
+                <button key={f} type="button" className={f === activeFilter ? "active" : ""} onClick={() => setActiveFilter(f)}>{filterLabels[f]}</button>
+              ))}
+            </div>
+          )}
+          {groups.map((group) => (
+            <div key={group.key} className="c-queue-group">
+              {groupBy !== "none" && (
+                <div className="c-queue-group-header">
+                  <span className="c-queue-group-label">{group.label}</span>
+                  {showCounts && <span className="c-queue-group-count">{group.groupItems.length}</span>}
+                </div>
+              )}
+              {group.groupItems.map((item, i) => renderItem(item, i))}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     case "selectable_grid": {
       const cards = (comp.cards as Array<{ title: string; eyebrow?: string; bullets?: string[]; body?: string }>) || [];
       const connector = comp.connector as string | undefined;

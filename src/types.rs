@@ -564,6 +564,19 @@ pub enum Component {
         #[serde(default)]
         default_view: TreeDefaultView,
     },
+    PriorityQueue {
+        items: Vec<QueueItem>,
+        #[serde(default)]
+        group_by: QueueGroup,
+        #[serde(default = "default_true")]
+        show_dates: bool,
+        #[serde(default = "default_true")]
+        show_counts: bool,
+        #[serde(default)]
+        filterable: bool,
+        #[serde(default)]
+        title: Option<String>,
+    },
     Venn {
         sets: Vec<VennSet>,
         #[serde(default)]
@@ -1104,6 +1117,10 @@ pub struct TreeNode {
     pub children: Vec<TreeNode>,
     #[serde(default)]
     pub owner: Option<String>,
+    #[serde(default)]
+    pub due: Option<String>,
+    #[serde(default)]
+    pub original_due: Option<String>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -1126,6 +1143,7 @@ pub enum TreeFilter {
     Incomplete,
     Blocked,
     Priority,
+    Overdue,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
@@ -1136,6 +1154,55 @@ pub enum TreeDefaultView {
     Summary,
 }
 
+#[derive(Deserialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum QueueGroup {
+    #[default]
+    Urgency,
+    Horizon,
+    Owner,
+    Status,
+    None,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum QueueHorizon {
+    Now,
+    Next,
+    Later,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct QueueTag {
+    pub label: String,
+    #[serde(default)]
+    pub color: SemColor,
+    #[serde(default)]
+    pub emphasis: bool,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct QueueItem {
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub due: Option<String>,
+    #[serde(default)]
+    pub original_due: Option<String>,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub status: TreeStatus,
+    #[serde(default)]
+    pub tags: Vec<QueueTag>,
+    #[serde(default)]
+    pub href: Option<String>,
+    #[serde(default)]
+    pub horizon: Option<QueueHorizon>,
+}
+
 impl TreeFilter {
     pub fn class(&self) -> &'static str {
         match self {
@@ -1143,6 +1210,7 @@ impl TreeFilter {
             TreeFilter::Incomplete => "filter-incomplete",
             TreeFilter::Blocked => "filter-blocked",
             TreeFilter::Priority => "filter-priority",
+            TreeFilter::Overdue => "filter-overdue",
         }
     }
 
@@ -1152,6 +1220,7 @@ impl TreeFilter {
             TreeFilter::Incomplete => "incomplete",
             TreeFilter::Blocked => "blocked",
             TreeFilter::Priority => "priority",
+            TreeFilter::Overdue => "overdue",
         }
     }
 }

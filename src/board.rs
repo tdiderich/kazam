@@ -486,6 +486,8 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
             note,
             children: build_level(Some(&t.id), children_map),
             owner: None,
+            due: None,
+            original_due: None,
         }
     }
 
@@ -534,6 +536,8 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
                 note: t.note.clone(),
                 children: vec![],
                 owner: None,
+                due: None,
+                original_due: None,
             }
         })
         .collect();
@@ -549,6 +553,8 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
             )),
             children: incomplete_human,
             owner: None,
+            due: None,
+            original_due: None,
         });
     }
 
@@ -624,6 +630,8 @@ fn anatomy_to_tree_nodes(files: &[crate::ctx::types::FileEntry]) -> Vec<TreeNode
                 )),
                 children: build(dir),
                 owner: None,
+                due: None,
+                original_due: None,
             });
         }
         for (name, tokens, desc) in &node.files {
@@ -639,6 +647,8 @@ fn anatomy_to_tree_nodes(files: &[crate::ctx::types::FileEntry]) -> Vec<TreeNode
                 note: Some(note),
                 children: vec![],
                 owner: None,
+                due: None,
+                original_due: None,
             });
         }
         out

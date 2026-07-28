@@ -60,7 +60,8 @@
       "all",
       "incomplete",
       "blocked",
-      "priority"
+      "priority",
+      "overdue"
     ],
     "ButtonVariant": [
       "primary",
@@ -170,6 +171,18 @@
       "month",
       "quarter",
       "source"
+    ],
+    "QueueGroup": [
+      "urgency",
+      "horizon",
+      "owner",
+      "status",
+      "none"
+    ],
+    "QueueHorizon": [
+      "now",
+      "next",
+      "later"
     ]
   },
   "types": {
@@ -499,6 +512,14 @@
         "required": false
       },
       "owner": {
+        "type": "string",
+        "required": false
+      },
+      "due": {
+        "type": "string",
+        "required": false
+      },
+      "original_due": {
         "type": "string",
         "required": false
       }
@@ -1162,6 +1183,58 @@
       },
       "color": {
         "type": "SemColor",
+        "required": false
+      }
+    },
+    "QueueItem": {
+      "label": {
+        "type": "string",
+        "required": true
+      },
+      "detail": {
+        "type": "string",
+        "required": false
+      },
+      "due": {
+        "type": "string",
+        "required": false
+      },
+      "original_due": {
+        "type": "string",
+        "required": false
+      },
+      "owner": {
+        "type": "string",
+        "required": false
+      },
+      "status": {
+        "type": "TreeStatus",
+        "required": false
+      },
+      "tags": {
+        "type": "QueueTag[]",
+        "required": false
+      },
+      "href": {
+        "type": "string",
+        "required": false
+      },
+      "horizon": {
+        "type": "QueueHorizon",
+        "required": false
+      }
+    },
+    "QueueTag": {
+      "label": {
+        "type": "string",
+        "required": true
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false
+      },
+      "emphasis": {
+        "type": "boolean",
         "required": false
       }
     }
@@ -1890,6 +1963,32 @@
       },
       "max": {
         "type": "number",
+        "required": false
+      }
+    },
+    "priority_queue": {
+      "items": {
+        "type": "QueueItem[]",
+        "required": true
+      },
+      "group_by": {
+        "type": "QueueGroup",
+        "required": false
+      },
+      "show_dates": {
+        "type": "boolean",
+        "required": false
+      },
+      "show_counts": {
+        "type": "boolean",
+        "required": false
+      },
+      "filterable": {
+        "type": "boolean",
+        "required": false
+      },
+      "title": {
+        "type": "string",
         "required": false
       }
     }

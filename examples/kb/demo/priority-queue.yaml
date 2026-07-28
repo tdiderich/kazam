@@ -1,0 +1,184 @@
+title: Priority Queue Demo
+shell: standard
+
+components:
+  - type: header
+    title: Priority Queue
+    eyebrow: Component demo
+    subtitle: Live deployment tracker across all customers
+
+  - type: priority_queue
+    title: Deployment tracker
+    group_by: horizon
+    filterable: true
+    show_counts: true
+    items:
+      # Overdue — past due, not completed
+      - label: Deploy remaining 8 account and region stacks
+        detail: Terraform approach agreed May 7. Not started since.
+        due: "2026-06-20"
+        owner: Jonathan
+        status: default
+        href: https://example.com/issue/123
+        tags:
+          - label: Cohere
+            color: teal
+          - label: Phase 2
+          - label: Blocks coverage
+            color: red
+            emphasis: true
+
+      - label: Cloud misconfiguration support
+        detail: Named renewal condition. No ship date from engineering.
+        due: "2026-07-15"
+        owner: Tyler
+        status: priority
+        tags:
+          - label: Forge
+            color: teal
+          - label: Phase 4
+          - label: TS-260
+          - label: Renewal blocker
+            color: red
+            emphasis: true
+
+      - label: FedRAMP CSV export endpoint
+        detail: Waiting on spec alignment before development starts.
+        due: "2026-07-18"
+        status: blocked
+        tags:
+          - label: PagerDuty
+            color: teal
+          - label: Phase 4
+          - label: Blocked
+          - label: FedRAMP
+          - label: Compliance
+          - label: Q3 target
+            color: yellow
+
+      # Due today
+      - label: Finalize SSO configuration
+        detail: Admin credentials shared yesterday.
+        due: "2026-07-28"
+        owner: Nathan
+        status: active
+        tags:
+          - label: Forge
+            color: teal
+          - label: Phase 2
+
+      # Slip — due after original_due
+      - label: Confirm autoclose threshold for deployment patterns
+        detail: Backend enabled May 27. Interface work still open.
+        due: "2026-07-30"
+        original_due: "2026-07-09"
+        owner: Nathan
+        status: active
+        tags:
+          - label: Alloy
+            color: teal
+          - label: Phase 4
+
+      # Pull-in — due before original_due
+      - label: Configure severity-based routing
+        detail: Customer accelerated timeline after incident last week.
+        due: "2026-07-29"
+        original_due: "2026-08-15"
+        owner: Hussam
+        status: active
+        tags:
+          - label: Contentful
+            color: teal
+          - label: Phase 4
+
+      # Drift — horizon says "later" but due date says this week
+      - label: Migrate legacy alert rules
+        detail: Marked low-priority but deadline crept up during planning.
+        due: "2026-07-30"
+        horizon: later
+        owner: Sarah
+        tags:
+          - label: Forge
+            color: teal
+          - label: Migration
+
+      # Next two weeks
+      - label: Renewal window opens
+        detail: Contract ends Oct 31. Verbally confirmed, deal still open.
+        due: "2026-08-05"
+        tags:
+          - label: Alloy
+            color: teal
+          - label: Renewal
+
+      - label: Native Jira integration
+        detail: Blocked on us, not the customer. Engineer resuming work.
+        due: "2026-08-07"
+        original_due: "2026-06-30"
+        status: blocked
+        tags:
+          - label: PartsSource
+            color: teal
+          - label: Phase 4
+
+      # Explicit horizon — no date needed
+      - label: Evaluate replacement SIEM vendors
+        detail: Discovery calls scheduled for mid-August.
+        horizon: next
+        owner: Tyler
+        tags:
+          - label: Acme
+            color: teal
+
+      # 2-8 weeks out
+      - label: GitHub OAuth access
+        detail: Open since February on an internal ticket.
+        due: "2026-09-01"
+        original_due: "2026-03-01"
+        owner: Brian
+        tags:
+          - label: Cohere
+            color: teal
+          - label: Phase 2
+
+      # Later — 8+ weeks
+      - label: Annual security review
+        detail: Scheduled for Q4. Legal team coordinating.
+        due: "2026-10-15"
+        owner: Sarah
+        tags:
+          - label: Forge
+            color: teal
+          - label: Compliance
+
+      # Completed — past due but done, should not appear overdue
+      - label: Deploy initial Maze stack
+        detail: Finished two days early.
+        due: "2026-07-15"
+        original_due: "2026-07-15"
+        status: completed
+        tags:
+          - label: Cohere
+            color: teal
+          - label: Phase 2
+
+      # No date at all
+      - label: Write runbook for on-call rotation
+        detail: No timeline discussed yet.
+        owner: Sarah
+        status: upcoming
+        tags:
+          - label: Acme
+            color: teal
+          - label: Phase 3
+
+      # original_due present but no current due
+      - label: Schedule remediation workshop
+        detail: Committed at kickoff, no date set.
+        original_due: "2026-06-01"
+        owner: Tyler
+        status: upcoming
+        tags:
+          - label: Forge
+            color: teal
+          - label: Phase 5

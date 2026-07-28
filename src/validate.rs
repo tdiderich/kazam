@@ -482,6 +482,7 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::Gauge { items, .. } => 2 + items.len() as u32,
         Component::RuleList { items, .. } => 1 + items.len() as u32,
         Component::Tree { .. } => 4,
+        Component::PriorityQueue { items, .. } => 2 + items.len() as u32,
         _ => 1,
     }
 }
@@ -778,6 +779,18 @@ fn validate_component(
                         Some("Use ISO date format: 2026-01-15".into()),
                     ));
                 }
+            }
+        }
+
+        Component::PriorityQueue { items, .. } => {
+            if items.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.items", path),
+                    "missing_field",
+                    "priority_queue requires at least one item",
+                    Some("Add items with label: and optional due:.".into()),
+                ));
             }
         }
 

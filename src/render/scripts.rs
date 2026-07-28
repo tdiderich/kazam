@@ -12,6 +12,8 @@ pub fn get(name: &str) -> Option<&'static str> {
         "reload" => Some(RELOAD),
         "source_edit" => Some(SOURCE_EDIT),
         "source_pill" => Some(SOURCE_PILL),
+        "queue_collapse" => Some(QUEUE_COLLAPSE),
+        "queue_filter" => Some(QUEUE_FILTER),
         _ => None,
     }
 }
@@ -809,4 +811,35 @@ const SOURCE_PILL: &str = r#"
     });
   });
 })();
+"#;
+
+const QUEUE_COLLAPSE: &str = r#"
+document.querySelectorAll('.c-queue-group-header').forEach(function (header) {
+  header.addEventListener('click', function () {
+    header.parentElement.classList.toggle('collapsed');
+  });
+});
+"#;
+
+const QUEUE_FILTER: &str = r#"
+document.querySelectorAll('[data-queue-search]').forEach(function (input) {
+  var queue = input.closest('.c-queue');
+  if (!queue) return;
+  var rows = queue.querySelectorAll('.c-queue-row');
+  var groups = queue.querySelectorAll('.c-queue-group');
+  input.addEventListener('input', function () {
+    var q = input.value.toLowerCase().trim();
+    groups.forEach(function (g) { g.classList.remove('collapsed'); });
+    rows.forEach(function (row) {
+      var text = row.textContent.toLowerCase();
+      row.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+    });
+    groups.forEach(function (group) {
+      var visible = group.querySelectorAll('.c-queue-row:not([style*="display: none"])');
+      group.style.display = visible.length ? '' : 'none';
+      var count = group.querySelector('.c-queue-group-count');
+      if (count) count.textContent = visible.length;
+    });
+  });
+});
 "#;
