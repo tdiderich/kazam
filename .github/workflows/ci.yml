@@ -46,6 +46,26 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
       - run: cargo clippy --release --all-targets -- -D warnings
 
+  version:
+    name: version sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Cargo.toml version matches newest CHANGELOG heading
+        run: |
+          crate=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/.*"(.*)".*/\1/')
+          entry=$(grep -m1 -E '^## \[' CHANGELOG.md | sed -E 's/^## \[([^]]*)\].*/\1/')
+          echo "Cargo.toml:        $crate"
+          echo "CHANGELOG newest:  $entry"
+          if [ "$crate" != "$entry" ]; then
+            echo "::error::Cargo.toml is $crate but the newest CHANGELOG heading is [$entry]."
+            echo "The Release workflow publishes a rolling 'latest' tag on every push to main,"
+            echo "so anything merged here is already released. There is no [Unreleased] state."
+            echo "Fix: bump Cargo.toml and add a dated '## [$crate] - YYYY-MM-DD' section,"
+            echo "or correct the heading to match the version being shipped."
+            exit 1
+          fi
+
   audit:
     name: cargo audit
     runs-on: ubuntu-latest
