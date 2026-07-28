@@ -656,8 +656,8 @@ fn highlight_yaml(line: &str) -> String {
             html_escape(key),
             val
         )
-    } else if trimmed.starts_with("- ") {
-        let val = colorize_value(trimmed[2..].trim());
+    } else if let Some(item) = trimmed.strip_prefix("- ") {
+        let val = colorize_value(item.trim());
         format!(
             "{}<span class=\"syn-punct\">-</span> {}",
             leading_space(line),

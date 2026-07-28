@@ -56,12 +56,18 @@ fn show_markdown(content: &str) {
             println!("\x1b[2m{}\x1b[0m", line);
         } else if trimmed.starts_with("> ") {
             println!("\x1b[2;33m{}\x1b[0m", line);
-        } else if trimmed.starts_with("- [ ] ") {
-            println!("{}  \x1b[31m☐\x1b[0m {}", leading_ws(line), &trimmed[6..]);
-        } else if trimmed.starts_with("- [x] ") || trimmed.starts_with("- [X] ") {
-            println!("{}  \x1b[32m☑\x1b[0m {}", leading_ws(line), &trimmed[6..]);
-        } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
-            println!("{}  \x1b[2m•\x1b[0m {}", leading_ws(line), &trimmed[2..]);
+        } else if let Some(task) = trimmed.strip_prefix("- [ ] ") {
+            println!("{}  \x1b[31m☐\x1b[0m {}", leading_ws(line), task);
+        } else if let Some(task) = trimmed
+            .strip_prefix("- [x] ")
+            .or_else(|| trimmed.strip_prefix("- [X] "))
+        {
+            println!("{}  \x1b[32m☑\x1b[0m {}", leading_ws(line), task);
+        } else if let Some(item) = trimmed
+            .strip_prefix("- ")
+            .or_else(|| trimmed.strip_prefix("* "))
+        {
+            println!("{}  \x1b[2m•\x1b[0m {}", leading_ws(line), item);
         } else if trimmed.starts_with("---") || trimmed.starts_with("***") {
             println!("\x1b[2m────────────────────\x1b[0m");
         } else if trimmed.is_empty() {
@@ -87,11 +93,11 @@ fn show_yaml(content: &str) {
                 leading_ws(line),
                 colorize_yaml_value(rest),
             );
-        } else if trimmed.starts_with("- ") {
+        } else if let Some(item) = trimmed.strip_prefix("- ") {
             println!(
                 "\x1b[2m{ln}\x1b[0m  {}\x1b[2m-\x1b[0m {}",
                 leading_ws(line),
-                colorize_yaml_value(&trimmed[2..]),
+                colorize_scalar(item),
             );
         } else {
             println!("\x1b[2m{ln}\x1b[0m  {line}");
@@ -113,28 +119,31 @@ fn show_json(content: &str) {
     }
 }
 
-fn colorize_yaml_value(s: &str) -> String {
-    let val = if s.starts_with(": ") {
-        &s[2..]
-    } else if s == ":" {
-        return "\x1b[2m:\x1b[0m".to_string();
-    } else {
-        return format!("\x1b[2m{s}\x1b[0m");
-    };
-
-    let trimmed = val.trim();
-    let colored = if trimmed == "true" || trimmed == "false" {
+/// Color a bare YAML scalar by type. Used for map values and list items both.
+fn colorize_scalar(s: &str) -> String {
+    let trimmed = s.trim();
+    if trimmed == "true" || trimmed == "false" {
         format!("\x1b[35m{trimmed}\x1b[0m")
     } else if trimmed == "null" || trimmed == "~" {
         format!("\x1b[31m{trimmed}\x1b[0m")
-    } else if trimmed.parse::<f64>().is_ok() && !trimmed.is_empty() {
+    } else if !trimmed.is_empty() && trimmed.parse::<f64>().is_ok() {
         format!("\x1b[33m{trimmed}\x1b[0m")
     } else if trimmed.starts_with('"') || trimmed.starts_with('\'') {
         format!("\x1b[32m{trimmed}\x1b[0m")
     } else {
         trimmed.to_string()
+    }
+}
+
+fn colorize_yaml_value(s: &str) -> String {
+    let val = if let Some(rest) = s.strip_prefix(": ") {
+        rest
+    } else if s == ":" {
+        return "\x1b[2m:\x1b[0m".to_string();
+    } else {
+        return format!("\x1b[2m{s}\x1b[0m");
     };
-    format!("\x1b[2m:\x1b[0m {colored}")
+    format!("\x1b[2m:\x1b[0m {}", colorize_scalar(val))
 }
 
 fn colorize_json_line(line: &str) -> String {
@@ -178,10 +187,9 @@ fn colorize_json_line(line: &str) -> String {
 
 fn colorize_json_value(s: &str) -> String {
     let rest = s.strip_prefix(": ").unwrap_or(s);
-    let (val, trail) = if rest.ends_with(',') {
-        (&rest[..rest.len() - 1], ",")
-    } else {
-        (rest, "")
+    let (val, trail) = match rest.strip_suffix(',') {
+        Some(stripped) => (stripped, ","),
+        None => (rest, ""),
     };
 
     let colored = if val == "true" || val == "false" {
