@@ -2157,10 +2157,13 @@ function ComponentView({
         });
       }, [items, trimmedQuery]);
 
+      const activeItems = React.useMemo(() => filteredItems.filter((item) => (item.status as string) !== "completed"), [filteredItems]);
+      const doneItems = React.useMemo(() => filteredItems.filter((item) => (item.status as string) === "completed"), [filteredItems]);
+
       type QueueGroup = { key: string; label: string; groupItems: Array<Record<string, unknown>> };
 
       const groups = React.useMemo<QueueGroup[]>(() => {
-        if (groupBy === "none") return [{ key: "all", label: "", groupItems: filteredItems }];
+        if (groupBy === "none") return [{ key: "all", label: "", groupItems: activeItems }];
 
         const buckets = new Map<string, Array<Record<string, unknown>>>();
         const order: string[] = [];
@@ -2188,7 +2191,7 @@ function ComponentView({
         };
 
         if (groupBy === "urgency") {
-          for (const item of filteredItems) { pushTo(itemBucket(item), item); }
+          for (const item of activeItems) { pushTo(itemBucket(item), item); }
           const fixedOrder = ["overdue", "two_weeks", "two_to_eight", "later", "none"];
           const labels: Record<string, string> = { overdue: "Overdue", two_weeks: "Next two weeks", two_to_eight: "2-8 weeks", later: "Later", none: "No date" };
           return fixedOrder.filter((k) => buckets.has(k)).map((k) => ({ key: k, label: labels[k], groupItems: buckets.get(k)! }));
@@ -2196,14 +2199,14 @@ function ComponentView({
 
         if (groupBy === "horizon") {
           const horizonMap: Record<string, string> = { overdue: "now", two_weeks: "now", two_to_eight: "next", later: "later", none: "none" };
-          for (const item of filteredItems) { pushTo(horizonMap[itemBucket(item)] || "later", item); }
+          for (const item of activeItems) { pushTo(horizonMap[itemBucket(item)] || "later", item); }
           const fixedOrder = ["now", "next", "later", "none"];
           const labels: Record<string, string> = { now: "Now", next: "Next", later: "Later", none: "No date" };
           return fixedOrder.filter((k) => buckets.has(k)).map((k) => ({ key: k, label: labels[k], groupItems: buckets.get(k)! }));
         }
 
         if (groupBy === "owner") {
-          for (const item of filteredItems) {
+          for (const item of activeItems) {
             const owner = (item.owner as string) || "Unassigned";
             pushTo(owner, item);
           }
@@ -2211,15 +2214,15 @@ function ComponentView({
         }
 
         if (groupBy === "status") {
-          for (const item of filteredItems) {
+          for (const item of activeItems) {
             const status = (item.status as string) || "default";
             pushTo(status, item);
           }
           return order.map((k) => ({ key: k, label: k.charAt(0).toUpperCase() + k.slice(1), groupItems: buckets.get(k)! }));
         }
 
-        return [{ key: "all", label: "", groupItems: filteredItems }];
-      }, [filteredItems, groupBy, today, twoWeekEnd, eightWeekEnd]);
+        return [{ key: "all", label: "", groupItems: activeItems }];
+      }, [activeItems, groupBy, today, twoWeekEnd, eightWeekEnd]);
 
       const renderSlip = (item: Record<string, unknown>): React.JSX.Element | null => {
         const due = item.due as string | undefined;
@@ -2306,6 +2309,18 @@ function ComponentView({
               </div>
             );
           })}
+          {doneItems.length > 0 && (() => {
+            const doneOpen = trimmedQuery ? true : (openOverride["__done"] ?? false);
+            return (
+              <div className={`c-queue-group c-queue-done${doneOpen ? "" : " collapsed"}`}>
+                <div className="c-queue-group-header" onClick={() => toggleGroup("__done", doneOpen)}>
+                  <span className="c-queue-group-label">Done</span>
+                  {showCounts && <span className="c-queue-group-count">{doneItems.length}</span>}
+                </div>
+                {doneItems.map((item, i) => renderItem(item, i))}
+              </div>
+            );
+          })()}
         </div>
       );
     }

@@ -3211,6 +3211,14 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-queue-group.collapsed .c-queue-row {
   display: none;
 }
+.c-queue-done {
+  margin-top: 16px;
+  border-top: 1px solid rgba(var(--text-rgb), 0.1);
+  padding-top: 8px;
+}
+.c-queue-done .c-queue-group-label {
+  opacity: 0.6;
+}
 .c-queue-group-label {
   font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
   font-size: 11px;

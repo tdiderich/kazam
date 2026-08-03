@@ -283,6 +283,10 @@ components:
           `horizon` collapses to Now / Next / Later. `none` renders a flat list
           (agenda mode). `owner` and `status` group by those fields.
 
+          Items with `status: completed` are pulled out of their normal group and
+          collected into a **Done** section at the bottom, collapsed by default.
+          This keeps historical items visible without crowding active work.
+
           Reuses `TreeStatus` for item status and `SemColor` for tag colors.
 
       - type: priority_queue

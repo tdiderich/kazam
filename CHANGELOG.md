@@ -4,6 +4,14 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-08-03
+
+### Added
+- **priority_queue Done section**: items with `status: completed` are separated
+  into a collapsible "Done" group at the bottom of the queue, collapsed by
+  default. Active items stay in their normal urgency/horizon/owner groups without
+  completed items mixed in.
+
 ## [1.10.0] - 2026-07-28
 
 ### Added
