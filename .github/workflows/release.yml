@@ -125,6 +125,8 @@ jobs:
           if git ls-remote --tags origin "refs/tags/v$v" | grep -q .; then
             echo "Tag v$v already exists."
           else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag -a "v$v" -m "kazam $v"
             git push origin "v$v"
           fi
