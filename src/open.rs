@@ -410,6 +410,21 @@ body.editing .edit-mode {{ display: block; }}
 }}
 .markdown th {{ background: var(--surface); font-weight: 600; }}
 .markdown hr {{ border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }}
+.frontmatter {{
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
+  color: rgba(var(--text-rgb, 255,255,255), 0.35);
+  padding-bottom: 0.8em;
+  margin-bottom: 1em;
+  border-bottom: 1px solid var(--border);
+}}
+.frontmatter .syn-key {{ color: rgba(var(--text-rgb, 255,255,255), 0.45); }}
+.frontmatter .syn-punct {{ color: rgba(var(--text-rgb, 255,255,255), 0.3); }}
+.frontmatter .syn-string {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
+.frontmatter .syn-number {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
+.frontmatter .syn-bool {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
 /* Code view (yaml/json) */
 .code-view {{
   background: var(--code-bg);
@@ -673,14 +688,37 @@ fetch('/api/status').then(function(r){{return r.json()}})
     )
 }
 
+fn strip_frontmatter(src: &str) -> (&str, &str) {
+    if !src.starts_with("---") {
+        return ("", src);
+    }
+    let after_open = &src[3..];
+    if let Some(close) = after_open.find("\n---") {
+        let fm = after_open[..close].trim();
+        let body = after_open[close + 4..].trim_start_matches('\n');
+        (fm, body)
+    } else {
+        ("", src)
+    }
+}
+
 fn render_markdown(src: &str) -> String {
     use pulldown_cmark::{html, Options, Parser};
+    let (fm, body) = strip_frontmatter(src);
+    let mut out = String::new();
+    if !fm.is_empty() {
+        out.push_str("<div class=\"frontmatter\">");
+        for line in fm.lines() {
+            out.push_str(&highlight_yaml(line));
+            out.push('\n');
+        }
+        out.push_str("</div>");
+    }
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
     opts.insert(Options::ENABLE_TASKLISTS);
-    let parser = Parser::new_ext(src, opts);
-    let mut out = String::new();
+    let parser = Parser::new_ext(body, opts);
     html::push_html(&mut out, parser);
     out
 }

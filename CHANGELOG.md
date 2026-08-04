@@ -12,6 +12,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   default. Active items stay in their normal urgency/horizon/owner groups without
   completed items mixed in.
 
+### Fixed
+- **`kazam open` frontmatter handling**: markdown files with YAML frontmatter
+  no longer render the frontmatter as body text. The frontmatter block is shown
+  as muted inline metadata above the content, separated by a thin rule.
+
 ## [1.10.0] - 2026-07-28
 
 ### Added
