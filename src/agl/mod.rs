@@ -284,6 +284,26 @@ fn run_flow(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Every `~/.kazam/agl/templates/<name>.md` a state's `evaluate(...)` text
+/// actually names, as `(name, file content)`. `skill::referenced_template_names`
+/// returns every distinct word across all `evaluate(...)` expressions - a
+/// superset, most of which aren't template names at all - so this is the
+/// filesystem-check step that narrows it down to real files, keeping the
+/// pure-string rendering in `skill.rs` free of filesystem I/O.
+fn resolve_referenced_templates(spec: &ast::AglSpec) -> Result<Vec<(String, String)>> {
+    let templates_dir = home_dir()?.join(".kazam").join("agl").join("templates");
+    let mut found = Vec::new();
+    for word in skill::referenced_template_names(spec) {
+        let candidate = templates_dir.join(format!("{word}.md"));
+        if candidate.is_file() {
+            let content = std::fs::read_to_string(&candidate)
+                .with_context(|| format!("failed to read {}", candidate.display()))?;
+            found.push((word, content));
+        }
+    }
+    Ok(found)
+}
+
 fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<()> {
     let resolved_path = resolve_spec_path(path)?;
     let parsed = load_spec(&resolved_path)?;
@@ -299,7 +319,8 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
         );
     }
 
-    let rendered = skill::render(&parsed.spec, target);
+    let templates = resolve_referenced_templates(&parsed.spec)?;
+    let rendered = skill::render(&parsed.spec, target, &templates);
 
     match out {
         Some(out_path) => {
@@ -370,6 +391,7 @@ fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
             Ok((parsed, diags)) if !validator::has_errors(&diags) => {
                 let name = skill::resolved_skill_name(&parsed.spec);
                 let skill_path = skills_dir.join(format!("{name}.md"));
+                let templates = resolve_referenced_templates(&parsed.spec)?;
 
                 if isolated {
                     if validator::has_gate_protected_writes(&parsed.spec) {
@@ -384,13 +406,16 @@ fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
                         continue;
                     }
                     let agent_path = agents_dir.join(format!("{name}.md"));
-                    std::fs::write(&agent_path, skill::render_agent_file(&parsed.spec))
-                        .with_context(|| format!("failed to write {}", agent_path.display()))?;
+                    std::fs::write(
+                        &agent_path,
+                        skill::render_agent_file(&parsed.spec, &templates),
+                    )
+                    .with_context(|| format!("failed to write {}", agent_path.display()))?;
                     std::fs::write(&skill_path, skill::render_skill_dispatcher(&parsed.spec))
                         .with_context(|| format!("failed to write {}", skill_path.display()))?;
                     loaded.push((name, Some(agent_path), skill_path));
                 } else {
-                    let rendered = skill::render(&parsed.spec, skill::Target::Claude);
+                    let rendered = skill::render(&parsed.spec, skill::Target::Claude, &templates);
                     std::fs::write(&skill_path, rendered)
                         .with_context(|| format!("failed to write {}", skill_path.display()))?;
                     loaded.push((name, None, skill_path));

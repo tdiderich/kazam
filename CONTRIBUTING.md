@@ -107,10 +107,12 @@ by convention rather than any hub-management subcommand:
 
 ```
 ~/.kazam/agl/
-  specs/    authored .agl specs, one per task
-  shared/   importable fragments (invariant and/or cache blocks)
-  cache/    <name>.jsonl per named cache block - never touched by
-            kazam agl load, so regenerating a skill can't lose data
+  specs/      authored .agl specs, one per task
+  shared/     importable fragments (invariant and/or cache blocks)
+  cache/      <name>.jsonl per named cache block - never touched by
+              kazam agl load, so regenerating a skill can't lose data
+  templates/  <name>.md boilerplate + known-good examples, referenced
+              by name from a state's own evaluate(...) text, no grammar
 ```
 
 A bare name with no `/` and no `.agl` extension, passed to `validate`,
@@ -139,6 +141,14 @@ Grammar beyond what's in `PRODUCT.md`/`README.md`:
   resolve / append-after-resolve convention. `kazam agl cache-migrate
   <path> [--name NAME]` backfills an existing cache file's lines with a
   type-appropriate default for any field the schema has since gained.
+
+Templates aren't grammar at all, just files: `~/.kazam/agl/templates/NAME.md`,
+`<!--spec-->` marks the boilerplate shape, `<!--samples-->` marks known good
+examples, no marker means the whole file is the shape. A state's own
+`evaluate(...)` text names one directly, like `evaluate(draft vs
+activity-summary)`. `kazam agl skill`/`load` check every distinct word
+across a spec's `evaluate(...)` expressions against real files in that
+directory and embed each match into a `## Templates` section.
 
 `kazam agl flow <spec>` prints a plain ASCII rendering of the graph, states,
 actions, transitions, branch fan-out, meant as a quick "what does this

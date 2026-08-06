@@ -4,6 +4,20 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-08-06
+
+### Added
+- **`~/.kazam/agl/templates/<name>.md`**: real markdown, not new grammar.
+  `<!--spec-->` marks the boilerplate shape, `<!--samples-->` marks known
+  good examples, no marker at all means the whole file is the shape. A
+  state's existing `evaluate(...)` free text just names one directly (like
+  `evaluate(activity_summary_draft vs activity-summary)`); `kazam agl
+  skill`/`load` resolve every distinct word across a spec's `evaluate(...)`
+  expressions against real files in that directory
+  (`skill::referenced_template_names`), and embed each match's content,
+  split on the `<!--samples-->` marker, into a `## Templates` section,
+  same treatment as `## Preflight`/`## Cache`.
+
 ## [1.16.0] - 2026-08-06
 
 ### Added

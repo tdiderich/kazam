@@ -398,3 +398,68 @@ fn load_skips_an_invalid_spec_but_still_loads_the_valid_ones() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("skipped 1 spec"), "stdout: {stdout}");
 }
+
+#[test]
+fn load_embeds_a_real_template_file_referenced_by_an_evaluate_state() {
+    let fake_home = std::env::temp_dir().join(format!(
+        "kazam-agl-load-test-home-templates-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&fake_home);
+    let specs_dir = fake_home.join(".kazam").join("agl").join("specs");
+    std::fs::create_dir_all(&specs_dir).unwrap();
+    std::fs::write(
+        specs_dir.join("call-prep.agl"),
+        r#"spec CallPrep {
+            in: customer: str
+            out: y: bool
+
+            flow {
+                state WRITE_SUMMARY -> evaluate(activity_summary_draft vs activity-summary) -> TERMINATE("done")
+            }
+        }"#,
+    )
+    .unwrap();
+
+    let templates_dir = fake_home.join(".kazam").join("agl").join("templates");
+    std::fs::create_dir_all(&templates_dir).unwrap();
+    std::fs::write(
+        templates_dir.join("activity-summary.md"),
+        "<!--spec-->\n## {Customer} Activity Summary\n\n\
+         - **Lead-in**: 5-10 word finding\n\
+         <!--samples-->\n## Halcyon Activity Summary\n\n\
+         - **Sentiment**: stayed Medium, expanding scope",
+    )
+    .unwrap();
+
+    let project_dir = std::env::temp_dir().join(format!(
+        "kazam-agl-load-test-project-templates-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&project_dir);
+    std::fs::create_dir_all(&project_dir).unwrap();
+
+    let output = Command::new(bin())
+        .args(["agl", "load", "--out"])
+        .arg(&project_dir)
+        .env("HOME", &fake_home)
+        .output()
+        .expect("run kazam agl load");
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let skill_doc =
+        std::fs::read_to_string(project_dir.join(".claude/skills/call-prep.md")).unwrap();
+    assert!(skill_doc.contains("## Templates"), "doc: {skill_doc}");
+    assert!(skill_doc.contains("### activity-summary"));
+    assert!(skill_doc.contains("- **Lead-in**: 5-10 word finding"));
+    assert!(skill_doc.contains("**Known-good examples:**"));
+    assert!(skill_doc.contains("## Halcyon Activity Summary"));
+    assert!(!skill_doc.contains("<!--spec-->"));
+    assert!(!skill_doc.contains("<!--samples-->"));
+}

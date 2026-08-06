@@ -58,14 +58,39 @@ them, and do not invent states that aren't declared. Stop at every
 it. Never take an action an `invariant` denies."#;
 
 /// Render `spec` (imports already resolved into `spec.invariants` by the
-/// caller) as a skill document for `target`.
-pub fn render(spec: &AglSpec, target: Target) -> String {
-    let body = render_body(spec);
+/// caller) as a skill document for `target`. `templates` is every
+/// `~/.kazam/agl/templates/<name>.md` file whose name a state's
+/// `evaluate(...)` text actually references (see
+/// `referenced_template_names`) - the caller reads these from disk, since
+/// this module does no filesystem I/O of its own, as `(name, file content)`.
+pub fn render(spec: &AglSpec, target: Target, templates: &[(String, String)]) -> String {
+    let body = render_body(spec, templates);
     match target {
         Target::Claude => render_claude(spec, &body),
         Target::Cursor => format!("{PRIMER}\n\n{body}"),
         Target::Codex => format!("## {}\n\n{PRIMER}\n\n{body}", spec.name),
     }
+}
+
+/// Every distinct word appearing in any `evaluate(...)` expression in
+/// `spec.flow`. A superset, not a confirmed reference - the caller checks
+/// each against `~/.kazam/agl/templates/<word>.md` and keeps only the
+/// words that actually resolve to a real file, same shape as how `cache`
+/// blocks are declared explicitly but a template reference is just a
+/// state's own expression text naming one, no new grammar.
+pub fn referenced_template_names(spec: &AglSpec) -> Vec<String> {
+    let mut names = Vec::new();
+    for state in &spec.flow {
+        if let StateAction::Evaluate { expression } = &state.action {
+            for word in expression.split_whitespace() {
+                let word = word.to_string();
+                if !names.contains(&word) {
+                    names.push(word);
+                }
+            }
+        }
+    }
+    names
 }
 
 /// The name this spec's compiled skill/subagent goes by: `spec.skill` if
@@ -91,9 +116,9 @@ pub fn resolved_skill_name(spec: &AglSpec) -> String {
 /// caller must reject any spec with a gate-protected write before calling
 /// this (see `validator::has_gate_protected_writes`) - this function
 /// doesn't check that itself, it just renders.
-pub fn render_agent_file(spec: &AglSpec) -> String {
+pub fn render_agent_file(spec: &AglSpec, templates: &[(String, String)]) -> String {
     let name = resolved_skill_name(spec);
-    let body = render_body(spec);
+    let body = render_body(spec, templates);
     let mut out =
         format!("---\nname: {name}\ndescription: \"Runs the {name} AGL graph end to end\"\n");
     if !spec.requires.is_empty() {
@@ -106,7 +131,7 @@ pub fn render_agent_file(spec: &AglSpec) -> String {
 /// A thin Claude Code skill (`.claude/skills/<name>.md`) that only routes
 /// to the subagent above. Only ever paired with `render_agent_file` under
 /// `--isolated`, for specs with no gate-protected write - the default
-/// (`render(spec, Target::Claude)`) runs inline instead, which is what
+/// (`render(spec, Target::Claude, templates)`) runs inline instead, which is what
 /// everything with an approval gate has to do.
 pub fn render_skill_dispatcher(spec: &AglSpec) -> String {
     let name = resolved_skill_name(spec);
@@ -123,7 +148,7 @@ pub fn render_skill_dispatcher(spec: &AglSpec) -> String {
 /// The part every target shares once past its own header: preflight (if
 /// `requires` is declared), the run-order note, the ASCII flow diagram, and
 /// the resolved `.agl` source.
-fn render_body(spec: &AglSpec) -> String {
+fn render_body(spec: &AglSpec, templates: &[(String, String)]) -> String {
     let mut out = String::new();
     let preflight = render_preflight(spec);
     if !preflight.is_empty() {
@@ -133,6 +158,11 @@ fn render_body(spec: &AglSpec) -> String {
     let cache_section = render_cache(spec);
     if !cache_section.is_empty() {
         out.push_str(&cache_section);
+        out.push('\n');
+    }
+    let templates_section = render_templates(templates);
+    if !templates_section.is_empty() {
+        out.push_str(&templates_section);
         out.push('\n');
     }
     out.push_str(RUN_ORDER);
@@ -208,6 +238,45 @@ fn render_cache(spec: &AglSpec) -> String {
             ));
         }
         out.push('\n');
+    }
+    out
+}
+
+/// Splits a template file's raw content on its `<!--samples-->` marker:
+/// everything before is the shape/boilerplate to follow, everything after
+/// is known-good examples. No marker means the whole file is the shape,
+/// no examples section. A leading `<!--spec-->` marker (optional, purely
+/// for a human skimming the raw file) is stripped either way.
+fn split_template(content: &str) -> (String, Option<String>) {
+    if let Some(idx) = content.find("<!--samples-->") {
+        let shape = content[..idx].replace("<!--spec-->", "");
+        let samples = content[idx + "<!--samples-->".len()..].to_string();
+        (shape.trim().to_string(), Some(samples.trim().to_string()))
+    } else {
+        (content.replace("<!--spec-->", "").trim().to_string(), None)
+    }
+}
+
+/// Embeds every resolved template the caller found (see
+/// `referenced_template_names`) into its own subsection: the shape to
+/// follow, plus known-good examples when the file has any. Empty string
+/// (no section at all) when nothing was referenced, same convention as
+/// `render_preflight`/`render_cache`.
+fn render_templates(templates: &[(String, String)]) -> String {
+    if templates.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from(
+        "## Templates\n\nReferenced by name in this graph's evaluate(...) states. Follow the \
+         shape exactly; the examples (when present) are known-good outputs to match tone and \
+         structure against, not to copy verbatim.\n\n",
+    );
+    for (name, content) in templates {
+        let (shape, samples) = split_template(content);
+        out.push_str(&format!("### {name}\n\n{shape}\n\n"));
+        if let Some(samples) = samples {
+            out.push_str(&format!("**Known-good examples:**\n\n{samples}\n\n"));
+        }
     }
     out
 }
@@ -475,7 +544,7 @@ mod tests {
             }
         }"#;
         let parsed = parse(src).unwrap();
-        let doc = render(&parsed.spec, Target::Claude);
+        let doc = render(&parsed.spec, Target::Claude, &[]);
         assert!(doc.contains("## Cache"));
         assert!(doc.contains("### slack-lookups"));
         assert!(doc.contains("~/.kazam/agl/cache/slack-lookups.jsonl"));
@@ -486,8 +555,52 @@ mod tests {
     #[test]
     fn compiled_skill_omits_cache_section_when_spec_declares_none() {
         let parsed = parse(SAMPLE).unwrap();
-        let doc = render(&parsed.spec, Target::Claude);
+        let doc = render(&parsed.spec, Target::Claude, &[]);
         assert!(!doc.contains("## Cache"));
+    }
+
+    #[test]
+    fn referenced_template_names_returns_every_word_in_every_evaluate() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            flow {
+                state A -> evaluate(activity_summary_draft vs activity-summary) -> next
+                state B -> evaluate(x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let names = referenced_template_names(&parsed.spec);
+        assert!(names.contains(&"activity-summary".to_string()));
+        assert!(names.contains(&"activity_summary_draft".to_string()));
+        assert!(names.contains(&"vs".to_string()));
+        assert!(names.contains(&"x".to_string()));
+    }
+
+    #[test]
+    fn compiled_skill_omits_templates_section_when_none_resolved() {
+        let parsed = parse(SAMPLE).unwrap();
+        let doc = render(&parsed.spec, Target::Claude, &[]);
+        assert!(!doc.contains("## Templates"));
+    }
+
+    #[test]
+    fn compiled_skill_embeds_a_resolved_template_split_on_samples_marker() {
+        let parsed = parse(SAMPLE).unwrap();
+        let templates = vec![(
+            "activity-summary".to_string(),
+            "<!--spec-->\n## {Customer}\n\n- **Lead-in**: summary\n\
+             <!--samples-->\n## Halcyon\n\n- **Sentiment**: stayed Medium"
+                .to_string(),
+        )];
+        let doc = render(&parsed.spec, Target::Claude, &templates);
+        assert!(doc.contains("## Templates"));
+        assert!(doc.contains("### activity-summary"));
+        assert!(doc.contains("- **Lead-in**: summary"));
+        assert!(doc.contains("**Known-good examples:**"));
+        assert!(doc.contains("## Halcyon"));
+        assert!(!doc.contains("<!--spec-->"));
+        assert!(!doc.contains("<!--samples-->"));
     }
 
     #[test]
@@ -505,7 +618,7 @@ mod tests {
             }
         }"#;
         let parsed = parse(src).unwrap();
-        let doc = render(&parsed.spec, Target::Claude);
+        let doc = render(&parsed.spec, Target::Claude, &[]);
         assert!(
             doc.contains(r#"call(Bash, customer, "https://example.com/enrich")"#),
             "doc: {doc}"
@@ -518,7 +631,7 @@ mod tests {
     #[test]
     fn claude_target_has_frontmatter_and_primer() {
         let parsed = parse(SAMPLE).unwrap();
-        let doc = render(&parsed.spec, Target::Claude);
+        let doc = render(&parsed.spec, Target::Claude, &[]);
         assert!(doc.starts_with("---\n"));
         assert!(doc.contains("name: meeting-prep"));
         assert!(doc.contains("description: \"Runs the meeting-prep AGL graph\""));
@@ -530,7 +643,7 @@ mod tests {
     #[test]
     fn cursor_target_has_no_frontmatter() {
         let parsed = parse(SAMPLE).unwrap();
-        let doc = render(&parsed.spec, Target::Cursor);
+        let doc = render(&parsed.spec, Target::Cursor, &[]);
         assert!(!doc.starts_with("---\n"));
         assert!(doc.contains("Execute this graph exactly as written"));
         assert!(doc.contains("FETCH_CALENDAR"));
@@ -539,7 +652,7 @@ mod tests {
     #[test]
     fn codex_target_has_heading() {
         let parsed = parse(SAMPLE).unwrap();
-        let doc = render(&parsed.spec, Target::Codex);
+        let doc = render(&parsed.spec, Target::Codex, &[]);
         assert!(doc.starts_with("## MeetingPrep\n"));
         assert!(doc.contains("Execute this graph exactly as written"));
         assert!(doc.contains("FETCH_CALENDAR"));
@@ -575,7 +688,7 @@ mod tests {
     #[test]
     fn skill_with_requires_includes_preflight_section() {
         let parsed = parse(SAMPLE_WITH_REQUIRES).unwrap();
-        let doc = render(&parsed.spec, Target::Claude);
+        let doc = render(&parsed.spec, Target::Claude, &[]);
         assert!(doc.contains("## Preflight"));
         assert!(doc.contains("- GoogleCalendar.get"));
         assert!(doc.contains("- GoogleCalendar.update"));
@@ -585,14 +698,14 @@ mod tests {
     #[test]
     fn skill_without_requires_omits_preflight_section() {
         let parsed = parse(SAMPLE).unwrap();
-        let doc = render(&parsed.spec, Target::Claude);
+        let doc = render(&parsed.spec, Target::Claude, &[]);
         assert!(!doc.contains("## Preflight"));
     }
 
     #[test]
     fn skill_always_includes_flow_diagram_and_run_order() {
         let parsed = parse(SAMPLE).unwrap();
-        let doc = render(&parsed.spec, Target::Claude);
+        let doc = render(&parsed.spec, Target::Claude, &[]);
         assert!(doc.contains("## Before you start"));
         assert!(doc.contains("## Flow"));
         assert!(doc.contains("Do not wait for approval to start"));
@@ -601,7 +714,7 @@ mod tests {
     #[test]
     fn sections_appear_in_order_preflight_then_run_order_then_flow_then_source() {
         let parsed = parse(SAMPLE_WITH_REQUIRES).unwrap();
-        let doc = render(&parsed.spec, Target::Claude);
+        let doc = render(&parsed.spec, Target::Claude, &[]);
         let preflight = doc.find("## Preflight").expect("preflight section");
         let run_order = doc.find("## Before you start").expect("run-order section");
         let flow = doc.find("## Flow").expect("flow section");
@@ -672,7 +785,7 @@ mod tests {
 
     #[test]
     fn agent_file_has_frontmatter_tools_from_requires_and_the_graph_body() {
-        let doc = render_agent_file(&parse(SAMPLE_WITH_REQUIRES).unwrap().spec);
+        let doc = render_agent_file(&parse(SAMPLE_WITH_REQUIRES).unwrap().spec, &[]);
         assert!(doc.starts_with("---\n"));
         assert!(doc.contains("name: meeting-prep"));
         assert!(doc.contains("tools: GoogleCalendar.get, GoogleCalendar.update"));
@@ -683,7 +796,7 @@ mod tests {
 
     #[test]
     fn agent_file_omits_tools_line_when_requires_is_empty() {
-        let doc = render_agent_file(&parse(SAMPLE).unwrap().spec);
+        let doc = render_agent_file(&parse(SAMPLE).unwrap().spec, &[]);
         assert!(!doc.contains("tools:"));
     }
 
