@@ -4,6 +4,40 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-08-06
+
+### Added
+- **`.agl` shared invariant fragments (`import`)**: a spec can declare
+  `import "path.agl"` lines before the `spec` keyword to pull in an
+  `invariant { ... }` block from a fragment file, resolved relative to the
+  importing file first, then against `~/.kazam/agl/shared/<path>`. Fragments
+  can nest imports; a cycle is a hard parse-time error. This kills the copy
+  paste drift where the same rule (like "any write to a CRM needs human
+  approval") had to be hand duplicated into every spec that needed it.
+- **`.agl` `requires:` declaration and tool-dependency checks**: a spec can
+  declare `requires: Server.method, ...` after `out:`. `kazam agl validate`
+  cross checks it against every `call()`/`map()` in the flow, warning on a
+  flow action not covered (`undeclared-tool-dependency`) or a declared tool
+  never called (`unused-tool-dependency`).
+- **`kazam agl skill <path> --target <claude|cursor|codex>`**: compiles a
+  validated, import resolved spec into a portable skill document, one of
+  a static primer teaching an LLM how to read AGL cold, a preflight section
+  generated from `requires:` (confirm every tool is available, abort before
+  executing any state if one is missing, instead of failing mid-graph),
+  a run-order note, an ASCII flow diagram, and the resolved spec in native
+  `.agl` syntax. Claude gets `SKILL.md`-shaped YAML frontmatter; Cursor and
+  Codex get the same body unwrapped or under a heading.
+- **`kazam agl flow <path>`**: prints the same ASCII flow diagram on its
+  own, a plain "what does this actually do" read of a spec's states,
+  actions, and transitions, with branches fanned out under the state that
+  owns them.
+- **`kazam agl validate --tools <manifest.json>`**: opt-in, name-existence
+  only check of every `call()`/`map()` function against a hand-maintained
+  flat list of dotted tool names. Not schema validation, deliberately thin.
+- **`~/.kazam/agl/{specs,shared}` hub convention**: a bare spec name with no
+  `/` and no `.agl` extension resolves against `~/.kazam/agl/specs/<name>.agl`
+  in `validate`, `export`, `flow`, and `skill`.
+
 ## [1.12.0] - 2026-08-06
 
 ### Added

@@ -94,7 +94,103 @@ pub fn validate(spec: &AglSpec, state_lines: &HashMap<String, usize>) -> Vec<Dia
     );
     check_branch_integrity(spec, &by_name, &reachable_branches, &mut diags);
     check_invariant_soundness(spec, &initial, &by_name, &mut diags, state_lines);
+    check_tool_dependencies(spec, &mut diags, state_lines);
 
+    diags
+}
+
+/// Cross-checks the spec's own `requires:` declaration against what the
+/// flow actually calls. Only runs when `requires` is non-empty — specs
+/// written before this field existed declare nothing and get no warnings,
+/// so this is a strictly opt-in check exercised by authoring a `requires:`
+/// line, not a flag.
+///
+/// This consistency matters beyond linting: `kazam agl skill` renders
+/// `requires` into a preflight instruction ("confirm these tools are
+/// available before executing any state"). An incomplete `requires` list
+/// makes that preflight check incomplete too, so catching the gap here is
+/// what makes the compiled skill's preflight trustworthy.
+fn check_tool_dependencies(
+    spec: &AglSpec,
+    diags: &mut Vec<Diagnostic>,
+    state_lines: &HashMap<String, usize>,
+) {
+    if spec.requires.is_empty() {
+        return;
+    }
+
+    let declared: HashSet<String> = spec.requires.iter().map(|s| s.to_lowercase()).collect();
+    let mut used: HashSet<String> = HashSet::new();
+
+    for state in &spec.flow {
+        let function = match &state.action {
+            StateAction::Call { function, .. } => function,
+            StateAction::Map { function, .. } => function,
+            _ => continue,
+        };
+        let lower = function.to_lowercase();
+        used.insert(lower.clone());
+        if !declared.contains(&lower) {
+            diags.push(
+                Diagnostic::warning(
+                    "undeclared-tool-dependency",
+                    format!(
+                        "state '{}' calls '{function}', which is not listed in the spec's requires: line",
+                        state.name
+                    ),
+                    state.name.clone(),
+                )
+                .with_line(state_lines.get(&state.name).copied()),
+            );
+        }
+    }
+
+    for tool in &spec.requires {
+        if !used.contains(&tool.to_lowercase()) {
+            diags.push(Diagnostic::warning(
+                "unused-tool-dependency",
+                format!("'{tool}' is listed in requires: but no state in the flow calls it"),
+                "<spec>",
+            ));
+        }
+    }
+}
+
+/// Opt-in tool-name existence check: for every `call(...)`/`map(...)` in the
+/// flow, warn if its function string isn't present in `manifest` (an
+/// exact/case-insensitive match against a flat list of dotted
+/// `Server.method` names). This is deliberately thin — a name-existence
+/// check only, not schema validation; the manifest is hand-maintained and
+/// has no notion of a server's actual tool/argument schema. Only called
+/// when the caller has an explicit `--tools` manifest, so it never changes
+/// behavior for callers that don't opt in.
+pub fn check_tool_bindings(
+    spec: &AglSpec,
+    manifest: &HashSet<String>,
+    state_lines: &HashMap<String, usize>,
+) -> Vec<Diagnostic> {
+    let normalized: HashSet<String> = manifest.iter().map(|s| s.to_lowercase()).collect();
+    let mut diags = Vec::new();
+    for state in &spec.flow {
+        let function = match &state.action {
+            StateAction::Call { function, .. } => function,
+            StateAction::Map { function, .. } => function,
+            _ => continue,
+        };
+        if !normalized.contains(&function.to_lowercase()) {
+            diags.push(
+                Diagnostic::warning(
+                    "undefined-tool-binding",
+                    format!(
+                        "state '{}' calls '{function}', which is not listed in the tool manifest",
+                        state.name
+                    ),
+                    state.name.clone(),
+                )
+                .with_line(state_lines.get(&state.name).copied()),
+            );
+        }
+    }
     diags
 }
 
@@ -776,5 +872,111 @@ mod tests {
         let parsed = parse(src).unwrap();
         let diags = validate(&parsed.spec, &parsed.state_lines);
         assert!(diags.iter().any(|d| d.code == "branch-not-exhaustive"));
+    }
+
+    const TOOL_SPEC: &str = r#"spec Foo {
+        in: x: str
+        out: y: str
+        flow {
+            state A -> call(HubSpot.update_contact, x) -> TERMINATE("done")
+        }
+    }"#;
+
+    #[test]
+    fn undefined_tool_binding_warns_when_manifest_missing_function() {
+        let parsed = parse(TOOL_SPEC).unwrap();
+        let manifest: HashSet<String> = ["TechnicalSuccessHub.read_page".to_string()]
+            .into_iter()
+            .collect();
+        let diags = check_tool_bindings(&parsed.spec, &manifest, &parsed.state_lines);
+        assert!(diags
+            .iter()
+            .any(|d| d.code == "undefined-tool-binding" && d.severity == Severity::Warning));
+    }
+
+    #[test]
+    fn undefined_tool_binding_silent_when_manifest_covers_everything() {
+        let parsed = parse(TOOL_SPEC).unwrap();
+        let manifest: HashSet<String> =
+            ["HubSpot.update_contact".to_string()].into_iter().collect();
+        let diags = check_tool_bindings(&parsed.spec, &manifest, &parsed.state_lines);
+        assert!(diags.is_empty());
+    }
+
+    #[test]
+    fn undefined_tool_binding_warning_never_flips_exit_status() {
+        let parsed = parse(TOOL_SPEC).unwrap();
+        let manifest: HashSet<String> = HashSet::new();
+        let diags = check_tool_bindings(&parsed.spec, &manifest, &parsed.state_lines);
+        assert!(!diags.is_empty());
+        assert!(!has_errors(&diags));
+    }
+
+    #[test]
+    fn undeclared_tool_dependency_warns_when_requires_is_incomplete() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            requires: TechnicalSuccessHub.write_page
+
+            flow {
+                state A -> call(HubSpot.update_contact, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let diags = validate(&parsed.spec, &parsed.state_lines);
+        assert!(
+            diags.iter().any(|d| d.code == "undeclared-tool-dependency"),
+            "{diags:?}"
+        );
+        assert!(!has_errors(&diags));
+    }
+
+    #[test]
+    fn unused_tool_dependency_warns_when_requires_lists_a_never_called_tool() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            requires: HubSpot.update_contact, TechnicalSuccessHub.write_page
+
+            flow {
+                state A -> call(HubSpot.update_contact, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let diags = validate(&parsed.spec, &parsed.state_lines);
+        assert!(
+            diags.iter().any(|d| d.code == "unused-tool-dependency"),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn tool_dependency_checks_are_silent_when_requires_is_fully_covered() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            requires: HubSpot.update_contact
+
+            flow {
+                state A -> call(HubSpot.update_contact, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let diags = validate(&parsed.spec, &parsed.state_lines);
+        assert!(!diags
+            .iter()
+            .any(|d| d.code == "undeclared-tool-dependency" || d.code == "unused-tool-dependency"));
+    }
+
+    #[test]
+    fn tool_dependency_checks_are_silent_when_requires_is_absent() {
+        // TOOL_SPEC has no `requires:` line at all — the check must not
+        // fire just because a call() exists with nothing declared.
+        let parsed = parse(TOOL_SPEC).unwrap();
+        let diags = validate(&parsed.spec, &parsed.state_lines);
+        assert!(!diags
+            .iter()
+            .any(|d| d.code == "undeclared-tool-dependency" || d.code == "unused-tool-dependency"));
     }
 }

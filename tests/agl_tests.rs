@@ -213,3 +213,99 @@ fn validate_reports_missing_file() {
         .expect("run kazam agl validate");
     assert!(!output.status.success());
 }
+
+#[test]
+fn validate_tools_flag_warns_on_unlisted_function() {
+    let path = write_spec("tools_missing.agl", VALID_SPEC);
+    let manifest_path = std::env::temp_dir()
+        .join("kazam-agl-tests")
+        .join("manifest_missing.json");
+    std::fs::write(&manifest_path, r#"["TechnicalSuccessHub.read_page"]"#).unwrap();
+
+    let output = Command::new(bin())
+        .args(["agl", "validate"])
+        .arg(&path)
+        .arg("--tools")
+        .arg(&manifest_path)
+        .output()
+        .expect("run kazam agl validate --tools");
+
+    // The spec itself is otherwise valid — an unlisted-tool warning alone
+    // must not flip exit status.
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("undefined-tool-binding"),
+        "stdout: {stdout}"
+    );
+}
+
+#[test]
+fn validate_tools_flag_silent_when_manifest_covers_everything() {
+    let path = write_spec("tools_complete.agl", VALID_SPEC);
+    let manifest_path = std::env::temp_dir()
+        .join("kazam-agl-tests")
+        .join("manifest_complete.json");
+    std::fs::write(
+        &manifest_path,
+        r#"["GoogleCalendar.get", "Slack.read", "GoogleCalendar.update"]"#,
+    )
+    .unwrap();
+
+    let output = Command::new(bin())
+        .args(["agl", "validate"])
+        .arg(&path)
+        .arg("--tools")
+        .arg(&manifest_path)
+        .output()
+        .expect("run kazam agl validate --tools");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("undefined-tool-binding"),
+        "stdout: {stdout}"
+    );
+}
+
+#[test]
+fn validate_without_tools_flag_never_emits_tool_binding_warnings() {
+    let path = write_spec("tools_absent.agl", VALID_SPEC);
+    let output = Command::new(bin())
+        .args(["agl", "validate"])
+        .arg(&path)
+        .output()
+        .expect("run kazam agl validate");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        !stdout.contains("undefined-tool-binding"),
+        "stdout: {stdout}"
+    );
+}
+
+#[test]
+fn flow_prints_an_ascii_diagram_of_the_graph() {
+    let path = write_spec("flow.agl", VALID_SPEC);
+    let output = Command::new(bin())
+        .args(["agl", "flow"])
+        .arg(&path)
+        .output()
+        .expect("run kazam agl flow");
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("FETCH_CALENDAR"), "stdout: {stdout}");
+    assert!(stdout.contains("PROPOSE_UPDATE"), "stdout: {stdout}");
+}

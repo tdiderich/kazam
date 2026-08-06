@@ -100,6 +100,42 @@ tests/                    Integration tests
 
 Most component additions touch: `types.rs` (struct), `render/components.rs` (HTML), `theme.rs` (CSS), plus a `docs/components/*.yaml` example.
 
+## Agent Graph Language (`.agl`), the `~/.kazam/agl` hub
+
+`.agl` specs and their importable fragments live in one place on a machine,
+by convention rather than any hub-management subcommand:
+
+```
+~/.kazam/agl/
+  specs/    authored .agl specs, one per task
+  shared/   importable fragments (invariant { ... } blocks only)
+```
+
+A bare name with no `/` and no `.agl` extension, passed to `validate`,
+`export`, `flow`, or `skill`, is shorthand for `~/.kazam/agl/specs/<name>.agl`.
+An `import "some/path.agl"` line inside a spec resolves relative to the
+importing file first, then falls back to `~/.kazam/agl/shared/<path>`.
+
+Grammar beyond what's in `PRODUCT.md`/`README.md`:
+
+- `import "path.agl"`, zero or more, before the `spec` keyword. Pulls a
+  fragment's `invariant { ... }` rules into the importing spec. Fragments
+  can nest imports; cycles are a hard error.
+- `requires: Server.method, Server.other_method`, optional, inside the
+  spec block after `out:`. Declares the dotted tool names the flow depends
+  on. `kazam agl validate` cross-checks this against every `call()`/`map()`
+  in the flow (`undeclared-tool-dependency` / `unused-tool-dependency`
+  warnings) so the list stays trustworthy. `kazam agl skill` renders it as
+  a preflight instruction: confirm every tool is available before executing
+  any state, abort immediately if one is missing, rather than discovering
+  the gap mid-graph after other states already ran.
+
+`kazam agl flow <spec>` prints a plain ASCII rendering of the graph, states,
+actions, transitions, branch fan-out, meant as a quick "what does this
+actually do" read for a human, separate from `kazam agl skill`'s per-target
+compiled output (which embeds the same diagram after its preflight section,
+before the resolved source).
+
 ## License
 
 By submitting a PR you agree that your contribution is licensed under the repo's MIT license.

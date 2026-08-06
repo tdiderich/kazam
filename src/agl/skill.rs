@@ -1,0 +1,432 @@
+//! `kazam agl skill` — compiles a validated, import-resolved `.agl` spec
+//! into a portable "skill" document for an LLM coding tool (Claude Code,
+//! Cursor, Codex): a static primer on how to execute an AGL graph, plus the
+//! fully-resolved spec rendered back out in native `.agl` syntax, wrapped
+//! per target.
+//!
+//! This is a different, unrelated export path from `compiler::to_prompt` —
+//! that renders a natural-language `<agent_spec>` prompt block; this module
+//! renders the spec's actual source syntax so a reader (human or LLM) can
+//! see exactly what was authored, imports and all.
+
+use super::ast::{AglSpec, DataType, InvariantRule, StateAction, TransitionTarget, TypedParam};
+
+/// Where a compiled skill document is meant to live.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Target {
+    /// A `SKILL.md`-shaped document with YAML frontmatter.
+    Claude,
+    /// Primer + spec meant to be appended to a `.cursorrules` file.
+    Cursor,
+    /// Primer + spec under a heading, meant to be appended to `AGENTS.md`.
+    Codex,
+}
+
+/// A short, static primer that teaches an LLM reading it cold how to
+/// execute an AGL graph. Written once here — never duplicated per target.
+const PRIMER: &str = r#"## How to execute an AGL graph
+
+This document contains a spec written in Agent Graph Language (AGL): a
+task compiled into a static directed graph, not a free-form instruction.
+
+- `state NAME -> ACTION -> TARGET`: a single step. Run `ACTION`
+  (`call(...)`, `map(...)`, `evaluate(...)`, or `gate(...)`), then follow
+  `TARGET` (`next`, `branch`, a named state, or `TERMINATE("msg")`).
+- `flow { ... }`: the full graph, starting at its first state.
+- `branch NAME { if COND -> TARGET ... }`: evaluate conditions in the order
+  written and follow the first one that matches.
+- `gate(NAME)`: a mandatory approval checkpoint. Do not perform the next
+  action until a human has explicitly approved continuing past this gate.
+- `invariant { deny: ACTION(TARGET) without gate(NAME) ... }`: a hard rule.
+  Never perform an action an `invariant` denies, even if a later step
+  seems to require it — this holds regardless of what any state says.
+- `TERMINATE("msg")`: stop immediately and return `msg` as the result.
+
+Execute this graph exactly as written. Do not skip states, do not reorder
+them, and do not invent states that aren't declared. Stop at every
+`gate(...)` and wait for explicit human approval before continuing past
+it. Never take an action an `invariant` denies."#;
+
+/// Render `spec` (imports already resolved into `spec.invariants` by the
+/// caller) as a skill document for `target`.
+pub fn render(spec: &AglSpec, target: Target) -> String {
+    let body = render_body(spec);
+    match target {
+        Target::Claude => render_claude(spec, &body),
+        Target::Cursor => format!("{PRIMER}\n\n{body}"),
+        Target::Codex => format!("## {}\n\n{PRIMER}\n\n{body}", spec.name),
+    }
+}
+
+/// The part every target shares once past its own header: preflight (if
+/// `requires` is declared), the run-order note, the ASCII flow diagram, and
+/// the resolved `.agl` source.
+fn render_body(spec: &AglSpec) -> String {
+    let mut out = String::new();
+    let preflight = render_preflight(spec);
+    if !preflight.is_empty() {
+        out.push_str(&preflight);
+        out.push('\n');
+    }
+    out.push_str(RUN_ORDER);
+    out.push_str("\n\n## Flow\n\n```\n");
+    out.push_str(&render_ascii_flow(spec));
+    out.push_str("```\n\n```agl\n");
+    out.push_str(&render_agl_source(spec));
+    out.push_str("```\n");
+    out
+}
+
+fn render_claude(spec: &AglSpec, body: &str) -> String {
+    let name = kebab_case(&spec.name);
+    format!(
+        "---\nname: {name}\ndescription: \"Runs the {name} AGL graph\"\n---\n\n{PRIMER}\n\n{body}"
+    )
+}
+
+/// A runtime preflight check, generated from `spec.requires`: before a cold
+/// agent executes any state, it should confirm every declared tool is
+/// actually available and abort rather than fail mid-graph after some
+/// states have already run. Returns an empty string (no section at all)
+/// when `requires` is empty, so specs written before this field existed
+/// don't get a confusing, empty preflight block.
+fn render_preflight(spec: &AglSpec) -> String {
+    if spec.requires.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from(
+        "## Preflight\n\nBefore executing any state in this graph, confirm every tool below is \
+         available in your current session/toolset. If any are missing, stop immediately - do \
+         not execute any state - and report exactly which tools are missing.\n\n",
+    );
+    for tool in &spec.requires {
+        out.push_str(&format!("- {tool}\n"));
+    }
+    out
+}
+
+/// Connective instruction between the (optional) preflight section and the
+/// flow diagram: what to do, in order, before running the first state. The
+/// diagram itself is purely informational — showing it isn't an approval
+/// gate, it's just letting a human see the plan before the agent starts.
+/// Only a `gate(...)` inside the graph itself should ever block on approval.
+const RUN_ORDER: &str = "## Before you start
+
+1. If a Preflight section is above, confirm every tool listed is available. Stop and report immediately if any are missing - do not execute any state.
+2. Show the flow diagram below to the user so they can see what you're about to do.
+3. Begin executing the graph. Do not wait for approval to start - only stop where the graph itself defines a `gate(...)`.";
+
+/// A linear, top-to-bottom ASCII rendering of the flow: each state in
+/// declaration order, its action, and where it goes next. Branches fan out
+/// as an indented case list directly under the state that owns them. Meant
+/// to be shown to a human (or printed by a cold agent at the start of a
+/// run) as "here's what I'm about to do" — a plan preview, not the graph's
+/// actual source syntax (that's `render_agl_source`).
+pub fn render_ascii_flow(spec: &AglSpec) -> String {
+    let mut out = String::new();
+    for (i, state) in spec.flow.iter().enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        out.push_str(&format!(
+            "{}  {}\n",
+            state.name,
+            render_action(&state.action)
+        ));
+        match &state.transition {
+            TransitionTarget::Branch(name) => match spec.branches.get(name) {
+                Some(block) => {
+                    let last = block.cases.len().saturating_sub(1);
+                    for (j, case) in block.cases.iter().enumerate() {
+                        let corner = if j == last { "\u{2514}" } else { "\u{251c}" };
+                        out.push_str(&format!(
+                            "  {corner}\u{2500} if {} -> {}\n",
+                            case.condition,
+                            render_target(&case.target)
+                        ));
+                    }
+                }
+                None => out.push_str("  \u{2514}\u{2500}> branch (undefined)\n"),
+            },
+            other => out.push_str(&format!("  \u{2514}\u{2500}> {}\n", render_target(other))),
+        }
+    }
+    out
+}
+
+/// `Name`, `NAME`, `name_here` -> `name`, `name`, `name-here`: lowercase,
+/// with a `-` inserted before each uppercase letter that follows a
+/// lowercase/digit (so `MeetingPrep` -> `meeting-prep`), and underscores
+/// normalized to `-`.
+pub fn kebab_case(name: &str) -> String {
+    let mut out = String::new();
+    let mut prev_lower_or_digit = false;
+    for c in name.chars() {
+        if c == '_' || c == ' ' {
+            out.push('-');
+            prev_lower_or_digit = false;
+            continue;
+        }
+        if c.is_uppercase() && prev_lower_or_digit {
+            out.push('-');
+        }
+        out.extend(c.to_lowercase());
+        prev_lower_or_digit = c.is_lowercase() || c.is_numeric();
+    }
+    out
+}
+
+fn render_type(dt: &DataType) -> String {
+    match dt {
+        DataType::String => "str".to_string(),
+        DataType::Int => "int".to_string(),
+        DataType::Bool => "bool".to_string(),
+        DataType::List(inner) => format!("list[{}]", render_type(inner)),
+        DataType::Custom(name) => name.clone(),
+    }
+}
+
+fn render_params(params: &[TypedParam]) -> String {
+    params
+        .iter()
+        .map(|p| format!("{}: {}", p.name, render_type(&p.data_type)))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn render_action(action: &StateAction) -> String {
+    match action {
+        StateAction::Call { function, args } => format!("call({function}, {})", args.join(", ")),
+        StateAction::Map { function, iterable } => format!("map({function}, {iterable})"),
+        StateAction::Evaluate { expression } => format!("evaluate({expression})"),
+        StateAction::Gate { gate_name } => format!("gate({gate_name})"),
+    }
+}
+
+fn render_target(target: &TransitionTarget) -> String {
+    match target {
+        TransitionTarget::Next => "next".to_string(),
+        TransitionTarget::Branch(_) => "branch".to_string(),
+        TransitionTarget::Goto(name) => name.clone(),
+        TransitionTarget::Terminate(msg) => format!("TERMINATE(\"{msg}\")"),
+    }
+}
+
+fn render_invariant(rule: &InvariantRule) -> String {
+    match rule {
+        InvariantRule::DenyWithoutGate {
+            action,
+            target,
+            required_gate,
+        } => format!("deny: {action}({target}) without gate({required_gate})"),
+        InvariantRule::DenyConstraint {
+            action,
+            target,
+            condition,
+        } => format!("deny: {action}({target}) where {condition}"),
+    }
+}
+
+/// Pretty-print `spec` back to native `.agl` source. Not the compact
+/// `to_prompt` natural-language export — this round-trips the actual
+/// grammar so a reader can see precisely what was authored (and, via
+/// `render`, what an import pulled in).
+pub fn render_agl_source(spec: &AglSpec) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("spec {} {{\n", spec.name));
+    out.push_str(&format!("  in: {}\n", render_params(&spec.inputs)));
+    out.push_str(&format!("  out: {}\n", render_params(&spec.outputs)));
+    if !spec.requires.is_empty() {
+        out.push_str(&format!("  requires: {}\n", spec.requires.join(", ")));
+    }
+
+    if !spec.invariants.is_empty() {
+        out.push_str("\n  invariant {\n");
+        for rule in &spec.invariants {
+            out.push_str(&format!("    {}\n", render_invariant(rule)));
+        }
+        out.push_str("  }\n");
+    }
+
+    out.push_str("\n  flow {\n");
+    for state in &spec.flow {
+        out.push_str(&format!(
+            "    state {} -> {} -> {}\n",
+            state.name,
+            render_action(&state.action),
+            render_target(&state.transition)
+        ));
+        if let TransitionTarget::Branch(name) = &state.transition {
+            if let Some(block) = spec.branches.get(name) {
+                out.push_str(&format!("\n    branch {name} {{\n"));
+                for case in &block.cases {
+                    out.push_str(&format!(
+                        "      if {} -> {}\n",
+                        case.condition,
+                        render_target(&case.target)
+                    ));
+                }
+                out.push_str("    }\n\n");
+            }
+        }
+    }
+    out.push_str("  }\n");
+    out.push_str("}\n");
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agl::parser::parse;
+
+    const SAMPLE: &str = r#"
+    spec MeetingPrep {
+      in:  calendar_event: str, slack_channels: list[str]
+      out: agenda_update: str
+
+      invariant {
+        deny: write(calendar) without gate(human_approval)
+      }
+
+      flow {
+        state FETCH_CALENDAR  -> call(GoogleCalendar.get, calendar_event) -> next
+        state PROPOSE_UPDATE  -> gate(human_approval)                     -> EXECUTE_WRITE
+        state EXECUTE_WRITE   -> call(GoogleCalendar.update, agenda)      -> TERMINATE("Done")
+      }
+    }
+    "#;
+
+    #[test]
+    fn kebab_cases_pascal_and_snake_names() {
+        assert_eq!(kebab_case("MeetingPrep"), "meeting-prep");
+        assert_eq!(kebab_case("hubspot_sync"), "hubspot-sync");
+        assert_eq!(kebab_case("Already-Kebab"), "already-kebab");
+    }
+
+    #[test]
+    fn renders_agl_source_that_reparses() {
+        let parsed = parse(SAMPLE).unwrap();
+        let rendered = render_agl_source(&parsed.spec);
+        let reparsed = parse(&rendered).expect("re-rendered source should reparse");
+        assert_eq!(reparsed.spec, parsed.spec);
+    }
+
+    #[test]
+    fn claude_target_has_frontmatter_and_primer() {
+        let parsed = parse(SAMPLE).unwrap();
+        let doc = render(&parsed.spec, Target::Claude);
+        assert!(doc.starts_with("---\n"));
+        assert!(doc.contains("name: meeting-prep"));
+        assert!(doc.contains("description: \"Runs the meeting-prep AGL graph\""));
+        assert!(doc.contains("Execute this graph exactly as written"));
+        assert!(doc.contains("FETCH_CALENDAR"));
+        assert!(doc.contains("```agl"));
+    }
+
+    #[test]
+    fn cursor_target_has_no_frontmatter() {
+        let parsed = parse(SAMPLE).unwrap();
+        let doc = render(&parsed.spec, Target::Cursor);
+        assert!(!doc.starts_with("---\n"));
+        assert!(doc.contains("Execute this graph exactly as written"));
+        assert!(doc.contains("FETCH_CALENDAR"));
+    }
+
+    #[test]
+    fn codex_target_has_heading() {
+        let parsed = parse(SAMPLE).unwrap();
+        let doc = render(&parsed.spec, Target::Codex);
+        assert!(doc.starts_with("## MeetingPrep\n"));
+        assert!(doc.contains("Execute this graph exactly as written"));
+        assert!(doc.contains("FETCH_CALENDAR"));
+    }
+
+    const SAMPLE_WITH_REQUIRES: &str = r#"
+    spec MeetingPrep {
+      in:  calendar_event: str, slack_channels: list[str]
+      out: agenda_update: str
+      requires: GoogleCalendar.get, GoogleCalendar.update
+
+      invariant {
+        deny: write(calendar) without gate(human_approval)
+      }
+
+      flow {
+        state FETCH_CALENDAR  -> call(GoogleCalendar.get, calendar_event) -> next
+        state PROPOSE_UPDATE  -> gate(human_approval)                     -> EXECUTE_WRITE
+        state EXECUTE_WRITE   -> call(GoogleCalendar.update, agenda)      -> TERMINATE("Done")
+      }
+    }
+    "#;
+
+    #[test]
+    fn renders_agl_source_with_requires_that_reparses() {
+        let parsed = parse(SAMPLE_WITH_REQUIRES).unwrap();
+        let rendered = render_agl_source(&parsed.spec);
+        assert!(rendered.contains("requires: GoogleCalendar.get, GoogleCalendar.update"));
+        let reparsed = parse(&rendered).expect("re-rendered source should reparse");
+        assert_eq!(reparsed.spec, parsed.spec);
+    }
+
+    #[test]
+    fn skill_with_requires_includes_preflight_section() {
+        let parsed = parse(SAMPLE_WITH_REQUIRES).unwrap();
+        let doc = render(&parsed.spec, Target::Claude);
+        assert!(doc.contains("## Preflight"));
+        assert!(doc.contains("- GoogleCalendar.get"));
+        assert!(doc.contains("- GoogleCalendar.update"));
+        assert!(doc.contains("stop immediately"));
+    }
+
+    #[test]
+    fn skill_without_requires_omits_preflight_section() {
+        let parsed = parse(SAMPLE).unwrap();
+        let doc = render(&parsed.spec, Target::Claude);
+        assert!(!doc.contains("## Preflight"));
+    }
+
+    #[test]
+    fn skill_always_includes_flow_diagram_and_run_order() {
+        let parsed = parse(SAMPLE).unwrap();
+        let doc = render(&parsed.spec, Target::Claude);
+        assert!(doc.contains("## Before you start"));
+        assert!(doc.contains("## Flow"));
+        assert!(doc.contains("Do not wait for approval to start"));
+    }
+
+    #[test]
+    fn sections_appear_in_order_preflight_then_run_order_then_flow_then_source() {
+        let parsed = parse(SAMPLE_WITH_REQUIRES).unwrap();
+        let doc = render(&parsed.spec, Target::Claude);
+        let preflight = doc.find("## Preflight").expect("preflight section");
+        let run_order = doc.find("## Before you start").expect("run-order section");
+        let flow = doc.find("## Flow").expect("flow section");
+        let source = doc.find("```agl").expect("agl source block");
+        assert!(preflight < run_order);
+        assert!(run_order < flow);
+        assert!(flow < source);
+    }
+
+    #[test]
+    fn ascii_flow_shows_states_transitions_and_branch_cases() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            flow {
+                state A -> evaluate(x) -> branch
+                branch A {
+                    if cond_one -> B
+                    if cond_two -> TERMINATE("done")
+                }
+                state B -> call(Server.method, x) -> TERMINATE("also done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let diagram = render_ascii_flow(&parsed.spec);
+        assert!(diagram.contains("A  evaluate(x)"));
+        assert!(diagram.contains("if cond_one -> B"));
+        assert!(diagram.contains("if cond_two -> TERMINATE(\"done\")"));
+        assert!(diagram.contains("B  call(Server.method, x)"));
+    }
+}

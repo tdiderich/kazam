@@ -34,6 +34,20 @@ impl std::error::Error for ParseError {}
 pub struct Parsed {
     pub spec: AglSpec,
     pub state_lines: HashMap<String, usize>,
+    /// Raw `import "..."` strings declared before the `spec` keyword, in
+    /// source order. Resolving these into `InvariantRule`s is the resolver
+    /// module's job, not the parser's — the parser just records what was
+    /// asked for.
+    pub imports: Vec<String>,
+}
+
+/// An importable fragment file: only a top-level `invariant { ... }` block
+/// (no `spec` wrapper, no `in`/`out`), optionally preceded by its own
+/// `import` lines so fragments can nest.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParsedFragment {
+    pub invariants: Vec<InvariantRule>,
+    pub imports: Vec<String>,
 }
 
 struct Cursor<'a> {
@@ -126,20 +140,54 @@ impl<'a> Cursor<'a> {
 }
 
 pub fn parse(src: &str) -> Result<Parsed, ParseError> {
-    let toks = lexer::tokenize(src).map_err(|e: LexError| {
+    let toks = lex(src)?;
+    let mut cur = Cursor::new(&toks, src);
+    let imports = parse_import_lines(&mut cur)?;
+    let mut parsed = parse_spec(&mut cur)?;
+    parsed.imports = imports;
+    if cur.peek().is_some() {
+        return Err(cur.err("unexpected trailing content after spec"));
+    }
+    Ok(parsed)
+}
+
+/// Parse an importable fragment file: zero or more leading `import` lines
+/// followed by exactly one top-level `invariant { ... }` block, nothing else.
+pub fn parse_fragment(src: &str) -> Result<ParsedFragment, ParseError> {
+    let toks = lex(src)?;
+    let mut cur = Cursor::new(&toks, src);
+    let imports = parse_import_lines(&mut cur)?;
+    let invariants = parse_invariant_block(&mut cur)?;
+    if cur.peek().is_some() {
+        return Err(cur.err("unexpected trailing content after invariant block"));
+    }
+    Ok(ParsedFragment {
+        invariants,
+        imports,
+    })
+}
+
+fn lex(src: &str) -> Result<Vec<Tok>, ParseError> {
+    lexer::tokenize(src).map_err(|e: LexError| {
         let (line, col) = lexer::line_col(src, e.offset);
         ParseError {
             message: e.message,
             line,
             col,
         }
-    })?;
-    let mut cur = Cursor::new(&toks, src);
-    let spec = parse_spec(&mut cur)?;
-    if cur.peek().is_some() {
-        return Err(cur.err("unexpected trailing content after spec"));
+    })
+}
+
+/// Zero or more `import "path/to/fragment.agl"` lines. Shared by both the
+/// top-level spec parser and the fragment parser so nested imports use
+/// identical syntax.
+fn parse_import_lines(cur: &mut Cursor) -> Result<Vec<String>, ParseError> {
+    let mut imports = Vec::new();
+    while matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "import") {
+        cur.expect_kw("import")?;
+        imports.push(cur.expect_string()?);
     }
-    Ok(spec)
+    Ok(imports)
 }
 
 fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
@@ -154,6 +202,14 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
     cur.expect_kw("out")?;
     cur.expect_punct(&TokKind::Colon, "':'")?;
     let outputs = parse_param_list(cur)?;
+
+    let requires = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "requires") {
+        cur.expect_kw("requires")?;
+        cur.expect_punct(&TokKind::Colon, "':'")?;
+        parse_dotted_name_list(cur)?
+    } else {
+        Vec::new()
+    };
 
     let invariants = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "invariant") {
         parse_invariant_block(cur)?
@@ -170,12 +226,30 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
             name,
             inputs,
             outputs,
+            requires,
             invariants,
             flow,
             branches,
         },
         state_lines,
+        imports: Vec::new(),
     })
+}
+
+/// Comma-separated dotted `Server.method` names, e.g. the `requires:` line.
+/// Reuses `expect_ident` because the lexer already tokenizes a dotted name
+/// like `GoogleCalendar.get` as a single `Ident` (see `call(...)` parsing).
+fn parse_dotted_name_list(cur: &mut Cursor) -> Result<Vec<String>, ParseError> {
+    let mut names = Vec::new();
+    loop {
+        names.push(cur.expect_ident()?);
+        if cur.at_punct(&TokKind::Comma) {
+            cur.advance();
+            continue;
+        }
+        break;
+    }
+    Ok(names)
 }
 
 fn parse_param_list(cur: &mut Cursor) -> Result<Vec<TypedParam>, ParseError> {
@@ -622,5 +696,88 @@ mod tests {
         }"#;
         let parsed = parse(src).expect("should parse despite no downstream validation");
         assert_eq!(parsed.spec.branches.len(), 1);
+    }
+
+    #[test]
+    fn parses_leading_import_lines() {
+        let src = r#"
+        import "shared/human_approval.agl"
+        import "shared/other.agl"
+        spec Foo {
+            in: x: str
+            out: y: str
+            flow {
+                state A -> evaluate(x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).expect("should parse with leading imports");
+        assert_eq!(
+            parsed.imports,
+            vec![
+                "shared/human_approval.agl".to_string(),
+                "shared/other.agl".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn spec_without_imports_has_empty_import_list() {
+        let parsed = parse(SAMPLE).unwrap();
+        assert!(parsed.imports.is_empty());
+    }
+
+    #[test]
+    fn parses_a_fragment_with_only_an_invariant_block() {
+        let src = r#"invariant {
+            deny: write(hubspot) without gate(human_approval)
+        }"#;
+        let fragment = parse_fragment(src).expect("fragment should parse");
+        assert_eq!(fragment.invariants.len(), 1);
+        assert!(fragment.imports.is_empty());
+    }
+
+    #[test]
+    fn parses_a_fragment_with_nested_imports() {
+        let src = r#"
+        import "other.agl"
+        invariant {
+            deny: write(hubspot) without gate(human_approval)
+        }"#;
+        let fragment = parse_fragment(src).expect("fragment should parse");
+        assert_eq!(fragment.imports, vec!["other.agl".to_string()]);
+    }
+
+    #[test]
+    fn fragment_rejects_a_spec_wrapper() {
+        let err = parse_fragment("spec Foo { in: x: str out: y: str flow {} }").unwrap_err();
+        assert!(err.message.contains("invariant"), "{}", err.message);
+    }
+
+    #[test]
+    fn parses_a_requires_line() {
+        let src = r#"
+        spec Foo {
+            in: x: str
+            out: y: str
+            requires: HubSpot.update_contact, TechnicalSuccessHub.write_page
+
+            flow {
+                state A -> evaluate(x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).expect("should parse with a requires line");
+        assert_eq!(
+            parsed.spec.requires,
+            vec![
+                "HubSpot.update_contact".to_string(),
+                "TechnicalSuccessHub.write_page".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn spec_without_requires_has_empty_requires_list() {
+        let parsed = parse(SAMPLE).unwrap();
+        assert!(parsed.spec.requires.is_empty());
     }
 }

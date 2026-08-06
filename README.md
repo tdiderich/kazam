@@ -73,6 +73,29 @@ Annotations feed into the refresh cycle. When an agent refreshes a page, it read
 
 **MCP tools:** `annotate_page`, `list_annotations`, `update_annotation` — available over stdio and HTTP (`--local` / `--remote --token`).
 
+## Agent Graph Language (`.agl`)
+
+`.agl` turns a task into a static directed graph with mandatory approval gates, so an agent runs inside deterministic execution boundaries instead of free-form natural-language instructions.
+
+```bash
+# Parse + statically validate a spec: reachability, cycles, branch integrity,
+# invariant soundness (a write reachable without its required gate)
+kazam agl validate my-task.agl
+
+# See the graph as a plain ASCII diagram - states, actions, transitions
+kazam agl flow my-task.agl
+
+# Cross-check requires: against every call()/map() in the flow, then compile
+# to a portable skill (Claude/Cursor/Codex) with a preflight tool check and
+# the same ASCII flow diagram baked in
+kazam agl skill my-task.agl --target claude --out .claude/skills/
+
+# Compile straight to a natural-language system-prompt block instead
+kazam agl export my-task.agl
+```
+
+Specs and shared fragments live under `~/.kazam/agl/{specs,shared}/` by convention - see `CONTRIBUTING.md` for the grammar (`import`, `requires:`) and the hub layout.
+
 ## Agent workspace
 
 The workspace engine makes agents fast when working inside a kazam project.

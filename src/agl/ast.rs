@@ -8,6 +8,12 @@ pub struct AglSpec {
     pub name: String,
     pub inputs: Vec<TypedParam>,
     pub outputs: Vec<TypedParam>,
+    /// Dotted `Server.method` tool names this spec's flow depends on (e.g.
+    /// `TechnicalSuccessHub.write_page`), declared once so a compiled skill
+    /// can render a preflight check instead of failing mid-graph on a
+    /// missing tool. Empty for specs written before this field existed —
+    /// nothing downstream treats an empty list as an error.
+    pub requires: Vec<String>,
     pub invariants: Vec<InvariantRule>,
     pub flow: Vec<StateNode>,
     pub branches: HashMap<String, BranchBlock>,
