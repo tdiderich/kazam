@@ -84,6 +84,13 @@ pub fn resolved_skill_name(spec: &AglSpec) -> String {
 /// `requires:` empty means no tool restriction gets written at all - an
 /// empty `tools:` line would be worse than none, since clap/Claude Code
 /// would read it as "no tools", not "unrestricted".
+///
+/// Opt-in only (`kazam agl load --isolated`), never the default: a
+/// subagent has no way to verify a relayed "approved" came from a real
+/// human rather than the orchestrating agent's own paraphrase, so the
+/// caller must reject any spec with a gate-protected write before calling
+/// this (see `validator::has_gate_protected_writes`) - this function
+/// doesn't check that itself, it just renders.
 pub fn render_agent_file(spec: &AglSpec) -> String {
     let name = resolved_skill_name(spec);
     let body = render_body(spec);
@@ -97,10 +104,10 @@ pub fn render_agent_file(spec: &AglSpec) -> String {
 }
 
 /// A thin Claude Code skill (`.claude/skills/<name>.md`) that only routes
-/// to the subagent above. Deliberately does none of the graph's own work
-/// inline: dispatching keeps the subagent's `tools:` allowlist as the real
-/// boundary, instead of running inside whatever broader toolset the
-/// invoking context already has.
+/// to the subagent above. Only ever paired with `render_agent_file` under
+/// `--isolated`, for specs with no gate-protected write - the default
+/// (`render(spec, Target::Claude)`) runs inline instead, which is what
+/// everything with an approval gate has to do.
 pub fn render_skill_dispatcher(spec: &AglSpec) -> String {
     let name = resolved_skill_name(spec);
     let spec_name = &spec.name;

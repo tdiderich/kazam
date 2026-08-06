@@ -76,10 +76,21 @@ pub enum Command {
     /// Cursor/Codex aren't wired up here yet — use `kazam agl skill
     /// --target cursor|codex` one spec at a time until they are.
     Load {
-        /// Project directory to write .claude/agents/ and .claude/skills/
-        /// into. Defaults to the current directory.
+        /// Project directory to write .claude/skills/ (and, with
+        /// --isolated, .claude/agents/) into. Defaults to the current
+        /// directory.
         #[arg(short, long)]
         out: Option<PathBuf>,
+        /// Compile a tool-scoped subagent + a thin dispatcher skill instead
+        /// of the inline default. Use this when a graph genuinely needs
+        /// isolation - a harder tool boundary than the invoking session
+        /// has, a background/parallel run - not for anything that gates on
+        /// approval from whoever's already in the conversation: a subagent
+        /// can't verify that a relayed "approved" really came from a human,
+        /// only the inline default can, because it runs as this
+        /// conversation instead of a separate one.
+        #[arg(long)]
+        isolated: bool,
     },
 }
 
@@ -89,7 +100,7 @@ pub fn run(command: Command) -> Result<()> {
         Command::Export { path, format, out } => run_export(&path, &format, out.as_deref()),
         Command::Flow { path } => run_flow(&path),
         Command::Skill { path, target, out } => run_skill(&path, target, out.as_deref()),
-        Command::Load { out } => run_load(out.as_deref()),
+        Command::Load { out, isolated } => run_load(out.as_deref(), isolated),
     }
 }
 
@@ -278,13 +289,23 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
     Ok(())
 }
 
-/// Compiles every `~/.kazam/agl/specs/*.agl` into a `.claude/agents/<name>.md`
-/// subagent (tool-scoped by `requires:`) plus a `.claude/skills/<name>.md`
-/// dispatcher that routes to it, under `out` (default: the current
-/// directory). A spec that fails to parse, resolve, or validate is skipped
-/// with its error printed rather than aborting the whole batch — one bad
-/// spec in the hub shouldn't block loading the rest.
-fn run_load(out: Option<&Path>) -> Result<()> {
+/// Compiles every `~/.kazam/agl/specs/*.agl` into `.claude/skills/<name>.md`
+/// under `out` (default: the current directory). Default is inline: the
+/// skill embeds the full graph (primer, preflight, flow, resolved source)
+/// and runs directly in whatever session invokes it, so a `gate(...)`
+/// checks approval against the human actually in that conversation.
+///
+/// `--isolated` compiles a tool-scoped `.claude/agents/<name>.md` subagent
+/// plus a thin dispatcher skill instead - but refuses any spec with a
+/// gate-protected write (`validator::has_gate_protected_writes`), since a
+/// subagent has no way to verify a relayed "approved" came from a real
+/// human rather than the orchestrating agent's own paraphrase. Read-only
+/// specs (no writes an invariant cares about) compile to `--isolated` fine.
+///
+/// A spec that fails to parse, resolve, or validate is skipped with its
+/// error printed rather than aborting the whole batch - one bad spec in
+/// the hub shouldn't block loading the rest.
+fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
     let project_root = out.unwrap_or_else(|| Path::new("."));
     let specs_dir = home_dir()?.join(".kazam").join("agl").join("specs");
     if !specs_dir.is_dir() {
@@ -294,12 +315,14 @@ fn run_load(out: Option<&Path>) -> Result<()> {
         );
     }
 
-    let agents_dir = project_root.join(".claude").join("agents");
     let skills_dir = project_root.join(".claude").join("skills");
-    std::fs::create_dir_all(&agents_dir)
-        .with_context(|| format!("failed to create {}", agents_dir.display()))?;
     std::fs::create_dir_all(&skills_dir)
         .with_context(|| format!("failed to create {}", skills_dir.display()))?;
+    let agents_dir = project_root.join(".claude").join("agents");
+    if isolated {
+        std::fs::create_dir_all(&agents_dir)
+            .with_context(|| format!("failed to create {}", agents_dir.display()))?;
+    }
 
     let mut spec_paths: Vec<PathBuf> = std::fs::read_dir(&specs_dir)
         .with_context(|| format!("failed to read {}", specs_dir.display()))?
@@ -308,7 +331,7 @@ fn run_load(out: Option<&Path>) -> Result<()> {
         .collect();
     spec_paths.sort();
 
-    let mut loaded: Vec<(String, PathBuf, PathBuf)> = Vec::new();
+    let mut loaded: Vec<(String, Option<PathBuf>, PathBuf)> = Vec::new();
     let mut skipped: Vec<(PathBuf, String)> = Vec::new();
 
     for spec_path in spec_paths {
@@ -319,13 +342,32 @@ fn run_load(out: Option<&Path>) -> Result<()> {
         match outcome {
             Ok((parsed, diags)) if !validator::has_errors(&diags) => {
                 let name = skill::resolved_skill_name(&parsed.spec);
-                let agent_path = agents_dir.join(format!("{name}.md"));
                 let skill_path = skills_dir.join(format!("{name}.md"));
-                std::fs::write(&agent_path, skill::render_agent_file(&parsed.spec))
-                    .with_context(|| format!("failed to write {}", agent_path.display()))?;
-                std::fs::write(&skill_path, skill::render_skill_dispatcher(&parsed.spec))
-                    .with_context(|| format!("failed to write {}", skill_path.display()))?;
-                loaded.push((name, agent_path, skill_path));
+
+                if isolated {
+                    if validator::has_gate_protected_writes(&parsed.spec) {
+                        skipped.push((
+                            spec_path,
+                            "has at least one write protected by gate(human_approval) - \
+                             refusing to compile to --isolated (subagent) mode, since a \
+                             subagent can't verify a relayed approval came from a real \
+                             human. Run `kazam agl load` without --isolated for this spec."
+                                .to_string(),
+                        ));
+                        continue;
+                    }
+                    let agent_path = agents_dir.join(format!("{name}.md"));
+                    std::fs::write(&agent_path, skill::render_agent_file(&parsed.spec))
+                        .with_context(|| format!("failed to write {}", agent_path.display()))?;
+                    std::fs::write(&skill_path, skill::render_skill_dispatcher(&parsed.spec))
+                        .with_context(|| format!("failed to write {}", skill_path.display()))?;
+                    loaded.push((name, Some(agent_path), skill_path));
+                } else {
+                    let rendered = skill::render(&parsed.spec, skill::Target::Claude);
+                    std::fs::write(&skill_path, rendered)
+                        .with_context(|| format!("failed to write {}", skill_path.display()))?;
+                    loaded.push((name, None, skill_path));
+                }
             }
             Ok((_, diags)) => skipped.push((spec_path, validator::format_pretty(&diags))),
             Err(e) => skipped.push((spec_path, e.to_string())),
@@ -334,7 +376,9 @@ fn run_load(out: Option<&Path>) -> Result<()> {
 
     for (name, agent_path, skill_path) in &loaded {
         println!("loaded {name}:");
-        println!("  {}", agent_path.display());
+        if let Some(agent_path) = agent_path {
+            println!("  {}", agent_path.display());
+        }
         println!("  {}", skill_path.display());
     }
     if !skipped.is_empty() {

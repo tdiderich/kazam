@@ -4,6 +4,24 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-08-06
+
+### Changed
+- **`kazam agl load` is inline by default, not subagent-dispatch**: found
+  live, running a converted workflow for real: a subagent has no way to
+  verify a relayed "approved" came from an actual human rather than the
+  orchestrating agent's own paraphrase, since it's isolated from the
+  conversation the human is actually in. The compiled `.claude/skills/<name>.md`
+  now embeds the whole graph (primer, preflight, flow, resolved source) and
+  runs directly in whatever session invokes it, so a `gate(...)` checks
+  approval against the real human already there. `--isolated` compiles the
+  old tool-scoped subagent + thin dispatcher pair instead, for specs that
+  genuinely want isolation (a harder tool boundary, background/parallel
+  runs) - and refuses any spec with a write an invariant protects with a
+  gate (new `validator::has_gate_protected_writes`), rather than silently
+  compiling something whose approval check can't mean anything once
+  isolated.
+
 ## [1.14.0] - 2026-08-06
 
 ### Added

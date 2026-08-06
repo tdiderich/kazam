@@ -707,6 +707,40 @@ fn check_invariant_soundness(
     }
 }
 
+/// True if any state in `spec` matches a `DenyWithoutGate` invariant's
+/// action+target - i.e. it's a write a `gate(human_approval)` is meant to
+/// protect, regardless of whether it's actually reachable without one
+/// (that's a separate, already-fatal `invariant-violation`).
+///
+/// This is the graph-level rule behind why `kazam agl skill --isolated`
+/// (and `load --isolated`) refuse to compile a spec that matches: a
+/// subagent has no way to verify a relayed "approved" really came from a
+/// human rather than the orchestrating agent's own paraphrase, so anything
+/// a gate protects has to run inline, in whatever session already holds
+/// the real human. Read-only states have no such problem and can still be
+/// delegated - this only blocks specs with at least one gated write in them
+/// from being compiled to isolated mode at all, not individual states.
+pub fn has_gate_protected_writes(spec: &AglSpec) -> bool {
+    spec.invariants.iter().any(|rule| {
+        let InvariantRule::DenyWithoutGate { action, target, .. } = rule else {
+            return false;
+        };
+        spec.flow.iter().any(|state| {
+            let (function, haystack) = match &state.action {
+                StateAction::Call { function, args } => {
+                    let arg_text = args.iter().map(ArgRef::text).collect::<Vec<_>>().join(" ");
+                    (function.clone(), format!("{function} {arg_text}"))
+                }
+                StateAction::Map { function, iterable } => {
+                    (function.clone(), format!("{function} {iterable}"))
+                }
+                _ => return false,
+            };
+            action_matches(action, &function) && target_matches(target, &haystack)
+        })
+    })
+}
+
 pub fn format_pretty(diags: &[Diagnostic]) -> String {
     if diags.is_empty() {
         return "✓ valid: no issues found".to_string();
@@ -1036,5 +1070,53 @@ mod tests {
         assert!(!diags
             .iter()
             .any(|d| d.code == "undeclared-tool-dependency" || d.code == "unused-tool-dependency"));
+    }
+
+    #[test]
+    fn has_gate_protected_writes_true_for_a_correctly_gated_write() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            invariant { deny: write(hubspot) without gate(human_approval) }
+            flow {
+                state APPROVE -> gate(human_approval) -> SYNC
+                state SYNC -> call(HubSpot.update_contact, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        assert!(has_gate_protected_writes(&parsed.spec));
+    }
+
+    #[test]
+    fn has_gate_protected_writes_false_for_a_read_only_spec() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            flow {
+                state FETCH -> call(HubSpot.get_organization_details, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        assert!(!has_gate_protected_writes(&parsed.spec));
+    }
+
+    #[test]
+    fn has_gate_protected_writes_true_even_when_the_gate_is_missing() {
+        // Same as the "true" case but ungated - still a match on
+        // action+target, which is exactly why it's also an
+        // invariant-violation error separately. has_gate_protected_writes
+        // only asks "is this a write an invariant cares about", not
+        // "is it actually protected" - callers already require a clean
+        // validate() pass before this check runs.
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            invariant { deny: write(hubspot) without gate(human_approval) }
+            flow {
+                state SYNC -> call(HubSpot.update_contact, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        assert!(has_gate_protected_writes(&parsed.spec));
     }
 }
