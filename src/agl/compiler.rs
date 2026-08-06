@@ -2,7 +2,7 @@
 //! XML/Markdown block meant for direct injection into an agent's context
 //! window (Claude Code, Cursor, or any LLM runtime).
 
-use super::ast::{AglSpec, DataType, InvariantRule, StateAction, TransitionTarget};
+use super::ast::{AglSpec, ArgRef, DataType, InvariantRule, StateAction, TransitionTarget};
 
 fn render_type(dt: &DataType) -> String {
     match dt {
@@ -14,9 +14,22 @@ fn render_type(dt: &DataType) -> String {
     }
 }
 
+fn render_arg(arg: &ArgRef) -> String {
+    match arg {
+        ArgRef::Var(name) => name.clone(),
+        // No escaping - the lexer's string_lit has none either (it scans
+        // to the next raw '"'), so a literal containing '"' can't round-trip
+        // either direction. Fine for the short config strings this is for.
+        ArgRef::Literal(text) => format!("\"{text}\""),
+    }
+}
+
 fn render_action(action: &StateAction) -> String {
     match action {
-        StateAction::Call { function, args } => format!("call({function}, {})", args.join(", ")),
+        StateAction::Call { function, args } => {
+            let rendered: Vec<String> = args.iter().map(render_arg).collect();
+            format!("call({function}, {})", rendered.join(", "))
+        }
         StateAction::Map { function, iterable } => format!("map({function}, {iterable})"),
         StateAction::Evaluate { expression } => format!("evaluate({expression})"),
         StateAction::Gate { gate_name } => format!("gate({gate_name})"),

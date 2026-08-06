@@ -4,6 +4,43 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-08-06
+
+### Added
+- **`.agl` string-literal `call()`/`map()` args**: an argument can now be a
+  quoted string literal (`call(Bash, customer, "https://...")`), not only a
+  bare-ident variable reference. Comments are lexer trivia and never reach
+  the AST, so config data like a real endpoint had nowhere else to live -
+  literal args round-trip correctly through `render_agl_source`, unlike a
+  comment.
+- **`skill: <name>`**: optional spec-level field naming the compiled
+  skill/subagent, defaulting to the kebab-cased graph name when absent.
+- **Tool-scoped subagents**: `kazam agl skill` (and `load`, below) can now
+  compile a `.claude/agents/<skill>.md` subagent whose `tools:` is exactly
+  `requires:`, verbatim - the harness enforces the boundary the Preflight
+  section describes, instead of relying on the model to self-police it.
+  A matching thin `.claude/skills/<skill>.md` only dispatches to that
+  subagent via the Agent tool, so the graph never runs inline wherever the
+  skill got invoked with some other, broader toolset.
+- **`kazam agl load [--out <dir>]`**: batch-compiles every spec under
+  `~/.kazam/agl/specs/` into both files for a project. Claude Code only
+  for now - Cursor/Codex need a shared-file merge scheme this doesn't
+  build. A spec that fails to parse/resolve/validate is skipped with its
+  error printed, not aborting the whole batch.
+
+### Fixed
+- **AGL lexer rejected hyphens in idents**: real MCP tool identifiers
+  (`mcp__technical-success-hub__write_page`) are kebab-cased server names,
+  but `is_ident_char` only allowed alphanumeric/`_`/`.`. Fixed without
+  breaking a no-space `next->TERMINATE(...)` arrow, which would otherwise
+  have its `-` absorbed by a naive fix.
+- **Invariant-soundness check missed real write verbs**: `WRITE_SYNONYMS`
+  only had `write/update/set/create/delete/remove/modify`. Linear's real
+  tools are `save_issue`/`save_customer_need`, HubSpot's MCP tool is the
+  generic `manage_crm_objects` - neither matched, so the core "write
+  reachable without gate" guarantee silently never fired for either.
+  Added `save/manage/sync/publish/insert/upsert/patch/put/post`.
+
 ## [1.13.0] - 2026-08-06
 
 ### Added

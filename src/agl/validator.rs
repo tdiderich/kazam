@@ -3,7 +3,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::ast::{AglSpec, BranchBlock, InvariantRule, StateAction, StateNode, TransitionTarget};
+use super::ast::{
+    AglSpec, ArgRef, BranchBlock, InvariantRule, StateAction, StateNode, TransitionTarget,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
@@ -624,7 +626,9 @@ fn check_invariant_soundness(
                 for state in &spec.flow {
                     let (function, haystack) = match &state.action {
                         StateAction::Call { function, args } => {
-                            (function.clone(), format!("{function} {}", args.join(" ")))
+                            let arg_text =
+                                args.iter().map(ArgRef::text).collect::<Vec<_>>().join(" ");
+                            (function.clone(), format!("{function} {arg_text}"))
                         }
                         StateAction::Map { function, iterable } => {
                             (function.clone(), format!("{function} {iterable}"))
@@ -671,7 +675,10 @@ fn check_invariant_soundness(
 
                 for state in &spec.flow {
                     let (function, args_text): (String, String) = match &state.action {
-                        StateAction::Call { function, args } => (function.clone(), args.join(" ")),
+                        StateAction::Call { function, args } => (
+                            function.clone(),
+                            args.iter().map(ArgRef::text).collect::<Vec<_>>().join(" "),
+                        ),
                         StateAction::Map { function, iterable } => {
                             (function.clone(), iterable.clone())
                         }

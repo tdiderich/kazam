@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use super::ast::{
-    AglSpec, BranchBlock, BranchCase, DataType, InvariantRule, StateAction, StateNode,
+    AglSpec, ArgRef, BranchBlock, BranchCase, DataType, InvariantRule, StateAction, StateNode,
     TransitionTarget, TypedParam,
 };
 use super::lexer::{self, LexError, Tok, TokKind};
@@ -463,7 +463,7 @@ fn parse_state_action(cur: &mut Cursor) -> Result<StateAction, ParseError> {
             cur.expect_punct(&TokKind::LParen, "'('")?;
             let function = cur.expect_ident()?;
             cur.expect_punct(&TokKind::Comma, "','")?;
-            let args = parse_ident_csv(cur)?;
+            let args = parse_call_args(cur)?;
             cur.expect_punct(&TokKind::RParen, "')'")?;
             Ok(StateAction::Call { function, args })
         }
@@ -493,20 +493,28 @@ fn parse_state_action(cur: &mut Cursor) -> Result<StateAction, ParseError> {
     }
 }
 
-fn parse_ident_csv(cur: &mut Cursor) -> Result<Vec<String>, ParseError> {
-    let mut items = Vec::new();
+/// `call(...)` arguments: comma-separated, each either a bare ident (a
+/// variable reference, `ArgRef::Var`) or a quoted string literal (config
+/// data with no other home in the grammar, `ArgRef::Literal`).
+fn parse_call_args(cur: &mut Cursor) -> Result<Vec<ArgRef>, ParseError> {
+    let mut args = Vec::new();
     if cur.at_punct(&TokKind::RParen) {
-        return Ok(items);
+        return Ok(args);
     }
     loop {
-        items.push(cur.expect_ident()?);
+        let arg = if matches!(cur.peek(), Some(TokKind::Str(_))) {
+            ArgRef::Literal(cur.expect_string()?)
+        } else {
+            ArgRef::Var(cur.expect_ident()?)
+        };
+        args.push(arg);
         if cur.at_punct(&TokKind::Comma) {
             cur.advance();
             continue;
         }
         break;
     }
-    Ok(items)
+    Ok(args)
 }
 
 fn parse_transition_target(
@@ -760,6 +768,30 @@ mod tests {
     fn fragment_rejects_a_spec_wrapper() {
         let err = parse_fragment("spec Foo { in: x: str out: y: str flow {} }").unwrap_err();
         assert!(err.message.contains("invariant"), "{}", err.message);
+    }
+
+    #[test]
+    fn call_accepts_a_mix_of_var_and_string_literal_args() {
+        let src = r#"
+        spec Foo {
+            in: x: str
+            out: y: str
+            flow {
+                state A -> call(Bash, x, "https://example.com/api", customer) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).expect("should parse literal + var args");
+        let StateAction::Call { args, .. } = &parsed.spec.flow[0].action else {
+            panic!("expected a Call action");
+        };
+        assert_eq!(
+            args,
+            &vec![
+                ArgRef::Var("x".to_string()),
+                ArgRef::Literal("https://example.com/api".to_string()),
+                ArgRef::Var("customer".to_string()),
+            ]
+        );
     }
 
     #[test]

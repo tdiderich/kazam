@@ -9,7 +9,17 @@
 //! renders the spec's actual source syntax so a reader (human or LLM) can
 //! see exactly what was authored, imports and all.
 
-use super::ast::{AglSpec, DataType, InvariantRule, StateAction, TransitionTarget, TypedParam};
+use super::ast::{
+    AglSpec, ArgRef, DataType, InvariantRule, StateAction, TransitionTarget, TypedParam,
+};
+
+fn render_arg(arg: &ArgRef) -> String {
+    match arg {
+        ArgRef::Var(name) => name.clone(),
+        // No escaping - the lexer's string_lit has none either.
+        ArgRef::Literal(text) => format!("\"{text}\""),
+    }
+}
 
 /// Where a compiled skill document is meant to live.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -241,7 +251,10 @@ fn render_params(params: &[TypedParam]) -> String {
 
 fn render_action(action: &StateAction) -> String {
     match action {
-        StateAction::Call { function, args } => format!("call({function}, {})", args.join(", ")),
+        StateAction::Call { function, args } => {
+            let rendered: Vec<String> = args.iter().map(render_arg).collect();
+            format!("call({function}, {})", rendered.join(", "))
+        }
         StateAction::Map { function, iterable } => format!("map({function}, {iterable})"),
         StateAction::Evaluate { expression } => format!("evaluate({expression})"),
         StateAction::Gate { gate_name } => format!("gate({gate_name})"),
@@ -355,6 +368,31 @@ mod tests {
     #[test]
     fn renders_agl_source_that_reparses() {
         let parsed = parse(SAMPLE).unwrap();
+        let rendered = render_agl_source(&parsed.spec);
+        let reparsed = parse(&rendered).expect("re-rendered source should reparse");
+        assert_eq!(reparsed.spec, parsed.spec);
+    }
+
+    #[test]
+    fn a_string_literal_call_arg_survives_the_compile_round_trip() {
+        // The whole point of ArgRef::Literal (kz-700a): a real endpoint the
+        // graph needs has nowhere else to live, since comments are lexer
+        // trivia and never reach the AST. A literal arg does, and this
+        // proves the compiled output actually carries it, not just source.
+        let src = r#"
+        spec Foo {
+            in: customer: str
+            out: y: bool
+            flow {
+                state HIT_API -> call(Bash, customer, "https://example.com/enrich") -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let doc = render(&parsed.spec, Target::Claude);
+        assert!(
+            doc.contains(r#"call(Bash, customer, "https://example.com/enrich")"#),
+            "doc: {doc}"
+        );
         let rendered = render_agl_source(&parsed.spec);
         let reparsed = parse(&rendered).expect("re-rendered source should reparse");
         assert_eq!(reparsed.spec, parsed.spec);

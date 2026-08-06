@@ -61,10 +61,34 @@ pub struct StateNode {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum StateAction {
-    Call { function: String, args: Vec<String> },
+    Call { function: String, args: Vec<ArgRef> },
     Map { function: String, iterable: String },
     Evaluate { expression: String },
     Gate { gate_name: String },
+}
+
+/// A `call(...)` argument: either a bare-ident variable reference
+/// (`customer`, resolved against the spec's own `in:`/local names at
+/// runtime) or a quoted string literal (`"https://..."`, config data with
+/// nowhere else to live now that lexer comments never reach the AST — see
+/// `.agl` files noting kz-700a). Both round-trip through `render_agl_source`
+/// distinctly, unlike a comment.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ArgRef {
+    Var(String),
+    Literal(String),
+}
+
+impl ArgRef {
+    /// The inner text either way, for callers that only need to pattern
+    /// match against it (the invariant checker's word/substring scans) and
+    /// don't care whether it came from an ident or a string literal.
+    pub fn text(&self) -> &str {
+        match self {
+            ArgRef::Var(s) => s,
+            ArgRef::Literal(s) => s,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
