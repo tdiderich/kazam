@@ -108,7 +108,9 @@ by convention rather than any hub-management subcommand:
 ```
 ~/.kazam/agl/
   specs/    authored .agl specs, one per task
-  shared/   importable fragments (invariant { ... } blocks only)
+  shared/   importable fragments (invariant and/or cache blocks)
+  cache/    <name>.jsonl per named cache block - never touched by
+            kazam agl load, so regenerating a skill can't lose data
 ```
 
 A bare name with no `/` and no `.agl` extension, passed to `validate`,
@@ -129,6 +131,14 @@ Grammar beyond what's in `PRODUCT.md`/`README.md`:
   a preflight instruction: confirm every tool is available before executing
   any state, abort immediately if one is missing, rather than discovering
   the gap mid-graph after other states already ran.
+- `cache NAME { field: type, ... }`, zero or more, after `requires:`/
+  `skill:`, in a spec and/or a fragment it imports. Two blocks landing on
+  the same name with different fields is a hard error. `kazam agl skill`
+  renders a `## Cache` section per block naming its file
+  (`~/.kazam/agl/cache/NAME.jsonl`), its schema, and the check-before-
+  resolve / append-after-resolve convention. `kazam agl cache-migrate
+  <path> [--name NAME]` backfills an existing cache file's lines with a
+  type-appropriate default for any field the schema has since gained.
 
 `kazam agl flow <spec>` prints a plain ASCII rendering of the graph, states,
 actions, transitions, branch fan-out, meant as a quick "what does this

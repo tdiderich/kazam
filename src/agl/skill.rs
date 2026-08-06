@@ -130,6 +130,11 @@ fn render_body(spec: &AglSpec) -> String {
         out.push_str(&preflight);
         out.push('\n');
     }
+    let cache_section = render_cache(spec);
+    if !cache_section.is_empty() {
+        out.push_str(&cache_section);
+        out.push('\n');
+    }
     out.push_str(RUN_ORDER);
     out.push_str("\n\n## Flow\n\n```\n");
     out.push_str(&render_ascii_flow(spec));
@@ -163,6 +168,46 @@ fn render_preflight(spec: &AglSpec) -> String {
     );
     for tool in &spec.requires {
         out.push_str(&format!("- {tool}\n"));
+    }
+    out
+}
+
+/// The path a cache block's runtime data lives at, outside the compiled
+/// skill entirely - `~` (not a resolved absolute path), since this string
+/// is only ever embedded as instructions for whatever agent executes the
+/// graph, and it resolves `~` with its own tools.
+pub fn cache_file_path(name: &str) -> String {
+    format!("~/.kazam/agl/cache/{name}.jsonl")
+}
+
+/// Instructions for each declared cache: where its file lives, its schema,
+/// and the check-before-resolve / append-after-resolve convention. Empty
+/// string (no section at all) when the spec declares no cache, same
+/// convention as `render_preflight`.
+fn render_cache(spec: &AglSpec) -> String {
+    if spec.cache.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from(
+        "## Cache\n\nThis graph reads and writes local JSONL caches, outside this skill file \
+         entirely - `kazam agl load` regenerating this file never touches them. For each cache \
+         below, before doing a lookup it would otherwise repeat, check the file for the most \
+         recent line matching what you need (whichever field identifies a record, like \
+         `customer`). Use it if found. Otherwise resolve normally, then append a new JSON line \
+         with every field you now know.\n\n",
+    );
+    for block in &spec.cache {
+        out.push_str(&format!("### {}\n\n", block.name));
+        out.push_str(&format!("File: `{}`\n\n", cache_file_path(&block.name)));
+        out.push_str("Fields (each line one JSON object):\n");
+        for field in &block.fields {
+            out.push_str(&format!(
+                "- {}: {}\n",
+                field.name,
+                render_type(&field.data_type)
+            ));
+        }
+        out.push('\n');
     }
     out
 }
@@ -308,6 +353,14 @@ pub fn render_agl_source(spec: &AglSpec) -> String {
         out.push_str(&format!("  skill: {skill_name}\n"));
     }
 
+    for block in &spec.cache {
+        out.push_str(&format!(
+            "  cache {} {{ {} }}\n",
+            block.name,
+            render_params(&block.fields)
+        ));
+    }
+
     if !spec.invariants.is_empty() {
         out.push_str("\n  invariant {\n");
         for rule in &spec.invariants {
@@ -378,6 +431,63 @@ mod tests {
         let rendered = render_agl_source(&parsed.spec);
         let reparsed = parse(&rendered).expect("re-rendered source should reparse");
         assert_eq!(reparsed.spec, parsed.spec);
+    }
+
+    #[test]
+    fn cache_blocks_round_trip_through_render_agl_source() {
+        let src = r#"
+        spec CallPrep {
+            in: customer: str
+            out: y: bool
+
+            cache slack-lookups {
+                customer: str, int_channel: str
+            }
+            cache call-prep-timestamps {
+                customer: str, last_call_date: str
+            }
+
+            flow {
+                state A -> evaluate(customer) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let rendered = render_agl_source(&parsed.spec);
+        assert!(rendered.contains("cache slack-lookups"));
+        assert!(rendered.contains("cache call-prep-timestamps"));
+        let reparsed = parse(&rendered).expect("re-rendered source should reparse");
+        assert_eq!(reparsed.spec, parsed.spec);
+    }
+
+    #[test]
+    fn compiled_skill_includes_a_cache_section_per_block() {
+        let src = r#"
+        spec CallPrep {
+            in: customer: str
+            out: y: bool
+
+            cache slack-lookups {
+                customer: str, int_channel: str
+            }
+
+            flow {
+                state A -> evaluate(customer) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let doc = render(&parsed.spec, Target::Claude);
+        assert!(doc.contains("## Cache"));
+        assert!(doc.contains("### slack-lookups"));
+        assert!(doc.contains("~/.kazam/agl/cache/slack-lookups.jsonl"));
+        assert!(doc.contains("- customer: str"));
+        assert!(doc.contains("- int_channel: str"));
+    }
+
+    #[test]
+    fn compiled_skill_omits_cache_section_when_spec_declares_none() {
+        let parsed = parse(SAMPLE).unwrap();
+        let doc = render(&parsed.spec, Target::Claude);
+        assert!(!doc.contains("## Cache"));
     }
 
     #[test]

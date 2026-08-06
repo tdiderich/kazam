@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 use super::ast::{
-    AglSpec, ArgRef, BranchBlock, BranchCase, DataType, InvariantRule, StateAction, StateNode,
-    TransitionTarget, TypedParam,
+    AglSpec, ArgRef, BranchBlock, BranchCase, CacheBlock, DataType, InvariantRule, StateAction,
+    StateNode, TransitionTarget, TypedParam,
 };
 use super::lexer::{self, LexError, Tok, TokKind};
 
@@ -41,12 +41,13 @@ pub struct Parsed {
     pub imports: Vec<String>,
 }
 
-/// An importable fragment file: only a top-level `invariant { ... }` block
-/// (no `spec` wrapper, no `in`/`out`), optionally preceded by its own
-/// `import` lines so fragments can nest.
+/// An importable fragment file: zero or more leading `import` lines, then
+/// zero or more named `cache { ... }` blocks, then an optional top-level
+/// `invariant { ... }` block. No `spec` wrapper, no `in`/`out`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedFragment {
     pub invariants: Vec<InvariantRule>,
+    pub cache: Vec<CacheBlock>,
     pub imports: Vec<String>,
 }
 
@@ -151,18 +152,25 @@ pub fn parse(src: &str) -> Result<Parsed, ParseError> {
     Ok(parsed)
 }
 
-/// Parse an importable fragment file: zero or more leading `import` lines
-/// followed by exactly one top-level `invariant { ... }` block, nothing else.
+/// Parse an importable fragment file: leading `import` lines, then zero or
+/// more named `cache { ... }` blocks, then an optional `invariant { ... }`
+/// block, in that order, nothing else.
 pub fn parse_fragment(src: &str) -> Result<ParsedFragment, ParseError> {
     let toks = lex(src)?;
     let mut cur = Cursor::new(&toks, src);
     let imports = parse_import_lines(&mut cur)?;
-    let invariants = parse_invariant_block(&mut cur)?;
+    let cache = parse_cache_blocks(&mut cur)?;
+    let invariants = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "invariant") {
+        parse_invariant_block(&mut cur)?
+    } else {
+        Vec::new()
+    };
     if cur.peek().is_some() {
-        return Err(cur.err("unexpected trailing content after invariant block"));
+        return Err(cur.err("unexpected trailing content in fragment"));
     }
     Ok(ParsedFragment {
         invariants,
+        cache,
         imports,
     })
 }
@@ -219,6 +227,8 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
         None
     };
 
+    let cache = parse_cache_blocks(cur)?;
+
     let invariants = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "invariant") {
         parse_invariant_block(cur)?
     } else {
@@ -236,6 +246,7 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
             outputs,
             requires,
             skill,
+            cache,
             invariants,
             flow,
             branches,
@@ -243,6 +254,22 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
         state_lines,
         imports: Vec::new(),
     })
+}
+
+/// Zero or more named `cache NAME { field: type, ... }` blocks. Shared by
+/// the spec parser and the fragment parser so both use identical syntax -
+/// a spec can declare its own inline, a fragment declares one to share.
+fn parse_cache_blocks(cur: &mut Cursor) -> Result<Vec<CacheBlock>, ParseError> {
+    let mut blocks = Vec::new();
+    while matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "cache") {
+        cur.expect_kw("cache")?;
+        let name = cur.expect_ident()?;
+        cur.expect_punct(&TokKind::LBrace, "'{'")?;
+        let fields = parse_param_list(cur)?;
+        cur.expect_punct(&TokKind::RBrace, "'}'")?;
+        blocks.push(CacheBlock { name, fields });
+    }
+    Ok(blocks)
 }
 
 /// Comma-separated dotted `Server.method` names, e.g. the `requires:` line.
@@ -766,8 +793,11 @@ mod tests {
 
     #[test]
     fn fragment_rejects_a_spec_wrapper() {
+        // invariant is now optional in a fragment (cache-only fragments are
+        // valid), so a stray `spec` wrapper surfaces as trailing content
+        // rather than a missing-invariant error.
         let err = parse_fragment("spec Foo { in: x: str out: y: str flow {} }").unwrap_err();
-        assert!(err.message.contains("invariant"), "{}", err.message);
+        assert!(err.message.contains("trailing content"), "{}", err.message);
     }
 
     #[test]
@@ -843,5 +873,75 @@ mod tests {
     fn spec_without_skill_line_has_none() {
         let parsed = parse(SAMPLE).unwrap();
         assert_eq!(parsed.spec.skill, None);
+    }
+
+    #[test]
+    fn parses_multiple_named_cache_blocks() {
+        let src = r#"
+        spec Foo {
+            in: x: str
+            out: y: str
+
+            cache slack-lookups {
+                customer: str,
+                int_channel: str
+            }
+            cache call-prep-timestamps {
+                customer: str,
+                last_call_date: str
+            }
+
+            flow {
+                state A -> evaluate(x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).expect("should parse two named cache blocks");
+        assert_eq!(parsed.spec.cache.len(), 2);
+        assert_eq!(parsed.spec.cache[0].name, "slack-lookups");
+        assert_eq!(
+            parsed.spec.cache[0].fields,
+            vec![
+                TypedParam {
+                    name: "customer".to_string(),
+                    data_type: DataType::String
+                },
+                TypedParam {
+                    name: "int_channel".to_string(),
+                    data_type: DataType::String
+                },
+            ]
+        );
+        assert_eq!(parsed.spec.cache[1].name, "call-prep-timestamps");
+    }
+
+    #[test]
+    fn spec_without_cache_blocks_has_empty_cache() {
+        let parsed = parse(SAMPLE).unwrap();
+        assert!(parsed.spec.cache.is_empty());
+    }
+
+    #[test]
+    fn fragment_can_declare_a_cache_block_with_no_invariant() {
+        let src = r#"cache slack-lookups {
+            customer: str,
+            int_channel: str
+        }"#;
+        let fragment = parse_fragment(src).expect("cache-only fragment should parse");
+        assert_eq!(fragment.cache.len(), 1);
+        assert_eq!(fragment.cache[0].name, "slack-lookups");
+        assert!(fragment.invariants.is_empty());
+    }
+
+    #[test]
+    fn fragment_can_declare_both_cache_and_invariant() {
+        let src = r#"cache slack-lookups {
+            customer: str
+        }
+        invariant {
+            deny: write(hubspot) without gate(human_approval)
+        }"#;
+        let fragment = parse_fragment(src).expect("cache + invariant fragment should parse");
+        assert_eq!(fragment.cache.len(), 1);
+        assert_eq!(fragment.invariants.len(), 1);
     }
 }

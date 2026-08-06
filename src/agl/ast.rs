@@ -18,6 +18,15 @@ pub struct AglSpec {
     /// `None` means the caller should default to a kebab-cased `name`
     /// (`skill::default_skill_name`) — most specs need this unset.
     pub skill: Option<String>,
+    /// Named local JSONL caches this spec's runtime reads and appends to,
+    /// outside the compiled skill entirely so `kazam agl load` regenerating
+    /// the skill never touches cached data. Zero or more - a spec can
+    /// declare its own inline (unique to it) and/or pull in shared ones via
+    /// `import` from a fragment (every spec importing that fragment gets
+    /// the same named block, so they share one file). A block's `name` is
+    /// its file identity: `~/.kazam/agl/cache/<name>.jsonl`. Two blocks
+    /// landing on the same name with different fields is a hard error.
+    pub cache: Vec<CacheBlock>,
     pub invariants: Vec<InvariantRule>,
     pub flow: Vec<StateNode>,
     pub branches: HashMap<String, BranchBlock>,
@@ -27,6 +36,14 @@ pub struct AglSpec {
 pub struct TypedParam {
     pub name: String,
     pub data_type: DataType,
+}
+
+/// `cache <name> { field: type, ... }` - the typed shape of one JSONL file
+/// at `~/.kazam/agl/cache/<name>.jsonl`. See `AglSpec::cache`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CacheBlock {
+    pub name: String,
+    pub fields: Vec<TypedParam>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

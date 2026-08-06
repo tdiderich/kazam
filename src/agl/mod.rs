@@ -92,6 +92,19 @@ pub enum Command {
         #[arg(long)]
         isolated: bool,
     },
+    /// Bring an existing ~/.kazam/agl/cache/<name>.jsonl file's lines up to
+    /// a cache block's current declared fields. Adds a type-appropriate
+    /// default (empty string, 0, false, []) for any field a line is
+    /// missing; never removes or otherwise touches fields already present.
+    CacheMigrate {
+        /// Path to the .agl spec (or fragment) declaring the cache block,
+        /// or a bare name resolved against ~/.kazam/agl/specs/<name>.agl
+        path: PathBuf,
+        /// Which declared cache block to migrate, when the spec declares
+        /// more than one. Required only in that case.
+        #[arg(long)]
+        name: Option<String>,
+    },
 }
 
 pub fn run(command: Command) -> Result<()> {
@@ -101,6 +114,7 @@ pub fn run(command: Command) -> Result<()> {
         Command::Flow { path } => run_flow(&path),
         Command::Skill { path, target, out } => run_skill(&path, target, out.as_deref()),
         Command::Load { out, isolated } => run_load(out.as_deref(), isolated),
+        Command::CacheMigrate { path, name } => run_cache_migrate(&path, name.as_deref()),
     }
 }
 
@@ -132,18 +146,32 @@ fn resolve_spec_path(path: &Path) -> Result<PathBuf> {
     Ok(path.to_path_buf())
 }
 
+/// Merge an import resolution's invariants and cache blocks into `parsed`.
+/// A cache block pulled in via import that collides by name with one the
+/// spec declared inline (or with another import) is the same conflict
+/// `resolver::merge_cache_block` already checks - reused here so inline and
+/// imported cache blocks go through identical conflict handling.
+fn merge_resolved(parsed: &mut parser::Parsed, resolved: resolver::ResolvedImports) -> Result<()> {
+    parsed.spec.invariants.extend(resolved.invariants);
+    for block in resolved.cache {
+        resolver::merge_cache_block(&mut parsed.spec.cache, block)?;
+    }
+    Ok(())
+}
+
 /// Parse the spec at `path` and resolve its `import` lines, extending
-/// `spec.invariants` with everything they transitively pull in. Shared by
-/// `export` and `skill` so an import's invariants are always in force on
-/// every path that eventually renders a spec. `validate` inlines the same
-/// two steps itself, since it needs to distinguish a parse error from a
-/// resolution error in its `--json` output.
+/// `spec.invariants`/`spec.cache` with everything they transitively pull
+/// in. Shared by `export` and `skill` so an import's invariants and cache
+/// blocks are always in force on every path that eventually renders a
+/// spec. `validate` inlines the same two steps itself, since it needs to
+/// distinguish a parse error from a resolution error in its `--json` output.
 fn load_spec(path: &Path) -> Result<parser::Parsed> {
     let src = read_source(path)?;
     let mut parsed = parser::parse(&src).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
-    let extra = resolver::resolve_imports(path, &parsed.imports)
+    let resolved = resolver::resolve_imports(path, &parsed.imports)
         .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
-    parsed.spec.invariants.extend(extra);
+    merge_resolved(&mut parsed, resolved)
+        .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
     Ok(parsed)
 }
 
@@ -174,21 +202,20 @@ fn run_validate(path: &Path, json: bool, tools: Option<&Path>) -> Result<()> {
         }
     };
 
-    match resolver::resolve_imports(&resolved_path, &parsed.imports) {
-        Ok(extra) => parsed.spec.invariants.extend(extra),
-        Err(e) => {
-            if json {
-                let obj = serde_json::json!({
-                    "valid": false,
-                    "resolution_error": e.to_string(),
-                });
-                println!("{}", serde_json::to_string_pretty(&obj)?);
-            } else {
-                println!("{}: import resolution error", resolved_path.display());
-                println!("  {e}");
-            }
-            std::process::exit(1);
+    let resolution = resolver::resolve_imports(&resolved_path, &parsed.imports)
+        .and_then(|resolved| merge_resolved(&mut parsed, resolved));
+    if let Err(e) = resolution {
+        if json {
+            let obj = serde_json::json!({
+                "valid": false,
+                "resolution_error": e.to_string(),
+            });
+            println!("{}", serde_json::to_string_pretty(&obj)?);
+        } else {
+            println!("{}: import resolution error", resolved_path.display());
+            println!("  {e}");
         }
+        std::process::exit(1);
     }
 
     let mut diags = validator::validate(&parsed.spec, &parsed.state_lines);
@@ -393,5 +420,112 @@ fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
     if loaded.is_empty() {
         bail!("no valid specs loaded");
     }
+    Ok(())
+}
+
+/// A type-appropriate placeholder for a cache field a JSONL line predates -
+/// `null` for `Custom`, since there's no real spelling of "empty" for a
+/// type this generic outside the schema author's own convention.
+fn cache_default_for_type(dt: &ast::DataType) -> serde_json::Value {
+    match dt {
+        ast::DataType::String => serde_json::Value::String(String::new()),
+        ast::DataType::Int => serde_json::Value::Number(0.into()),
+        ast::DataType::Bool => serde_json::Value::Bool(false),
+        ast::DataType::List(_) => serde_json::Value::Array(Vec::new()),
+        ast::DataType::Custom(_) => serde_json::Value::Null,
+    }
+}
+
+/// Brings `~/.kazam/agl/cache/<name>.jsonl` up to a cache block's current
+/// declared fields: every existing line gets any field it's missing added
+/// with a type-appropriate default. Fields already present, and the file's
+/// line order, are never touched - this only ever adds, never removes or
+/// reorders.
+fn run_cache_migrate(path: &Path, name: Option<&str>) -> Result<()> {
+    let resolved_path = resolve_spec_path(path)?;
+    let parsed = load_spec(&resolved_path)?;
+
+    let block = match (parsed.spec.cache.as_slice(), name) {
+        ([], _) => bail!(
+            "{} declares no cache - nothing to migrate",
+            resolved_path.display()
+        ),
+        ([only], None) => only,
+        (many, None) => bail!(
+            "{} declares {} caches ({}) - pass --name to pick one",
+            resolved_path.display(),
+            many.len(),
+            many.iter()
+                .map(|b| b.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        (many, Some(want)) => many.iter().find(|b| b.name == want).with_context(|| {
+            format!(
+                "{} has no cache named '{want}' - declared: {}",
+                resolved_path.display(),
+                many.iter()
+                    .map(|b| b.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        })?,
+    };
+
+    let cache_path = home_dir()?
+        .join(".kazam")
+        .join("agl")
+        .join("cache")
+        .join(format!("{}.jsonl", block.name));
+    if !cache_path.is_file() {
+        println!(
+            "no cache file yet at {} - nothing to migrate",
+            cache_path.display()
+        );
+        return Ok(());
+    }
+
+    let content = std::fs::read_to_string(&cache_path)
+        .with_context(|| format!("failed to read {}", cache_path.display()))?;
+    let mut migrated_lines = Vec::new();
+    let mut changed = 0usize;
+    let mut total = 0usize;
+    for line in content.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        total += 1;
+        let mut obj: serde_json::Map<String, serde_json::Value> = serde_json::from_str(line)
+            .with_context(|| format!("{}: not a JSON object: {line:?}", cache_path.display()))?;
+        let mut line_changed = false;
+        for field in &block.fields {
+            if !obj.contains_key(&field.name) {
+                obj.insert(field.name.clone(), cache_default_for_type(&field.data_type));
+                line_changed = true;
+            }
+        }
+        if line_changed {
+            changed += 1;
+        }
+        migrated_lines.push(serde_json::to_string(&obj)?);
+    }
+
+    if changed == 0 {
+        println!(
+            "{} already matches the declared fields for '{}' - nothing to migrate",
+            cache_path.display(),
+            block.name
+        );
+        return Ok(());
+    }
+
+    let mut out = migrated_lines.join("\n");
+    out.push('\n');
+    std::fs::write(&cache_path, out)
+        .with_context(|| format!("failed to write {}", cache_path.display()))?;
+    println!(
+        "migrated {changed} of {total} line(s) in {}",
+        cache_path.display()
+    );
     Ok(())
 }

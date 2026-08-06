@@ -4,6 +4,25 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-08-06
+
+### Added
+- **Named `cache { field: type, ... }` blocks**: a spec can declare zero or
+  more, inline for its own use or pulled in via `import` from a shared
+  fragment (so every spec importing that fragment shares the same cache).
+  A block's name is its file identity: `~/.kazam/agl/cache/<name>.jsonl`,
+  deliberately outside the compiled skill entirely, so `kazam agl load`
+  regenerating the skill can never lose cached data. Two blocks landing on
+  the same name with different fields is a hard error at resolution time.
+  The compiled skill gets a `## Cache` section per block: file path,
+  schema, and the check-before-resolve / append-after-resolve convention.
+- **`kazam agl cache-migrate <path> [--name <block>]`**: brings an existing
+  cache file's lines up to a block's current declared fields. Adds a
+  type-appropriate default for any field a line predates (empty string,
+  `0`, `false`, `[]`); never touches fields already present or reorders
+  lines. `--name` is required only when a spec declares more than one
+  cache block.
+
 ## [1.15.0] - 2026-08-06
 
 ### Changed
