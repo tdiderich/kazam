@@ -33,6 +33,13 @@ fn render_action(action: &StateAction) -> String {
         StateAction::Map { function, iterable } => format!("map({function}, {iterable})"),
         StateAction::Evaluate { expression } => format!("evaluate({expression})"),
         StateAction::Gate { gate_name } => format!("gate({gate_name})"),
+        StateAction::Fan {
+            spec_name,
+            iterable,
+        } => {
+            format!("fan({spec_name}, {})", render_arg(iterable))
+        }
+        StateAction::Watch { condition } => format!("watch({condition})"),
     }
 }
 

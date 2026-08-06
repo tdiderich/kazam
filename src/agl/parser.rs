@@ -514,8 +514,25 @@ fn parse_state_action(cur: &mut Cursor) -> Result<StateAction, ParseError> {
             cur.expect_punct(&TokKind::RParen, "')'")?;
             Ok(StateAction::Gate { gate_name })
         }
+        "fan" => {
+            cur.expect_punct(&TokKind::LParen, "'('")?;
+            let spec_name = cur.expect_ident()?;
+            cur.expect_punct(&TokKind::Comma, "','")?;
+            let iterable = parse_one_arg_ref(cur)?;
+            cur.expect_punct(&TokKind::RParen, "')'")?;
+            Ok(StateAction::Fan {
+                spec_name,
+                iterable,
+            })
+        }
+        "watch" => {
+            cur.expect_punct(&TokKind::LParen, "'('")?;
+            let condition = consume_raw_phrase_until_rparen(cur)?;
+            cur.expect_punct(&TokKind::RParen, "')'")?;
+            Ok(StateAction::Watch { condition })
+        }
         other => Err(cur.err(format!(
-            "unknown action '{other}', expected one of call/map/evaluate/gate"
+            "unknown action '{other}', expected one of call/map/evaluate/gate/fan/watch"
         ))),
     }
 }
@@ -529,12 +546,7 @@ fn parse_call_args(cur: &mut Cursor) -> Result<Vec<ArgRef>, ParseError> {
         return Ok(args);
     }
     loop {
-        let arg = if matches!(cur.peek(), Some(TokKind::Str(_))) {
-            ArgRef::Literal(cur.expect_string()?)
-        } else {
-            ArgRef::Var(cur.expect_ident()?)
-        };
-        args.push(arg);
+        args.push(parse_one_arg_ref(cur)?);
         if cur.at_punct(&TokKind::Comma) {
             cur.advance();
             continue;
@@ -542,6 +554,19 @@ fn parse_call_args(cur: &mut Cursor) -> Result<Vec<ArgRef>, ParseError> {
         break;
     }
     Ok(args)
+}
+
+/// One `call()`-style argument: a bare ident (`ArgRef::Var`) or a quoted
+/// string literal (`ArgRef::Literal`). Factored out of `parse_call_args` so
+/// `fan()`'s single second argument (a collection variable, or a quoted
+/// count when there's nothing to iterate over, just a bound) can reuse the
+/// exact same Var-vs-Literal rule instead of a parallel implementation.
+fn parse_one_arg_ref(cur: &mut Cursor) -> Result<ArgRef, ParseError> {
+    if matches!(cur.peek(), Some(TokKind::Str(_))) {
+        Ok(ArgRef::Literal(cur.expect_string()?))
+    } else {
+        Ok(ArgRef::Var(cur.expect_ident()?))
+    }
 }
 
 fn parse_transition_target(

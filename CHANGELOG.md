@@ -4,6 +4,26 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-08-06
+
+### Added
+- **`fan(SpecName, iterable)`**: one primitive for both bounded composition
+  and bounded looping. Runs another named spec once per item of `iterable`
+  (a collection variable already in scope), or `fan(SpecName, "5")` with a
+  quoted count instead, run it up to that many rounds when there's no
+  pre-existing set, just a cap. `validator::has_gate_protected_writes`
+  treats any spec containing a `fan()` as gate-protected unconditionally
+  (conservative on purpose, it never resolves the fanned spec to check its
+  own gates), so a spec that fans always refuses `kazam agl load
+  --isolated` and always runs inline, keeping the real human present for
+  every round's gates. `kazam agl load` warns, doesn't fail, when a
+  `fan()` target has no matching `~/.kazam/agl/specs/<name>.agl`.
+- **`watch(CONDITION)`**: a new action for polling an external condition
+  (a build finishing, a CI check going green) rather than waiting on a
+  human. Not a `gate()` variant, a distinct primitive - the executor stops
+  and reports if the condition text names a time bound and it's exceeded,
+  rather than waiting indefinitely.
+
 ## [1.17.0] - 2026-08-06
 
 ### Added

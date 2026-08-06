@@ -150,6 +150,20 @@ activity-summary)`. `kazam agl skill`/`load` check every distinct word
 across a spec's `evaluate(...)` expressions against real files in that
 directory and embed each match into a `## Templates` section.
 
+- `fan(SpecName, iterable)`, one primitive for composition and bounded
+  looping. `iterable` is a bare ident (an existing collection variable) or
+  a quoted count (`fan(SpecName, "5")`, a bound with nothing to iterate
+  over). `validator::has_gate_protected_writes` treats any spec containing
+  a `fan()` as gate-protected unconditionally - it never resolves the
+  fanned spec to check whether it actually has gates, every real fan
+  target in practice already does - so a fanning spec always refuses
+  `--isolated` and always runs inline. `kazam agl load` warns (doesn't
+  fail) if `SpecName` has no matching `~/.kazam/agl/specs/<name>.agl`.
+- `watch(CONDITION)`, a distinct action from `gate()`: polls an external
+  condition (CI status, a build finishing) rather than waiting on a human.
+  If `CONDITION`'s text names a time bound and it's exceeded, the executor
+  stops and reports rather than waiting indefinitely.
+
 `kazam agl flow <spec>` prints a plain ASCII rendering of the graph, states,
 actions, transitions, branch fan-out, meant as a quick "what does this
 actually do" read for a human, separate from `kazam agl skill`'s per-target

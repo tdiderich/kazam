@@ -304,6 +304,23 @@ fn resolve_referenced_templates(spec: &ast::AglSpec) -> Result<Vec<(String, Stri
     Ok(found)
 }
 
+/// Every `spec_name` a `fan()` state names that has no corresponding
+/// `~/.kazam/agl/specs/<kebab-name>.agl` file. Unlike a missing template
+/// (silently fine, evaluate() just runs without boilerplate) a missing fan
+/// target means the graph names a step that can't run at all - worth a
+/// warning at `load` time, but not a hard failure: the spec might still be
+/// mid-authoring, and `validate`/`skill` on this spec alone already caught
+/// every error that actually blocks compiling it.
+fn missing_fan_specs(spec: &ast::AglSpec, specs_dir: &Path) -> Vec<String> {
+    skill::referenced_fan_specs(spec)
+        .into_iter()
+        .filter(|name| {
+            let candidate = specs_dir.join(format!("{}.agl", skill::kebab_case(name)));
+            !candidate.is_file()
+        })
+        .collect()
+}
+
 fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<()> {
     let resolved_path = resolve_spec_path(path)?;
     let parsed = load_spec(&resolved_path)?;
@@ -381,6 +398,7 @@ fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
 
     let mut loaded: Vec<(String, Option<PathBuf>, PathBuf)> = Vec::new();
     let mut skipped: Vec<(PathBuf, String)> = Vec::new();
+    let mut warnings: Vec<(PathBuf, Vec<String>)> = Vec::new();
 
     for spec_path in spec_paths {
         let outcome = load_spec(&spec_path).map(|parsed| {
@@ -392,6 +410,22 @@ fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
                 let name = skill::resolved_skill_name(&parsed.spec);
                 let skill_path = skills_dir.join(format!("{name}.md"));
                 let templates = resolve_referenced_templates(&parsed.spec)?;
+                let missing_fans = missing_fan_specs(&parsed.spec, &specs_dir);
+                if !missing_fans.is_empty() {
+                    warnings.push((
+                        spec_path.clone(),
+                        missing_fans
+                            .iter()
+                            .map(|n| {
+                                format!(
+                                    "fan() names '{n}', no {}.agl found in {}",
+                                    skill::kebab_case(n),
+                                    specs_dir.display()
+                                )
+                            })
+                            .collect(),
+                    ));
+                }
 
                 if isolated {
                     if validator::has_gate_protected_writes(&parsed.spec) {
@@ -432,6 +466,15 @@ fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
             println!("  {}", agent_path.display());
         }
         println!("  {}", skill_path.display());
+    }
+    if !warnings.is_empty() {
+        println!("\nwarnings on {} spec(s):", warnings.len());
+        for (path, lines) in &warnings {
+            println!("  {}", path.display());
+            for line in lines {
+                println!("    {line}");
+            }
+        }
     }
     if !skipped.is_empty() {
         println!("\nskipped {} spec(s):", skipped.len());

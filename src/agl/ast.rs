@@ -78,10 +78,42 @@ pub struct StateNode {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum StateAction {
-    Call { function: String, args: Vec<ArgRef> },
-    Map { function: String, iterable: String },
-    Evaluate { expression: String },
-    Gate { gate_name: String },
+    Call {
+        function: String,
+        args: Vec<ArgRef>,
+    },
+    Map {
+        function: String,
+        iterable: String,
+    },
+    Evaluate {
+        expression: String,
+    },
+    Gate {
+        gate_name: String,
+    },
+    /// `fan(SpecName, iterable)`: run another named spec once per item of
+    /// `iterable`, or `fan(SpecName, "5")`: run it up to that many bounded
+    /// rounds when there's no pre-existing collection to iterate, just a
+    /// cap (a quoted count, same "config data with nowhere else to live"
+    /// reasoning as `ArgRef::Literal` on `call()` args). One primitive
+    /// covers both composition (call another spec) and bounded looping
+    /// (a single-item or counted "iterable") - see
+    /// `validator::has_gate_protected_writes`, which treats any spec
+    /// containing a `Fan` as gate-protected unconditionally, since the
+    /// fanned spec's own gates need the real human in the loop each round.
+    Fan {
+        spec_name: String,
+        iterable: ArgRef,
+    },
+    /// `watch(CONDITION)`: poll an external condition (CI status, a build
+    /// completing) until it resolves. Unlike `gate()`, this isn't waiting
+    /// on a human, it's waiting on some other system's state. If the
+    /// condition text names a time bound, the compiled skill's executor
+    /// stops and reports rather than waiting indefinitely.
+    Watch {
+        condition: String,
+    },
 }
 
 /// A `call(...)` argument: either a bare-ident variable reference

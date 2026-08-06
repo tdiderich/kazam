@@ -721,6 +721,19 @@ fn check_invariant_soundness(
 /// delegated - this only blocks specs with at least one gated write in them
 /// from being compiled to isolated mode at all, not individual states.
 pub fn has_gate_protected_writes(spec: &AglSpec) -> bool {
+    // Conservative on purpose: a `fan()` composes another spec by name,
+    // and that spec's own writes/gates aren't visible here (this function
+    // takes one spec, no filesystem I/O). Rather than resolving the
+    // fanned spec and recursing, treat any `fan()` at all as gate-protected
+    // - every real fan target in current use already has its own gates
+    // anyway, so this costs nothing today and keeps this function pure.
+    let has_fan = spec
+        .flow
+        .iter()
+        .any(|s| matches!(s.action, StateAction::Fan { .. }));
+    if has_fan {
+        return true;
+    }
     spec.invariants.iter().any(|rule| {
         let InvariantRule::DenyWithoutGate { action, target, .. } = rule else {
             return false;
@@ -1094,6 +1107,38 @@ mod tests {
             out: y: str
             flow {
                 state FETCH -> call(HubSpot.get_organization_details, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        assert!(!has_gate_protected_writes(&parsed.spec));
+    }
+
+    #[test]
+    fn has_gate_protected_writes_true_for_a_bare_fan_with_no_invariant() {
+        // Conservative by design: a fan() composes another spec by name,
+        // whose own writes aren't visible to this single-spec, no-I/O
+        // check, so any fan() at all is treated as gate-protected. No
+        // invariant block needed to trigger it, unlike Call/Map.
+        let src = r#"spec DealMonitor {
+            in: targets: str
+            out: y: bool
+            flow {
+                state SCAN -> fan(WorkflowDeal, targets) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        assert!(has_gate_protected_writes(&parsed.spec));
+    }
+
+    #[test]
+    fn has_gate_protected_writes_false_for_a_bare_watch_with_no_invariant() {
+        // watch() polls external state, it isn't a write - it should never
+        // trip this check on its own.
+        let src = r#"spec Release {
+            in: x: str
+            out: y: bool
+            flow {
+                state WAIT -> watch(ci status for kazam release) -> TERMINATE("done")
             }
         }"#;
         let parsed = parse(src).unwrap();

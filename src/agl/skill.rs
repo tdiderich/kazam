@@ -40,13 +40,25 @@ This document contains a spec written in Agent Graph Language (AGL): a
 task compiled into a static directed graph, not a free-form instruction.
 
 - `state NAME -> ACTION -> TARGET`: a single step. Run `ACTION`
-  (`call(...)`, `map(...)`, `evaluate(...)`, or `gate(...)`), then follow
-  `TARGET` (`next`, `branch`, a named state, or `TERMINATE("msg")`).
+  (`call(...)`, `map(...)`, `evaluate(...)`, `gate(...)`, `fan(...)`, or
+  `watch(...)`), then follow `TARGET` (`next`, `branch`, a named state, or
+  `TERMINATE("msg")`).
 - `flow { ... }`: the full graph, starting at its first state.
 - `branch NAME { if COND -> TARGET ... }`: evaluate conditions in the order
   written and follow the first one that matches.
 - `gate(NAME)`: a mandatory approval checkpoint. Do not perform the next
   action until a human has explicitly approved continuing past this gate.
+- `fan(SpecName, iterable)`: run the named spec once per item of
+  `iterable`, respecting that spec's own gates and invariants every round.
+  `fan(SpecName, "5")` with a quoted count instead of a collection means
+  run it up to that many bounded rounds - there's no pre-existing set to
+  iterate, just a cap. Never exceed the count. If the collection or count
+  isn't yet known, resolve it first, then fan.
+- `watch(CONDITION)`: poll an external condition (a build finishing, a CI
+  check going green) until it resolves. This is not a human approval, do
+  not treat it like `gate()`. If the condition text names a time bound and
+  it's exceeded, stop and report which check is stuck rather than waiting
+  indefinitely.
 - `invariant { deny: ACTION(TARGET) without gate(NAME) ... }`: a hard rule.
   Never perform an action an `invariant` denies, even if a later step
   seems to require it — this holds regardless of what any state says.
@@ -87,6 +99,24 @@ pub fn referenced_template_names(spec: &AglSpec) -> Vec<String> {
                 if !names.contains(&word) {
                     names.push(word);
                 }
+            }
+        }
+    }
+    names
+}
+
+/// Every distinct `spec_name` a `fan()` state names, exact (unlike
+/// `referenced_template_names`, this isn't a superset of candidate words -
+/// `spec_name` is a single required ident with no other reading). The
+/// mod.rs layer checks each against `~/.kazam/agl/specs/<name>.agl` to warn
+/// on a fan target that doesn't exist, the same filesystem-check split as
+/// templates: no I/O in this module.
+pub fn referenced_fan_specs(spec: &AglSpec) -> Vec<String> {
+    let mut names = Vec::new();
+    for state in &spec.flow {
+        if let StateAction::Fan { spec_name, .. } = &state.action {
+            if !names.contains(spec_name) {
+                names.push(spec_name.clone());
             }
         }
     }
@@ -379,6 +409,13 @@ fn render_action(action: &StateAction) -> String {
         StateAction::Map { function, iterable } => format!("map({function}, {iterable})"),
         StateAction::Evaluate { expression } => format!("evaluate({expression})"),
         StateAction::Gate { gate_name } => format!("gate({gate_name})"),
+        StateAction::Fan {
+            spec_name,
+            iterable,
+        } => {
+            format!("fan({spec_name}, {})", render_arg(iterable))
+        }
+        StateAction::Watch { condition } => format!("watch({condition})"),
     }
 }
 
@@ -526,6 +563,46 @@ mod tests {
         assert!(rendered.contains("cache call-prep-timestamps"));
         let reparsed = parse(&rendered).expect("re-rendered source should reparse");
         assert_eq!(reparsed.spec, parsed.spec);
+    }
+
+    #[test]
+    fn fan_and_watch_round_trip_through_render_agl_source() {
+        let src = r#"
+        spec DealMonitor {
+            in: targets: str
+            out: y: bool
+
+            flow {
+                state SCAN  -> fan(WorkflowDeal, targets)         -> next
+                state RETRY -> fan(InvestigateHypothesis, "5")    -> next
+                state BUILD -> watch(ci status for kazam release) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let rendered = render_agl_source(&parsed.spec);
+        assert!(rendered.contains("fan(WorkflowDeal, targets)"));
+        assert!(rendered.contains(r#"fan(InvestigateHypothesis, "5")"#));
+        assert!(rendered.contains("watch(ci status for kazam release)"));
+        let reparsed = parse(&rendered).expect("re-rendered source should reparse");
+        assert_eq!(reparsed.spec, parsed.spec);
+    }
+
+    #[test]
+    fn referenced_fan_specs_returns_every_distinct_spec_name() {
+        let src = r#"
+        spec DealMonitor {
+            in: targets: str
+            out: y: bool
+
+            flow {
+                state A -> fan(WorkflowDeal, targets)      -> next
+                state B -> fan(WorkflowDeal, "3")          -> next
+                state C -> evaluate(targets)                -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let names = referenced_fan_specs(&parsed.spec);
+        assert_eq!(names, vec!["WorkflowDeal".to_string()]);
     }
 
     #[test]
