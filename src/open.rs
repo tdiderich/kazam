@@ -854,6 +854,8 @@ const AGL_KEYWORDS: &[&str] = &[
     "call",
     "map",
     "evaluate",
+    "fan",
+    "watch",
     "TERMINATE",
     "next",
 ];
@@ -1207,5 +1209,15 @@ mod agl_highlight_tests {
         let out = highlight_agl("cache slack-lookups {");
         assert!(out.contains("slack-lookups"));
         assert!(!out.contains("slack</span>-<span"));
+    }
+
+    #[test]
+    fn highlights_fan_and_watch_keywords() {
+        let fan = highlight_agl(r#"state SCAN -> fan(WorkflowDeal, targets) -> next"#);
+        assert!(fan.contains("<span class=\"syn-key\">fan</span>"));
+        assert!(!fan.contains("<span class=\"syn-key\">WorkflowDeal</span>"));
+
+        let watch = highlight_agl("state BUILD -> watch(ci status) -> next");
+        assert!(watch.contains("<span class=\"syn-key\">watch</span>"));
     }
 }
