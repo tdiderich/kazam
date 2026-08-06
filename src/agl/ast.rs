@@ -14,6 +14,10 @@ pub struct AglSpec {
     /// missing tool. Empty for specs written before this field existed —
     /// nothing downstream treats an empty list as an error.
     pub requires: Vec<String>,
+    /// Explicit name for the compiled skill/subagent this spec becomes.
+    /// `None` means the caller should default to a kebab-cased `name`
+    /// (`skill::default_skill_name`) — most specs need this unset.
+    pub skill: Option<String>,
     pub invariants: Vec<InvariantRule>,
     pub flow: Vec<StateNode>,
     pub branches: HashMap<String, BranchBlock>,

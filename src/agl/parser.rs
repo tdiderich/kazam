@@ -211,6 +211,14 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
         Vec::new()
     };
 
+    let skill = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "skill") {
+        cur.expect_kw("skill")?;
+        cur.expect_punct(&TokKind::Colon, "':'")?;
+        Some(cur.expect_ident()?)
+    } else {
+        None
+    };
+
     let invariants = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "invariant") {
         parse_invariant_block(cur)?
     } else {
@@ -227,6 +235,7 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
             inputs,
             outputs,
             requires,
+            skill,
             invariants,
             flow,
             branches,
@@ -779,5 +788,28 @@ mod tests {
     fn spec_without_requires_has_empty_requires_list() {
         let parsed = parse(SAMPLE).unwrap();
         assert!(parsed.spec.requires.is_empty());
+    }
+
+    #[test]
+    fn parses_an_explicit_skill_name() {
+        let src = r#"
+        spec Foo {
+            in: x: str
+            out: y: str
+            requires: HubSpot.update_contact
+            skill: org-chart-sync
+
+            flow {
+                state A -> evaluate(x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).expect("should parse with a skill line");
+        assert_eq!(parsed.spec.skill, Some("org-chart-sync".to_string()));
+    }
+
+    #[test]
+    fn spec_without_skill_line_has_none() {
+        let parsed = parse(SAMPLE).unwrap();
+        assert_eq!(parsed.spec.skill, None);
     }
 }

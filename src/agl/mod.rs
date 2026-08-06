@@ -71,6 +71,16 @@ pub enum Command {
         #[arg(short, long)]
         out: Option<PathBuf>,
     },
+    /// Compile every spec in ~/.kazam/agl/specs/ into a Claude Code
+    /// subagent + a thin dispatcher skill in the target project.
+    /// Cursor/Codex aren't wired up here yet — use `kazam agl skill
+    /// --target cursor|codex` one spec at a time until they are.
+    Load {
+        /// Project directory to write .claude/agents/ and .claude/skills/
+        /// into. Defaults to the current directory.
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+    },
 }
 
 pub fn run(command: Command) -> Result<()> {
@@ -79,6 +89,7 @@ pub fn run(command: Command) -> Result<()> {
         Command::Export { path, format, out } => run_export(&path, &format, out.as_deref()),
         Command::Flow { path } => run_flow(&path),
         Command::Skill { path, target, out } => run_skill(&path, target, out.as_deref()),
+        Command::Load { out } => run_load(out.as_deref()),
     }
 }
 
@@ -263,6 +274,80 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
                 .with_context(|| format!("failed to write {}", dest.display()))?;
         }
         None => print!("{rendered}"),
+    }
+    Ok(())
+}
+
+/// Compiles every `~/.kazam/agl/specs/*.agl` into a `.claude/agents/<name>.md`
+/// subagent (tool-scoped by `requires:`) plus a `.claude/skills/<name>.md`
+/// dispatcher that routes to it, under `out` (default: the current
+/// directory). A spec that fails to parse, resolve, or validate is skipped
+/// with its error printed rather than aborting the whole batch — one bad
+/// spec in the hub shouldn't block loading the rest.
+fn run_load(out: Option<&Path>) -> Result<()> {
+    let project_root = out.unwrap_or_else(|| Path::new("."));
+    let specs_dir = home_dir()?.join(".kazam").join("agl").join("specs");
+    if !specs_dir.is_dir() {
+        bail!(
+            "no specs found at {} - nothing to load",
+            specs_dir.display()
+        );
+    }
+
+    let agents_dir = project_root.join(".claude").join("agents");
+    let skills_dir = project_root.join(".claude").join("skills");
+    std::fs::create_dir_all(&agents_dir)
+        .with_context(|| format!("failed to create {}", agents_dir.display()))?;
+    std::fs::create_dir_all(&skills_dir)
+        .with_context(|| format!("failed to create {}", skills_dir.display()))?;
+
+    let mut spec_paths: Vec<PathBuf> = std::fs::read_dir(&specs_dir)
+        .with_context(|| format!("failed to read {}", specs_dir.display()))?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|p| p.extension().and_then(|ext| ext.to_str()) == Some("agl"))
+        .collect();
+    spec_paths.sort();
+
+    let mut loaded: Vec<(String, PathBuf, PathBuf)> = Vec::new();
+    let mut skipped: Vec<(PathBuf, String)> = Vec::new();
+
+    for spec_path in spec_paths {
+        let outcome = load_spec(&spec_path).map(|parsed| {
+            let diags = validator::validate(&parsed.spec, &parsed.state_lines);
+            (parsed, diags)
+        });
+        match outcome {
+            Ok((parsed, diags)) if !validator::has_errors(&diags) => {
+                let name = skill::resolved_skill_name(&parsed.spec);
+                let agent_path = agents_dir.join(format!("{name}.md"));
+                let skill_path = skills_dir.join(format!("{name}.md"));
+                std::fs::write(&agent_path, skill::render_agent_file(&parsed.spec))
+                    .with_context(|| format!("failed to write {}", agent_path.display()))?;
+                std::fs::write(&skill_path, skill::render_skill_dispatcher(&parsed.spec))
+                    .with_context(|| format!("failed to write {}", skill_path.display()))?;
+                loaded.push((name, agent_path, skill_path));
+            }
+            Ok((_, diags)) => skipped.push((spec_path, validator::format_pretty(&diags))),
+            Err(e) => skipped.push((spec_path, e.to_string())),
+        }
+    }
+
+    for (name, agent_path, skill_path) in &loaded {
+        println!("loaded {name}:");
+        println!("  {}", agent_path.display());
+        println!("  {}", skill_path.display());
+    }
+    if !skipped.is_empty() {
+        println!("\nskipped {} spec(s):", skipped.len());
+        for (path, reason) in &skipped {
+            println!("  {}", path.display());
+            for line in reason.lines() {
+                println!("    {line}");
+            }
+        }
+    }
+    if loaded.is_empty() {
+        bail!("no valid specs loaded");
     }
     Ok(())
 }

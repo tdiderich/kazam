@@ -58,6 +58,51 @@ pub fn render(spec: &AglSpec, target: Target) -> String {
     }
 }
 
+/// The name this spec's compiled skill/subagent goes by: `spec.skill` if
+/// the author declared one, otherwise the kebab-cased graph name. Almost
+/// every spec relies on the default; the field exists for the rare case
+/// where the graph's internal name and its public trigger name should
+/// differ (versioning, renames, matching an existing skill's slug).
+pub fn resolved_skill_name(spec: &AglSpec) -> String {
+    spec.skill.clone().unwrap_or_else(|| kebab_case(&spec.name))
+}
+
+/// A tool-scoped Claude Code subagent (`.claude/agents/<name>.md`) that
+/// executes this graph and nothing else: `tools:` is exactly `requires:`,
+/// verbatim, so the harness enforces the same boundary the Preflight
+/// section describes rather than relying on the model to self-police it.
+/// `requires:` empty means no tool restriction gets written at all - an
+/// empty `tools:` line would be worse than none, since clap/Claude Code
+/// would read it as "no tools", not "unrestricted".
+pub fn render_agent_file(spec: &AglSpec) -> String {
+    let name = resolved_skill_name(spec);
+    let body = render_body(spec);
+    let mut out =
+        format!("---\nname: {name}\ndescription: \"Runs the {name} AGL graph end to end\"\n");
+    if !spec.requires.is_empty() {
+        out.push_str(&format!("tools: {}\n", spec.requires.join(", ")));
+    }
+    out.push_str(&format!("model: sonnet\n---\n\n{PRIMER}\n\n{body}"));
+    out
+}
+
+/// A thin Claude Code skill (`.claude/skills/<name>.md`) that only routes
+/// to the subagent above. Deliberately does none of the graph's own work
+/// inline: dispatching keeps the subagent's `tools:` allowlist as the real
+/// boundary, instead of running inside whatever broader toolset the
+/// invoking context already has.
+pub fn render_skill_dispatcher(spec: &AglSpec) -> String {
+    let name = resolved_skill_name(spec);
+    let spec_name = &spec.name;
+    format!(
+        "---\nname: {name}\ndescription: \"Runs the {name} AGL graph ({spec_name})\"\n---\n\n\
+         Dispatch to the `{name}` subagent (Agent tool, subagent_type: \"{name}\") to run this \
+         graph. Do not execute the graph's states yourself in this context - the subagent's \
+         `tools:` allowlist is what makes the Preflight check in that graph meaningful; running \
+         it here instead would just be free-form instructions again.\n"
+    )
+}
+
 /// The part every target shares once past its own header: preflight (if
 /// `requires` is declared), the run-order note, the ASCII flow diagram, and
 /// the resolved `.agl` source.
@@ -78,7 +123,7 @@ fn render_body(spec: &AglSpec) -> String {
 }
 
 fn render_claude(spec: &AglSpec, body: &str) -> String {
-    let name = kebab_case(&spec.name);
+    let name = resolved_skill_name(spec);
     format!(
         "---\nname: {name}\ndescription: \"Runs the {name} AGL graph\"\n---\n\n{PRIMER}\n\n{body}"
     )
@@ -238,6 +283,9 @@ pub fn render_agl_source(spec: &AglSpec) -> String {
     out.push_str(&format!("  out: {}\n", render_params(&spec.outputs)));
     if !spec.requires.is_empty() {
         out.push_str(&format!("  requires: {}\n", spec.requires.join(", ")));
+    }
+    if let Some(skill_name) = &spec.skill {
+        out.push_str(&format!("  skill: {skill_name}\n"));
     }
 
     if !spec.invariants.is_empty() {
@@ -428,5 +476,69 @@ mod tests {
         assert!(diagram.contains("if cond_one -> B"));
         assert!(diagram.contains("if cond_two -> TERMINATE(\"done\")"));
         assert!(diagram.contains("B  call(Server.method, x)"));
+    }
+
+    #[test]
+    fn resolved_skill_name_defaults_to_kebab_case_of_the_graph_name() {
+        let parsed = parse(SAMPLE).unwrap();
+        assert_eq!(resolved_skill_name(&parsed.spec), "meeting-prep");
+    }
+
+    #[test]
+    fn resolved_skill_name_honors_an_explicit_skill_line() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            skill: org-chart-sync
+            flow {
+                state A -> evaluate(x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        assert_eq!(resolved_skill_name(&parsed.spec), "org-chart-sync");
+    }
+
+    #[test]
+    fn skill_line_round_trips_through_render_agl_source() {
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            skill: org-chart-sync
+            flow {
+                state A -> evaluate(x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let rendered = render_agl_source(&parsed.spec);
+        assert!(rendered.contains("skill: org-chart-sync"));
+        let reparsed = parse(&rendered).expect("re-rendered source should reparse");
+        assert_eq!(reparsed.spec, parsed.spec);
+    }
+
+    #[test]
+    fn agent_file_has_frontmatter_tools_from_requires_and_the_graph_body() {
+        let doc = render_agent_file(&parse(SAMPLE_WITH_REQUIRES).unwrap().spec);
+        assert!(doc.starts_with("---\n"));
+        assert!(doc.contains("name: meeting-prep"));
+        assert!(doc.contains("tools: GoogleCalendar.get, GoogleCalendar.update"));
+        assert!(doc.contains("model: sonnet"));
+        assert!(doc.contains("## Preflight"));
+        assert!(doc.contains("FETCH_CALENDAR"));
+    }
+
+    #[test]
+    fn agent_file_omits_tools_line_when_requires_is_empty() {
+        let doc = render_agent_file(&parse(SAMPLE).unwrap().spec);
+        assert!(!doc.contains("tools:"));
+    }
+
+    #[test]
+    fn skill_dispatcher_routes_to_the_subagent_and_does_not_inline_the_graph() {
+        let doc = render_skill_dispatcher(&parse(SAMPLE).unwrap().spec);
+        assert!(doc.starts_with("---\n"));
+        assert!(doc.contains("name: meeting-prep"));
+        assert!(doc.contains("subagent_type: \"meeting-prep\""));
+        assert!(!doc.contains("## Flow"));
+        assert!(!doc.contains("```agl"));
     }
 }
