@@ -1,8 +1,8 @@
 [package]
 name = "kazam"
-version = "1.12.0"
+version = "1.13.0"
 edition = "2021"
-description = "Agent workspace and static site generator. Codebase indexing, task tracking, visual board — one Rust binary."
+description = "Local infrastructure for coding agents: context, visibility, durable execution. One Rust binary, no cloud."
 license = "MIT"
 repository = "https://github.com/tdiderich/kazam"
 homepage = "https://tdiderich.github.io/kazam/"

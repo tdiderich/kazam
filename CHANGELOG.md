@@ -4,6 +4,18 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0] - 2026-08-06
+
+### Changed
+- **Rebrand**: "Beautiful sites from simple YAML" to "Local infrastructure for
+  coding agents: context, visibility, durable execution", across the clap
+  `about`, `Cargo.toml`'s `description`, and README's H1. The old tagline
+  predated the agent-workspace pivot and drifted from what the tool
+  actually does; the new one names the three real pillars: Anatomy for
+  speed, Board/Dev for visibility, and durable state (tasks, cache, and
+  eventually AGL's gated graphs) for reliability, all running as one local
+  binary with no cloud dependency.
+
 ## [1.12.0] - 2026-08-06
 
 ### Added

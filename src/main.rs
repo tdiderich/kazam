@@ -39,7 +39,11 @@ mod wish;
 mod workspace;
 
 #[derive(Parser)]
-#[command(name = "kazam", about = "Beautiful sites from simple YAML", version)]
+#[command(
+    name = "kazam",
+    about = "Local infrastructure for coding agents: context, visibility, durable execution",
+    version
+)]
 pub struct Cli {
     #[command(subcommand)]
     command: Command,

@@ -1,8 +1,8 @@
 # kazam
 
-**The AI-native knowledge base.**
+**Local infrastructure for coding agents.**
 
-Structured YAML pages with freshness tracking, sidecar annotations, and an MCP server — so your agents can create, review, annotate, and refresh content the same way your team does.
+Instant codebase context, live visibility into what your agent is doing, and durable execution, one Rust binary, no cloud. Structured YAML pages with freshness tracking, sidecar annotations, and an MCP server let agents create, review, annotate, and refresh content the same way your team does.
 
 ---
 
@@ -232,7 +232,7 @@ Because packs are pages, they inherit everything the platform already does: vers
 
 **curata** ([github.com/tdiderich/curata](https://github.com/tdiderich/curata)) is the OSS app. A Next.js dashboard for browsing, annotating, and managing kazam pages. Deploy with Docker Compose, expose an API for agents, and serve an MCP server so any AI client can read and write your knowledge base directly. Also MIT licensed.
 
-**curata.ai** ([curata.ai](https://curata.ai)) is the hosted cloud. Free to use — sign up, connect your agent via MCP, and start capturing AI outputs. No infrastructure to manage.
+**curata.ai** ([curata.ai](https://curata.ai)) is the hosted cloud: shared infrastructure for your whole organization's coding agents, not just one machine. Free to use, sign up, connect your agent via MCP, and start capturing AI outputs.
 
 Connect via the built-in MCP server — add this to your editor's MCP config:
 
@@ -252,7 +252,7 @@ Generated from `--help` metadata, not hand-maintained. Regenerate with `kazam cl
 
 ### `kazam`
 
-Beautiful sites from simple YAML
+Local infrastructure for coding agents: context, visibility, durable execution
 
 #### `kazam build`
 
