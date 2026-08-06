@@ -40,20 +40,35 @@ fn is_ident_start(c: char) -> bool {
 }
 
 fn is_ident_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_' || c == '.'
+    c.is_alphanumeric() || c == '_' || c == '.' || c == '-'
 }
 
-/// `spec`, `FETCH_CALENDAR`, `GoogleCalendar.get`, `NOT`, `no_diff`, ... —
-/// every bare word in the grammar, keywords included; the parser decides
-/// what a given ident means from context.
+/// `spec`, `FETCH_CALENDAR`, `GoogleCalendar.get`, `technical-success-hub`,
+/// `NOT`, `no_diff`, ... — every bare word in the grammar, keywords
+/// included; the parser decides what a given ident means from context.
+///
+/// `-` is a valid ident character (real tool identifiers like
+/// `mcp__technical-success-hub__write_page` are kebab-cased), but it's
+/// never absorbed when it's actually the start of an immediately-following
+/// `->` arrow — `next->TERMINATE(...)`, with no space, must still lex as
+/// `Ident("next")`, `Arrow`, ..., not swallow the arrow's `-` into the
+/// identifier and choke on a stray `>`. `take_while` can't express that
+/// one-token lookahead, so this scans by hand instead.
 fn ident(input: &mut &str) -> ModalResult<String> {
-    (
-        winnow::token::one_of(is_ident_start),
-        take_while(0.., is_ident_char),
-    )
-        .take()
-        .map(|s: &str| s.to_string())
-        .parse_next(input)
+    let start: char = winnow::token::one_of(is_ident_start).parse_next(input)?;
+    let mut end = 0;
+    for (i, c) in input.char_indices() {
+        if !is_ident_char(c) {
+            break;
+        }
+        if c == '-' && input[i + 1..].starts_with('>') {
+            break;
+        }
+        end = i + c.len_utf8();
+    }
+    let rest = &input[..end];
+    *input = &input[end..];
+    Ok(format!("{start}{rest}"))
 }
 
 /// `"..."` — no escape sequences; `.agl` strings are short human messages.
@@ -191,6 +206,30 @@ mod tests {
     fn parses_string_literal() {
         let toks = tokenize(r#"TERMINATE("Already up to date")"#).unwrap();
         assert_eq!(toks[2].kind, TokKind::Str("Already up to date".to_string()));
+    }
+
+    #[test]
+    fn hyphenated_idents_lex_as_a_single_token() {
+        let toks = tokenize("call(mcp__technical-success-hub__write_page, x)").unwrap();
+        assert!(toks
+            .iter()
+            .any(|t| t.kind == TokKind::Ident("mcp__technical-success-hub__write_page".into())));
+    }
+
+    #[test]
+    fn no_space_arrow_after_an_ident_is_not_swallowed_by_the_hyphen_rule() {
+        let toks = tokenize(r#"next->TERMINATE("done")"#).unwrap();
+        assert_eq!(
+            toks.iter().map(|t| t.kind.clone()).collect::<Vec<_>>(),
+            vec![
+                TokKind::Ident("next".into()),
+                TokKind::Arrow,
+                TokKind::Ident("TERMINATE".into()),
+                TokKind::LParen,
+                TokKind::Str("done".into()),
+                TokKind::RParen,
+            ]
+        );
     }
 
     #[test]
