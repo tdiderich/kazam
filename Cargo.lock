@@ -599,7 +599,7 @@ dependencies = [
 
 [[package]]
 name = "kazam"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -614,6 +614,7 @@ dependencies = [
  "tiny_http",
  "ureq",
  "walkdir",
+ "winnow",
 ]
 
 [[package]]
@@ -1513,6 +1514,15 @@ name = "windows_x86_64_msvc"
 version = "0.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
+
+[[package]]
+name = "winnow"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "wit-bindgen"

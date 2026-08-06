@@ -1,0 +1,626 @@
+//! Recursive-descent parser: token stream (from `lexer`) -> `AnlSpec` AST.
+//!
+//! `-> branch` (no argument) always resolves to `Branch(<enclosing state's
+//! name>)`: the grammar keys a `branch NAME { ... }` block to the state of
+//! the same name, so the state itself supplies the branch's identity.
+
+use std::collections::HashMap;
+use std::fmt;
+
+use super::ast::{
+    AnlSpec, BranchBlock, BranchCase, DataType, InvariantRule, StateAction, StateNode,
+    TransitionTarget, TypedParam,
+};
+use super::lexer::{self, LexError, Tok, TokKind};
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParseError {
+    pub message: String,
+    pub line: usize,
+    pub col: usize,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "line {}:{}: {}", self.line, self.col, self.message)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
+/// A successfully parsed spec plus the source line each state was declared
+/// on, so the validator can point at real locations in diagnostics.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Parsed {
+    pub spec: AnlSpec,
+    pub state_lines: HashMap<String, usize>,
+}
+
+struct Cursor<'a> {
+    toks: &'a [Tok],
+    pos: usize,
+    src: &'a str,
+}
+
+impl<'a> Cursor<'a> {
+    fn new(toks: &'a [Tok], src: &'a str) -> Self {
+        Cursor { toks, pos: 0, src }
+    }
+
+    fn peek(&self) -> Option<&TokKind> {
+        self.toks.get(self.pos).map(|t| &t.kind)
+    }
+
+    fn offset(&self) -> usize {
+        self.toks
+            .get(self.pos)
+            .map(|t| t.offset)
+            .unwrap_or(self.src.len())
+    }
+
+    fn err(&self, message: impl Into<String>) -> ParseError {
+        let (line, col) = lexer::line_col(self.src, self.offset());
+        ParseError {
+            message: message.into(),
+            line,
+            col,
+        }
+    }
+
+    fn advance(&mut self) -> Option<TokKind> {
+        let tok = self.toks.get(self.pos).map(|t| t.kind.clone());
+        if tok.is_some() {
+            self.pos += 1;
+        }
+        tok
+    }
+
+    fn expect_punct(&mut self, kind: &TokKind, what: &str) -> Result<(), ParseError> {
+        match self.peek() {
+            Some(k) if k == kind => {
+                self.advance();
+                Ok(())
+            }
+            Some(other) => Err(self.err(format!("expected {what}, found {other:?}"))),
+            None => Err(self.err(format!("expected {what}, found end of file"))),
+        }
+    }
+
+    fn expect_ident(&mut self) -> Result<String, ParseError> {
+        match self.peek().cloned() {
+            Some(TokKind::Ident(s)) => {
+                self.advance();
+                Ok(s)
+            }
+            Some(other) => Err(self.err(format!("expected identifier, found {other:?}"))),
+            None => Err(self.err("expected identifier, found end of file")),
+        }
+    }
+
+    fn expect_string(&mut self) -> Result<String, ParseError> {
+        match self.peek().cloned() {
+            Some(TokKind::Str(s)) => {
+                self.advance();
+                Ok(s)
+            }
+            Some(other) => Err(self.err(format!("expected string literal, found {other:?}"))),
+            None => Err(self.err("expected string literal, found end of file")),
+        }
+    }
+
+    /// Consume a specific bare keyword, e.g. `expect_kw("spec")`.
+    fn expect_kw(&mut self, kw: &str) -> Result<(), ParseError> {
+        match self.peek().cloned() {
+            Some(TokKind::Ident(s)) if s == kw => {
+                self.advance();
+                Ok(())
+            }
+            Some(other) => Err(self.err(format!("expected '{kw}', found {other:?}"))),
+            None => Err(self.err(format!("expected '{kw}', found end of file"))),
+        }
+    }
+
+    fn at_punct(&self, kind: &TokKind) -> bool {
+        self.peek() == Some(kind)
+    }
+}
+
+pub fn parse(src: &str) -> Result<Parsed, ParseError> {
+    let toks = lexer::tokenize(src).map_err(|e: LexError| {
+        let (line, col) = lexer::line_col(src, e.offset);
+        ParseError {
+            message: e.message,
+            line,
+            col,
+        }
+    })?;
+    let mut cur = Cursor::new(&toks, src);
+    let spec = parse_spec(&mut cur)?;
+    if cur.peek().is_some() {
+        return Err(cur.err("unexpected trailing content after spec"));
+    }
+    Ok(spec)
+}
+
+fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
+    cur.expect_kw("spec")?;
+    let name = cur.expect_ident()?;
+    cur.expect_punct(&TokKind::LBrace, "'{'")?;
+
+    cur.expect_kw("in")?;
+    cur.expect_punct(&TokKind::Colon, "':'")?;
+    let inputs = parse_param_list(cur)?;
+
+    cur.expect_kw("out")?;
+    cur.expect_punct(&TokKind::Colon, "':'")?;
+    let outputs = parse_param_list(cur)?;
+
+    let invariants = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "invariant") {
+        parse_invariant_block(cur)?
+    } else {
+        Vec::new()
+    };
+
+    let (flow, branches, state_lines) = parse_flow_block(cur)?;
+
+    cur.expect_punct(&TokKind::RBrace, "'}'")?;
+
+    Ok(Parsed {
+        spec: AnlSpec {
+            name,
+            inputs,
+            outputs,
+            invariants,
+            flow,
+            branches,
+        },
+        state_lines,
+    })
+}
+
+fn parse_param_list(cur: &mut Cursor) -> Result<Vec<TypedParam>, ParseError> {
+    let mut params = Vec::new();
+    loop {
+        let name = cur.expect_ident()?;
+        cur.expect_punct(&TokKind::Colon, "':'")?;
+        let data_type = parse_type(cur)?;
+        params.push(TypedParam { name, data_type });
+        if cur.at_punct(&TokKind::Comma) {
+            cur.advance();
+            continue;
+        }
+        break;
+    }
+    Ok(params)
+}
+
+fn parse_type(cur: &mut Cursor) -> Result<DataType, ParseError> {
+    let name = cur.expect_ident()?;
+    Ok(match name.as_str() {
+        "str" => DataType::String,
+        "int" => DataType::Int,
+        "bool" => DataType::Bool,
+        "list" => {
+            cur.expect_punct(&TokKind::LBracket, "'['")?;
+            let inner = parse_type(cur)?;
+            cur.expect_punct(&TokKind::RBracket, "']'")?;
+            DataType::List(Box::new(inner))
+        }
+        other => DataType::Custom(other.to_string()),
+    })
+}
+
+fn parse_invariant_block(cur: &mut Cursor) -> Result<Vec<InvariantRule>, ParseError> {
+    cur.expect_kw("invariant")?;
+    cur.expect_punct(&TokKind::LBrace, "'{'")?;
+    let mut rules = Vec::new();
+    while !cur.at_punct(&TokKind::RBrace) {
+        if cur.peek().is_none() {
+            return Err(cur.err("unterminated invariant block, expected '}'"));
+        }
+        cur.expect_kw("deny")?;
+        cur.expect_punct(&TokKind::Colon, "':'")?;
+        rules.push(parse_deny_rule(cur)?);
+    }
+    cur.expect_punct(&TokKind::RBrace, "'}'")?;
+    Ok(rules)
+}
+
+fn parse_deny_rule(cur: &mut Cursor) -> Result<InvariantRule, ParseError> {
+    let action = cur.expect_ident()?;
+    cur.expect_punct(&TokKind::LParen, "'('")?;
+    let target = cur.expect_ident()?;
+    cur.expect_punct(&TokKind::RParen, "')'")?;
+    let keyword = cur.expect_ident()?;
+    match keyword.as_str() {
+        "without" => {
+            cur.expect_kw("gate")?;
+            cur.expect_punct(&TokKind::LParen, "'('")?;
+            let required_gate = cur.expect_ident()?;
+            cur.expect_punct(&TokKind::RParen, "')'")?;
+            Ok(InvariantRule::DenyWithoutGate {
+                action,
+                target,
+                required_gate,
+            })
+        }
+        "where" => {
+            let condition = consume_raw_phrase_until_stmt_boundary(cur)?;
+            Ok(InvariantRule::DenyConstraint {
+                action,
+                target,
+                condition,
+            })
+        }
+        other => Err(cur.err(format!("expected 'without' or 'where', found '{other}'"))),
+    }
+}
+
+/// Join bare idents into a raw condition string, stopping at the invariant
+/// block's closing brace or the next `deny:` rule.
+fn consume_raw_phrase_until_stmt_boundary(cur: &mut Cursor) -> Result<String, ParseError> {
+    let mut words = Vec::new();
+    loop {
+        match cur.peek() {
+            Some(TokKind::RBrace) => break,
+            Some(TokKind::Ident(s)) if s == "deny" => break,
+            Some(TokKind::Ident(_)) => {
+                if let Some(TokKind::Ident(s)) = cur.advance() {
+                    words.push(s);
+                }
+            }
+            Some(other) => return Err(cur.err(format!("unexpected token {other:?} in condition"))),
+            None => return Err(cur.err("unexpected end of file in condition")),
+        }
+    }
+    if words.is_empty() {
+        return Err(cur.err("expected a condition after 'where'"));
+    }
+    Ok(words.join(" "))
+}
+
+/// Join bare idents into a raw expression string, stopping at `)`.
+fn consume_raw_phrase_until_rparen(cur: &mut Cursor) -> Result<String, ParseError> {
+    let mut words = Vec::new();
+    loop {
+        match cur.peek() {
+            Some(TokKind::RParen) => break,
+            Some(TokKind::Ident(_)) => {
+                if let Some(TokKind::Ident(s)) = cur.advance() {
+                    words.push(s);
+                }
+            }
+            Some(other) => return Err(cur.err(format!("unexpected token {other:?} in expression"))),
+            None => return Err(cur.err("unexpected end of file in expression")),
+        }
+    }
+    if words.is_empty() {
+        return Err(cur.err("expected an expression inside '(...)'"));
+    }
+    Ok(words.join(" "))
+}
+
+/// Join bare idents into a condition string, stopping at `->`.
+fn consume_raw_phrase_until_arrow(cur: &mut Cursor) -> Result<String, ParseError> {
+    let mut words = Vec::new();
+    loop {
+        match cur.peek() {
+            Some(TokKind::Arrow) => break,
+            Some(TokKind::Ident(_)) => {
+                if let Some(TokKind::Ident(s)) = cur.advance() {
+                    words.push(s);
+                }
+            }
+            Some(other) => return Err(cur.err(format!("unexpected token {other:?} in condition"))),
+            None => return Err(cur.err("unexpected end of file in condition")),
+        }
+    }
+    if words.is_empty() {
+        return Err(cur.err("expected a condition after 'if'"));
+    }
+    Ok(words.join(" "))
+}
+
+type FlowParts = (
+    Vec<StateNode>,
+    HashMap<String, BranchBlock>,
+    HashMap<String, usize>,
+);
+
+fn parse_flow_block(cur: &mut Cursor) -> Result<FlowParts, ParseError> {
+    cur.expect_kw("flow")?;
+    cur.expect_punct(&TokKind::LBrace, "'{'")?;
+
+    let mut flow = Vec::new();
+    let mut branches = HashMap::new();
+    let mut state_lines = HashMap::new();
+
+    loop {
+        match cur.peek() {
+            Some(TokKind::Ident(s)) if s == "state" => {
+                let name_offset_line;
+                let node = {
+                    cur.expect_kw("state")?;
+                    let name_offset = cur.offset();
+                    name_offset_line = lexer::line_col(cur.src, name_offset).0;
+                    let name = cur.expect_ident()?;
+                    cur.expect_punct(&TokKind::Arrow, "'->'")?;
+                    let action = parse_state_action(cur)?;
+                    cur.expect_punct(&TokKind::Arrow, "'->'")?;
+                    let transition = parse_transition_target(cur, &name)?;
+                    StateNode {
+                        name,
+                        action,
+                        transition,
+                    }
+                };
+                state_lines.insert(node.name.clone(), name_offset_line);
+                flow.push(node);
+            }
+            Some(TokKind::Ident(s)) if s == "branch" => {
+                let (key, block) = parse_branch_block(cur)?;
+                branches.insert(key, block);
+            }
+            Some(TokKind::RBrace) => break,
+            Some(other) => {
+                return Err(cur.err(format!("expected 'state' or 'branch', found {other:?}")))
+            }
+            None => return Err(cur.err("unterminated flow block, expected '}'")),
+        }
+    }
+
+    cur.expect_punct(&TokKind::RBrace, "'}'")?;
+    Ok((flow, branches, state_lines))
+}
+
+fn parse_state_action(cur: &mut Cursor) -> Result<StateAction, ParseError> {
+    let kw = cur.expect_ident()?;
+    match kw.as_str() {
+        "call" => {
+            cur.expect_punct(&TokKind::LParen, "'('")?;
+            let function = cur.expect_ident()?;
+            cur.expect_punct(&TokKind::Comma, "','")?;
+            let args = parse_ident_csv(cur)?;
+            cur.expect_punct(&TokKind::RParen, "')'")?;
+            Ok(StateAction::Call { function, args })
+        }
+        "map" => {
+            cur.expect_punct(&TokKind::LParen, "'('")?;
+            let function = cur.expect_ident()?;
+            cur.expect_punct(&TokKind::Comma, "','")?;
+            let iterable = cur.expect_ident()?;
+            cur.expect_punct(&TokKind::RParen, "')'")?;
+            Ok(StateAction::Map { function, iterable })
+        }
+        "evaluate" => {
+            cur.expect_punct(&TokKind::LParen, "'('")?;
+            let expression = consume_raw_phrase_until_rparen(cur)?;
+            cur.expect_punct(&TokKind::RParen, "')'")?;
+            Ok(StateAction::Evaluate { expression })
+        }
+        "gate" => {
+            cur.expect_punct(&TokKind::LParen, "'('")?;
+            let gate_name = cur.expect_ident()?;
+            cur.expect_punct(&TokKind::RParen, "')'")?;
+            Ok(StateAction::Gate { gate_name })
+        }
+        other => Err(cur.err(format!(
+            "unknown action '{other}', expected one of call/map/evaluate/gate"
+        ))),
+    }
+}
+
+fn parse_ident_csv(cur: &mut Cursor) -> Result<Vec<String>, ParseError> {
+    let mut items = Vec::new();
+    if cur.at_punct(&TokKind::RParen) {
+        return Ok(items);
+    }
+    loop {
+        items.push(cur.expect_ident()?);
+        if cur.at_punct(&TokKind::Comma) {
+            cur.advance();
+            continue;
+        }
+        break;
+    }
+    Ok(items)
+}
+
+fn parse_transition_target(
+    cur: &mut Cursor,
+    state_name: &str,
+) -> Result<TransitionTarget, ParseError> {
+    let kw = cur.expect_ident()?;
+    Ok(match kw.as_str() {
+        "next" => TransitionTarget::Next,
+        "branch" => TransitionTarget::Branch(state_name.to_string()),
+        "TERMINATE" => {
+            cur.expect_punct(&TokKind::LParen, "'('")?;
+            let msg = cur.expect_string()?;
+            cur.expect_punct(&TokKind::RParen, "')'")?;
+            TransitionTarget::Terminate(msg)
+        }
+        other => TransitionTarget::Goto(other.to_string()),
+    })
+}
+
+fn parse_branch_block(cur: &mut Cursor) -> Result<(String, BranchBlock), ParseError> {
+    cur.expect_kw("branch")?;
+    let state_name = cur.expect_ident()?;
+    cur.expect_punct(&TokKind::LBrace, "'{'")?;
+    let mut cases = Vec::new();
+    while !cur.at_punct(&TokKind::RBrace) {
+        if cur.peek().is_none() {
+            return Err(cur.err("unterminated branch block, expected '}'"));
+        }
+        cur.expect_kw("if")?;
+        let condition = consume_raw_phrase_until_arrow(cur)?;
+        cur.expect_punct(&TokKind::Arrow, "'->'")?;
+        let target = parse_transition_target(cur, &state_name)?;
+        cases.push(BranchCase { condition, target });
+    }
+    cur.expect_punct(&TokKind::RBrace, "'}'")?;
+    Ok((state_name.clone(), BranchBlock { state_name, cases }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE: &str = r#"
+    spec MeetingPrep {
+      in:  calendar_event: str, slack_channels: list[str]
+      out: agenda_update: str
+
+      invariant {
+        deny: write(calendar) without gate(human_approval)
+        deny: fetch(slack) where channel NOT IN slack_channels
+      }
+
+      flow {
+        state FETCH_CALENDAR  -> call(GoogleCalendar.get, calendar_event) -> next
+        state SCAN_SLACK      -> map(Slack.read, slack_channels)           -> next
+        state DIFF_AGENDA     -> evaluate(slack_data vs calendar_data)    -> branch
+
+        branch DIFF_AGENDA {
+          if no_diff -> TERMINATE("Already up to date")
+          if has_diff -> PROPOSE_UPDATE
+        }
+
+        state PROPOSE_UPDATE  -> gate(human_approval)                     -> EXECUTE_WRITE
+        state EXECUTE_WRITE   -> call(GoogleCalendar.update, agenda)      -> TERMINATE("Done")
+      }
+    }
+    "#;
+
+    #[test]
+    fn parses_the_canonical_sample() {
+        let parsed = parse(SAMPLE).expect("sample should parse");
+        assert_eq!(parsed.spec.name, "MeetingPrep");
+        assert_eq!(parsed.spec.inputs.len(), 2);
+        assert_eq!(parsed.spec.outputs.len(), 1);
+        assert_eq!(parsed.spec.invariants.len(), 2);
+        assert_eq!(parsed.spec.flow.len(), 5);
+        assert_eq!(parsed.spec.branches.len(), 1);
+        assert!(parsed.state_lines.contains_key("FETCH_CALENDAR"));
+
+        assert_eq!(
+            parsed.spec.inputs[1].data_type,
+            DataType::List(Box::new(DataType::String))
+        );
+
+        match &parsed.spec.invariants[0] {
+            InvariantRule::DenyWithoutGate {
+                action,
+                target,
+                required_gate,
+            } => {
+                assert_eq!(action, "write");
+                assert_eq!(target, "calendar");
+                assert_eq!(required_gate, "human_approval");
+            }
+            other => panic!("unexpected rule: {other:?}"),
+        }
+
+        match &parsed.spec.invariants[1] {
+            InvariantRule::DenyConstraint {
+                action,
+                target,
+                condition,
+            } => {
+                assert_eq!(action, "fetch");
+                assert_eq!(target, "slack");
+                assert_eq!(condition, "channel NOT IN slack_channels");
+            }
+            other => panic!("unexpected rule: {other:?}"),
+        }
+
+        let diff_state = &parsed.spec.flow[2];
+        assert_eq!(diff_state.name, "DIFF_AGENDA");
+        assert_eq!(
+            diff_state.transition,
+            TransitionTarget::Branch("DIFF_AGENDA".into())
+        );
+
+        let branch = &parsed.spec.branches["DIFF_AGENDA"];
+        assert_eq!(branch.cases.len(), 2);
+        assert_eq!(branch.cases[0].condition, "no_diff");
+        assert_eq!(
+            branch.cases[0].target,
+            TransitionTarget::Terminate("Already up to date".into())
+        );
+        assert_eq!(
+            branch.cases[1].target,
+            TransitionTarget::Goto("PROPOSE_UPDATE".into())
+        );
+    }
+
+    #[test]
+    fn missing_spec_keyword_errors() {
+        let err = parse("Foo { in: out: flow: {} }").unwrap_err();
+        assert!(err.message.contains("spec"), "{}", err.message);
+        assert_eq!(err.line, 1);
+    }
+
+    #[test]
+    fn missing_in_block_errors() {
+        let src = "spec Foo { out: x: str flow { state A -> gate(g) -> TERMINATE(\"done\") } }";
+        let err = parse(src).unwrap_err();
+        assert!(err.message.contains("'in'"), "{}", err.message);
+    }
+
+    #[test]
+    fn missing_flow_block_errors() {
+        let src = "spec Foo { in: x: str out: y: str }";
+        let err = parse(src).unwrap_err();
+        assert!(err.message.contains("'flow'"), "{}", err.message);
+    }
+
+    #[test]
+    fn unterminated_brace_errors() {
+        let src = "spec Foo { in: x: str out: y: str flow { state A -> gate(g) -> TERMINATE(\"d\")";
+        let err = parse(src).unwrap_err();
+        assert!(
+            err.message.contains("end of file") || err.message.contains("unterminated"),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn malformed_identifier_errors() {
+        // Identifiers cannot start with a digit.
+        let src =
+            "spec 9Bad { in: x: str out: y: str flow { state A -> gate(g) -> TERMINATE(\"d\") } }";
+        let err = parse(src).unwrap_err();
+        assert!(
+            err.message.contains("unexpected character"),
+            "{}",
+            err.message
+        );
+    }
+
+    #[test]
+    fn unknown_action_kind_errors() {
+        let src = "spec Foo { in: x: str out: y: str flow { state A -> yeet(x) -> next } }";
+        let err = parse(src).unwrap_err();
+        assert!(err.message.contains("unknown action"), "{}", err.message);
+    }
+
+    #[test]
+    fn branch_target_referencing_missing_key_still_parses() {
+        // Parser doesn't validate that branch targets exist — that's the validator's job.
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            flow {
+                state A -> evaluate(x) -> branch
+                branch A {
+                    if cond -> TERMINATE("done")
+                }
+            }
+        }"#;
+        let parsed = parse(src).expect("should parse despite no downstream validation");
+        assert_eq!(parsed.spec.branches.len(), 1);
+    }
+}
