@@ -1,4 +1,4 @@
-//! Recursive-descent parser: token stream (from `lexer`) -> `AnlSpec` AST.
+//! Recursive-descent parser: token stream (from `lexer`) -> `AglSpec` AST.
 //!
 //! `-> branch` (no argument) always resolves to `Branch(<enclosing state's
 //! name>)`: the grammar keys a `branch NAME { ... }` block to the state of
@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use super::ast::{
-    AnlSpec, BranchBlock, BranchCase, DataType, InvariantRule, StateAction, StateNode,
+    AglSpec, BranchBlock, BranchCase, DataType, InvariantRule, StateAction, StateNode,
     TransitionTarget, TypedParam,
 };
 use super::lexer::{self, LexError, Tok, TokKind};
@@ -32,7 +32,7 @@ impl std::error::Error for ParseError {}
 /// on, so the validator can point at real locations in diagnostics.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Parsed {
-    pub spec: AnlSpec,
+    pub spec: AglSpec,
     pub state_lines: HashMap<String, usize>,
 }
 
@@ -166,7 +166,7 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
     cur.expect_punct(&TokKind::RBrace, "'}'")?;
 
     Ok(Parsed {
-        spec: AnlSpec {
+        spec: AglSpec {
             name,
             inputs,
             outputs,

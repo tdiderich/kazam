@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 mod actions;
 mod agents;
-mod anl;
+mod agl;
 mod annotations;
 mod audit;
 mod board;
@@ -292,10 +292,10 @@ enum Command {
         #[command(subcommand)]
         command: ThemeCommand,
     },
-    /// Parse, validate, and compile Agent Native Language (.anl) specs
-    Anl {
+    /// Parse, validate, and compile Agent Graph Language (.agl) specs
+    Agl {
         #[command(subcommand)]
-        command: anl::Command,
+        command: agl::Command,
     },
 }
 
@@ -685,7 +685,7 @@ fn main() -> Result<()> {
                 Ok(())
             }
         },
-        Command::Anl { command } => anl::run(command),
+        Command::Agl { command } => agl::run(command),
         Command::Ingest { command } => match command {
             IngestCommand::Notion {
                 database,

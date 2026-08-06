@@ -1,10 +1,10 @@
-//! AST models for the Agent Native Language (`.anl`) DSL.
+//! AST models for the Agent Graph Language (`.agl`) DSL.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct AnlSpec {
+pub struct AglSpec {
     pub name: String,
     pub inputs: Vec<TypedParam>,
     pub outputs: Vec<TypedParam>,

@@ -7,15 +7,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [1.12.0] - 2026-08-06
 
 ### Added
-- **`kazam anl` — Agent Native Language parser, validator, and prompt compiler**:
-  a new dense DSL (`.anl`) that turns a task into a static directed graph with
+- **`kazam agl` — Agent Graph Language parser, validator, and prompt compiler**:
+  a new dense DSL (`.agl`) that turns a task into a static directed graph with
   mandatory invariants, so an LLM agent runs inside deterministic execution
-  boundaries instead of free-form natural-language instructions. `kazam anl
+  boundaries instead of free-form natural-language instructions. `kazam agl
   validate <file>` parses the spec and runs a static graph analyzer —
   unreachable states, dangling/undefined transitions, non-terminating cycles,
   branch integrity, and invariant soundness (e.g. a `write` action reachable
   without first passing its required `gate`) — with human-readable or `--json`
-  output. `kazam anl export <file>` compiles a validated spec into a
+  output. `kazam agl export <file>` compiles a validated spec into a
   token-dense `<agent_spec>` system-prompt block ready for injection into an
   agent runtime.
 

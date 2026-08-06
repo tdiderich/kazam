@@ -1,4 +1,4 @@
-//! End-to-end tests for `kazam anl validate` / `kazam anl export`.
+//! End-to-end tests for `kazam agl validate` / `kazam agl export`.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -8,7 +8,7 @@ fn bin() -> PathBuf {
 }
 
 fn write_spec(name: &str, contents: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("kazam-anl-tests");
+    let dir = std::env::temp_dir().join("kazam-agl-tests");
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join(name);
     std::fs::write(&path, contents).expect("write spec");
@@ -72,12 +72,12 @@ spec Broken {
 
 #[test]
 fn validate_accepts_the_canonical_spec() {
-    let path = write_spec("valid.anl", VALID_SPEC);
+    let path = write_spec("valid.agl", VALID_SPEC);
     let output = Command::new(bin())
-        .args(["anl", "validate"])
+        .args(["agl", "validate"])
         .arg(&path)
         .output()
-        .expect("run kazam anl validate");
+        .expect("run kazam agl validate");
     assert!(
         output.status.success(),
         "stdout: {}\nstderr: {}",
@@ -90,12 +90,12 @@ fn validate_accepts_the_canonical_spec() {
 
 #[test]
 fn validate_reports_circular_non_terminating_branch() {
-    let path = write_spec("circular.anl", CIRCULAR_SPEC);
+    let path = write_spec("circular.agl", CIRCULAR_SPEC);
     let output = Command::new(bin())
-        .args(["anl", "validate"])
+        .args(["agl", "validate"])
         .arg(&path)
         .output()
-        .expect("run kazam anl validate");
+        .expect("run kazam agl validate");
     assert!(!output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("non-terminating-cycle"), "stdout: {stdout}");
@@ -103,12 +103,12 @@ fn validate_reports_circular_non_terminating_branch() {
 
 #[test]
 fn validate_reports_broken_references() {
-    let path = write_spec("broken.anl", BROKEN_REFERENCES_SPEC);
+    let path = write_spec("broken.agl", BROKEN_REFERENCES_SPEC);
     let output = Command::new(bin())
-        .args(["anl", "validate"])
+        .args(["agl", "validate"])
         .arg(&path)
         .output()
-        .expect("run kazam anl validate");
+        .expect("run kazam agl validate");
     assert!(!output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("undefined-goto-target"), "stdout: {stdout}");
@@ -118,12 +118,12 @@ fn validate_reports_broken_references() {
 
 #[test]
 fn validate_json_output_is_well_formed() {
-    let path = write_spec("valid_json.anl", VALID_SPEC);
+    let path = write_spec("valid_json.agl", VALID_SPEC);
     let output = Command::new(bin())
-        .args(["anl", "validate", "--json"])
+        .args(["agl", "validate", "--json"])
         .arg(&path)
         .output()
-        .expect("run kazam anl validate --json");
+        .expect("run kazam agl validate --json");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON output");
@@ -133,12 +133,12 @@ fn validate_json_output_is_well_formed() {
 
 #[test]
 fn validate_json_output_reports_parse_errors() {
-    let path = write_spec("unparseable.anl", "spec { totally not anl");
+    let path = write_spec("unparseable.agl", "spec { totally not agl");
     let output = Command::new(bin())
-        .args(["anl", "validate", "--json"])
+        .args(["agl", "validate", "--json"])
         .arg(&path)
         .output()
-        .expect("run kazam anl validate --json");
+        .expect("run kazam agl validate --json");
     assert!(!output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON output");
@@ -148,12 +148,12 @@ fn validate_json_output_reports_parse_errors() {
 
 #[test]
 fn export_renders_prompt_block_to_stdout() {
-    let path = write_spec("export.anl", VALID_SPEC);
+    let path = write_spec("export.agl", VALID_SPEC);
     let output = Command::new(bin())
-        .args(["anl", "export"])
+        .args(["agl", "export"])
         .arg(&path)
         .output()
-        .expect("run kazam anl export");
+        .expect("run kazam agl export");
     assert!(
         output.status.success(),
         "stderr: {}",
@@ -168,18 +168,18 @@ fn export_renders_prompt_block_to_stdout() {
 
 #[test]
 fn export_writes_to_file_with_out_flag() {
-    let path = write_spec("export_to_file.anl", VALID_SPEC);
-    let dir = std::env::temp_dir().join("kazam-anl-tests");
+    let path = write_spec("export_to_file.agl", VALID_SPEC);
+    let dir = std::env::temp_dir().join("kazam-agl-tests");
     let out_path = dir.join("export_to_file.prompt.txt");
     let _ = std::fs::remove_file(&out_path);
 
     let output = Command::new(bin())
-        .args(["anl", "export"])
+        .args(["agl", "export"])
         .arg(&path)
         .arg("--out")
         .arg(&out_path)
         .output()
-        .expect("run kazam anl export --out");
+        .expect("run kazam agl export --out");
     assert!(output.status.success());
 
     let written = std::fs::read_to_string(&out_path).expect("read exported prompt");
@@ -188,14 +188,14 @@ fn export_writes_to_file_with_out_flag() {
 
 #[test]
 fn export_rejects_unsupported_format() {
-    let path = write_spec("export_bad_format.anl", VALID_SPEC);
+    let path = write_spec("export_bad_format.agl", VALID_SPEC);
     let output = Command::new(bin())
-        .args(["anl", "export"])
+        .args(["agl", "export"])
         .arg(&path)
         .arg("--format")
         .arg("yaml")
         .output()
-        .expect("run kazam anl export --format yaml");
+        .expect("run kazam agl export --format yaml");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
@@ -207,9 +207,9 @@ fn export_rejects_unsupported_format() {
 #[test]
 fn validate_reports_missing_file() {
     let output = Command::new(bin())
-        .args(["anl", "validate"])
-        .arg("/nonexistent/path/to/spec.anl")
+        .args(["agl", "validate"])
+        .arg("/nonexistent/path/to/spec.agl")
         .output()
-        .expect("run kazam anl validate");
+        .expect("run kazam agl validate");
     assert!(!output.status.success());
 }

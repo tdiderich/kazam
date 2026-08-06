@@ -1,9 +1,9 @@
-//! Static graph analyzer for a parsed `.anl` spec: reachability, terminal
+//! Static graph analyzer for a parsed `.agl` spec: reachability, terminal
 //! completeness, branch integrity, and invariant soundness.
 
 use std::collections::{HashMap, HashSet};
 
-use super::ast::{AnlSpec, BranchBlock, InvariantRule, StateAction, StateNode, TransitionTarget};
+use super::ast::{AglSpec, BranchBlock, InvariantRule, StateAction, StateNode, TransitionTarget};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
@@ -57,7 +57,7 @@ pub fn has_errors(diags: &[Diagnostic]) -> bool {
     diags.iter().any(|d| d.severity == Severity::Error)
 }
 
-pub fn validate(spec: &AnlSpec, state_lines: &HashMap<String, usize>) -> Vec<Diagnostic> {
+pub fn validate(spec: &AglSpec, state_lines: &HashMap<String, usize>) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
 
     if spec.flow.is_empty() {
@@ -99,7 +99,7 @@ pub fn validate(spec: &AnlSpec, state_lines: &HashMap<String, usize>) -> Vec<Dia
 }
 
 fn check_duplicate_states(
-    spec: &AnlSpec,
+    spec: &AglSpec,
     diags: &mut Vec<Diagnostic>,
     lines: &HashMap<String, usize>,
 ) {
@@ -121,7 +121,7 @@ fn check_duplicate_states(
 /// Every transition target and branch-case target must resolve to something
 /// real, independent of whether the graph walk ever reaches it.
 fn check_reference_integrity(
-    spec: &AnlSpec,
+    spec: &AglSpec,
     by_name: &HashMap<&str, usize>,
     diags: &mut Vec<Diagnostic>,
     lines: &HashMap<String, usize>,
@@ -161,7 +161,7 @@ fn check_reference_integrity(
 fn check_target(
     target: &TransitionTarget,
     idx: usize,
-    spec: &AnlSpec,
+    spec: &AglSpec,
     by_name: &HashMap<&str, usize>,
     from: &str,
     line: Option<usize>,
@@ -276,7 +276,7 @@ fn reachable_set(
 }
 
 fn check_unreachable_states(
-    spec: &AnlSpec,
+    spec: &AglSpec,
     visited: &HashSet<String>,
     initial: &str,
     diags: &mut Vec<Diagnostic>,
@@ -371,7 +371,7 @@ fn is_fallback_condition(condition: &str) -> bool {
 }
 
 fn check_branch_integrity(
-    spec: &AnlSpec,
+    spec: &AglSpec,
     by_name: &HashMap<&str, usize>,
     reachable_branches: &HashSet<String>,
     diags: &mut Vec<Diagnostic>,
@@ -493,7 +493,7 @@ fn any_path_missing_gate(start: &str, target: &str, gate_name: &str, graph: &Gra
 }
 
 fn check_invariant_soundness(
-    spec: &AnlSpec,
+    spec: &AglSpec,
     initial: &str,
     by_name: &HashMap<&str, usize>,
     diags: &mut Vec<Diagnostic>,
@@ -631,7 +631,7 @@ pub fn format_pretty(diags: &[Diagnostic]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::anl::parser::parse;
+    use crate::agl::parser::parse;
 
     const SAMPLE: &str = r#"
     spec MeetingPrep {

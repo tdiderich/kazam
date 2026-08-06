@@ -1,8 +1,8 @@
-//! System-prompt compiler: renders a parsed `AnlSpec` into a token-dense
+//! System-prompt compiler: renders a parsed `AglSpec` into a token-dense
 //! XML/Markdown block meant for direct injection into an agent's context
 //! window (Claude Code, Cursor, or any LLM runtime).
 
-use super::ast::{AnlSpec, DataType, InvariantRule, StateAction, TransitionTarget};
+use super::ast::{AglSpec, DataType, InvariantRule, StateAction, TransitionTarget};
 
 fn render_type(dt: &DataType) -> String {
     match dt {
@@ -50,7 +50,7 @@ fn render_invariant(rule: &InvariantRule) -> String {
 /// Render `spec` as a compact `<agent_spec>` block: I/O contract, invariants,
 /// and the flow graph, followed by a short execution contract telling the
 /// agent how to treat gates, denials, and termination.
-pub fn to_prompt(spec: &AnlSpec) -> String {
+pub fn to_prompt(spec: &AglSpec) -> String {
     let mut out = String::new();
 
     out.push_str(&format!("<agent_spec name=\"{}\">\n", spec.name));
@@ -126,7 +126,7 @@ pub fn to_prompt(spec: &AnlSpec) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::anl::parser::parse;
+    use crate::agl::parser::parse;
 
     const SAMPLE: &str = r#"
     spec MeetingPrep {

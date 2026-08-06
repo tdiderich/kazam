@@ -1,4 +1,4 @@
-//! Agent Native Language (`.anl`): a dense, declarative DSL that turns a
+//! Agent Graph Language (`.agl`): a dense, declarative DSL that turns a
 //! task into a static directed graph with mandatory invariants, so an LLM
 //! agent runs inside deterministic execution boundaries instead of free-form
 //! natural-language instructions.
@@ -15,18 +15,18 @@ use std::path::{Path, PathBuf};
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Validate an .anl spec: parse it, then run the static graph analyzer
+    /// Validate an .agl spec: parse it, then run the static graph analyzer
     /// (reachability, terminal completeness, branch integrity, invariants).
     Validate {
-        /// Path to the .anl spec file
+        /// Path to the .agl spec file
         path: PathBuf,
         /// Emit machine-readable JSON instead of the human-readable report
         #[arg(long)]
         json: bool,
     },
-    /// Compile an .anl spec into a token-dense agent system-prompt block
+    /// Compile an .agl spec into a token-dense agent system-prompt block
     Export {
-        /// Path to the .anl spec file
+        /// Path to the .agl spec file
         path: PathBuf,
         /// Output format (currently only "prompt" is supported)
         #[arg(long, default_value = "prompt")]

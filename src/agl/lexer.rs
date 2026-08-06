@@ -1,4 +1,4 @@
-//! Lexer for `.anl` source — turns raw text into a flat token stream.
+//! Lexer for `.agl` source — turns raw text into a flat token stream.
 //!
 //! Token recognition uses `winnow` combinators; whitespace/comment skipping
 //! is plain string slicing since it carries no grammar meaning of its own.
@@ -56,7 +56,7 @@ fn ident(input: &mut &str) -> ModalResult<String> {
         .parse_next(input)
 }
 
-/// `"..."` — no escape sequences; `.anl` strings are short human messages.
+/// `"..."` — no escape sequences; `.agl` strings are short human messages.
 fn string_lit(input: &mut &str) -> ModalResult<String> {
     let _ = literal("\"").parse_next(input)?;
     let body: &str = take_while(0.., |c| c != '"').parse_next(input)?;
