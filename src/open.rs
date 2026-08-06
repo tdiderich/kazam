@@ -19,9 +19,9 @@ pub fn run(path: &Path, port: u16) -> Result<()> {
         .unwrap_or("")
         .to_lowercase();
     match ext.as_str() {
-        "md" | "yaml" | "yml" | "json" => {}
+        "md" | "yaml" | "yml" | "json" | "agl" => {}
         _ => anyhow::bail!(
-            "unsupported format '.{ext}' — kazam open supports .md, .yaml, .yml, .json"
+            "unsupported format '.{ext}' — kazam open supports .md, .yaml, .yml, .json, .agl"
         ),
     }
 
@@ -265,6 +265,7 @@ fn render_body(ext: &str, content: &str) -> String {
         "md" => render_markdown(content),
         "yaml" | "yml" => render_code(content, "yaml"),
         "json" => render_code(content, "json"),
+        "agl" => render_code(content, "agl"),
         _ => format!("<pre>{}</pre>", html_escape(content)),
     }
 }
@@ -741,8 +742,105 @@ fn syntax_highlight(line: &str, lang: &str) -> String {
     match lang {
         "yaml" | "yml" => highlight_yaml(line),
         "json" => highlight_json(line),
+        "agl" => highlight_agl(line),
         _ => html_escape(line),
     }
+}
+
+/// Every bare keyword in the Agent Graph Language (`.agl`) grammar - see
+/// `kazam`'s `src/agl/parser.rs` on the `claude/agl-imports-mcp-skills`
+/// branch (unmerged as of this writing). Kept as a flat list here rather
+/// than importing that module: `.agl` doesn't exist on `main` yet, and
+/// this view is cosmetic only - `kazam agl validate` is the real parser.
+const AGL_KEYWORDS: &[&str] = &[
+    "spec",
+    "in",
+    "out",
+    "requires",
+    "skill",
+    "cache",
+    "invariant",
+    "flow",
+    "state",
+    "branch",
+    "if",
+    "deny",
+    "without",
+    "gate",
+    "import",
+    "call",
+    "map",
+    "evaluate",
+    "TERMINATE",
+    "next",
+];
+
+fn highlight_agl(line: &str) -> String {
+    let mut out = String::new();
+    let chars: Vec<char> = line.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '"' {
+            let start = i;
+            i += 1;
+            while i < chars.len() && chars[i] != '"' {
+                i += 1;
+            }
+            if i < chars.len() {
+                i += 1; // consume the closing quote
+            }
+            let s: String = chars[start..i].iter().collect();
+            out.push_str(&format!(
+                "<span class=\"syn-str\">{}</span>",
+                html_escape(&s)
+            ));
+        } else if c == '/' && chars.get(i + 1) == Some(&'/') {
+            let comment: String = chars[i..].iter().collect();
+            out.push_str(&format!(
+                "<span class=\"syn-comment\">{}</span>",
+                html_escape(&comment)
+            ));
+            i = chars.len();
+        } else if c == '-' && chars.get(i + 1) == Some(&'>') {
+            out.push_str("<span class=\"syn-punct\">-&gt;</span>");
+            i += 2;
+        } else if c.is_alphabetic() || c == '_' {
+            let start = i;
+            // Same lookahead the real lexer uses: a '-' that's actually the
+            // start of an immediately-following "->" doesn't get absorbed,
+            // so `next->TERMINATE(...)` (no space) still shows an arrow.
+            while i < chars.len() {
+                let ch = chars[i];
+                if !(ch.is_alphanumeric() || ch == '_' || ch == '.' || ch == '-') {
+                    break;
+                }
+                if ch == '-' && chars.get(i + 1) == Some(&'>') {
+                    break;
+                }
+                i += 1;
+            }
+            let word: String = chars[start..i].iter().collect();
+            if AGL_KEYWORDS.contains(&word.as_str()) {
+                out.push_str(&format!(
+                    "<span class=\"syn-key\">{}</span>",
+                    html_escape(&word)
+                ));
+            } else {
+                out.push_str(&html_escape(&word));
+            }
+        } else if "{}(),:".contains(c) {
+            out.push_str(&format!(
+                "<span class=\"syn-punct\">{}</span>",
+                html_escape(&c.to_string())
+            ));
+            i += 1;
+        } else {
+            out.push_str(&html_escape(&c.to_string()));
+            i += 1;
+        }
+    }
+    out
 }
 
 fn highlight_yaml(line: &str) -> String {
@@ -975,5 +1073,56 @@ fn watch_file(path: PathBuf, st: Arc<State>) {
                 eprintln!("  read failed: {e}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod agl_highlight_tests {
+    use super::*;
+
+    #[test]
+    fn highlights_keywords() {
+        let out = highlight_agl("spec Foo {");
+        assert!(out.contains("<span class=\"syn-key\">spec</span>"));
+        assert!(!out.contains("<span class=\"syn-key\">Foo</span>"));
+    }
+
+    #[test]
+    fn highlights_string_literals() {
+        let out = highlight_agl(r#"call(Bash, customer, "https://example.com")"#);
+        assert!(out.contains("<span class=\"syn-str\">&quot;https://example.com&quot;</span>"));
+    }
+
+    #[test]
+    fn highlights_line_comments() {
+        let out = highlight_agl("// a comment");
+        assert!(out.contains("<span class=\"syn-comment\">// a comment</span>"));
+    }
+
+    #[test]
+    fn does_not_treat_a_url_slash_slash_as_a_comment() {
+        // The comment-scanner only fires at top level, but a string
+        // literal's contents are consumed by the string-scanning branch
+        // first, so a URL's "//" inside quotes must never start a comment.
+        let out = highlight_agl(r#"state A -> call(Bash, "https://x") -> next"#);
+        assert!(!out.contains("syn-comment"));
+    }
+
+    #[test]
+    fn no_space_arrow_after_a_word_still_highlights_as_an_arrow() {
+        // Same lookahead the real lexer needed (kz-e243): a '-' that's
+        // actually the start of "->" must not get absorbed into the
+        // preceding word, even with no space before it.
+        let out = highlight_agl(r#"next->TERMINATE("done")"#);
+        assert!(out.contains("<span class=\"syn-punct\">-&gt;</span>"));
+        assert!(out.contains("<span class=\"syn-key\">next</span>"));
+        assert!(out.contains("<span class=\"syn-key\">TERMINATE</span>"));
+    }
+
+    #[test]
+    fn hyphenated_identifiers_are_not_split() {
+        let out = highlight_agl("cache slack-lookups {");
+        assert!(out.contains("slack-lookups"));
+        assert!(!out.contains("slack</span>-<span"));
     }
 }
