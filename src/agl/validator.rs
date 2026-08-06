@@ -510,8 +510,14 @@ fn check_branch_integrity(
     }
 }
 
+// Real API method names rarely say "write" - Linear's are save_issue /
+// save_customer_need, HubSpot's tool is manage_crm_objects, Notion-style
+// APIs use upsert/patch/put. Found by converting two real workflows to
+// AGL back to back and getting a silent non-match both times: the write
+// happened, the invariant just never recognized it as a write.
 const WRITE_SYNONYMS: &[&str] = &[
-    "write", "update", "set", "create", "delete", "remove", "modify",
+    "write", "update", "set", "create", "delete", "remove", "modify", "save", "manage", "sync",
+    "publish", "insert", "upsert", "patch", "put", "post",
 ];
 const READ_SYNONYMS: &[&str] = &["fetch", "get", "read", "list", "scan", "query"];
 
@@ -855,6 +861,51 @@ mod tests {
         let parsed = parse(src).unwrap();
         let diags = validate(&parsed.spec, &parsed.state_lines);
         assert!(diags.iter().any(|d| d.code == "invariant-violation"));
+    }
+
+    #[test]
+    fn detects_missing_gate_on_a_real_linear_save_verb() {
+        // Linear's actual tool names are save_issue / save_customer_need -
+        // "save" wasn't in WRITE_SYNONYMS, so this write went unrecognized
+        // until it was added. Found converting workflow-feature-request-bug.
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            invariant {
+                deny: write(linear) without gate(human_approval)
+            }
+            flow {
+                state FILE_IT -> call(Linear.save_issue, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let diags = validate(&parsed.spec, &parsed.state_lines);
+        assert!(
+            diags.iter().any(|d| d.code == "invariant-violation"),
+            "{diags:?}"
+        );
+    }
+
+    #[test]
+    fn detects_missing_gate_on_a_real_hubspot_manage_verb() {
+        // HubSpot's real MCP tool is manage_crm_objects (generic, covers
+        // both reads and writes) - "manage" wasn't in WRITE_SYNONYMS either.
+        let src = r#"spec Foo {
+            in: x: str
+            out: y: str
+            invariant {
+                deny: write(hubspot) without gate(human_approval)
+            }
+            flow {
+                state SYNC_IT -> call(HubSpot.manage_crm_objects, x) -> TERMINATE("done")
+            }
+        }"#;
+        let parsed = parse(src).unwrap();
+        let diags = validate(&parsed.spec, &parsed.state_lines);
+        assert!(
+            diags.iter().any(|d| d.code == "invariant-violation"),
+            "{diags:?}"
+        );
     }
 
     #[test]
