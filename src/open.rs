@@ -135,6 +135,11 @@ fn handle(req: tiny_http::Request, st: &State) -> Result<()> {
 
         ("/api/save", _, true) => handle_save(req, st),
 
+        // Stateless: highlights whatever the browser currently has in the
+        // textarea, not st.text(), so the overlay tracks keystrokes without
+        // waiting on the save debounce or touching the edit buffer.
+        ("/api/highlight", _, true) => handle_highlight(req, st),
+
         // Conflict resolution: keep the buffer, or throw it away for disk.
         ("/api/keep-mine", _, true) => {
             st.conflict.store(false, Ordering::SeqCst);
@@ -183,6 +188,21 @@ fn handle_post_content(mut req: tiny_http::Request, st: &State) -> Result<()> {
         .with_header(server::hdr("Content-Type", "application/json"))
         .with_header(server::hdr("Cache-Control", "no-store"));
     req.respond(resp).context("respond")
+}
+
+/// Highlights posted text for the edit-mode overlay. Pure compute, no side
+/// effects on `st.buffer` — the save debounce owns writing to the buffer, this
+/// just needs `st.ext` to pick a highlighter.
+fn handle_highlight(mut req: tiny_http::Request, st: &State) -> Result<()> {
+    let mut body = String::new();
+    req.as_reader()
+        .read_to_string(&mut body)
+        .context("read POST body")?;
+    let html = match st.ext.as_str() {
+        "yaml" | "yml" | "json" | "agl" => render_code_inline(&body, &st.ext),
+        _ => html_escape(&body),
+    };
+    server::respond_html(req, &html)
 }
 
 /// Write the edit buffer to disk. Refuses while a conflict is unresolved,
@@ -362,6 +382,12 @@ body {{
   margin: 0 auto;
   padding: 32px 24px;
 }}
+.container.wide {{
+  max-width: 1400px;
+}}
+.code-view::-webkit-scrollbar {{ height: 8px; }}
+.code-view::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 4px; }}
+.code-view::-webkit-scrollbar-track {{ background: transparent; }}
 .view-mode {{ display: block; }}
 .edit-mode {{ display: none; }}
 body.editing .view-mode {{ display: none; }}
@@ -426,11 +452,8 @@ body.editing .edit-mode {{ display: block; }}
 .frontmatter .syn-string {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
 .frontmatter .syn-number {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
 .frontmatter .syn-bool {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
-/* Code view (yaml/json) */
+/* Code view (yaml/json/agl) - plain formatted text, not a boxed card */
 .code-view {{
-  background: var(--code-bg);
-  padding: 20px;
-  border-radius: 6px;
   overflow-x: auto;
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
   font-size: 14px;
@@ -456,24 +479,48 @@ body.editing .edit-mode {{ display: block; }}
 .syn-null {{ color: #f87171; }}
 .syn-comment {{ color: var(--muted); font-style: italic; }}
 .syn-punct {{ color: var(--muted); }}
-/* Edit textarea */
-.edit-area {{
-  width: 100%;
+/* Edit mode: a highlighted <pre> sits behind a transparent-text textarea,
+   both sharing the exact font metrics and padding so keystrokes land on the
+   right character. The box (background/border/radius) lives on the wrapper
+   only - the boxed look the .code-view used to have, moved to where editing
+   actually happens. */
+.edit-wrap {{
+  position: relative;
   min-height: calc(100vh - 120px);
   background: var(--code-bg);
-  color: var(--fg);
   border: 1px solid var(--border);
   border-radius: 6px;
+  overflow: hidden;
+}}
+.edit-wrap:focus-within {{
+  border-color: var(--accent);
+}}
+.edit-highlight, .edit-area {{
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
   padding: 20px;
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
   font-size: 14px;
   line-height: 1.5;
   tab-size: 2;
-  resize: vertical;
-  outline: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow: auto;
 }}
-.edit-area:focus {{
-  border-color: var(--accent);
+.edit-highlight {{
+  color: var(--fg);
+  pointer-events: none;
+}}
+.edit-area {{
+  background: transparent;
+  color: transparent;
+  caret-color: var(--fg);
+  border: none;
+  outline: none;
+  resize: none;
 }}
 .status {{
   position: fixed;
@@ -536,10 +583,13 @@ body.editing .edit-mode {{ display: block; }}
 </div>
 {banner}
 <div class="syntax-err" id="syntaxErr"></div>
-<div class="container">
+<div class="container{container_wide}">
   <div class="view-mode markdown" id="viewPane">{rendered}</div>
   <div class="edit-mode">
-    <textarea class="edit-area" id="editor" spellcheck="false">{edit_escaped}</textarea>
+    <div class="edit-wrap">
+      <pre class="edit-highlight" id="editorHighlight" aria-hidden="true">{edit_highlighted}</pre>
+      <textarea class="edit-area" id="editor" spellcheck="false">{edit_escaped}</textarea>
+    </div>
   </div>
 </div>
 <div class="status" id="status"></div>
@@ -597,12 +647,27 @@ function refreshView(){{
     .catch(function(){{}});
 }}
 var editor=document.getElementById('editor');
-var debounce=null;
+var highlightPane=document.getElementById('editorHighlight');
+var debounce=null, highlightDebounce=null;
 editor.addEventListener('input',function(){{
   dirty=true;
   clearTimeout(debounce);
   debounce=setTimeout(postContent,400);
+  clearTimeout(highlightDebounce);
+  highlightDebounce=setTimeout(updateHighlight,120);
 }});
+// Keeps the highlighted <pre> behind the (invisible-text) textarea in view,
+// since the two scroll independently otherwise.
+editor.addEventListener('scroll',function(){{
+  highlightPane.scrollTop=editor.scrollTop;
+  highlightPane.scrollLeft=editor.scrollLeft;
+}});
+function updateHighlight(){{
+  fetch('/api/highlight',{{method:'POST',body:editor.value}})
+    .then(function(r){{return r.text()}})
+    .then(function(h){{highlightPane.innerHTML=h;}})
+    .catch(function(){{}});
+}}
 // Tab key inserts spaces
 editor.addEventListener('keydown',function(e){{
   if(e.key==='Tab'){{
@@ -685,7 +750,15 @@ fetch('/api/status').then(function(r){{return r.json()}})
         ext = ext,
         rendered = rendered,
         banner = banner,
+        container_wide = match ext {
+            "yaml" | "yml" | "json" | "agl" => " wide",
+            _ => "",
+        },
         edit_escaped = html_escape(raw_for_edit),
+        edit_highlighted = match ext {
+            "yaml" | "yml" | "json" | "agl" => render_code_inline(raw_for_edit, ext),
+            _ => html_escape(raw_for_edit),
+        },
     )
 }
 
@@ -736,6 +809,16 @@ fn render_code(src: &str, lang: &str) -> String {
     }
     out.push_str("</div>");
     out
+}
+
+/// Same per-line highlighting as `render_code`, without the line-number
+/// gutter or wrapping div - so the output lines up character-for-character
+/// with a plain `<textarea>` behind it, for the edit-mode overlay.
+fn render_code_inline(src: &str, lang: &str) -> String {
+    src.lines()
+        .map(|line| syntax_highlight(line, lang))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn syntax_highlight(line: &str, lang: &str) -> String {
