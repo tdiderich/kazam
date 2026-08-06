@@ -4,6 +4,20 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-08-06
+
+### Added
+- **`kazam cli-reference`**: generates the CLI command reference straight
+  from `--help` metadata (a recursive walk over the `clap::Command` tree,
+  no new dependency). No flags prints to stdout, `--write` patches the
+  block between `<!-- CLI_REFERENCE:START -->` / `<!-- CLI_REFERENCE:END -->`
+  in README.md in place, `--check` compares without writing and exits 1 on
+  drift. CI runs `--check` on every push so README can't silently drift
+  from the real CLI surface.
+- Filled in every previously-undocumented positional arg and flag surfaced
+  by the first `cli-reference` run, across `main.rs`, `track/mod.rs`, and
+  `ctx/mod.rs`.
+
 ## [1.11.0] - 2026-08-03
 
 ### Added

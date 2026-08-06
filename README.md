@@ -244,6 +244,744 @@ Connect via the built-in MCP server — add this to your editor's MCP config:
 
 See [PRODUCT.md](PRODUCT.md) for the full product plan.
 
+## CLI Reference
+
+Generated from `--help` metadata, not hand-maintained. Regenerate with `kazam cli-reference --write`; CI fails if this drifts from the real CLI surface.
+
+<!-- CLI_REFERENCE:START -->
+
+### `kazam`
+
+Beautiful sites from simple YAML
+
+#### `kazam build`
+
+Build a site from a directory of .yaml files
+
+- `dir` - Directory of .yaml source files
+
+| Flag | Default | Description |
+|---|---|---|
+| `--out, -o` | `_site` | Output directory for the built site |
+| `--release, -r` |  | Minify HTML, CSS, and JS in the output |
+| `--allow-orphans` |  | Silence the orphan-page check (broken links still reported). Useful for draft pages you haven't wired into nav yet |
+| `--json` |  | Emit structured NDJSON instead of human-readable output |
+| `--no-manifest` |  | Skip emitting site.json manifest |
+| `--no-search` |  | Skip emitting search.json index |
+| `--no-health` |  | Skip emitting _health.html health dashboard |
+
+#### `kazam dev`
+
+Watch source, rebuild on change, serve at localhost:PORT
+
+- `dir` - Directory of .yaml source files
+
+| Flag | Default | Description |
+|---|---|---|
+| `--out, -o` | `_site` | Output directory for the built site |
+| `--port, -p` | `3000` | Port to serve the live-reloading site on |
+
+#### `kazam init`
+
+Scaffold a new kazam site in <NAME>/
+
+- `name` - Directory to create, also used as the site name
+
+#### `kazam agents`
+
+Print the LLM authoring guide (full AGENTS.md to stdout)
+
+#### `kazam install`
+
+Install an AI tool pack from a curata instance (writes CLAUDE.md + .cursorrules)
+
+- `url` - Pack URL: https://<instance>/pages/<slug>, /p/<org>/<slug>, or <instance>/<slug>
+
+| Flag | Default | Description |
+|---|---|---|
+| `--api-key` |  | API key for the curata instance (falls back to KAZAM_CURATA_API_KEY) |
+| `--dir, -d` | `.` | Directory to write config files into (implies --repo if not "."; repo scope) |
+| `--force` |  | Install even if the page has no pack: marker |
+| `--cli` |  | Override the pack's declared targets. Repeatable or comma-separated. Supported: claude, cursor, agents, windsurf, copilot, gemini, aider |
+| `--allow-hooks` |  | Also install the pack's declarative hooks (writes hook config + registers the kazam runner in .claude/settings.json). Off by default |
+| `--user` |  | Install for the current user (~/.claude), shared across every project. This is the default when no scope flag is given |
+| `--repo` |  | Install into this repo only (writes at --dir). Mutually exclusive with --user |
+
+#### `kazam check`
+
+Check installed packs for drift against their curata source pages
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir, -d` | `.` | Directory to scan for installed packs |
+| `--api-key` |  | API key for the curata instance (falls back to KAZAM_CURATA_API_KEY) |
+
+#### `kazam pack-hook`
+
+Internal: run a declarative pack hook (registered in settings by install)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--pack` |  | Pack slug whose hook config to load |
+| `--index` |  | Index of the hook within the pack's config |
+| `--config` |  | Absolute path to the hook config, set automatically by install. When absent (pre-1.8.0 installs), falls back to walking up from `dir` for the old `.kazam/packs/` location |
+| `--dir` | `.` | Project directory (default: current directory) |
+
+#### `kazam wish`
+
+Grant a wish — install a recipe for self-refreshing docs
+
+##### `kazam wish list`
+
+List available wishes (local + registry)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam wish init`
+
+Install a wish from the registry into local wishes/
+
+- `name` - Name of the wish to install
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir` |  | Install to a specific directory instead of wishes/ |
+| `--force` |  | Overwrite existing local wish |
+
+#### `kazam track`
+
+Manage the work graph — tasks, dependencies, activity log
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir, -d` | `.` | Project directory (default: current directory) |
+
+##### `kazam track init`
+
+Initialize .kazam/track/ with empty stores
+
+| Flag | Default | Description |
+|---|---|---|
+| `--skunkworks` |  | Gitignore .kazam/ for shared repos |
+
+##### `kazam track add`
+
+Add a new task
+
+- `title` - One-line task title
+
+| Flag | Default | Description |
+|---|---|---|
+| `--priority, -p` | `2` | 0 (highest) through 9 (lowest) |
+| `--type, -t` | `task` | Freeform category, e.g. task, bug, epic |
+| `--owner` | `agent` | Who owns closing this: agent or human |
+| `--parent` |  | Parent task ID, for subtasks under an epic |
+| `--blocks` |  | Task IDs this one blocks, comma-separated |
+| `--assign` |  | Assignee name, claims the task immediately |
+| `--note` |  | Freeform note attached to the task |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track ready`
+
+Show tasks with no open blockers, sorted by priority
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track claim`
+
+Atomically claim a task (set assignee + active)
+
+- `id` - Task ID
+
+| Flag | Default | Description |
+|---|---|---|
+| `--name` |  | Claimant name (alias: --as) |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track close`
+
+Close a completed task
+
+- `id` - Task ID
+
+| Flag | Default | Description |
+|---|---|---|
+| `--reason` |  | What was done, recorded on the task |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track block`
+
+Mark a task as blocked
+
+- `id` - Task ID
+
+| Flag | Default | Description |
+|---|---|---|
+| `--reason` |  | Why it's blocked, recorded on the task |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track list`
+
+List tasks (optionally filtered)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--status` |  | Filter by status: open, closed, blocked |
+| `--assignee` |  | Filter by assignee name |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track tree`
+
+Show the task tree
+
+| Flag | Default | Description |
+|---|---|---|
+| `--filter` | `all` | all, open, or closed |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track show`
+
+Show full details for a task
+
+- `id` - Task ID
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track import`
+
+Import tasks from a markdown plan (## headings → epics, - bullets → tasks)
+
+- `file` - Path to a markdown file
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dry-run` |  | Preview without creating tasks |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track dep`
+
+Manage dependencies
+
+###### `kazam track dep add`
+
+Add a dependency: BLOCKER blocks BLOCKED
+
+- `blocker` - Task ID that must close first
+- `blocked` - Task ID that's blocked
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+###### `kazam track dep rm`
+
+Remove a dependency
+
+- `blocker` - Task ID that must close first
+- `blocked` - Task ID that's blocked
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam track log`
+
+Show or add to the activity log
+
+| Flag | Default | Description |
+|---|---|---|
+| `--limit` | `25` | Max entries to show |
+| `--json` |  | Machine-readable JSON output |
+
+###### `kazam track log add`
+
+Add a manual log entry
+
+- `title` - One-line entry title
+
+| Flag | Default | Description |
+|---|---|---|
+| `--source` |  | Where this came from, freeform |
+| `--severity` | `info` | info, warning, or major |
+| `--task-id` |  | Associate with an existing task ID |
+| `--json` |  | Machine-readable JSON output |
+
+#### `kazam ctx`
+
+Manage context intelligence — file anatomy, learnings, bugs
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir, -d` | `.` | Project directory (default: current directory) |
+
+##### `kazam ctx init`
+
+Initialize .kazam/ctx/ (optionally scan files)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--scan` |  | Run an initial anatomy scan right away |
+| `--skunkworks` |  | Gitignore .kazam/ for shared repos |
+
+##### `kazam ctx scan`
+
+Scan project files and update anatomy
+
+| Flag | Default | Description |
+|---|---|---|
+| `--check` |  | Report drift without writing changes |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx status`
+
+Show context status summary
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx describe`
+
+Update a file's anatomy description (agent-enriched)
+
+- `file` - Path to the file, relative to the project
+- `description` - What this file actually does
+
+##### `kazam ctx learn`
+
+Record a learning
+
+- `text` - The lesson learned, in one or two sentences
+
+| Flag | Default | Description |
+|---|---|---|
+| `--category` | `preference` | preference, correction, or gotcha |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx learnings`
+
+List all learnings
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx bug`
+
+Record a bug encounter
+
+- `symptom` - What went wrong, in one or two sentences
+
+| Flag | Default | Description |
+|---|---|---|
+| `--file` |  | File path the bug is associated with |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx bugs`
+
+List bugs (optionally filtered by file path)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--file` |  | Only show bugs associated with this file path |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx resolve`
+
+Resolve a bug with a fix description
+
+- `id` - Bug ID
+
+| Flag | Default | Description |
+|---|---|---|
+| `--fix` |  | How it was fixed |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx correction`
+
+Record a correction (agent got something wrong)
+
+- `mistake` - What the agent did wrong
+- `correction` - What to do instead
+
+| Flag | Default | Description |
+|---|---|---|
+| `--file` |  | File path the correction is associated with |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx corrections`
+
+List all corrections
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx consolidate`
+
+Consolidate stale data (remove old resolved bugs, deduplicate learnings)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--days` | `30` | Only consolidate entries older than this many days |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx hooks`
+
+Manage agent hooks (install/uninstall/status)
+
+###### `kazam ctx hooks install`
+
+Install hook scripts and register with agent
+
+| Flag | Default | Description |
+|---|---|---|
+| `--agent` | `claude` | Which agent to register hooks for |
+
+###### `kazam ctx hooks uninstall`
+
+Remove all hooks
+
+###### `kazam ctx hooks status`
+
+Show hook installation status
+
+#### `kazam board`
+
+Live dashboard — renders .kazam/ state as a visual board
+
+- `dir` - Project directory (default: current directory)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port, -p` | `3001` | Port to serve the board on |
+
+#### `kazam open`
+
+Open a file (.md, .yaml, .json) in the browser with live reload and inline editing
+
+- `path` - Path to the file to open
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port, -p` | `3002` | Port to serve the file view on |
+
+#### `kazam show`
+
+Pretty-print a file (.md, .yaml, .json) in the terminal
+
+- `path` - Path to the file to show
+
+#### `kazam workspace`
+
+Initialize the full agent workspace (track + ctx + hooks) in one shot
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir, -d` | `.` | Project directory (default: current directory) |
+
+##### `kazam workspace init`
+
+Initialize track + ctx + scan + hooks in one shot
+
+| Flag | Default | Description |
+|---|---|---|
+| `--agent` | `claude` | Agent to register hooks for |
+| `--skunkworks` |  | Gitignore .kazam/ for shared repos |
+| `--sass` | `some` | Sass level for human blocker callouts (none, some, lots) |
+
+##### `kazam workspace status`
+
+Show workspace status
+
+##### `kazam workspace sass`
+
+Set the sass level for human blocker callouts
+
+- `level` - none, some, or lots
+
+##### `kazam workspace skunkworks`
+
+Toggle skunkworks mode (gitignore .kazam/)
+
+- `action` - enable or disable
+
+#### `kazam validate`
+
+Validate page YAML files against component schemas and structural rules
+
+- `dir` - Directory of .yaml source files to validate (default: current directory)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--file` |  | Validate a single YAML file instead of the whole directory |
+| `--pretty` |  | Human-readable output (default is JSON) |
+
+#### `kazam mcp`
+
+Run an MCP server over stdio for AI client integration
+
+- `dir` - Site directory to serve
+
+| Flag | Default | Description |
+|---|---|---|
+| `--allow-writes` |  | Allow write operations (write_page, annotate_page, update_annotation) |
+| `--transport` | `stdio` | Transport: stdio (default) or http |
+| `--port` | `8080` | Port for HTTP transport |
+| `--local` |  | Bind to localhost only (default for http). Mutually exclusive with --remote |
+| `--remote` |  | Bind to all interfaces (0.0.0.0) for remote access. Requires --token or KAZAM_MCP_TOKEN |
+| `--token` |  | Bearer token for remote HTTP auth. Also reads KAZAM_MCP_TOKEN env var |
+
+#### `kazam freshness`
+
+Show freshness status for all pages in the site
+
+- `dir` - Site directory
+
+##### `kazam freshness show`
+
+Show freshness status for all pages (default)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--pretty` |  | Human-readable table output (default is JSON) |
+| `--threshold` |  | Days since last update before a page counts as stale |
+
+##### `kazam freshness review`
+
+List stale pages for review with recommended actions
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Output as JSON (default is human-readable) |
+
+##### `kazam freshness act`
+
+Take action on a stale page: archive, refresh, or skip
+
+- `path` - Path to the page YAML file (relative to site dir)
+- `action` - Action to take
+
+##### `kazam freshness notify`
+
+Generate a digest of stale pages grouped by owner (for Slack/email)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Output as JSON instead of markdown |
+
+##### `kazam freshness drift`
+
+Check if source-of-truth files have changed since pages were last updated
+
+| Flag | Default | Description |
+|---|---|---|
+| `--pretty` |  | Human-readable table output (default is JSON) |
+| `--repo` |  | Additional repo mapping: PREFIX=LOCAL (can repeat) |
+
+#### `kazam voice`
+
+Show or manage the site's voice configuration
+
+- `dir` - Site directory
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Output as JSON |
+
+#### `kazam prompt`
+
+Manage prompt templates for agent workflows
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir, -d` | `.` | Project directory (default: current directory) |
+
+##### `kazam prompt list`
+
+List all prompts in the prompts/ directory
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Output as JSON |
+
+##### `kazam prompt show`
+
+Show a specific prompt (default: raw system_prompt text; --json for full struct)
+
+- `name` - Prompt name (filename without .yaml extension)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Output as JSON (default is the raw system_prompt text) |
+
+##### `kazam prompt init`
+
+Scaffold a new prompt file
+
+- `name` - Prompt name
+
+#### `kazam actions`
+
+Manage GitHub Action workflow templates
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir, -d` | `.` | Project directory (default: current directory) |
+
+##### `kazam actions list`
+
+List available action templates
+
+##### `kazam actions init`
+
+Initialize an action template in .github/workflows/
+
+- `name` - Template name (validate, freshness, build)
+
+#### `kazam audit`
+
+Audit site health — freshness, structural quality, and completeness
+
+- `dir` - Site directory
+
+| Flag | Default | Description |
+|---|---|---|
+| `--pretty` |  | Human-readable output (default is JSON) |
+
+#### `kazam ingest`
+
+Ingest content from external platforms into kazam pages
+
+##### `kazam ingest notion`
+
+Import pages from a Notion workspace
+
+| Flag | Default | Description |
+|---|---|---|
+| `--database` |  | Notion database ID — each row becomes a page |
+| `--page` |  | Notion page ID — import a single page and its children |
+| `--token` |  | Notion API token (default: .env NOTION_TOKEN or env var) |
+| `--out` | `.` | Output directory for generated YAML files (default: current dir) |
+| `--dry-run` |  | Preview what would be created without writing files |
+| `--stats` |  | Show staleness stats without ingesting (metadata only, fast) |
+| `--all` |  | Discover and ingest all pages the integration can access |
+
+#### `kazam annotate`
+
+Manage annotations on pages (sidecar files in .kazam/annotations/)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir, -d` | `.` | Site directory |
+
+##### `kazam annotate add`
+
+Add an annotation to a page
+
+- `page` - Page path relative to site root (e.g. 'deals/acme.yaml')
+- `text` - Annotation text
+
+| Flag | Default | Description |
+|---|---|---|
+| `--section` |  | Section this annotation applies to (e.g. 'competitive', 'timeline') |
+| `--author` | `anonymous` | Author name |
+| `--source` | `cli` | Source: cli, agent, or web |
+
+##### `kazam annotate list`
+
+List annotations on a page
+
+- `page` - Page path relative to site root
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Output as JSON |
+
+##### `kazam annotate resolve`
+
+Mark an annotation as incorporated
+
+- `id` - Annotation ID (e.g. 'ann-20260507-e708')
+
+##### `kazam annotate clear`
+
+Remove all annotations for a page
+
+- `page` - Page path relative to site root
+
+#### `kazam sdk`
+
+Emit a TypeScript SDK from the page schema (types, enums, interfaces)
+
+##### `kazam sdk emit`
+
+Print TypeScript type definitions to stdout
+
+##### `kazam sdk emit-react`
+
+Print React component renderer to stdout (TSX)
+
+##### `kazam sdk emit-schema`
+
+Print JSON component schema to stdout (for agent tooling)
+
+##### `kazam sdk emit-agents`
+
+Print markdown component reference to stdout (for agent context)
+
+#### `kazam theme`
+
+Output the kazam CSS theme for use in external apps
+
+##### `kazam theme css`
+
+Print the full CSS stylesheet to stdout
+
+| Flag | Default | Description |
+|---|---|---|
+| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet) |
+| `--mode` | `dark` | Base mode for rainbow themes (dark, light). Ignored for dark/light themes |
+| `--texture` | `none` | Enable texture overlay (none, dots, grid, grain, topography, diagonal) |
+| `--glow` | `none` | Enable glow effect (none, accent, corner) |
+| `--switchable` |  | Emit all theme/mode/texture/glow variants as [data-*] CSS selectors for runtime switching. When set, --theme/--mode/--texture/--glow are ignored |
+
+##### `kazam theme vars`
+
+Print only the :root CSS custom properties block to stdout
+
+| Flag | Default | Description |
+|---|---|---|
+| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet) |
+| `--mode` | `dark` | Base mode for rainbow themes (dark, light). Ignored for dark/light themes |
+
+##### `kazam theme json`
+
+Print theme tokens as JSON (for programmatic consumption)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet) |
+| `--mode` | `dark` | Base mode for rainbow themes (dark, light). Ignored for dark/light themes |
+
+#### `kazam cli-reference`
+
+Generate the CLI command reference from --help metadata
+
+| Flag | Default | Description |
+|---|---|---|
+| `--write` |  | Write the generated reference into README.md between the markers |
+| `--check` |  | Exit 1 if README.md's block doesn't match freshly generated output (for CI) |
+
+
+<!-- CLI_REFERENCE:END -->
+
 ## Security
 
 ~10 direct Rust crates, `Cargo.lock` committed, `cargo-audit` in CI, protected main, signed release tags. Remote MCP transport requires bearer token auth when binding to non-localhost interfaces. Full scope: [`SECURITY.md`](SECURITY.md). Report vulnerabilities privately via the [GitHub advisory form](https://github.com/tdiderich/kazam/security/advisories/new).
