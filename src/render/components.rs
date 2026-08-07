@@ -1059,12 +1059,19 @@ fn event_timeline(
     // filter at build time (instead of rendering all and CSS-hiding some).
     // When the toggle is shown, all events must be in the DOM so JS can
     // switch between filters.
+    // Most-recent-first, regardless of the order the author wrote them in -
+    // an event timeline is a changelog/activity feed, not an ordered list an
+    // author controls. Stable sort so same-date entries keep their authored
+    // relative order.
+    let mut sorted: Vec<&EventItem> = events.iter().collect();
+    sorted.sort_by(|a, b| b.date.cmp(&a.date));
+
     let render_all = show_filter_toggle || matches!(default_filter, EventFilter::All);
     let filtered: Vec<&EventItem> = if render_all {
-        events.iter().collect()
+        sorted
     } else {
-        events
-            .iter()
+        sorted
+            .into_iter()
             .filter(|ev| matches!(ev.severity, EventSeverity::Major))
             .collect()
     };

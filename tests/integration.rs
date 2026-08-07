@@ -2064,6 +2064,68 @@ components:
     assert_contains(&html, "Minor event");
 }
 
+#[test]
+fn event_timeline_sorts_most_recent_first_regardless_of_authored_order() {
+    let dir = tmp_dir("timeline-sort-order");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
+    std::fs::write(
+        dir.join("index.yaml"),
+        r#"title: Test
+shell: standard
+components:
+  - type: event_timeline
+    events:
+      - date: 2026-02-20
+        severity: major
+        title: First scoping call
+      - date: 2026-03-13
+        severity: minor
+        title: Weekly evaluation cadence starts
+      - date: 2026-04-24
+        severity: major
+        title: First results readout
+      - date: 2026-05-01
+        severity: major
+        title: Reporting workshop
+"#,
+    )
+    .unwrap();
+
+    let out = tmp_dir("timeline-sort-order-out");
+    let status = Command::new(bin())
+        .args(["build"])
+        .arg(&dir)
+        .arg("--out")
+        .arg(&out)
+        .status()
+        .expect("run kazam build");
+    assert!(status.success(), "kazam build failed");
+
+    let html = read(&out.join("index.html"));
+    // Authored oldest-first; rendered order must be newest-first regardless.
+    let reporting = html.find("Reporting workshop").expect("Reporting workshop");
+    let readout = html
+        .find("First results readout")
+        .expect("First results readout");
+    let cadence = html
+        .find("Weekly evaluation cadence starts")
+        .expect("Weekly evaluation cadence starts");
+    let scoping = html.find("First scoping call").expect("First scoping call");
+    assert!(
+        reporting < readout,
+        "2026-05-01 must render before 2026-04-24"
+    );
+    assert!(
+        readout < cadence,
+        "2026-04-24 must render before 2026-03-13"
+    );
+    assert!(
+        cadence < scoping,
+        "2026-03-13 must render before 2026-02-20"
+    );
+}
+
 // ── Tree: priority status + filter-at-render ────────
 
 #[test]

@@ -161,6 +161,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   token-dense `<agent_spec>` system-prompt block ready for injection into an
   agent runtime.
 
+## [1.13.2] - 2026-08-07
+
+### Fixed
+- **`kz-XXXX` IDs (tasks, bugs, corrections) had a real collision risk**: only 4
+  hex digits (65,536 values), so 100 IDs already carried roughly a 7%
+  birthday-paradox chance of a duplicate. Widened to 6 hex digits (~16.7M
+  values). Found because the ID uniqueness test was intermittently failing in
+  CI, not flaky, an actual collision.
+
+## [1.13.1] - 2026-08-07
+
+### Fixed
+- **`event_timeline` rendered events in authored order, not most-recent-first**: a
+  changelog/activity-feed component with no ordering enforcement anywhere in the
+  pipeline, so an author (including an agent writing via MCP) could trivially get
+  it backwards, and one live TS Hub page did. Both the static Rust renderer
+  (`render/components.rs`) and the generated React renderer (`sdk.rs`'s
+  `emit-react` output) now sort by `date` descending before rendering, stable so
+  same-date entries keep their authored relative order.
+
 ## [1.13.0] - 2026-08-06
 
 ### Changed

@@ -1928,7 +1928,10 @@ function ComponentView({
     }
 
     case "event_timeline": {
-      const events = (comp.events as Array<{ date: string; title: string; summary?: string; severity?: string; source?: string; link?: string; tags?: string[] }>) || [];
+      const rawEvents = (comp.events as Array<{ date: string; title: string; summary?: string; severity?: string; source?: string; link?: string; tags?: string[] }>) || [];
+      // Most-recent-first, regardless of authored order - a changelog/activity
+      // feed, not an ordered list an author controls.
+      const events = [...rawEvents].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
       const filterBy = comp.filter_by as string[] | undefined;
       const [activeTags, setActiveTags] = React.useState<Set<string>>(new Set());
       const handleTagFilter = (tag: string) => {
@@ -4030,5 +4033,16 @@ mod tests {
         assert!(ts.contains("{ type: \"header\""));
         assert!(ts.contains("{ type: \"chart\""));
         assert!(ts.contains("{ type: \"role_map\""));
+    }
+
+    #[test]
+    fn react_event_timeline_sorts_most_recent_first() {
+        let tsx = generate_react();
+        assert!(
+            tsx.contains(
+                "const events = [...rawEvents].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));"
+            ),
+            "event_timeline must sort by date descending before rendering, not render authored order verbatim"
+        );
     }
 }

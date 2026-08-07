@@ -13,3 +13,11 @@ bugs:
   resolution: 'Root cause was not misconfiguration: curata-app has two remotes (origin=curata-app, upstream=curata) and gh prefers upstream over origin by design for fork workflows. curata-app is an overlay with unrelated history, not a fork, so the default resolved to the OSS repo. Fixed with ''gh repo set-default tdiderich/curata-app'', which writes remote.origin.gh-resolved=base to local git config. Verified gh run list now returns curata-app runs. curata, kazam, and maze-apps each have a single remote and are unaffected.'
   created: 2026-07-28T14:22:00.897946-05:00
   resolved: 2026-07-28T15:33:04.674250-05:00
+- id: kz-2a29
+  symptom: event_timeline renders authored order instead of most-recent-first, no ordering enforcement anywhere in the pipeline
+  file_path: src/render/components.rs
+  created: 2026-08-07T10:13:05.032025-05:00
+- id: kz-e0a3
+  symptom: kz-XXXX ID generator only had 65,536 possible values (4 hex digits), real collision risk not just test flakiness
+  file_path: src/id.rs
+  created: 2026-08-07T10:20:44.786903-05:00
