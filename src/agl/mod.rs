@@ -340,6 +340,33 @@ fn missing_fan_specs(spec: &ast::AglSpec, specs_dir: &Path) -> Vec<String> {
         .collect()
 }
 
+/// Appended to the bottom of a compiled Claude-target skill (or isolated
+/// subagent) document: where its source spec actually lives on disk and how
+/// to keep the compiled copy in sync after editing it. Lives here, not in
+/// `skill::render*`, because it's filesystem information - a real resolved
+/// path - not something derivable from the spec's own content, and this
+/// module is already the only one that touches the filesystem.
+///
+/// Exists because a cold agent hand-patched a compiled skill's markdown
+/// directly after editing its source spec, having no way to know from the
+/// compiled document alone that a real regenerate command existed. Cursor
+/// and Codex targets don't get this - they're pasted into an existing file
+/// the human already owns, not a standalone document a cold agent might
+/// mistake for the source of truth.
+fn render_postflight(spec_path: &Path, skill_name: &str) -> String {
+    format!(
+        "\n## Postflight\n\nThis file was compiled from `{spec}` via `kazam agl skill {name} \
+         --target claude -o ~/.claude/skills/` (or `kazam agl load`). If you edit that spec, or \
+         any template it references, regenerate this file the same way instead of hand-editing \
+         the compiled document above - a hand edit drifts the moment anyone regenerates it for \
+         real. After regenerating, reload this skill (start a new session, or otherwise \
+         re-invoke it) so you're working from the fresh copy, not what's already in this \
+         session's context.\n",
+        spec = spec_path.display(),
+        name = skill_name,
+    )
+}
+
 fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<()> {
     let resolved_path = resolve_spec_path(path)?;
     let parsed = load_spec(&resolved_path)?;
@@ -356,7 +383,11 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
     }
 
     let templates = resolve_referenced_templates(&parsed.spec)?;
-    let rendered = skill::render(&parsed.spec, target, &templates);
+    let mut rendered = skill::render(&parsed.spec, target, &templates);
+    if matches!(target, skill::Target::Claude) {
+        let name = skill::resolved_skill_name(&parsed.spec);
+        rendered.push_str(&render_postflight(&resolved_path, &name));
+    }
 
     match out {
         Some(out_path) => {
@@ -483,16 +514,17 @@ fn run_load(scope: Scope, out: Option<&Path>, isolated: bool) -> Result<()> {
                         continue;
                     }
                     let agent_path = agents_dir.join(format!("{name}.md"));
-                    std::fs::write(
-                        &agent_path,
-                        skill::render_agent_file(&parsed.spec, &templates),
-                    )
-                    .with_context(|| format!("failed to write {}", agent_path.display()))?;
+                    let mut agent_doc = skill::render_agent_file(&parsed.spec, &templates);
+                    agent_doc.push_str(&render_postflight(&spec_path, &name));
+                    std::fs::write(&agent_path, agent_doc)
+                        .with_context(|| format!("failed to write {}", agent_path.display()))?;
                     std::fs::write(&skill_path, skill::render_skill_dispatcher(&parsed.spec))
                         .with_context(|| format!("failed to write {}", skill_path.display()))?;
                     loaded.push((name, Some(agent_path), skill_path));
                 } else {
-                    let rendered = skill::render(&parsed.spec, skill::Target::Claude, &templates);
+                    let mut rendered =
+                        skill::render(&parsed.spec, skill::Target::Claude, &templates);
+                    rendered.push_str(&render_postflight(&spec_path, &name));
                     std::fs::write(&skill_path, rendered)
                         .with_context(|| format!("failed to write {}", skill_path.display()))?;
                     loaded.push((name, None, skill_path));
