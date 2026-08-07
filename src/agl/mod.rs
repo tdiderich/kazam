@@ -148,6 +148,20 @@ fn home_dir() -> Result<PathBuf> {
     }
 }
 
+/// Expands a spec's own declared `publish:` path (`~` or `~/...` becomes
+/// `$HOME/...`; anything else is used as-is). Kept separate from
+/// `resolve_spec_path` - that one resolves a bare name against the specs
+/// hub, this just does `~` expansion for an arbitrary destination directory.
+fn expand_publish_path(raw: &str) -> Result<PathBuf> {
+    if raw == "~" {
+        home_dir()
+    } else if let Some(rest) = raw.strip_prefix("~/") {
+        Ok(home_dir()?.join(rest))
+    } else {
+        Ok(PathBuf::from(raw))
+    }
+}
+
 /// The `~/.kazam/agl` hub convention (documented in CONTRIBUTING.md):
 /// `~/.kazam/agl/specs/*.agl` holds authored specs, `~/.kazam/agl/shared/*.agl`
 /// holds importable fragments. A bare name with no `/` and no `.agl`
@@ -353,18 +367,43 @@ fn missing_fan_specs(spec: &ast::AglSpec, specs_dir: &Path) -> Vec<String> {
 /// and Codex targets don't get this - they're pasted into an existing file
 /// the human already owns, not a standalone document a cold agent might
 /// mistake for the source of truth.
-fn render_postflight(spec_path: &Path, skill_name: &str) -> String {
-    format!(
-        "\n## Postflight\n\nThis file was compiled from `{spec}` via `kazam agl skill {name} \
-         --target claude -o ~/.claude/skills/` (or `kazam agl load`). If you edit that spec, or \
-         any template it references, regenerate this file the same way instead of hand-editing \
-         the compiled document above - a hand edit drifts the moment anyone regenerates it for \
-         real. After regenerating, reload this skill (start a new session, or otherwise \
-         re-invoke it) so you're working from the fresh copy, not what's already in this \
-         session's context.\n",
-        spec = spec_path.display(),
-        name = skill_name,
-    )
+/// `spec_path` with the caller's home directory swapped for `~`, when it's
+/// actually under it. Never expose a literal `/Users/<name>/...` (or
+/// `/home/<name>/...`) prefix in a compiled skill - harmless on a personal
+/// machine, but this same file may end up published into a shared repo
+/// (see `publish:`), where someone else's real path is just noise, not a
+/// path they can act on.
+fn display_path_with_tilde(spec_path: &Path) -> String {
+    if let Ok(home) = home_dir() {
+        if let Ok(rest) = spec_path.strip_prefix(&home) {
+            return format!("~/{}", rest.display());
+        }
+    }
+    spec_path.display().to_string()
+}
+
+fn render_postflight(spec_path: &Path, skill_name: &str, publish: Option<&str>) -> String {
+    let spec_display = display_path_with_tilde(spec_path);
+    match publish {
+        Some(dest) => format!(
+            "\n## Postflight\n\nThis file was published from a personal AGL spec at `{spec_display}` \
+             (the maintainer's own `~/.kazam/agl/specs/`, not part of this repo) via `kazam agl \
+             skill {skill_name} --target claude`, landing here because that spec declares \
+             `publish: \"{dest}\"`. Don't hand-edit the compiled document above, it drifts the \
+             moment the maintainer regenerates it for real. To get a change made: ask the \
+             maintainer to edit the source spec and republish, or read up on Agent Graph \
+             Language (AGL) and kazam at https://github.com/tdiderich/kazam to build your own.\n",
+        ),
+        None => format!(
+            "\n## Postflight\n\nThis file was compiled from `{spec_display}` via `kazam agl \
+             skill {skill_name} --target claude -o ~/.claude/skills/` (or `kazam agl load`). If \
+             you edit that spec, or any template it references, regenerate this file the same \
+             way instead of hand-editing the compiled document above - a hand edit drifts the \
+             moment anyone regenerates it for real. After regenerating, reload this skill \
+             (start a new session, or otherwise re-invoke it) so you're working from the fresh \
+             copy, not what's already in this session's context.\n",
+        ),
+    }
 }
 
 fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<()> {
@@ -386,11 +425,39 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
     let mut rendered = skill::render(&parsed.spec, target, &templates);
     if matches!(target, skill::Target::Claude) {
         let name = skill::resolved_skill_name(&parsed.spec);
-        rendered.push_str(&render_postflight(&resolved_path, &name));
+        // Only credit publish: if --out isn't given - an explicit --out wins
+        // regardless of what the spec declares (see the destination logic below).
+        let publish_used = out
+            .is_none()
+            .then_some(parsed.spec.publish.as_deref())
+            .flatten();
+        rendered.push_str(&render_postflight(&resolved_path, &name, publish_used));
     }
 
-    match out {
-        Some(out_path) => {
+    // An explicit `-o`/`--out` always wins - it's what the caller typed just
+    // now, and keeps today's dir-or-exact-file behavior. Absent that, a
+    // Claude-target spec that declares its own `publish:` path uses that as
+    // the default destination instead of stdout - always as a directory,
+    // created if it doesn't exist yet, since a publish target is a folder to
+    // drop the compiled skill into, never a specific filename.
+    enum Dest {
+        Explicit(PathBuf),
+        Published(PathBuf),
+    }
+    let dest_root = match out {
+        Some(p) => Some(Dest::Explicit(p.to_path_buf())),
+        None if matches!(target, skill::Target::Claude) => parsed
+            .spec
+            .publish
+            .as_deref()
+            .map(expand_publish_path)
+            .transpose()?
+            .map(Dest::Published),
+        None => None,
+    };
+
+    match dest_root {
+        Some(Dest::Explicit(out_path)) => {
             let dest = if out_path.is_dir() {
                 let name = skill::resolved_skill_name(&parsed.spec);
                 if matches!(target, skill::Target::Claude) {
@@ -409,6 +476,15 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
             } else {
                 out_path.to_path_buf()
             };
+            std::fs::write(&dest, &rendered)
+                .with_context(|| format!("failed to write {}", dest.display()))?;
+        }
+        Some(Dest::Published(publish_dir)) => {
+            let name = skill::resolved_skill_name(&parsed.spec);
+            let skill_dir = publish_dir.join(&name);
+            std::fs::create_dir_all(&skill_dir)
+                .with_context(|| format!("failed to create {}", skill_dir.display()))?;
+            let dest = skill_dir.join("SKILL.md");
             std::fs::write(&dest, &rendered)
                 .with_context(|| format!("failed to write {}", dest.display()))?;
         }
@@ -434,8 +510,13 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
 /// error printed rather than aborting the whole batch - one bad spec in
 /// the hub shouldn't block loading the rest.
 fn run_load(scope: Scope, out: Option<&Path>, isolated: bool) -> Result<()> {
-    let project_root: PathBuf = match out {
-        Some(explicit) => explicit.to_path_buf(),
+    // An explicit `--out` always wins for every spec, it's what the caller
+    // typed just now. Absent that, each spec's own `publish:` path (if it
+    // declares one) sends just that spec's compiled skill somewhere else,
+    // the rest still land under the `--scope` default.
+    let explicit_out = out.map(|p| p.to_path_buf());
+    let default_root: PathBuf = match &explicit_out {
+        Some(p) => p.clone(),
         None => match scope {
             Scope::User => home_dir()?,
             Scope::Repo => PathBuf::from("."),
@@ -449,10 +530,10 @@ fn run_load(scope: Scope, out: Option<&Path>, isolated: bool) -> Result<()> {
         );
     }
 
-    let skills_dir = project_root.join(".claude").join("skills");
-    std::fs::create_dir_all(&skills_dir)
-        .with_context(|| format!("failed to create {}", skills_dir.display()))?;
-    let agents_dir = project_root.join(".claude").join("agents");
+    let default_skills_dir = default_root.join(".claude").join("skills");
+    std::fs::create_dir_all(&default_skills_dir)
+        .with_context(|| format!("failed to create {}", default_skills_dir.display()))?;
+    let agents_dir = default_root.join(".claude").join("agents");
     if isolated {
         std::fs::create_dir_all(&agents_dir)
             .with_context(|| format!("failed to create {}", agents_dir.display()))?;
@@ -477,6 +558,16 @@ fn run_load(scope: Scope, out: Option<&Path>, isolated: bool) -> Result<()> {
         match outcome {
             Ok((parsed, diags)) if !validator::has_errors(&diags) => {
                 let name = skill::resolved_skill_name(&parsed.spec);
+                // An explicit --out beats everything; otherwise this spec's own
+                // publish: (if any) beats the --scope default, per-spec.
+                let skills_dir = if explicit_out.is_some() {
+                    default_skills_dir.clone()
+                } else {
+                    match parsed.spec.publish.as_deref() {
+                        Some(raw) => expand_publish_path(raw)?,
+                        None => default_skills_dir.clone(),
+                    }
+                };
                 // Claude Code only discovers skills shaped `<name>/SKILL.md`,
                 // never a flat `<name>.md` sitting in the skills root.
                 let skill_dir = skills_dir.join(&name);
@@ -515,7 +606,9 @@ fn run_load(scope: Scope, out: Option<&Path>, isolated: bool) -> Result<()> {
                     }
                     let agent_path = agents_dir.join(format!("{name}.md"));
                     let mut agent_doc = skill::render_agent_file(&parsed.spec, &templates);
-                    agent_doc.push_str(&render_postflight(&spec_path, &name));
+                    // publish: only ever redirects the primary compiled skill, never the
+                    // isolated subagent file, so it doesn't apply here.
+                    agent_doc.push_str(&render_postflight(&spec_path, &name, None));
                     std::fs::write(&agent_path, agent_doc)
                         .with_context(|| format!("failed to write {}", agent_path.display()))?;
                     std::fs::write(&skill_path, skill::render_skill_dispatcher(&parsed.spec))
@@ -524,7 +617,13 @@ fn run_load(scope: Scope, out: Option<&Path>, isolated: bool) -> Result<()> {
                 } else {
                     let mut rendered =
                         skill::render(&parsed.spec, skill::Target::Claude, &templates);
-                    rendered.push_str(&render_postflight(&spec_path, &name));
+                    // Only credit publish: if it's actually what decided skills_dir above -
+                    // an explicit --out still wins regardless of what the spec declares.
+                    let publish_used = explicit_out
+                        .is_none()
+                        .then_some(parsed.spec.publish.as_deref())
+                        .flatten();
+                    rendered.push_str(&render_postflight(&spec_path, &name, publish_used));
                     std::fs::write(&skill_path, rendered)
                         .with_context(|| format!("failed to write {}", skill_path.display()))?;
                     loaded.push((name, None, skill_path));

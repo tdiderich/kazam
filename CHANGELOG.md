@@ -4,6 +4,19 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-08-07
+
+### Added
+- **`publish: "<path>"`**: optional spec-level field declaring where `kazam
+  agl skill`/`kazam agl load` write this spec's compiled skill by default,
+  a directory, absolute or `~`-expanded. Lets a spec that's meant to be
+  distributed into a specific repo (a plugin's own `skills/` folder, say)
+  declare that once instead of remembering `-o` every time. An explicit
+  CLI `-o`/`--out` still wins, `publish:` is only the spec's own declared
+  default when the caller doesn't say otherwise. `kazam agl load` honors
+  each spec's `publish:` independently in the same batch run, everything
+  else still lands under `--scope`.
+
 ## [1.20.0] - 2026-08-06
 
 ### Added

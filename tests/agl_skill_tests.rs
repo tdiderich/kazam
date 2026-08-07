@@ -1,6 +1,6 @@
 //! End-to-end tests for `kazam agl skill`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn bin() -> PathBuf {
@@ -464,4 +464,226 @@ fn load_embeds_a_real_template_file_referenced_by_an_evaluate_state() {
     assert!(skill_doc.contains("## Halcyon Activity Summary"));
     assert!(!skill_doc.contains("<!--spec-->"));
     assert!(!skill_doc.contains("<!--samples-->"));
+}
+
+// ── publish: spec-declared default destination ─────────────────────
+
+fn spec_with_publish(publish_dir: &Path) -> PathBuf {
+    write_file(
+        "kazam-agl-publish-tests",
+        "published.agl",
+        &format!(
+            r#"spec PublishedSpec {{
+              in: x: str
+              out: y: bool
+              skill: published-spec
+              publish: "{}"
+
+              flow {{
+                state ONLY -> evaluate(x) -> TERMINATE("done")
+              }}
+            }}"#,
+            publish_dir.display()
+        ),
+    )
+}
+
+#[test]
+fn skill_uses_publish_field_when_no_explicit_out() {
+    let publish_dir = std::env::temp_dir().join("kazam-agl-publish-dest");
+    let _ = std::fs::remove_dir_all(&publish_dir);
+    std::fs::create_dir_all(&publish_dir).unwrap();
+
+    // A fake HOME so the spec genuinely lives under it, same as the real
+    // ~/.kazam/agl/specs/ convention - otherwise there's nothing for
+    // display_path_with_tilde to actually strip.
+    let fake_home =
+        std::env::temp_dir().join(format!("kazam-agl-publish-fakehome-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&fake_home);
+    let spec_dir = fake_home.join(".kazam").join("agl").join("specs");
+    std::fs::create_dir_all(&spec_dir).unwrap();
+    let spec_path = spec_dir.join("published.agl");
+    std::fs::write(
+        &spec_path,
+        format!(
+            r#"spec PublishedSpec {{
+              in: x: str
+              out: y: bool
+              skill: published-spec
+              publish: "{}"
+
+              flow {{
+                state ONLY -> evaluate(x) -> TERMINATE("done")
+              }}
+            }}"#,
+            publish_dir.display()
+        ),
+    )
+    .unwrap();
+
+    let output = Command::new(bin())
+        .args(["agl", "skill"])
+        .arg(&spec_path)
+        .args(["--target", "claude"])
+        .env("HOME", &fake_home)
+        .output()
+        .expect("run kazam agl skill with no -o");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        output.stdout.is_empty(),
+        "publish: should redirect output away from stdout"
+    );
+    let written = publish_dir.join("published-spec").join("SKILL.md");
+    assert!(written.exists(), "expected {}", written.display());
+
+    let doc = std::fs::read_to_string(&written).unwrap();
+    assert!(
+        doc.contains("published from a personal AGL spec"),
+        "postflight should credit publish: when it's actually what routed this file: {doc}"
+    );
+    assert!(
+        !doc.contains("-o ~/.claude/skills/"),
+        "postflight should not claim the generic -o default when publish: is what really \
+         decided the destination: {doc}"
+    );
+    assert!(
+        doc.contains("~/.kazam/agl/specs/published.agl"),
+        "postflight should show the ~-relative spec path: {doc}"
+    );
+    assert!(
+        !doc.contains(&fake_home.display().to_string()),
+        "postflight must not leak the raw local home directory once publish: sends this file \
+         somewhere shared, only the ~-relative form: {doc}"
+    );
+    assert!(
+        doc.contains("github.com/tdiderich/kazam"),
+        "postflight should point a reader without the source spec at the kazam repo: {doc}"
+    );
+}
+
+#[test]
+fn explicit_out_overrides_publish_field() {
+    let publish_dir = std::env::temp_dir().join("kazam-agl-publish-dest-unused");
+    let _ = std::fs::remove_dir_all(&publish_dir);
+    std::fs::create_dir_all(&publish_dir).unwrap();
+    let spec_path = spec_with_publish(&publish_dir);
+
+    let explicit_dir = std::env::temp_dir().join("kazam-agl-publish-explicit-out");
+    let _ = std::fs::remove_dir_all(&explicit_dir);
+    std::fs::create_dir_all(&explicit_dir).unwrap();
+
+    let output = Command::new(bin())
+        .args(["agl", "skill"])
+        .arg(&spec_path)
+        .args(["--target", "claude"])
+        .arg("--out")
+        .arg(&explicit_dir)
+        .output()
+        .expect("run kazam agl skill --out");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        explicit_dir
+            .join("published-spec")
+            .join("SKILL.md")
+            .exists(),
+        "explicit --out should win over publish:"
+    );
+    assert!(
+        !publish_dir.join("published-spec").join("SKILL.md").exists(),
+        "publish: should be ignored when --out is given"
+    );
+
+    let doc =
+        std::fs::read_to_string(explicit_dir.join("published-spec").join("SKILL.md")).unwrap();
+    assert!(
+        doc.contains("-o ~/.claude/skills/"),
+        "postflight should not credit publish: when an explicit --out actually won: {doc}"
+    );
+}
+
+#[test]
+fn load_sends_only_the_declaring_spec_to_its_publish_path() {
+    let fake_home = std::env::temp_dir().join(format!(
+        "kazam-agl-load-test-home-publish-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&fake_home);
+    let specs_dir = fake_home.join(".kazam").join("agl").join("specs");
+    std::fs::create_dir_all(&specs_dir).unwrap();
+
+    let publish_dir = std::env::temp_dir().join(format!(
+        "kazam-agl-load-publish-dest-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&publish_dir);
+    std::fs::create_dir_all(&publish_dir).unwrap();
+
+    std::fs::write(
+        specs_dir.join("published.agl"),
+        format!(
+            r#"spec PublishedSpec {{
+              in: x: str
+              out: y: bool
+              skill: published-spec
+              publish: "{}"
+
+              flow {{
+                state ONLY -> evaluate(x) -> TERMINATE("done")
+              }}
+            }}"#,
+            publish_dir.display()
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        specs_dir.join("plain.agl"),
+        r#"spec PlainSpec {
+              in: x: str
+              out: y: bool
+              skill: plain-spec
+
+              flow {
+                state ONLY -> evaluate(x) -> TERMINATE("done")
+              }
+            }"#,
+    )
+    .unwrap();
+
+    let output = Command::new(bin())
+        .args(["agl", "load"])
+        .env("HOME", &fake_home)
+        .output()
+        .expect("run kazam agl load");
+
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert!(
+        publish_dir.join("published-spec").join("SKILL.md").exists(),
+        "spec with publish: should land in its declared directory"
+    );
+    assert!(
+        fake_home
+            .join(".claude/skills/plain-spec/SKILL.md")
+            .exists(),
+        "spec without publish: should still land under the default --scope"
+    );
+    assert!(
+        !fake_home.join(".claude/skills/published-spec").exists(),
+        "spec with publish: should not also land under the default --scope"
+    );
 }

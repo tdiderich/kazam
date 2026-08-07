@@ -259,11 +259,16 @@ fn render_cache(spec: &AglSpec) -> String {
     }
     let mut out = String::from(
         "## Cache\n\nThis graph reads and writes local JSONL caches, outside this skill file \
-         entirely - `kazam agl load` regenerating this file never touches them. For each cache \
-         below, before doing a lookup it would otherwise repeat, check the file for the most \
+         entirely - `kazam agl load` regenerating this file never touches them. Creating the \
+         file is optional, not a prerequisite: it may not exist yet, especially the first time \
+         this graph runs on a given machine (a teammate running a shared skill has their own \
+         empty cache, not the author's). A missing file is exactly the same as an empty one, \
+         not an error - don't stop or ask permission over it. For each cache below, before \
+         doing a lookup it would otherwise repeat, check the file (if it exists) for the most \
          recent line matching what you need (whichever field identifies a record, like \
          `customer`). Use it if found. Otherwise resolve normally, then append a new JSON line \
-         with every field you now know.\n\n",
+         with every field you now know, creating the file (and its parent directory) if this \
+         is the first line.\n\n",
     );
     for block in &spec.cache {
         out.push_str(&format!("### {}\n\n", block.name));
@@ -472,6 +477,12 @@ pub fn render_agl_source(spec: &AglSpec) -> String {
     }
     if let Some(skill_name) = &spec.skill {
         out.push_str(&format!("  skill: {skill_name}\n"));
+    }
+    if let Some(publish) = &spec.publish {
+        out.push_str(&format!(
+            "  publish: \"{}\"\n",
+            publish.replace('"', "\\\"")
+        ));
     }
 
     for block in &spec.cache {

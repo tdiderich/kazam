@@ -235,6 +235,14 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
         None
     };
 
+    let publish = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "publish") {
+        cur.expect_kw("publish")?;
+        cur.expect_punct(&TokKind::Colon, "':'")?;
+        Some(cur.expect_string()?)
+    } else {
+        None
+    };
+
     let cache = parse_cache_blocks(cur)?;
 
     let invariants = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "invariant") {
@@ -255,6 +263,7 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
             description,
             requires,
             skill,
+            publish,
             cache,
             invariants,
             flow,
