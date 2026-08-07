@@ -4,6 +4,15 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.2] - 2026-08-07
+
+### Fixed
+- **`kz-XXXX` IDs (tasks, bugs, corrections) had a real collision risk**: only 4
+  hex digits (65,536 values), so 100 IDs already carried roughly a 7%
+  birthday-paradox chance of a duplicate. Widened to 6 hex digits (~16.7M
+  values). Found because the ID uniqueness test was intermittently failing in
+  CI, not flaky, an actual collision.
+
 ## [1.13.1] - 2026-08-07
 
 ### Fixed

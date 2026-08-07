@@ -17,3 +17,7 @@ bugs:
   symptom: event_timeline renders authored order instead of most-recent-first, no ordering enforcement anywhere in the pipeline
   file_path: src/render/components.rs
   created: 2026-08-07T10:13:05.032025-05:00
+- id: kz-e0a3
+  symptom: kz-XXXX ID generator only had 65,536 possible values (4 hex digits), real collision risk not just test flakiness
+  file_path: src/id.rs
+  created: 2026-08-07T10:20:44.786903-05:00

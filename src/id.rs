@@ -15,7 +15,11 @@ pub fn generate() -> String {
     std::process::id().hash(&mut hasher);
     COUNTER.fetch_add(1, Ordering::Relaxed).hash(&mut hasher);
     let hash = hasher.finish();
-    format!("kz-{:04x}", hash & 0xFFFF)
+    // 6 hex digits (24 bits, ~16.7M values) - 4 digits (65,536 values) had a
+    // real, non-flaky collision risk: 100 IDs into a 16-bit space already
+    // carries roughly a 7% birthday-paradox chance of a duplicate, which is
+    // exactly what made the uniqueness test intermittently fail.
+    format!("kz-{:06x}", hash & 0xFF_FFFF)
 }
 
 #[cfg(test)]
@@ -33,6 +37,6 @@ mod tests {
     fn id_format() {
         let id = generate();
         assert!(id.starts_with("kz-"), "bad prefix: {id}");
-        assert_eq!(id.len(), 7, "bad length: {id}");
+        assert_eq!(id.len(), 9, "bad length: {id}");
     }
 }
