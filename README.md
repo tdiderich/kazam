@@ -73,6 +73,29 @@ Annotations feed into the refresh cycle. When an agent refreshes a page, it read
 
 **MCP tools:** `annotate_page`, `list_annotations`, `update_annotation` — available over stdio and HTTP (`--local` / `--remote --token`).
 
+## Agent Graph Language (`.agl`)
+
+`.agl` turns a task into a static directed graph with mandatory approval gates, so an agent runs inside deterministic execution boundaries instead of free-form natural-language instructions.
+
+```bash
+# Parse + statically validate a spec: reachability, cycles, branch integrity,
+# invariant soundness (a write reachable without its required gate)
+kazam agl validate my-task.agl
+
+# See the graph as a plain ASCII diagram - states, actions, transitions
+kazam agl flow my-task.agl
+
+# Cross-check requires: against every call()/map() in the flow, then compile
+# to a portable skill (Claude/Cursor/Codex) with a preflight tool check and
+# the same ASCII flow diagram baked in
+kazam agl skill my-task.agl --target claude --out .claude/skills/
+
+# Compile straight to a natural-language system-prompt block instead
+kazam agl export my-task.agl
+```
+
+Specs and shared fragments live under `~/.kazam/agl/{specs,shared}/` by convention - see `CONTRIBUTING.md` for the grammar (`import`, `requires:`) and the hub layout.
+
 ## Agent workspace
 
 The workspace engine makes agents fast when working inside a kazam project.
@@ -969,6 +992,69 @@ Print theme tokens as JSON (for programmatic consumption)
 |---|---|---|
 | `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet) |
 | `--mode` | `dark` | Base mode for rainbow themes (dark, light). Ignored for dark/light themes |
+
+#### `kazam agl`
+
+Parse, validate, and compile Agent Graph Language (.agl) specs
+
+##### `kazam agl validate`
+
+Validate an .agl spec: parse it, resolve its imports, then run the static graph analyzer (reachability, terminal completeness, branch integrity, and invariant soundness)
+
+- `path` - Path to the .agl spec file, or a bare name resolved against ~/.kazam/agl/specs/<name>.agl
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Emit machine-readable JSON instead of the human-readable report |
+| `--tools` |  | Optional flat JSON array of dotted `Server.method` tool names. When given, warns about any call()/map() function in the flow that isn't listed. This is a name-existence check only, not schema validation — the manifest is hand-maintained and has no notion of a server's actual tool/argument schema. Omit this flag for zero behavior change |
+
+##### `kazam agl export`
+
+Compile an .agl spec into a token-dense agent system-prompt block
+
+- `path` - Path to the .agl spec file, or a bare name resolved against ~/.kazam/agl/specs/<name>.agl
+
+| Flag | Default | Description |
+|---|---|---|
+| `--format` | `prompt` | Output format (currently only "prompt" is supported) |
+| `--out, -o` |  | Write to this file instead of stdout |
+
+##### `kazam agl flow`
+
+Print a top-to-bottom ASCII rendering of a spec's flow — states, actions, and transitions, with branches fanned out underneath the state that owns them. A plan preview, not the graph's source syntax
+
+- `path` - Path to the .agl spec file, or a bare name resolved against ~/.kazam/agl/specs/<name>.agl
+
+##### `kazam agl skill`
+
+Compile a validated .agl spec (imports resolved) into a portable skill document for an LLM coding tool
+
+- `path` - Path to the .agl spec file, or a bare name resolved against ~/.kazam/agl/specs/<name>.agl
+
+| Flag | Default | Description |
+|---|---|---|
+| `--target` |  | Which tool's skill format to render |
+| `--out, -o` |  | Write to this file (or into this directory, as <name>.md) instead of stdout |
+
+##### `kazam agl load`
+
+Compile every spec in ~/.kazam/agl/specs/ into a Claude Code subagent + a thin dispatcher skill in the target project. Cursor/Codex aren't wired up here yet — use `kazam agl skill --target cursor|codex` one spec at a time until they are
+
+| Flag | Default | Description |
+|---|---|---|
+| `--scope` | `user` | Install to the user's global ~/.claude, or the current repo's .claude. Ignored if --out is given explicitly |
+| `--out, -o` |  | Explicit project directory to write .claude/skills/ (and, with --isolated, .claude/agents/) into. Overrides --scope |
+| `--isolated` |  | Compile a tool-scoped subagent + a thin dispatcher skill instead of the inline default. Use this when a graph genuinely needs isolation - a harder tool boundary than the invoking session has, a background/parallel run - not for anything that gates on approval from whoever's already in the conversation: a subagent can't verify that a relayed "approved" really came from a human, only the inline default can, because it runs as this conversation instead of a separate one |
+
+##### `kazam agl cache-migrate`
+
+Bring an existing ~/.kazam/agl/cache/<name>.jsonl file's lines up to a cache block's current declared fields. Adds a type-appropriate default (empty string, 0, false, []) for any field a line is missing; never removes or otherwise touches fields already present
+
+- `path` - Path to the .agl spec (or fragment) declaring the cache block, or a bare name resolved against ~/.kazam/agl/specs/<name>.agl
+
+| Flag | Default | Description |
+|---|---|---|
+| `--name` |  | Which declared cache block to migrate, when the spec declares more than one. Required only in that case |
 
 #### `kazam cli-reference`
 

@@ -1,87 +1,87 @@
-scanned: 2026-08-03T15:54:58.126029-05:00
+scanned: 2026-08-07T10:30:31.582882-05:00
 files:
 - path: agenda/acme.yaml
   description: YAML configuration/data
   tokens: 357
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: customers/acme.yaml
   description: YAML configuration/data
   tokens: 352
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: customers/beta.yaml
   description: YAML configuration/data
   tokens: 404
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: customers/gamma.yaml
   description: YAML configuration/data
   tokens: 293
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: demo/charts.yaml
   description: YAML configuration/data
   tokens: 842
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: demo/primitives.yaml
   description: YAML configuration/data
   tokens: 1248
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: demo/priority-queue.yaml
   description: YAML configuration/data
   tokens: 1295
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: deployment-phases.yaml
   description: YAML configuration/data
   tokens: 290
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: index.yaml
   description: YAML configuration/data
   tokens: 234
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: kazam.yaml
   description: YAML configuration/data
   tokens: 50
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: prompts/add.yaml
   description: YAML configuration/data
   tokens: 511
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: prompts/audit.yaml
   description: YAML configuration/data
   tokens: 431
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: prompts/migrate.yaml
   description: YAML configuration/data
   tokens: 510
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: prompts/refresh.yaml
   description: YAML configuration/data
   tokens: 467
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: prompts/reviewer.yaml
   description: YAML configuration/data
   tokens: 169
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: prompts/writer.yaml
   description: YAML configuration/data
   tokens: 108
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00
 - path: qbr/acme.yaml
   description: YAML configuration/data
   tokens: 478
   reads: 0
-  last_scanned: 2026-08-03T15:54:58.126029-05:00
+  last_scanned: 2026-08-07T10:30:31.582882-05:00

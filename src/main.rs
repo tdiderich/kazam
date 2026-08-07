@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 mod actions;
 mod agents;
+mod agl;
 mod annotations;
 mod audit;
 mod board;
@@ -305,6 +306,11 @@ enum Command {
     Theme {
         #[command(subcommand)]
         command: ThemeCommand,
+    },
+    /// Parse, validate, and compile Agent Graph Language (.agl) specs
+    Agl {
+        #[command(subcommand)]
+        command: agl::Command,
     },
     /// Generate the CLI command reference from --help metadata
     CliReference {
@@ -703,6 +709,7 @@ fn main() -> Result<()> {
                 Ok(())
             }
         },
+        Command::Agl { command } => agl::run(command),
         Command::CliReference { write, check } => cli_reference::write_or_check(write, check),
         Command::Ingest { command } => match command {
             IngestCommand::Notion {

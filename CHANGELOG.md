@@ -4,6 +4,163 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-08-06
+
+### Added
+- **`fan(SpecName, iterable)`**: one primitive for both bounded composition
+  and bounded looping. Runs another named spec once per item of `iterable`
+  (a collection variable already in scope), or `fan(SpecName, "5")` with a
+  quoted count instead, run it up to that many rounds when there's no
+  pre-existing set, just a cap. `validator::has_gate_protected_writes`
+  treats any spec containing a `fan()` as gate-protected unconditionally
+  (conservative on purpose, it never resolves the fanned spec to check its
+  own gates), so a spec that fans always refuses `kazam agl load
+  --isolated` and always runs inline, keeping the real human present for
+  every round's gates. `kazam agl load` warns, doesn't fail, when a
+  `fan()` target has no matching `~/.kazam/agl/specs/<name>.agl`.
+- **`watch(CONDITION)`**: a new action for polling an external condition
+  (a build finishing, a CI check going green) rather than waiting on a
+  human. Not a `gate()` variant, a distinct primitive - the executor stops
+  and reports if the condition text names a time bound and it's exceeded,
+  rather than waiting indefinitely.
+
+## [1.19.0] - 2026-08-06
+
+### Added
+- **`~/.kazam/agl/templates/<name>.md`**: real markdown, not new grammar.
+  `<!--spec-->` marks the boilerplate shape, `<!--samples-->` marks known
+  good examples, no marker at all means the whole file is the shape. A
+  state's existing `evaluate(...)` free text just names one directly (like
+  `evaluate(activity_summary_draft vs activity-summary)`); `kazam agl
+  skill`/`load` resolve every distinct word across a spec's `evaluate(...)`
+  expressions against real files in that directory
+  (`skill::referenced_template_names`), and embed each match's content,
+  split on the `<!--samples-->` marker, into a `## Templates` section,
+  same treatment as `## Preflight`/`## Cache`.
+
+## [1.18.0] - 2026-08-06
+
+### Added
+- **Named `cache { field: type, ... }` blocks**: a spec can declare zero or
+  more, inline for its own use or pulled in via `import` from a shared
+  fragment (so every spec importing that fragment shares the same cache).
+  A block's name is its file identity: `~/.kazam/agl/cache/<name>.jsonl`,
+  deliberately outside the compiled skill entirely, so `kazam agl load`
+  regenerating the skill can never lose cached data. Two blocks landing on
+  the same name with different fields is a hard error at resolution time.
+  The compiled skill gets a `## Cache` section per block: file path,
+  schema, and the check-before-resolve / append-after-resolve convention.
+- **`kazam agl cache-migrate <path> [--name <block>]`**: brings an existing
+  cache file's lines up to a block's current declared fields. Adds a
+  type-appropriate default for any field a line predates (empty string,
+  `0`, `false`, `[]`); never touches fields already present or reorders
+  lines. `--name` is required only when a spec declares more than one
+  cache block.
+
+## [1.17.0] - 2026-08-06
+
+### Changed
+- **`kazam agl load` is inline by default, not subagent-dispatch**: found
+  live, running a converted workflow for real: a subagent has no way to
+  verify a relayed "approved" came from an actual human rather than the
+  orchestrating agent's own paraphrase, since it's isolated from the
+  conversation the human is actually in. The compiled `.claude/skills/<name>.md`
+  now embeds the whole graph (primer, preflight, flow, resolved source) and
+  runs directly in whatever session invokes it, so a `gate(...)` checks
+  approval against the real human already there. `--isolated` compiles the
+  old tool-scoped subagent + thin dispatcher pair instead, for specs that
+  genuinely want isolation (a harder tool boundary, background/parallel
+  runs) - and refuses any spec with a write an invariant protects with a
+  gate (new `validator::has_gate_protected_writes`), rather than silently
+  compiling something whose approval check can't mean anything once
+  isolated.
+
+## [1.16.0] - 2026-08-06
+
+### Added
+- **`.agl` string-literal `call()`/`map()` args**: an argument can now be a
+  quoted string literal (`call(Bash, customer, "https://...")`), not only a
+  bare-ident variable reference. Comments are lexer trivia and never reach
+  the AST, so config data like a real endpoint had nowhere else to live -
+  literal args round-trip correctly through `render_agl_source`, unlike a
+  comment.
+- **`skill: <name>`**: optional spec-level field naming the compiled
+  skill/subagent, defaulting to the kebab-cased graph name when absent.
+- **Tool-scoped subagents**: `kazam agl skill` (and `load`, below) can now
+  compile a `.claude/agents/<skill>.md` subagent whose `tools:` is exactly
+  `requires:`, verbatim - the harness enforces the boundary the Preflight
+  section describes, instead of relying on the model to self-police it.
+  A matching thin `.claude/skills/<skill>.md` only dispatches to that
+  subagent via the Agent tool, so the graph never runs inline wherever the
+  skill got invoked with some other, broader toolset.
+- **`kazam agl load [--out <dir>]`**: batch-compiles every spec under
+  `~/.kazam/agl/specs/` into both files for a project. Claude Code only
+  for now - Cursor/Codex need a shared-file merge scheme this doesn't
+  build. A spec that fails to parse/resolve/validate is skipped with its
+  error printed, not aborting the whole batch.
+
+### Fixed
+- **AGL lexer rejected hyphens in idents**: real MCP tool identifiers
+  (`mcp__technical-success-hub__write_page`) are kebab-cased server names,
+  but `is_ident_char` only allowed alphanumeric/`_`/`.`. Fixed without
+  breaking a no-space `next->TERMINATE(...)` arrow, which would otherwise
+  have its `-` absorbed by a naive fix.
+- **Invariant-soundness check missed real write verbs**: `WRITE_SYNONYMS`
+  only had `write/update/set/create/delete/remove/modify`. Linear's real
+  tools are `save_issue`/`save_customer_need`, HubSpot's MCP tool is the
+  generic `manage_crm_objects` - neither matched, so the core "write
+  reachable without gate" guarantee silently never fired for either.
+  Added `save/manage/sync/publish/insert/upsert/patch/put/post`.
+
+## [1.15.0] - 2026-08-06
+
+### Added
+- **`.agl` shared invariant fragments (`import`)**: a spec can declare
+  `import "path.agl"` lines before the `spec` keyword to pull in an
+  `invariant { ... }` block from a fragment file, resolved relative to the
+  importing file first, then against `~/.kazam/agl/shared/<path>`. Fragments
+  can nest imports; a cycle is a hard parse-time error. This kills the copy
+  paste drift where the same rule (like "any write to a CRM needs human
+  approval") had to be hand duplicated into every spec that needed it.
+- **`.agl` `requires:` declaration and tool-dependency checks**: a spec can
+  declare `requires: Server.method, ...` after `out:`. `kazam agl validate`
+  cross checks it against every `call()`/`map()` in the flow, warning on a
+  flow action not covered (`undeclared-tool-dependency`) or a declared tool
+  never called (`unused-tool-dependency`).
+- **`kazam agl skill <path> --target <claude|cursor|codex>`**: compiles a
+  validated, import resolved spec into a portable skill document, one of
+  a static primer teaching an LLM how to read AGL cold, a preflight section
+  generated from `requires:` (confirm every tool is available, abort before
+  executing any state if one is missing, instead of failing mid-graph),
+  a run-order note, an ASCII flow diagram, and the resolved spec in native
+  `.agl` syntax. Claude gets `SKILL.md`-shaped YAML frontmatter; Cursor and
+  Codex get the same body unwrapped or under a heading.
+- **`kazam agl flow <path>`**: prints the same ASCII flow diagram on its
+  own, a plain "what does this actually do" read of a spec's states,
+  actions, and transitions, with branches fanned out under the state that
+  owns them.
+- **`kazam agl validate --tools <manifest.json>`**: opt-in, name-existence
+  only check of every `call()`/`map()` function against a hand-maintained
+  flat list of dotted tool names. Not schema validation, deliberately thin.
+- **`~/.kazam/agl/{specs,shared}` hub convention**: a bare spec name with no
+  `/` and no `.agl` extension resolves against `~/.kazam/agl/specs/<name>.agl`
+  in `validate`, `export`, `flow`, and `skill`.
+
+## [1.14.0] - 2026-08-06
+
+### Added
+- **`kazam agl`, Agent Graph Language parser, validator, and prompt compiler**:
+  a new dense DSL (`.agl`) that turns a task into a static directed graph with
+  mandatory invariants, so an LLM agent runs inside deterministic execution
+  boundaries instead of free-form natural-language instructions. `kazam agl
+  validate <file>` parses the spec and runs a static graph analyzer:
+  unreachable states, dangling/undefined transitions, non-terminating cycles,
+  branch integrity, and invariant soundness (e.g. a `write` action reachable
+  without first passing its required `gate`), with human-readable or `--json`
+  output. `kazam agl export <file>` compiles a validated spec into a
+  token-dense `<agent_spec>` system-prompt block ready for injection into an
+  agent runtime.
+
 ## [1.13.2] - 2026-08-07
 
 ### Fixed

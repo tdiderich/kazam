@@ -101,6 +101,76 @@ tests/                    Integration tests
 
 Most component additions touch: `types.rs` (struct), `render/components.rs` (HTML), `theme.rs` (CSS), plus a `docs/components/*.yaml` example.
 
+## Agent Graph Language (`.agl`), the `~/.kazam/agl` hub
+
+`.agl` specs and their importable fragments live in one place on a machine,
+by convention rather than any hub-management subcommand:
+
+```
+~/.kazam/agl/
+  specs/      authored .agl specs, one per task
+  shared/     importable fragments (invariant and/or cache blocks)
+  cache/      <name>.jsonl per named cache block - never touched by
+              kazam agl load, so regenerating a skill can't lose data
+  templates/  <name>.md boilerplate + known-good examples, referenced
+              by name from a state's own evaluate(...) text, no grammar
+```
+
+A bare name with no `/` and no `.agl` extension, passed to `validate`,
+`export`, `flow`, or `skill`, is shorthand for `~/.kazam/agl/specs/<name>.agl`.
+An `import "some/path.agl"` line inside a spec resolves relative to the
+importing file first, then falls back to `~/.kazam/agl/shared/<path>`.
+
+Grammar beyond what's in `PRODUCT.md`/`README.md`:
+
+- `import "path.agl"`, zero or more, before the `spec` keyword. Pulls a
+  fragment's `invariant { ... }` rules into the importing spec. Fragments
+  can nest imports; cycles are a hard error.
+- `requires: Server.method, Server.other_method`, optional, inside the
+  spec block after `out:`. Declares the dotted tool names the flow depends
+  on. `kazam agl validate` cross-checks this against every `call()`/`map()`
+  in the flow (`undeclared-tool-dependency` / `unused-tool-dependency`
+  warnings) so the list stays trustworthy. `kazam agl skill` renders it as
+  a preflight instruction: confirm every tool is available before executing
+  any state, abort immediately if one is missing, rather than discovering
+  the gap mid-graph after other states already ran.
+- `cache NAME { field: type, ... }`, zero or more, after `requires:`/
+  `skill:`, in a spec and/or a fragment it imports. Two blocks landing on
+  the same name with different fields is a hard error. `kazam agl skill`
+  renders a `## Cache` section per block naming its file
+  (`~/.kazam/agl/cache/NAME.jsonl`), its schema, and the check-before-
+  resolve / append-after-resolve convention. `kazam agl cache-migrate
+  <path> [--name NAME]` backfills an existing cache file's lines with a
+  type-appropriate default for any field the schema has since gained.
+
+Templates aren't grammar at all, just files: `~/.kazam/agl/templates/NAME.md`,
+`<!--spec-->` marks the boilerplate shape, `<!--samples-->` marks known good
+examples, no marker means the whole file is the shape. A state's own
+`evaluate(...)` text names one directly, like `evaluate(draft vs
+activity-summary)`. `kazam agl skill`/`load` check every distinct word
+across a spec's `evaluate(...)` expressions against real files in that
+directory and embed each match into a `## Templates` section.
+
+- `fan(SpecName, iterable)`, one primitive for composition and bounded
+  looping. `iterable` is a bare ident (an existing collection variable) or
+  a quoted count (`fan(SpecName, "5")`, a bound with nothing to iterate
+  over). `validator::has_gate_protected_writes` treats any spec containing
+  a `fan()` as gate-protected unconditionally - it never resolves the
+  fanned spec to check whether it actually has gates, every real fan
+  target in practice already does - so a fanning spec always refuses
+  `--isolated` and always runs inline. `kazam agl load` warns (doesn't
+  fail) if `SpecName` has no matching `~/.kazam/agl/specs/<name>.agl`.
+- `watch(CONDITION)`, a distinct action from `gate()`: polls an external
+  condition (CI status, a build finishing) rather than waiting on a human.
+  If `CONDITION`'s text names a time bound and it's exceeded, the executor
+  stops and reports rather than waiting indefinitely.
+
+`kazam agl flow <spec>` prints a plain ASCII rendering of the graph, states,
+actions, transitions, branch fan-out, meant as a quick "what does this
+actually do" read for a human, separate from `kazam agl skill`'s per-target
+compiled output (which embeds the same diagram after its preflight section,
+before the resolved source).
+
 ## License
 
 By submitting a PR you agree that your contribution is licensed under the repo's MIT license.
