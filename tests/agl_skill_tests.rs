@@ -282,11 +282,9 @@ fn load_isolated_refuses_a_spec_with_a_gate_protected_write() {
         !project_dir.join(".claude/agents/sync-hubspot.md").exists(),
         "must not compile a gated spec to a subagent"
     );
-    assert!(
-        !project_dir
-            .join(".claude/skills/sync-hubspot/SKILL.md")
-            .exists()
-    );
+    assert!(!project_dir
+        .join(".claude/skills/sync-hubspot/SKILL.md")
+        .exists());
 }
 
 #[test]

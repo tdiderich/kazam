@@ -462,7 +462,10 @@ pub fn render_agl_source(spec: &AglSpec) -> String {
     out.push_str(&format!("  in: {}\n", render_params(&spec.inputs)));
     out.push_str(&format!("  out: {}\n", render_params(&spec.outputs)));
     if let Some(description) = &spec.description {
-        out.push_str(&format!("  description: \"{}\"\n", description.replace('"', "\\\"")));
+        out.push_str(&format!(
+            "  description: \"{}\"\n",
+            description.replace('"', "\\\"")
+        ));
     }
     if !spec.requires.is_empty() {
         out.push_str(&format!("  requires: {}\n", spec.requires.join(", ")));
