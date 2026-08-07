@@ -928,7 +928,7 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
 }
 
 function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
-  type GNode = { id: string; label: string; group?: string; width?: number; height?: number; shape?: string; color?: string; detail?: string; ports?: Array<{ side: string; label: string }> };
+  type GNode = { id: string; label: string; group?: string; width?: number; height?: number; shape?: string; color?: string; hex?: string; status?: string; row?: number; column?: number; detail?: string; ports?: Array<{ side: string; label: string }> };
   type GEdge = { from: string; to: string; label?: string; style?: string; color?: string };
   type GGroup = { id: string; label?: string; parent?: string; color?: string };
 
@@ -938,59 +938,112 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
   const direction = (comp.direction as string) || "left_to_right";
   const title = comp.title as string | undefined;
   const compHeight = (comp.height as number) || 400;
+  const rowLabels = (comp.row_labels as Array<string | null | undefined>) || [];
 
   const svgData = React.useMemo(() => {
     if (nodes.length === 0) return null;
 
     const isLR = direction === "left_to_right" || direction === "LR" || direction === "lr";
+    // A node with an explicit `row` switches the whole diagram from
+    // topological auto-layout into tiered/grid mode: rows come from `row`
+    // directly and x-position comes from `column`, instead of both being
+    // derived from edge topology.
+    const explicitMode = nodes.some(n => n.row !== undefined && n.row !== null);
     const defaultW = 140;
     const defaultH = 60;
     const pad = 40;
     const groupPad = 24;
     const nodeGapV = 32;
     const hasGroups = groups.length > 0;
-    const minColGap = hasGroups ? 120 : 80;
+    const minColGap = hasGroups ? 120 : explicitMode ? 110 : 80;
     const portSpread = 0.85;
     const VB_W = 720;
+
+    // SVG <text> has no native wrap, so a long label/detail overflows into
+    // neighboring nodes. This estimates a wrap width from an average
+    // px-per-char and splits into lines; node height auto-grows to fit the
+    // wrapped line count when no explicit height is set.
+    const LABEL_CHAR_W = 7.0;
+    const DETAIL_CHAR_W = 5.6;
+    const LABEL_LINE_H = 15.0;
+    const DETAIL_LINE_H = 12.0;
+    const NODE_PAD_Y = 16.0;
+    const NODE_PAD_X = 20.0;
+    const LABEL_DETAIL_GAP = 6.0;
+    const MAX_WRAP_LINES = 4;
+    const wrapLines = (text: string, charW: number, maxWidth: number): string[] => {
+      const maxChars = Math.max(4, Math.floor(maxWidth / charW));
+      const lines: string[] = [];
+      let current = "";
+      for (const word of text.split(/\s+/).filter(Boolean)) {
+        const candidateLen = current ? current.length + 1 + word.length : word.length;
+        if (candidateLen > maxChars && current) {
+          lines.push(current);
+          current = "";
+        }
+        current = current ? `${current} ${word}` : word;
+      }
+      if (current) lines.push(current);
+      if (lines.length === 0) lines.push("");
+      if (lines.length > MAX_WRAP_LINES) {
+        lines.length = MAX_WRAP_LINES;
+        lines[lines.length - 1] += "…";
+      }
+      return lines;
+    };
 
     // Per-node dimensions
     const dims: Record<string, { w: number; h: number }> = {};
     for (const n of nodes) {
       const scale = n.shape === "diamond" ? 1.4 : 1;
-      dims[n.id] = { w: (n.width ?? defaultW) * scale, h: (n.height ?? defaultH) * scale };
+      const w = (n.width ?? defaultW) * scale;
+      let nh = n.height as number | undefined;
+      if (nh === undefined) {
+        const wrapW = w - NODE_PAD_X;
+        const labelLineCount = wrapLines(n.label, LABEL_CHAR_W, wrapW).length;
+        const detailLineCount = n.detail ? wrapLines(n.detail, DETAIL_CHAR_W, wrapW).length : 0;
+        const gap = detailLineCount > 0 ? LABEL_DETAIL_GAP : 0;
+        const textH = labelLineCount * LABEL_LINE_H + detailLineCount * DETAIL_LINE_H + gap + NODE_PAD_Y;
+        nh = Math.max(textH, defaultH);
+      }
+      dims[n.id] = { w, h: nh * scale };
     }
 
     // Filter out bidirectional edges for topo sort
     const edgeSet = new Set(edges.map(e => `${e.from}||${e.to}`));
     const forwardEdges = edges.filter(e => !edgeSet.has(`${e.to}||${e.from}`));
 
-    // Topological column assignment
     const col: Record<string, number> = {};
-    const inSet = new Set(forwardEdges.map(e => e.to));
-    for (const n of nodes) {
-      if (!inSet.has(n.id)) col[n.id] = 0;
-    }
-    const maxIters = nodes.length * forwardEdges.length + 1;
-    let iters = 0;
-    let changed = true;
-    while (changed && iters < maxIters) {
-      changed = false;
-      iters++;
-      for (const e of forwardEdges) {
-        if (col[e.from] !== undefined) {
-          const sc = col[e.from];
-          if (col[e.to] === undefined || col[e.to] <= sc) {
-            col[e.to] = sc + 1;
-            changed = true;
+    if (explicitMode) {
+      for (const n of nodes) col[n.id] = n.row ?? 0;
+    } else {
+      // Topological column assignment
+      const inSet = new Set(forwardEdges.map(e => e.to));
+      for (const n of nodes) {
+        if (!inSet.has(n.id)) col[n.id] = 0;
+      }
+      const maxIters = nodes.length * forwardEdges.length + 1;
+      let iters = 0;
+      let changed = true;
+      while (changed && iters < maxIters) {
+        changed = false;
+        iters++;
+        for (const e of forwardEdges) {
+          if (col[e.from] !== undefined) {
+            const sc = col[e.from];
+            if (col[e.to] === undefined || col[e.to] <= sc) {
+              col[e.to] = sc + 1;
+              changed = true;
+            }
           }
         }
       }
+      for (const n of nodes) {
+        if (col[n.id] === undefined) col[n.id] = 0;
+      }
+      const minColVal = Math.min(...Object.values(col));
+      for (const k of Object.keys(col)) col[k] -= minColVal;
     }
-    for (const n of nodes) {
-      if (col[n.id] === undefined) col[n.id] = 0;
-    }
-    const minColVal = Math.min(...Object.values(col));
-    for (const k of Object.keys(col)) col[k] -= minColVal;
 
     const maxColVal = Math.max(...Object.values(col));
     const numCols = maxColVal + 1;
@@ -1004,9 +1057,18 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
     const colMaxH = colsNodes.map(cn => Math.max(defaultH, ...cn.map(n => dims[n.id]?.h ?? defaultH)));
     const maxColHeight = Math.max(1, ...colsNodes.map(cn => cn.length));
 
+    // Aligned column count across ALL rows (not just the widest one), so a
+    // sparse row's nodes land in the same x-slots as their counterparts in a
+    // fuller row instead of centering independently.
+    const numAlignCols = explicitMode
+      ? Math.max(1, ...nodes.map(n => (n.column ?? 0) + 1), ...colsNodes.map(cn => cn.length))
+      : 0;
+
     const neededW = isLR
       ? pad * 2 + colMaxW.reduce((a, b) => a + b, 0) + Math.max(0, numCols - 1) * minColGap
-      : pad * 2 + maxColHeight * defaultW + Math.max(0, maxColHeight - 1) * nodeGapV;
+      : explicitMode
+        ? pad * 2 + numAlignCols * defaultW + Math.max(0, numAlignCols - 1) * nodeGapV
+        : pad * 2 + maxColHeight * defaultW + Math.max(0, maxColHeight - 1) * nodeGapV;
     const vbW = Math.max(neededW, VB_W);
 
     const neededH = !isLR
@@ -1016,6 +1078,9 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
 
     // Position nodes
     const positions: Record<string, { cx: number; cy: number }> = {};
+    // (row center y, row half-height), TB mode only, one entry per row in
+    // display order. Used to draw the row label + dashed rule above a tier.
+    const rowBands: Array<[number, number]> = [];
     if (isLR) {
       const colCx: number[] = [];
       let xCursor = pad;
@@ -1046,17 +1111,51 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       }
       const totalUsed = yCursor - minColGap + pad;
       const yOffset = h > totalUsed ? (h - totalUsed) / 2 : 0;
+
+      const alignColW = defaultW + nodeGapV;
+      const gridW = numAlignCols * alignColW;
+      const alignXOffset = explicitMode && vbW > gridW ? (vbW - gridW) / 2 : 0;
+
       for (let ci = 0; ci < numCols; ci++) {
         const cn = colsNodes[ci];
-        const nCount = cn.length;
-        const totalW = nCount * defaultW + Math.max(0, nCount - 1) * nodeGapV;
-        const startX = (vbW - totalW) / 2;
-        for (let ni = 0; ni < cn.length; ni++) {
-          positions[cn[ni].id] = {
-            cx: startX + ni * (defaultW + nodeGapV) + defaultW / 2,
-            cy: rowCy[ci] + yOffset,
-          };
+        rowBands.push([rowCy[ci] + yOffset, colMaxH[ci] / 2]);
+
+        if (explicitMode) {
+          for (let ni = 0; ni < cn.length; ni++) {
+            const nodeCol = cn[ni].column ?? ni;
+            positions[cn[ni].id] = {
+              cx: alignXOffset + nodeCol * alignColW + alignColW / 2,
+              cy: rowCy[ci] + yOffset,
+            };
+          }
+        } else {
+          const nCount = cn.length;
+          const totalW = nCount * defaultW + Math.max(0, nCount - 1) * nodeGapV;
+          const startX = (vbW - totalW) / 2;
+          for (let ni = 0; ni < cn.length; ni++) {
+            positions[cn[ni].id] = {
+              cx: startX + ni * (defaultW + nodeGapV) + defaultW / 2,
+              cy: rowCy[ci] + yOffset,
+            };
+          }
         }
+      }
+    }
+
+    const rowLabelElems: React.ReactNode[] = [];
+    if (!isLR) {
+      for (let ri = 0; ri < rowBands.length; ri++) {
+        const label = rowLabels[ri];
+        if (!label) continue;
+        const [bandCy, halfH] = rowBands[ri];
+        const ruleY = bandCy - halfH - 18;
+        const textY = ruleY - 8;
+        rowLabelElems.push(
+          <text key={`rl-${ri}`} x={pad} y={textY} className="c-arch-node-detail" fontWeight={600}>{label}</text>
+        );
+        rowLabelElems.push(
+          <line key={`rr-${ri}`} x1={pad} y1={ruleY} x2={vbW - pad} y2={ruleY} stroke="rgba(var(--text-rgb),0.15)" strokeWidth={1} strokeDasharray="2 3" />
+        );
       }
     }
 
@@ -1123,9 +1222,18 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
         if (bidir && !forward) { ss = 2; ts = 2; }
         else { ss = forward ? 0 : 1; ts = forward ? 1 : 0; }
       } else {
-        const downward = tp.cy >= fp.cy;
-        if (bidir && !downward) { ss = 0; ts = 0; }
-        else { ss = downward ? 3 : 2; ts = downward ? 2 : 3; }
+        const sameRow = Math.abs(tp.cy - fp.cy) < 0.5;
+        if (sameRow) {
+          // Lateral edge within a tier (explicit-mode row): connect
+          // left/right ports instead of top/bottom so it draws as a clean
+          // horizontal arrow rather than dipping below the box.
+          const forward = tp.cx >= fp.cx;
+          ss = forward ? 0 : 1; ts = forward ? 1 : 0;
+        } else {
+          const downward = tp.cy >= fp.cy;
+          if (bidir && !downward) { ss = 0; ts = 0; }
+          else { ss = downward ? 3 : 2; ts = downward ? 2 : 3; }
+        }
       }
       edgeSrcSide.push(ss);
       edgeTgtSide.push(ts);
@@ -1292,7 +1400,11 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       const nh = d.h;
       const rx = pos.cx - nw / 2;
       const ry = pos.cy - nh / 2;
-      const stroke = n.color && semToHex[n.color] ? semToHex[n.color] : "rgba(var(--text-rgb),0.5)";
+      // Exact brand color wins over the fixed SemColor palette when valid
+      // (`#RGB`/`#RRGGBB`/`#RRGGBBAA`); an invalid value falls back to
+      // `color` rather than breaking the render.
+      const hexValid = n.hex && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(n.hex);
+      const stroke = hexValid ? (n.hex as string) : (n.color && semToHex[n.color] ? semToHex[n.color] : "rgba(var(--text-rgb),0.5)");
       const shape = n.shape || "box";
 
       if (shape === "diamond") {
@@ -1306,12 +1418,48 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
         nodeElems.push(<rect key={`ns-${n.id}`} x={rx} y={ry} width={nw} height={nh} rx={8} fill="rgba(var(--text-rgb),0.06)" stroke={stroke} strokeWidth={1.5} className="c-arch-node" />);
       }
 
-      nodeElems.push(
-        <text key={`nl-${n.id}`} x={pos.cx} y={n.detail ? pos.cy - 7 : pos.cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{n.label}</text>
-      );
-      if (n.detail) {
+      // Progress badge, anchored on the box's top-right corner. Deliberately
+      // a fixed color (not n.color/n.hex) so it reads as a progress signal,
+      // independent of whatever role color the box border is already using.
+      if (n.status === "completed" || n.status === "active") {
+        const bcx = pos.cx + nw / 2;
+        const bcy = pos.cy - nh / 2;
+        const badgeFill = n.status === "completed" ? (semToHex.green || "#34D399") : (semToHex.yellow || "#FBBF24");
         nodeElems.push(
-          <text key={`nd-${n.id}`} x={pos.cx} y={pos.cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{n.detail}</text>
+          <React.Fragment key={`nb-${n.id}`}>
+            <circle cx={bcx} cy={bcy} r={9} fill={badgeFill} stroke="#0A0E17" strokeWidth={2} />
+            {n.status === "completed" ? (
+              <path d={`M ${(bcx - 4).toFixed(1)} ${bcy.toFixed(1)} L ${(bcx - 1.2).toFixed(1)} ${(bcy + 2.8).toFixed(1)} L ${(bcx + 4.2).toFixed(1)} ${(bcy - 3.2).toFixed(1)}`} fill="none" stroke="#0A0E17" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            ) : (
+              <path d={`M ${(bcx - 2.5).toFixed(1)} ${(bcy - 3.5).toFixed(1)} L ${(bcx - 2.5).toFixed(1)} ${(bcy + 3.5).toFixed(1)} L ${(bcx + 3.5).toFixed(1)} ${bcy.toFixed(1)} Z`} fill="#0A0E17" />
+            )}
+          </React.Fragment>
+        );
+      }
+
+      const nodeWrapW = nw - NODE_PAD_X;
+      const labelLines = wrapLines(n.label, LABEL_CHAR_W, nodeWrapW);
+      const detailLines = n.detail ? wrapLines(n.detail, DETAIL_CHAR_W, nodeWrapW) : null;
+      const ldGap = detailLines ? LABEL_DETAIL_GAP : 0;
+      const totalTextH = labelLines.length * LABEL_LINE_H + ldGap + (detailLines ? detailLines.length * DETAIL_LINE_H : 0);
+      let cursorY = pos.cy - totalTextH / 2 + LABEL_LINE_H * 0.72;
+
+      nodeElems.push(
+        <text key={`nl-${n.id}`}>
+          {labelLines.map((line, li) => (
+            <tspan key={li} x={pos.cx} y={cursorY + li * LABEL_LINE_H} textAnchor="middle" className="c-arch-node-label">{line}</tspan>
+          ))}
+        </text>
+      );
+      cursorY += (labelLines.length - 1) * LABEL_LINE_H;
+      if (detailLines) {
+        cursorY += LABEL_LINE_H * 0.28 + ldGap + DETAIL_LINE_H * 0.72;
+        nodeElems.push(
+          <text key={`nd-${n.id}`}>
+            {detailLines.map((line, li) => (
+              <tspan key={li} x={pos.cx} y={cursorY + li * DETAIL_LINE_H} textAnchor="middle" className="c-arch-node-detail">{line}</tspan>
+            ))}
+          </text>
         );
       }
 
@@ -1328,8 +1476,8 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       }
     }
 
-    return { vbW, h, groupElems, edgeElems, nodeElems };
-  }, [nodes, edges, groups, direction, compHeight]);
+    return { vbW, h, rowLabelElems, groupElems, edgeElems, nodeElems };
+  }, [nodes, edges, groups, direction, compHeight, rowLabels]);
 
   return (
     <div id={id} className="c-chart" data-kind="graph">
@@ -1341,6 +1489,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
               <path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)" />
             </marker>
           </defs>
+          {svgData.rowLabelElems}
           {svgData.groupElems}
           {svgData.edgeElems}
           {svgData.nodeElems}
