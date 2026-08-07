@@ -132,6 +132,16 @@ pub fn resolved_skill_name(spec: &AglSpec) -> String {
     spec.skill.clone().unwrap_or_else(|| kebab_case(&spec.name))
 }
 
+/// The frontmatter `description:` for a compiled skill: the spec's own
+/// declared `description` if present, otherwise a generic placeholder that
+/// carries no routing signal (a coding agent can't pick this skill for a
+/// task if the description doesn't say what the task is).
+fn resolved_description(spec: &AglSpec, name: &str) -> String {
+    spec.description
+        .clone()
+        .unwrap_or_else(|| format!("Runs the {name} AGL graph"))
+}
+
 /// A tool-scoped Claude Code subagent (`.claude/agents/<name>.md`) that
 /// executes this graph and nothing else: `tools:` is exactly `requires:`,
 /// verbatim, so the harness enforces the same boundary the Preflight
@@ -148,9 +158,9 @@ pub fn resolved_skill_name(spec: &AglSpec) -> String {
 /// doesn't check that itself, it just renders.
 pub fn render_agent_file(spec: &AglSpec, templates: &[(String, String)]) -> String {
     let name = resolved_skill_name(spec);
+    let description = resolved_description(spec, &name).replace('"', "\\\"");
     let body = render_body(spec, templates);
-    let mut out =
-        format!("---\nname: {name}\ndescription: \"Runs the {name} AGL graph end to end\"\n");
+    let mut out = format!("---\nname: {name}\ndescription: \"{description}\"\n");
     if !spec.requires.is_empty() {
         out.push_str(&format!("tools: {}\n", spec.requires.join(", ")));
     }
@@ -165,9 +175,9 @@ pub fn render_agent_file(spec: &AglSpec, templates: &[(String, String)]) -> Stri
 /// everything with an approval gate has to do.
 pub fn render_skill_dispatcher(spec: &AglSpec) -> String {
     let name = resolved_skill_name(spec);
-    let spec_name = &spec.name;
+    let description = resolved_description(spec, &name).replace('"', "\\\"");
     format!(
-        "---\nname: {name}\ndescription: \"Runs the {name} AGL graph ({spec_name})\"\n---\n\n\
+        "---\nname: {name}\ndescription: \"{description}\"\n---\n\n\
          Dispatch to the `{name}` subagent (Agent tool, subagent_type: \"{name}\") to run this \
          graph. Do not execute the graph's states yourself in this context - the subagent's \
          `tools:` allowlist is what makes the Preflight check in that graph meaningful; running \
@@ -206,9 +216,8 @@ fn render_body(spec: &AglSpec, templates: &[(String, String)]) -> String {
 
 fn render_claude(spec: &AglSpec, body: &str) -> String {
     let name = resolved_skill_name(spec);
-    format!(
-        "---\nname: {name}\ndescription: \"Runs the {name} AGL graph\"\n---\n\n{PRIMER}\n\n{body}"
-    )
+    let description = resolved_description(spec, &name).replace('"', "\\\"");
+    format!("---\nname: {name}\ndescription: \"{description}\"\n---\n\n{PRIMER}\n\n{body}")
 }
 
 /// A runtime preflight check, generated from `spec.requires`: before a cold
@@ -452,6 +461,9 @@ pub fn render_agl_source(spec: &AglSpec) -> String {
     out.push_str(&format!("spec {} {{\n", spec.name));
     out.push_str(&format!("  in: {}\n", render_params(&spec.inputs)));
     out.push_str(&format!("  out: {}\n", render_params(&spec.outputs)));
+    if let Some(description) = &spec.description {
+        out.push_str(&format!("  description: \"{}\"\n", description.replace('"', "\\\"")));
+    }
     if !spec.requires.is_empty() {
         out.push_str(&format!("  requires: {}\n", spec.requires.join(", ")));
     }

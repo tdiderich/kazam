@@ -211,6 +211,14 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
     cur.expect_punct(&TokKind::Colon, "':'")?;
     let outputs = parse_param_list(cur)?;
 
+    let description = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "description") {
+        cur.expect_kw("description")?;
+        cur.expect_punct(&TokKind::Colon, "':'")?;
+        Some(cur.expect_string()?)
+    } else {
+        None
+    };
+
     let requires = if matches!(cur.peek(), Some(TokKind::Ident(s)) if s == "requires") {
         cur.expect_kw("requires")?;
         cur.expect_punct(&TokKind::Colon, "':'")?;
@@ -244,6 +252,7 @@ fn parse_spec(cur: &mut Cursor) -> Result<Parsed, ParseError> {
             name,
             inputs,
             outputs,
+            description,
             requires,
             skill,
             cache,
