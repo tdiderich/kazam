@@ -762,6 +762,12 @@ pub enum Component {
         edges: Vec<GraphEdge>,
         #[serde(default)]
         groups: Vec<GraphGroup>,
+        /// Optional label per row, index-aligned to each node's `row`. A tiered
+        /// diagram (phases / gates / stall states, one row per tier) reads
+        /// this to draw a small heading + dashed rule above each row. Rows
+        /// without a matching entry (or a `null`) render with no label.
+        #[serde(default)]
+        row_labels: Vec<Option<String>>,
     },
     OrgChart {
         title: Option<String>,
@@ -1571,6 +1577,11 @@ pub struct GraphNode {
     pub detail: Option<String>,
     #[serde(default)]
     pub color: SemColor,
+    /// Exact brand color, e.g. `#2DD4BF`. Wins over `color` when set and
+    /// valid (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`); an invalid value silently
+    /// falls back to `color` rather than breaking the render.
+    #[serde(default)]
+    pub hex: Option<String>,
     #[serde(default)]
     pub shape: GraphShape,
     #[serde(default)]
@@ -1581,6 +1592,19 @@ pub struct GraphNode {
     pub height: Option<u32>,
     #[serde(default)]
     pub ports: Vec<PortLabel>,
+    /// Pins this node to an explicit row instead of letting the topological
+    /// layout compute one from edges. Setting `row` on any node in the graph
+    /// switches the whole diagram into tiered/grid mode: every row's nodes
+    /// line up on a shared column grid instead of being centered per-row, so
+    /// a node in row 1 sits directly above its counterpart in row 2.
+    #[serde(default)]
+    pub row: Option<u32>,
+    /// Explicit column within a row, used only in tiered/grid mode (see
+    /// `row`). Nodes sharing a column across rows align vertically, which is
+    /// what makes a dashed edge between them read as a straight drop instead
+    /// of a diagonal.
+    #[serde(default)]
+    pub column: Option<u32>,
 }
 
 #[derive(Deserialize)]

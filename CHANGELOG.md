@@ -16,6 +16,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   default when the caller doesn't say otherwise. `kazam agl load` honors
   each spec's `publish:` independently in the same batch run, everything
   else still lands under `--scope`.
+- **`graph` tiered/grid layout**: `GraphNode` gained optional `row` and
+  `column`. Setting `row` on any node switches the whole diagram from
+  topological auto-layout into an explicit grid, so a node in row 2 lines
+  up directly under its row 1 counterpart instead of being centered
+  independently, which is what makes a dashed edge between them read as a
+  straight drop. `graph` also gained `row_labels`, an optional per-row
+  heading rendered with a dashed rule above the tier. Existing `graph`
+  pages are unaffected: this only activates when a node sets `row`.
+- **`graph` node text wrapping**: node label/detail text now wraps inside
+  the box instead of overflowing into neighboring nodes, and the box
+  grows to fit the wrapped line count when no explicit `height` is set.
+- **`graph` node `hex`**: optional exact color (`#RGB`, `#RRGGBB`, or
+  `#RRGGBBAA`) on a node, validated against a strict allowlist since it
+  lands in an unescaped SVG attribute. Wins over `color` when set and
+  valid; an invalid value falls back to `color` rather than breaking the
+  render.
 
 ## [1.20.0] - 2026-08-06
 

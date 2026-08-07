@@ -1045,6 +1045,10 @@
         "type": "SemColor",
         "required": false
       },
+      "hex": {
+        "type": "string",
+        "required": false
+      },
       "shape": {
         "type": "GraphShape",
         "required": false
@@ -1063,6 +1067,14 @@
       },
       "ports": {
         "type": "PortLabel[]",
+        "required": false
+      },
+      "row": {
+        "type": "number",
+        "required": false
+      },
+      "column": {
+        "type": "number",
         "required": false
       }
     },
@@ -1933,6 +1945,10 @@
       },
       "groups": {
         "type": "GraphGroup[]",
+        "required": false
+      },
+      "row_labels": {
+        "type": "(string | null)[]",
         "required": false
       }
     },
