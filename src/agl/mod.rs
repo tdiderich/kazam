@@ -16,6 +16,18 @@ use clap::Subcommand;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+/// Where `kazam agl load` installs skills when `--out` isn't given explicitly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Scope {
+    /// `~/.claude/skills/` (and `~/.claude/agents/` with --isolated) - every
+    /// session on this machine sees them, regardless of which repo it's in.
+    User,
+    /// `.claude/skills/` under the current directory - only sessions started
+    /// in this repo see them. Use this for skills meant to travel with the
+    /// repo itself (checked in, shared with a team).
+    Repo,
+}
+
 #[derive(Subcommand)]
 pub enum Command {
     /// Validate an .agl spec: parse it, resolve its imports, then run the
@@ -76,9 +88,12 @@ pub enum Command {
     /// Cursor/Codex aren't wired up here yet — use `kazam agl skill
     /// --target cursor|codex` one spec at a time until they are.
     Load {
-        /// Project directory to write .claude/skills/ (and, with
-        /// --isolated, .claude/agents/) into. Defaults to the current
-        /// directory.
+        /// Install to the user's global ~/.claude, or the current repo's
+        /// .claude. Ignored if --out is given explicitly.
+        #[arg(long, value_enum, default_value = "user")]
+        scope: Scope,
+        /// Explicit project directory to write .claude/skills/ (and, with
+        /// --isolated, .claude/agents/) into. Overrides --scope.
         #[arg(short, long)]
         out: Option<PathBuf>,
         /// Compile a tool-scoped subagent + a thin dispatcher skill instead
@@ -113,7 +128,11 @@ pub fn run(command: Command) -> Result<()> {
         Command::Export { path, format, out } => run_export(&path, &format, out.as_deref()),
         Command::Flow { path } => run_flow(&path),
         Command::Skill { path, target, out } => run_skill(&path, target, out.as_deref()),
-        Command::Load { out, isolated } => run_load(out.as_deref(), isolated),
+        Command::Load {
+            scope,
+            out,
+            isolated,
+        } => run_load(scope, out.as_deref(), isolated),
         Command::CacheMigrate { path, name } => run_cache_migrate(&path, name.as_deref()),
     }
 }
@@ -342,7 +361,20 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
     match out {
         Some(out_path) => {
             let dest = if out_path.is_dir() {
-                out_path.join(format!("{}.md", skill::kebab_case(&parsed.spec.name)))
+                let name = skill::resolved_skill_name(&parsed.spec);
+                if matches!(target, skill::Target::Claude) {
+                    // Claude Code only discovers skills shaped `<name>/SKILL.md`,
+                    // never a flat `<name>.md` sitting in the skills root.
+                    let skill_dir = out_path.join(&name);
+                    std::fs::create_dir_all(&skill_dir)
+                        .with_context(|| format!("failed to create {}", skill_dir.display()))?;
+                    skill_dir.join("SKILL.md")
+                } else {
+                    // Cursor/Codex targets are a block meant to be appended into
+                    // an existing `.cursorrules`/`AGENTS.md`, not a discovered
+                    // skill directory - a flat file is the right shape here.
+                    out_path.join(format!("{name}.md"))
+                }
             } else {
                 out_path.to_path_buf()
             };
@@ -370,8 +402,14 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
 /// A spec that fails to parse, resolve, or validate is skipped with its
 /// error printed rather than aborting the whole batch - one bad spec in
 /// the hub shouldn't block loading the rest.
-fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
-    let project_root = out.unwrap_or_else(|| Path::new("."));
+fn run_load(scope: Scope, out: Option<&Path>, isolated: bool) -> Result<()> {
+    let project_root: PathBuf = match out {
+        Some(explicit) => explicit.to_path_buf(),
+        None => match scope {
+            Scope::User => home_dir()?,
+            Scope::Repo => PathBuf::from("."),
+        },
+    };
     let specs_dir = home_dir()?.join(".kazam").join("agl").join("specs");
     if !specs_dir.is_dir() {
         bail!(
@@ -408,7 +446,12 @@ fn run_load(out: Option<&Path>, isolated: bool) -> Result<()> {
         match outcome {
             Ok((parsed, diags)) if !validator::has_errors(&diags) => {
                 let name = skill::resolved_skill_name(&parsed.spec);
-                let skill_path = skills_dir.join(format!("{name}.md"));
+                // Claude Code only discovers skills shaped `<name>/SKILL.md`,
+                // never a flat `<name>.md` sitting in the skills root.
+                let skill_dir = skills_dir.join(&name);
+                std::fs::create_dir_all(&skill_dir)
+                    .with_context(|| format!("failed to create {}", skill_dir.display()))?;
+                let skill_path = skill_dir.join("SKILL.md");
                 let templates = resolve_referenced_templates(&parsed.spec)?;
                 let missing_fans = missing_fan_specs(&parsed.spec, &specs_dir);
                 if !missing_fans.is_empty() {

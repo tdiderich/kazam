@@ -91,7 +91,7 @@ fn load_inline_compiles_a_spec_containing_fan_and_watch_fine() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    let skill_path = project_dir.join(".claude/skills/release.md");
+    let skill_path = project_dir.join(".claude/skills/release/SKILL.md");
     assert!(skill_path.exists());
     let doc = std::fs::read_to_string(&skill_path).unwrap();
     assert!(doc.contains("watch(ci status for repo is green)"));
@@ -138,7 +138,9 @@ fn load_warns_on_a_fan_target_that_does_not_resolve_to_a_real_spec() {
     assert!(stdout.contains("warnings on"), "stdout: {stdout}");
     assert!(stdout.contains("WorkflowDeal"), "stdout: {stdout}");
     assert!(
-        project_dir.join(".claude/skills/deal-monitor.md").exists(),
+        project_dir
+            .join(".claude/skills/deal-monitor/SKILL.md")
+            .exists(),
         "a missing fan target should warn, not block compiling the skill"
     );
 }

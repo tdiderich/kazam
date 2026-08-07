@@ -12,79 +12,108 @@ use types::*;
 pub enum Command {
     /// Initialize .kazam/ctx/ (optionally scan files)
     Init {
+        /// Run an initial anatomy scan right away
         #[arg(long)]
         scan: bool,
+        /// Gitignore .kazam/ for shared repos
         #[arg(long)]
         skunkworks: bool,
     },
     /// Scan project files and update anatomy
     Scan {
+        /// Report drift without writing changes
         #[arg(long)]
         check: bool,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Show context status summary
     Status {
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Update a file's anatomy description (agent-enriched)
-    Describe { file: String, description: String },
+    Describe {
+        /// Path to the file, relative to the project
+        file: String,
+        /// What this file actually does
+        description: String,
+    },
     /// Record a learning
     Learn {
+        /// The lesson learned, in one or two sentences
         text: String,
+        /// preference, correction, or gotcha
         #[arg(long, default_value = "preference")]
         category: String,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// List all learnings
     Learnings {
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Record a bug encounter
     Bug {
+        /// What went wrong, in one or two sentences
         symptom: String,
+        /// File path the bug is associated with
         #[arg(long)]
         file: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// List bugs (optionally filtered by file path)
     Bugs {
+        /// Only show bugs associated with this file path
         #[arg(long)]
         file: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Resolve a bug with a fix description
     Resolve {
+        /// Bug ID
         id: String,
+        /// How it was fixed
         #[arg(long)]
         fix: String,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Record a correction (agent got something wrong)
     Correction {
+        /// What the agent did wrong
         mistake: String,
+        /// What to do instead
         correction: String,
+        /// File path the correction is associated with
         #[arg(long)]
         file: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// List all corrections
     Corrections {
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Consolidate stale data (remove old resolved bugs, deduplicate learnings)
     Consolidate {
+        /// Only consolidate entries older than this many days
         #[arg(long, default_value = "30")]
         days: u32,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
@@ -99,6 +128,7 @@ pub enum Command {
 pub enum HooksAction {
     /// Install hook scripts and register with agent
     Install {
+        /// Which agent to register hooks for
         #[arg(long, default_value = "claude")]
         agent: String,
     },

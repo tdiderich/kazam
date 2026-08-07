@@ -46,6 +46,7 @@ The `core.hooksPath` line activates the repo's pre-commit hook (`.githooks/pre-c
 - [ ] `cargo clippy --release -- -D warnings` passes (or justify any exception in the PR)
 - [ ] If you changed the output HTML or CSS, eyeball the docs site (`kazam dev docs --port 3002`) to confirm nothing regressed.
 - [ ] If you added a component or config field, update `AGENTS.md.template` and the relevant page under `docs/components/`.
+- [ ] If you added or changed a subcommand or its args, run `kazam cli-reference --write` and commit the README diff.
 - [ ] Commit messages are in the imperative mood ("add X", not "added X").
 
 ## Code style

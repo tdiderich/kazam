@@ -4,7 +4,7 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.18.0] - 2026-08-06
+## [1.20.0] - 2026-08-06
 
 ### Added
 - **`fan(SpecName, iterable)`**: one primitive for both bounded composition
@@ -24,7 +24,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and reports if the condition text names a time bound and it's exceeded,
   rather than waiting indefinitely.
 
-## [1.17.0] - 2026-08-06
+## [1.19.0] - 2026-08-06
 
 ### Added
 - **`~/.kazam/agl/templates/<name>.md`**: real markdown, not new grammar.
@@ -38,7 +38,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   split on the `<!--samples-->` marker, into a `## Templates` section,
   same treatment as `## Preflight`/`## Cache`.
 
-## [1.16.0] - 2026-08-06
+## [1.18.0] - 2026-08-06
 
 ### Added
 - **Named `cache { field: type, ... }` blocks**: a spec can declare zero or
@@ -57,7 +57,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   lines. `--name` is required only when a spec declares more than one
   cache block.
 
-## [1.15.0] - 2026-08-06
+## [1.17.0] - 2026-08-06
 
 ### Changed
 - **`kazam agl load` is inline by default, not subagent-dispatch**: found
@@ -75,7 +75,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   compiling something whose approval check can't mean anything once
   isolated.
 
-## [1.14.0] - 2026-08-06
+## [1.16.0] - 2026-08-06
 
 ### Added
 - **`.agl` string-literal `call()`/`map()` args**: an argument can now be a
@@ -112,7 +112,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reachable without gate" guarantee silently never fired for either.
   Added `save/manage/sync/publish/insert/upsert/patch/put/post`.
 
-## [1.13.0] - 2026-08-06
+## [1.15.0] - 2026-08-06
 
 ### Added
 - **`.agl` shared invariant fragments (`import`)**: a spec can declare
@@ -146,20 +146,46 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `/` and no `.agl` extension resolves against `~/.kazam/agl/specs/<name>.agl`
   in `validate`, `export`, `flow`, and `skill`.
 
-## [1.12.0] - 2026-08-06
+## [1.14.0] - 2026-08-06
 
 ### Added
-- **`kazam agl` — Agent Graph Language parser, validator, and prompt compiler**:
+- **`kazam agl`, Agent Graph Language parser, validator, and prompt compiler**:
   a new dense DSL (`.agl`) that turns a task into a static directed graph with
   mandatory invariants, so an LLM agent runs inside deterministic execution
   boundaries instead of free-form natural-language instructions. `kazam agl
-  validate <file>` parses the spec and runs a static graph analyzer —
+  validate <file>` parses the spec and runs a static graph analyzer:
   unreachable states, dangling/undefined transitions, non-terminating cycles,
   branch integrity, and invariant soundness (e.g. a `write` action reachable
-  without first passing its required `gate`) — with human-readable or `--json`
+  without first passing its required `gate`), with human-readable or `--json`
   output. `kazam agl export <file>` compiles a validated spec into a
   token-dense `<agent_spec>` system-prompt block ready for injection into an
   agent runtime.
+
+## [1.13.0] - 2026-08-06
+
+### Changed
+- **Rebrand**: "Beautiful sites from simple YAML" to "Local infrastructure for
+  coding agents: context, visibility, durable execution", across the clap
+  `about`, `Cargo.toml`'s `description`, and README's H1. The old tagline
+  predated the agent-workspace pivot and drifted from what the tool
+  actually does; the new one names the three real pillars: Anatomy for
+  speed, Board/Dev for visibility, and durable state (tasks, cache, and
+  eventually AGL's gated graphs) for reliability, all running as one local
+  binary with no cloud dependency.
+
+## [1.12.0] - 2026-08-06
+
+### Added
+- **`kazam cli-reference`**: generates the CLI command reference straight
+  from `--help` metadata (a recursive walk over the `clap::Command` tree,
+  no new dependency). No flags prints to stdout, `--write` patches the
+  block between `<!-- CLI_REFERENCE:START -->` / `<!-- CLI_REFERENCE:END -->`
+  in README.md in place, `--check` compares without writing and exits 1 on
+  drift. CI runs `--check` on every push so README can't silently drift
+  from the real CLI surface.
+- Filled in every previously-undocumented positional arg and flag surfaced
+  by the first `cli-reference` run, across `main.rs`, `track/mod.rs`, and
+  `ctx/mod.rs`.
 
 ## [1.11.0] - 2026-08-03
 

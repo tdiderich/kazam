@@ -9,6 +9,7 @@ mod annotations;
 mod audit;
 mod board;
 mod build;
+mod cli_reference;
 mod ctx;
 mod dev;
 mod freshness;
@@ -39,8 +40,12 @@ mod wish;
 mod workspace;
 
 #[derive(Parser)]
-#[command(name = "kazam", about = "Beautiful sites from simple YAML", version)]
-struct Cli {
+#[command(
+    name = "kazam",
+    about = "Local infrastructure for coding agents: context, visibility, durable execution",
+    version
+)]
+pub struct Cli {
     #[command(subcommand)]
     command: Command,
 }
@@ -49,8 +54,10 @@ struct Cli {
 enum Command {
     /// Build a site from a directory of .yaml files
     Build {
+        /// Directory of .yaml source files
         #[arg(default_value = ".")]
         dir: PathBuf,
+        /// Output directory for the built site
         #[arg(short, long, default_value = "_site")]
         out: PathBuf,
         /// Minify HTML, CSS, and JS in the output
@@ -75,15 +82,21 @@ enum Command {
     },
     /// Watch source, rebuild on change, serve at localhost:PORT
     Dev {
+        /// Directory of .yaml source files
         #[arg(default_value = ".")]
         dir: PathBuf,
+        /// Output directory for the built site
         #[arg(short, long, default_value = "_site")]
         out: PathBuf,
+        /// Port to serve the live-reloading site on
         #[arg(short, long, default_value_t = 3000)]
         port: u16,
     },
     /// Scaffold a new kazam site in <NAME>/
-    Init { name: String },
+    Init {
+        /// Directory to create, also used as the site name
+        name: String,
+    },
     /// Print the LLM authoring guide (full AGENTS.md to stdout)
     Agents,
     /// Install an AI tool pack from a curata instance (writes CLAUDE.md + .cursorrules)
@@ -168,6 +181,7 @@ enum Command {
         /// Project directory (default: current directory)
         #[arg(default_value = ".")]
         dir: PathBuf,
+        /// Port to serve the board on
         #[arg(short, long, default_value_t = 3001)]
         port: u16,
     },
@@ -175,6 +189,7 @@ enum Command {
     Open {
         /// Path to the file to open
         path: PathBuf,
+        /// Port to serve the file view on
         #[arg(short, long, default_value_t = 3002)]
         port: u16,
     },
@@ -296,6 +311,15 @@ enum Command {
     Agl {
         #[command(subcommand)]
         command: agl::Command,
+    },
+    /// Generate the CLI command reference from --help metadata
+    CliReference {
+        /// Write the generated reference into README.md between the markers
+        #[arg(long)]
+        write: bool,
+        /// Exit 1 if README.md's block doesn't match freshly generated output (for CI)
+        #[arg(long)]
+        check: bool,
     },
 }
 
@@ -686,6 +710,7 @@ fn main() -> Result<()> {
             }
         },
         Command::Agl { command } => agl::run(command),
+        Command::CliReference { write, check } => cli_reference::write_or_check(write, check),
         Command::Ingest { command } => match command {
             IngestCommand::Notion {
                 database,
@@ -710,8 +735,10 @@ fn main() -> Result<()> {
 pub enum FreshnessCommand {
     /// Show freshness status for all pages (default)
     Show {
+        /// Human-readable table output (default is JSON)
         #[arg(long)]
         pretty: bool,
+        /// Days since last update before a page counts as stale
         #[arg(long)]
         threshold: Option<u64>,
     },

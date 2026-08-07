@@ -162,7 +162,7 @@ fn writes_to_a_directory_using_the_kebab_cased_spec_name() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let written = out_dir.join("hub-spot-sync.md");
+    let written = out_dir.join("hub-spot-sync").join("SKILL.md");
     assert!(written.exists(), "expected {}", written.display());
 }
 
@@ -215,7 +215,7 @@ fn load_writes_an_inline_skill_by_default_no_agent_file() {
     );
 
     let agent_path = project_dir.join(".claude/agents/sync-hubspot.md");
-    let skill_path = project_dir.join(".claude/skills/sync-hubspot.md");
+    let skill_path = project_dir.join(".claude/skills/sync-hubspot/SKILL.md");
     assert!(
         !agent_path.exists(),
         "default (non---isolated) load must not write an agent file: {}",
@@ -282,7 +282,11 @@ fn load_isolated_refuses_a_spec_with_a_gate_protected_write() {
         !project_dir.join(".claude/agents/sync-hubspot.md").exists(),
         "must not compile a gated spec to a subagent"
     );
-    assert!(!project_dir.join(".claude/skills/sync-hubspot.md").exists());
+    assert!(
+        !project_dir
+            .join(".claude/skills/sync-hubspot/SKILL.md")
+            .exists()
+    );
 }
 
 #[test]
@@ -333,7 +337,7 @@ fn load_isolated_compiles_agent_and_dispatcher_for_a_read_only_spec() {
     );
 
     let agent_path = project_dir.join(".claude/agents/read-only-lookup.md");
-    let skill_path = project_dir.join(".claude/skills/read-only-lookup.md");
+    let skill_path = project_dir.join(".claude/skills/read-only-lookup/SKILL.md");
     assert!(agent_path.exists(), "expected {}", agent_path.display());
     assert!(skill_path.exists(), "expected {}", skill_path.display());
 
@@ -393,8 +397,8 @@ fn load_skips_an_invalid_spec_but_still_loads_the_valid_ones() {
         .expect("run kazam agl load");
 
     assert!(output.status.success());
-    assert!(project_dir.join(".claude/skills/fine.md").exists());
-    assert!(!project_dir.join(".claude/skills/broken.md").exists());
+    assert!(project_dir.join(".claude/skills/fine/SKILL.md").exists());
+    assert!(!project_dir.join(".claude/skills/broken/SKILL.md").exists());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("skipped 1 spec"), "stdout: {stdout}");
 }
@@ -454,7 +458,7 @@ fn load_embeds_a_real_template_file_referenced_by_an_evaluate_state() {
     );
 
     let skill_doc =
-        std::fs::read_to_string(project_dir.join(".claude/skills/call-prep.md")).unwrap();
+        std::fs::read_to_string(project_dir.join(".claude/skills/call-prep/SKILL.md")).unwrap();
     assert!(skill_doc.contains("## Templates"), "doc: {skill_doc}");
     assert!(skill_doc.contains("### activity-summary"));
     assert!(skill_doc.contains("- **Lead-in**: 5-10 word finding"));
