@@ -218,7 +218,8 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             nodes,
             edges,
             groups,
-        } => charts::render_graph(title, *height, *direction, nodes, edges, groups),
+            row_labels,
+        } => charts::render_graph(title, *height, *direction, nodes, edges, groups, row_labels),
         Component::OrgChart {
             title,
             people,

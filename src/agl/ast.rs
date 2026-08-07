@@ -23,6 +23,16 @@ pub struct AglSpec {
     /// `None` means the caller should default to a kebab-cased `name`
     /// (`skill::default_skill_name`) — most specs need this unset.
     pub skill: Option<String>,
+    /// Where `kazam agl load`/`kazam agl skill` (with no explicit `-o`) writes
+    /// this spec's compiled skill: a directory, absolute or `~`-expanded.
+    /// `None` means fall back to `--scope`/`--out` like any other spec. Lets
+    /// a spec that's meant to be published into a specific repo (a plugin's
+    /// own `skills/` folder, say) declare that once, so `load` puts it there
+    /// automatically instead of everything landing in one flat
+    /// `.claude/skills/` regardless of where it's actually meant to live. An
+    /// explicit CLI `-o`/`--out` still wins over this - the flag is what the
+    /// caller typed just now, this is only the spec's own declared default.
+    pub publish: Option<String>,
     /// Named local JSONL caches this spec's runtime reads and appends to,
     /// outside the compiled skill entirely so `kazam agl load` regenerating
     /// the skill never touches cached data. Zero or more - a spec can

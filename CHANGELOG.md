@@ -4,6 +4,43 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-08-07
+
+### Added
+- **`publish: "<path>"`**: optional spec-level field declaring where `kazam
+  agl skill`/`kazam agl load` write this spec's compiled skill by default,
+  a directory, absolute or `~`-expanded. Lets a spec that's meant to be
+  distributed into a specific repo (a plugin's own `skills/` folder, say)
+  declare that once instead of remembering `-o` every time. An explicit
+  CLI `-o`/`--out` still wins, `publish:` is only the spec's own declared
+  default when the caller doesn't say otherwise. `kazam agl load` honors
+  each spec's `publish:` independently in the same batch run, everything
+  else still lands under `--scope`.
+- **`graph` tiered/grid layout**: `GraphNode` gained optional `row` and
+  `column`. Setting `row` on any node switches the whole diagram from
+  topological auto-layout into an explicit grid, so a node in row 2 lines
+  up directly under its row 1 counterpart instead of being centered
+  independently, which is what makes a dashed edge between them read as a
+  straight drop. `graph` also gained `row_labels`, an optional per-row
+  heading rendered with a dashed rule above the tier. Existing `graph`
+  pages are unaffected: this only activates when a node sets `row`.
+- **`graph` node text wrapping**: node label/detail text now wraps inside
+  the box instead of overflowing into neighboring nodes, and the box
+  grows to fit the wrapped line count when no explicit `height` is set.
+- **`graph` node `hex`**: optional exact color (`#RGB`, `#RRGGBB`, or
+  `#RRGGBBAA`) on a node, validated against a strict allowlist since it
+  lands in an unescaped SVG attribute. Wins over `color` when set and
+  valid; an invalid value falls back to `color` rather than breaking the
+  render.
+- **`graph` node `status`**: optional `TimelineStatus` (`completed`,
+  `active`, or `upcoming`, the default). Renders a small progress badge
+  in the box's top-right corner, a check for completed, a play-triangle
+  for active, nothing for upcoming. Deliberately independent of
+  `color`/`hex`: a node's role (what kind of thing it is) and its
+  progress (whether it's done) are two different signals, and overloading
+  one color channel with both is what made an earlier dimmed-box idea
+  read as ambiguous.
+
 ## [1.20.0] - 2026-08-06
 
 ### Added
