@@ -4,6 +4,17 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.1] - 2026-08-07
+
+### Fixed
+- **`event_timeline` rendered events in authored order, not most-recent-first**: a
+  changelog/activity-feed component with no ordering enforcement anywhere in the
+  pipeline, so an author (including an agent writing via MCP) could trivially get
+  it backwards, and one live TS Hub page did. Both the static Rust renderer
+  (`render/components.rs`) and the generated React renderer (`sdk.rs`'s
+  `emit-react` output) now sort by `date` descending before rendering, stable so
+  same-date entries keep their authored relative order.
+
 ## [1.13.0] - 2026-08-06
 
 ### Changed
