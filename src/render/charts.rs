@@ -1856,6 +1856,44 @@ fn node_stroke(n: &crate::types::GraphNode) -> &str {
         .unwrap_or_else(|| n.color.hex())
 }
 
+/// Progress badge anchored on the box's top-right corner: a green check for
+/// `completed`, an amber play-triangle for `active`, nothing for `upcoming`
+/// (the default). Deliberately a fixed color (not `n.color`/`n.hex`) so it
+/// reads as a progress signal, independent of whatever role color the box
+/// border is already using.
+fn progress_badge_svg(
+    status: crate::types::TimelineStatus,
+    corner_x: f64,
+    corner_y: f64,
+) -> String {
+    use crate::types::TimelineStatus;
+    match status {
+        TimelineStatus::Upcoming => String::new(),
+        TimelineStatus::Completed => format!(
+            r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="9" fill="{fill}" stroke="#0A0E17" stroke-width="2"/><path d="M {x1:.1} {y1:.1} L {x2:.1} {y2:.1} L {x3:.1} {y3:.1}" fill="none" stroke="#0A0E17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##,
+            cx = corner_x,
+            cy = corner_y,
+            fill = SemColor::Green.hex(),
+            x1 = corner_x - 4.0,
+            y1 = corner_y,
+            x2 = corner_x - 1.2,
+            y2 = corner_y + 2.8,
+            x3 = corner_x + 4.2,
+            y3 = corner_y - 3.2,
+        ),
+        TimelineStatus::Active => format!(
+            r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="9" fill="{fill}" stroke="#0A0E17" stroke-width="2"/><path d="M {x1:.1} {y1:.1} L {x1:.1} {y2:.1} L {x3:.1} {cy:.1} Z" fill="#0A0E17"/>"##,
+            cx = corner_x,
+            cy = corner_y,
+            fill = SemColor::Yellow.hex(),
+            x1 = corner_x - 2.5,
+            y1 = corner_y - 3.5,
+            y2 = corner_y + 3.5,
+            x3 = corner_x + 3.5,
+        ),
+    }
+}
+
 fn multiline_text_svg(cx: f64, top_y: f64, lines: &[String], line_h: f64, class: &str) -> String {
     let mut out = String::from("<text>");
     for (i, line) in lines.iter().enumerate() {
@@ -2595,6 +2633,12 @@ pub fn render_graph(
                 ));
             }
         }
+
+        svg.push_str(&progress_badge_svg(
+            n.status,
+            pos.cx + nw / 2.0,
+            pos.cy - nh / 2.0,
+        ));
 
         let wrap_w = nw - GRAPH_NODE_PAD_X;
         let label_lines = wrap_lines(&n.label, GRAPH_LABEL_CHAR_W, wrap_w);

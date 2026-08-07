@@ -32,6 +32,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   lands in an unescaped SVG attribute. Wins over `color` when set and
   valid; an invalid value falls back to `color` rather than breaking the
   render.
+- **`graph` node `status`**: optional `TimelineStatus` (`completed`,
+  `active`, or `upcoming`, the default). Renders a small progress badge
+  in the box's top-right corner, a check for completed, a play-triangle
+  for active, nothing for upcoming. Deliberately independent of
+  `color`/`hex`: a node's role (what kind of thing it is) and its
+  progress (whether it's done) are two different signals, and overloading
+  one color channel with both is what made an earlier dimmed-box idea
+  read as ambiguous.
 
 ## [1.20.0] - 2026-08-06
 

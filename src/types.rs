@@ -893,11 +893,12 @@ pub struct TimelineItem {
     pub status: TimelineStatus,
 }
 
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Deserialize, Default, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum TimelineStatus {
     Completed,
     Active,
+    #[default]
     Upcoming,
 }
 
@@ -1582,6 +1583,13 @@ pub struct GraphNode {
     /// falls back to `color` rather than breaking the render.
     #[serde(default)]
     pub hex: Option<String>,
+    /// Progress on this node: `completed` or `active` render a small badge
+    /// in the box's top-right corner, `upcoming` (the default) renders no
+    /// badge at all. Deliberately independent of `color`/`hex` so a node's
+    /// role (what kind of thing it is) and its progress stay two separate
+    /// signals instead of overloading one.
+    #[serde(default)]
+    pub status: TimelineStatus,
     #[serde(default)]
     pub shape: GraphShape,
     #[serde(default)]

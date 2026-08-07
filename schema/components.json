@@ -1049,6 +1049,10 @@
         "type": "string",
         "required": false
       },
+      "status": {
+        "type": "TimelineStatus",
+        "required": false
+      },
       "shape": {
         "type": "GraphShape",
         "required": false
