@@ -2902,7 +2902,10 @@ mod tests {
 
     #[test]
     fn apply_scale_noop_when_unset() {
-        let r = apply_scale(Rendered::new("<figure class=\"c-chart\"></figure>".into()), None);
+        let r = apply_scale(
+            Rendered::new("<figure class=\"c-chart\"></figure>".into()),
+            None,
+        );
         assert_eq!(r.html, "<figure class=\"c-chart\"></figure>");
     }
 
