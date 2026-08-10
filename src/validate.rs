@@ -1588,6 +1588,7 @@ mod tests {
                 orientation: Default::default(),
                 data: None,
                 series: None,
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1623,6 +1624,7 @@ mod tests {
                         color: None,
                     }],
                 }]),
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);

@@ -1615,6 +1615,7 @@ function ComponentView({
       renderBlock(s)
     );
 
+  const content = (() => {
   switch (comp.type) {
     case "header": {
       const title = (comp.title as string) || "";
@@ -3262,6 +3263,14 @@ function ComponentView({
         </div>
       );
   }
+  })();
+
+  const scale = comp.scale as number | undefined;
+  if (scale != null) {
+    const s = Math.min(2, Math.max(0.1, scale));
+    return <div className="c-chart-scale" style={{ ["--kz-scale" as any]: s }}>{content}</div>;
+  }
+  return content;
 }
 
 function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { slides: SlideData[]; renderMarkdown?: (md: string) => string; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {

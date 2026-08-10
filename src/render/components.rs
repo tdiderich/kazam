@@ -164,30 +164,39 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             orientation,
             data,
             series,
-        } => charts::render(charts::ChartSpec {
-            kind: *kind,
-            title,
-            height: *height,
-            x_label,
-            y_label,
-            orientation: *orientation,
-            data,
-            series,
-        }),
+            scale,
+        } => apply_scale(
+            charts::render(charts::ChartSpec {
+                kind: *kind,
+                title,
+                height: *height,
+                x_label,
+                y_label,
+                orientation: *orientation,
+                data,
+                series,
+            }),
+            *scale,
+        ),
         Component::RoleMap { title } => role_map(title.as_deref(), config, base),
         Component::Sankey {
             title,
             height,
             flows,
             colors,
-        } => charts::render_sankey(title, *height, flows, colors),
+            scale,
+        } => apply_scale(charts::render_sankey(title, *height, flows, colors), *scale),
         Component::Radar {
             title,
             height,
             axes,
             curves,
             max,
-        } => charts::render_radar(title, *height, axes, curves, *max),
+            scale,
+        } => apply_scale(
+            charts::render_radar(title, *height, axes, curves, *max),
+            *scale,
+        ),
         Component::Quadrant {
             title,
             height,
@@ -195,14 +204,22 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             y_axis,
             quadrants,
             points,
-        } => charts::render_quadrant(title, *height, x_axis, y_axis, quadrants, points),
+            scale,
+        } => apply_scale(
+            charts::render_quadrant(title, *height, x_axis, y_axis, quadrants, points),
+            *scale,
+        ),
         Component::Architecture {
             title,
             height,
             direction,
             nodes,
             connections,
-        } => charts::render_architecture(title, *height, *direction, nodes, connections),
+            scale,
+        } => apply_scale(
+            charts::render_architecture(title, *height, *direction, nodes, connections),
+            *scale,
+        ),
         Component::Pipeline {
             title,
             height,
@@ -210,7 +227,11 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             stages,
             outputs,
             context,
-        } => charts::render_pipeline(title, *height, inputs, stages, outputs, context),
+            scale,
+        } => apply_scale(
+            charts::render_pipeline(title, *height, inputs, stages, outputs, context),
+            *scale,
+        ),
         Component::Graph {
             title,
             height,
@@ -219,7 +240,11 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             edges,
             groups,
             row_labels,
-        } => charts::render_graph(title, *height, *direction, nodes, edges, groups, row_labels),
+            scale,
+        } => apply_scale(
+            charts::render_graph(title, *height, *direction, nodes, edges, groups, row_labels),
+            *scale,
+        ),
         Component::OrgChart {
             title,
             people,
@@ -253,6 +278,22 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
 
 pub(super) fn sem_color_class(c: SemColor) -> &'static str {
     c.class_suffix()
+}
+
+/// Wraps a chart/diagram's rendered HTML in a centered container sized to
+/// `scale` (fraction of the container width; height follows since the SVG
+/// keeps its aspect ratio). A no-op when `scale` is unset. Clamped to
+/// 0.1–2.0 so a bad value can't collapse or blow out the layout.
+fn apply_scale(mut r: Rendered, scale: Option<f32>) -> Rendered {
+    if let Some(s) = scale {
+        let s = s.clamp(0.1, 2.0);
+        r.html = format!(
+            r#"<div class="c-chart-scale" style="--kz-scale: {s}">{html}</div>"#,
+            s = s,
+            html = r.html,
+        );
+    }
+    r
 }
 
 // ── Header ────────────────────────────────────────
@@ -2858,6 +2899,30 @@ fn render_org_chart(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apply_scale_noop_when_unset() {
+        let r = apply_scale(Rendered::new("<figure class=\"c-chart\"></figure>".into()), None);
+        assert_eq!(r.html, "<figure class=\"c-chart\"></figure>");
+    }
+
+    #[test]
+    fn apply_scale_wraps_and_clamps() {
+        let r = apply_scale(
+            Rendered::new("<figure class=\"c-chart\"></figure>".into()),
+            Some(0.5),
+        );
+        assert_eq!(
+            r.html,
+            "<div class=\"c-chart-scale\" style=\"--kz-scale: 0.5\"><figure class=\"c-chart\"></figure></div>"
+        );
+
+        let too_small = apply_scale(Rendered::new("<x></x>".into()), Some(0.0));
+        assert!(too_small.html.contains("--kz-scale: 0.1"));
+
+        let too_big = apply_scale(Rendered::new("<x></x>".into()), Some(10.0));
+        assert!(too_big.html.contains("--kz-scale: 2"));
+    }
 
     #[test]
     fn render_cell_plain_text_is_escaped() {

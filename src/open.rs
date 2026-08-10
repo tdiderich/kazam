@@ -165,9 +165,91 @@ fn handle(req: tiny_http::Request, st: &State) -> Result<()> {
             server::respond_html(req, &html)
         }
 
+        // Sibling assets referenced by relative path from the opened file
+        // (mainly images: `kazam open notes.md` with `![x](screenshot.png)`
+        // in the same folder). Scoped to image extensions and confined to
+        // the opened file's directory, not a general static file server.
+        (_, true, _) if is_image_asset(&url) => serve_asset(req, st, &url),
+
         (_, false, false) => server::respond_405(req),
         _ => server::respond_404(req),
     }
+}
+
+fn is_image_asset(url: &str) -> bool {
+    let ext = Path::new(url)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    matches!(
+        ext.as_str(),
+        "png" | "jpg" | "jpeg" | "gif" | "svg" | "webp" | "ico" | "bmp" | "avif"
+    )
+}
+
+fn image_content_type(ext: &str) -> &'static str {
+    match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        "ico" => "image/x-icon",
+        "bmp" => "image/bmp",
+        "avif" => "image/avif",
+        _ => "application/octet-stream",
+    }
+}
+
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(hex) = std::str::from_utf8(&bytes[i + 1..i + 3]) {
+                if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                    out.push(byte);
+                    i += 3;
+                    continue;
+                }
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Serves a file relative to the opened file's directory. Resolves
+/// `..` and symlinks via `canonicalize` and refuses anything that lands
+/// outside that directory, so `/api/*`-style probing can't read arbitrary
+/// files off the host.
+fn serve_asset(req: tiny_http::Request, st: &State, url: &str) -> Result<()> {
+    let Some(base_dir) = st.path.parent() else {
+        return server::respond_404(req);
+    };
+    let rel = percent_decode(url.trim_start_matches('/'));
+    let candidate = base_dir.join(&rel);
+    let Ok(resolved) = std::fs::canonicalize(&candidate) else {
+        return server::respond_404(req);
+    };
+    let Ok(base_canonical) = std::fs::canonicalize(base_dir) else {
+        return server::respond_404(req);
+    };
+    if !resolved.starts_with(&base_canonical) {
+        return server::respond_404(req);
+    }
+    let Ok(bytes) = std::fs::read(&resolved) else {
+        return server::respond_404(req);
+    };
+    let ext = resolved
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    server::respond_bytes(req, bytes, image_content_type(&ext))
 }
 
 fn handle_post_content(mut req: tiny_http::Request, st: &State) -> Result<()> {
@@ -792,9 +874,64 @@ fn render_markdown(src: &str) -> String {
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
     opts.insert(Options::ENABLE_TASKLISTS);
-    let parser = Parser::new_ext(body, opts);
+    let body = escape_spaced_image_paths(body);
+    let parser = Parser::new_ext(&body, opts);
     html::push_html(&mut out, parser);
     out
+}
+
+/// CommonMark link destinations can't contain a raw space unless wrapped in
+/// `<...>` — without that, pulldown_cmark treats `![x](my screenshot.png)`
+/// as literal text, not an image. Screenshot tool filenames (CleanShot,
+/// macOS's default, VS Code's paste-image) almost always have spaces, so
+/// wrap any image destination that has one and isn't already bracketed.
+fn escape_spaced_image_paths(src: &str) -> String {
+    let bytes = src.as_bytes();
+    let mut out = String::with_capacity(src.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'!' && bytes.get(i + 1) == Some(&b'[') {
+            if let Some(alt_end) = src[i + 2..].find(']') {
+                let alt_end = i + 2 + alt_end;
+                if src.as_bytes().get(alt_end + 1) == Some(&b'(') {
+                    let dest_start = alt_end + 2;
+                    if let Some(rel_close) = src[dest_start..].find(')') {
+                        let dest_close = dest_start + rel_close;
+                        let dest = &src[dest_start..dest_close];
+                        let already_wrapped = dest.starts_with('<') && dest.ends_with('>');
+                        let (path_part, title_part) = split_dest_title(dest);
+                        if !already_wrapped && path_part.contains(' ') {
+                            out.push_str(&src[i..dest_start]);
+                            out.push('<');
+                            out.push_str(path_part);
+                            out.push('>');
+                            out.push_str(title_part);
+                            out.push(')');
+                            i = dest_close + 1;
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        let ch = src[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
+/// Splits `path "title"` into (`path`, ` "title"`); no title returns
+/// (`dest`, ``). Only recognizes a trailing double-quoted title, the
+/// common case, so anything odder is left alone rather than mis-split.
+fn split_dest_title(dest: &str) -> (&str, &str) {
+    let trimmed = dest.trim_end();
+    if trimmed.ends_with('"') {
+        if let Some(space_quote) = trimmed.rfind(" \"") {
+            return (&dest[..space_quote], &dest[space_quote..]);
+        }
+    }
+    (dest, "")
 }
 
 fn render_code(src: &str, lang: &str) -> String {
@@ -1158,6 +1295,68 @@ fn watch_file(path: PathBuf, st: Arc<State>) {
                 eprintln!("  read failed: {e}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod image_asset_tests {
+    use super::*;
+
+    #[test]
+    fn escapes_spaced_image_path() {
+        let out = escape_spaced_image_paths("![shot](CleanShot 2026-08-10 at 15.19.44.png)");
+        assert_eq!(out, "![shot](<CleanShot 2026-08-10 at 15.19.44.png>)");
+    }
+
+    #[test]
+    fn leaves_unspaced_image_path_alone() {
+        let src = "![shot](shot.png)";
+        assert_eq!(escape_spaced_image_paths(src), src);
+    }
+
+    #[test]
+    fn leaves_already_bracketed_path_alone() {
+        let src = "![shot](<my shot.png>)";
+        assert_eq!(escape_spaced_image_paths(src), src);
+    }
+
+    #[test]
+    fn preserves_title_when_wrapping() {
+        let out = escape_spaced_image_paths(r#"![shot](my shot.png "a title")"#);
+        assert_eq!(out, r#"![shot](<my shot.png> "a title")"#);
+    }
+
+    #[test]
+    fn does_not_touch_plain_links() {
+        let src = "[a link](some page.html)";
+        assert_eq!(escape_spaced_image_paths(src), src);
+    }
+
+    #[test]
+    fn preserves_non_ascii_text_around_it() {
+        let src = "café ☕ ![shot](my shot.png) 日本語";
+        let out = escape_spaced_image_paths(src);
+        assert_eq!(out, "café ☕ ![shot](<my shot.png>) 日本語");
+    }
+
+    #[test]
+    fn render_markdown_produces_img_tag_for_spaced_path() {
+        let html = render_markdown("![shot](my shot.png)");
+        assert!(html.contains(r#"<img src="my%20shot.png" alt="shot""#));
+    }
+
+    #[test]
+    fn is_image_asset_matches_known_extensions() {
+        assert!(is_image_asset("/shot.png"));
+        assert!(is_image_asset("/dir/shot.JPG"));
+        assert!(!is_image_asset("/notes.md"));
+        assert!(!is_image_asset("/api/content"));
+    }
+
+    #[test]
+    fn percent_decode_handles_spaces() {
+        assert_eq!(percent_decode("my%20shot.png"), "my shot.png");
+        assert_eq!(percent_decode("no-escapes.png"), "no-escapes.png");
     }
 }
 

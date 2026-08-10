@@ -699,6 +699,12 @@ pub enum Component {
         /// For timeseries → multi-line. Ignored by pie.
         #[serde(default)]
         series: Option<Vec<ChartSeries>>,
+        /// Shrinks the rendered chart to this fraction of the container
+        /// width (height follows, since the SVG keeps its aspect ratio),
+        /// centered. Clamped to 0.1–2.0. Use when a chart is too tall to
+        /// fit on screen at full width.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     /// Grid of role cards read from the site's `roles:` config in kazam.yaml.
     /// Each card links to `?role=<id>` to activate persona filtering.
@@ -713,6 +719,9 @@ pub enum Component {
         flows: Vec<SankeyFlow>,
         #[serde(default)]
         colors: HashMap<String, SemColor>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Radar {
         title: Option<String>,
@@ -722,6 +731,9 @@ pub enum Component {
         curves: Vec<RadarCurve>,
         #[serde(default)]
         max: Option<f64>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Quadrant {
         title: Option<String>,
@@ -731,6 +743,9 @@ pub enum Component {
         y_axis: String,
         quadrants: Vec<String>,
         points: Vec<QuadrantPoint>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Architecture {
         title: Option<String>,
@@ -740,6 +755,9 @@ pub enum Component {
         direction: ArchDirection,
         nodes: Vec<ArchNode>,
         connections: Vec<ArchConnection>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Pipeline {
         title: Option<String>,
@@ -750,6 +768,9 @@ pub enum Component {
         outputs: Vec<PipelineItem>,
         #[serde(default)]
         context: Vec<PipelineItem>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Graph {
         title: Option<String>,
@@ -768,6 +789,9 @@ pub enum Component {
         /// without a matching entry (or a `null`) render with no label.
         #[serde(default)]
         row_labels: Vec<Option<String>>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     OrgChart {
         title: Option<String>,
