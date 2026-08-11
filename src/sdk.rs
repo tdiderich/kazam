@@ -618,13 +618,68 @@ function renderBlock(text: string): React.ReactElement {
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
   let key = 0;
-  let listItems: React.ReactNode[] = [];
+
+  // Each list item accumulates its own children (paragraphs, a nested
+  // sub-list, a fenced code block) instead of one inline render. A "loose"
+  // item - anything followed by a detail paragraph, which is the shape of
+  // every numbered how-to step - used to fracture into a fresh <ol
+  // start=1> the moment a blank line appeared, since the old version
+  // flushed the whole list on any blank line with no way back in.
+  let listItems: { children: React.ReactNode[] }[] = [];
   let listTag: "ul" | "ol" = "ul";
+  let itemPara: string[] = [];
+  let itemCode: string[] | null = null;
+  let itemCodeLang = "";
+  let itemSubList: React.ReactNode[] | null = null;
+  let itemSubListTag: "ul" | "ol" = "ul";
+
   let paraLines: string[] = [];
   let quoteLines: string[] = [];
   let codeLines: string[] | null = null;
   let codeLang = "";
   let tableLines: string[] = [];
+
+  const inList = () => listItems.length > 0;
+  const currentItem = () => listItems[listItems.length - 1];
+
+  const flushItemSubList = () => {
+    if (itemSubList && itemSubList.length > 0) {
+      const List = itemSubListTag;
+      currentItem().children.push(<List key={key++} className="c-md-list">{itemSubList}</List>);
+    }
+    itemSubList = null;
+  };
+
+  // Paragraph-only close, no coupled sub-list flush. The nested-list
+  // branch below needs to close a pending paragraph WITHOUT touching an
+  // in-progress sub-list of the same type - flushItemPara() used to do
+  // both together, which flushed (and re-opened) the sub-list on every
+  // single nested item, leaving each one in its own one-item <ol>/<ul>
+  // instead of a shared list.
+  const closeItemPara = () => {
+    if (itemPara.length > 0) {
+      currentItem().children.push(<p key={key++}>{renderInline(itemPara.join(" "))}</p>);
+      itemPara = [];
+    }
+  };
+
+  const flushItemPara = () => {
+    flushItemSubList();
+    closeItemPara();
+  };
+
+  const flushItemCode = () => {
+    if (itemCode !== null) {
+      const code = itemCode.join("\n");
+      currentItem().children.push(
+        <pre key={key++} className="c-code" {...(itemCodeLang ? { "data-lang": itemCodeLang } : {})}>
+          <code>{code}</code>
+        </pre>
+      );
+      itemCode = null;
+      itemCodeLang = "";
+    }
+  };
 
   const parseTableRow = (row: string): string[] =>
     row.replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
@@ -663,9 +718,15 @@ function renderBlock(text: string): React.ReactElement {
   };
 
   const flushList = () => {
+    flushItemCode();
+    flushItemPara();
     if (listItems.length > 0) {
       const List = listTag;
-      elements.push(<List key={key++} className="c-md-list">{listItems}</List>);
+      elements.push(
+        <List key={key++} className="c-md-list">
+          {listItems.map((it, i) => <li key={i}>{it.children}</li>)}
+        </List>
+      );
       listItems = [];
     }
   };
@@ -697,16 +758,86 @@ function renderBlock(text: string): React.ReactElement {
     }
   };
 
+  // Closes whatever the previous item still had open, then starts a new
+  // item - finalizing the old <ol>/<ul> first only if the marker type
+  // actually switched (bullet <-> numbered), not for every sibling item.
+  const startItem = (tag: "ul" | "ol", firstLineText: string) => {
+    flushItemPara();
+    flushItemCode();
+    if (listTag !== tag && listItems.length > 0) flushList();
+    listTag = tag;
+    listItems.push({ children: [] });
+    itemPara = firstLineText ? [firstLineText] : [];
+  };
+
   for (const line of lines) {
     const trimmed = line.trimStart();
+    const indented = line.length > trimmed.length;
 
     if (codeLines !== null) {
-      if (/^`{3,}\s*$/.test(trimmed)) {
-        flushCode();
-      } else {
-        codeLines.push(line);
-      }
+      if (/^`{3,}\s*$/.test(trimmed)) { flushCode(); } else { codeLines.push(line); }
       continue;
+    }
+
+    if (itemCode !== null) {
+      if (/^`{3,}\s*$/.test(trimmed)) { flushItemCode(); } else { itemCode.push(trimmed); }
+      continue;
+    }
+
+    const taskMatch = trimmed.match(/^[-*] \[([ xX])\]\s(.*)$/);
+    const bulletMatch = !taskMatch && /^[-*]\s/.test(trimmed);
+    const orderedMatch = /^\d+\.\s/.test(trimmed);
+    const isListMarker = !!taskMatch || bulletMatch || orderedMatch;
+
+    if (inList() && trimmed === "") {
+      // Blank line inside a list: close whatever sub-block is open in the
+      // current item, but the list itself stays open. Only a genuinely
+      // new top-level block - not indented, not another item - ends it,
+      // checked below.
+      flushItemPara();
+      flushItemCode();
+      continue;
+    }
+
+    if (inList() && indented) {
+      // Continuation content for the current item: nested bullet/numbered
+      // line, a fenced code block, or a wrapped paragraph line.
+      const fenceMatch = trimmed.match(/^`{3,}(.*)$/);
+      if (fenceMatch) {
+        flushItemPara();
+        itemCode = [];
+        itemCodeLang = fenceMatch[1].trim();
+        continue;
+      }
+      const nestedTask = trimmed.match(/^[-*] \[([ xX])\]\s(.*)$/);
+      const nestedBullet = !nestedTask && /^[-*]\s/.test(trimmed);
+      const nestedOrdered = /^\d+\.\s/.test(trimmed);
+      if (nestedTask || nestedBullet || nestedOrdered) {
+        const subTag: "ul" | "ol" = nestedOrdered ? "ol" : "ul";
+        if (!itemSubList || itemSubListTag !== subTag) {
+          // Only close out prior state on an actual transition (first
+          // nested item, or a type switch) - repeat items of the same
+          // type must fall through untouched so they land in the same
+          // list instead of each getting flushed into its own.
+          closeItemPara();
+          flushItemSubList();
+          itemSubList = [];
+          itemSubListTag = subTag;
+        }
+        const subText = nestedTask
+          ? nestedTask[2]
+          : trimmed.replace(/^[-*]\s/, "").replace(/^\d+\.\s/, "");
+        itemSubList!.push(<li key={key++}>{renderInline(subText)}</li>);
+        continue;
+      }
+      flushItemSubList();
+      itemPara.push(trimmed);
+      continue;
+    }
+
+    if (inList() && !indented && !isListMarker && trimmed !== "") {
+      // A genuine new top-level block - close the list before handling it.
+      flushList();
     }
 
     const fenceMatch = trimmed.match(/^`{3,}(.*)$/);
@@ -733,7 +864,6 @@ function renderBlock(text: string): React.ReactElement {
     }
 
     const quoteMatch = trimmed.match(/^>\s?(.*)$/);
-    const taskMatch = trimmed.match(/^[-*] \[([ xX])\]\s(.*)$/);
     if (quoteMatch) {
       flushPara();
       flushList();
@@ -741,31 +871,34 @@ function renderBlock(text: string): React.ReactElement {
     } else if (taskMatch) {
       flushPara();
       flushQuote();
-      if (listTag !== "ul") flushList();
-      listTag = "ul";
+      startItem("ul", "");
       const checked = taskMatch[1].toLowerCase() === "x";
-      listItems.push(
-        <li key={key++} className="task-list-item">
+      currentItem().children.push(
+        <p key={key++} className="task-list-item">
           <input type="checkbox" checked={checked} disabled readOnly />{" "}
           {renderInline(taskMatch[2])}
-        </li>
+        </p>
       );
-    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+    } else if (bulletMatch) {
       flushPara();
       flushQuote();
-      if (listTag !== "ul") flushList();
-      listTag = "ul";
-      listItems.push(<li key={key++}>{renderInline(trimmed.slice(2))}</li>);
-    } else if (/^\d+\.\s/.test(trimmed)) {
+      startItem("ul", trimmed.slice(2));
+    } else if (orderedMatch) {
       flushPara();
       flushQuote();
-      if (listTag !== "ol") flushList();
-      listTag = "ol";
-      listItems.push(<li key={key++}>{renderInline(trimmed.replace(/^\d+\.\s/, ""))}</li>);
+      startItem("ol", trimmed.replace(/^\d+\.\s/, ""));
     } else if (trimmed === "") {
       flushPara();
       flushList();
       flushQuote();
+    } else if (/^####\s/.test(trimmed)) {
+      // A regex, not a plain-string prefix check: four hashes right
+      // after a quote character would collide with this generated
+      // file's own raw-string delimiter.
+      flushPara();
+      flushList();
+      flushQuote();
+      elements.push(<h4 key={key++}>{renderInline(trimmed.replace(/^####\s/, ""))}</h4>);
     } else if (trimmed.startsWith("### ")) {
       flushPara();
       flushList();
@@ -794,6 +927,8 @@ function renderBlock(text: string): React.ReactElement {
       flushQuote();
       elements.push(<hr key={key++} />);
     } else {
+      // inList() is never true here: the check above already closed the
+      // list for unindented, non-marker, non-blank text.
       flushList();
       flushQuote();
       paraLines.push(trimmed);
@@ -4256,6 +4391,54 @@ mod tests {
         assert!(
             tsx.contains("<blockquote key={key++}>{renderInline(quoteLines.join(\" \"))}</blockquote>"),
             "renderBlock must emit a real <blockquote>, not plain paragraph text with a leading '>'"
+        );
+    }
+
+    #[test]
+    fn react_render_block_supports_h4_headings() {
+        // renderBlock never checked for a fourth '#' at all - "#### x"
+        // fell through to the paragraph catch-all and rendered as
+        // literal text. Regex, not startsWith("#### ") - four hashes
+        // right after a quote would collide with RENDERER_RAW's own
+        // r####"..."#### delimiter and truncate the template.
+        let tsx = generate_react();
+        assert!(
+            !tsx.contains("\"#### "),
+            "a literal \"#### string would collide with this file's r####\"...\"#### raw-string delimiter"
+        );
+        assert!(
+            tsx.contains("/^####\\s/.test(trimmed)"),
+            "renderBlock must detect a fourth '#' and emit <h4>, not fall through to a paragraph"
+        );
+    }
+
+    #[test]
+    fn react_render_block_keeps_nested_ordered_items_in_one_list() {
+        // flushItemPara() used to close the in-progress item sub-list as
+        // a side effect, and the nested-marker branch called it on every
+        // single nested line - so item 2 of a nested "1. / 2." list
+        // flushed item 1 into its own one-item <ol> and opened a fresh
+        // one for item 2, both rendering as "1.". The fix splits the
+        // paragraph-only close (closeItemPara) from the sub-list flush
+        // and only fires either on an actual transition.
+        let tsx = generate_react();
+        assert!(
+            tsx.contains("const closeItemPara = () => {"),
+            "closeItemPara must exist as a paragraph-only close, decoupled from the sub-list flush"
+        );
+        let nested_branch_start = tsx
+            .find("if (nestedTask || nestedBullet || nestedOrdered) {")
+            .expect("nested-marker branch must exist");
+        let nested_branch = &tsx[nested_branch_start..nested_branch_start + 400];
+        assert!(
+            !nested_branch.contains("flushItemPara()"),
+            "the nested-marker branch must not call flushItemPara() unconditionally - \
+             that flushes (and reopens) the in-progress sub-list on every item, \
+             not just the first, so each item ends up in its own list"
+        );
+        assert!(
+            nested_branch.contains("if (!itemSubList || itemSubListTag !== subTag) {"),
+            "prior state must only be closed when the sub-list is new or switching type"
         );
     }
 
