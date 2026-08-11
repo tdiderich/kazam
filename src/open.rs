@@ -6,8 +6,115 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use notify::{RecursiveMode, Watcher};
+use serde::{Deserialize, Serialize};
 
 use crate::server;
+use crate::theme::{self, Theme};
+use crate::types::{Glow, Mode, Texture};
+
+/// `kazam open`'s theme preference, persisted at `~/.kazam/open-theme.json`
+/// so it survives across invocations even though each one binds a fresh
+/// (possibly different) port — a per-origin store like localStorage would
+/// silently lose the setting the moment the port changes.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
+struct OpenThemeConfig {
+    /// One of the curata rainbow accents (`red`..`violet`), or `"default"`
+    /// for the neutral dark/light base with no accent swap.
+    color: String,
+    mode: String,
+    texture: String,
+    glow: String,
+    /// Custom accent hex, e.g. `#14b8a6`. Overrides `color`'s accent when
+    /// set. Validated as `#` + 6 hex digits before it's ever persisted.
+    accent_hex: Option<String>,
+}
+
+impl Default for OpenThemeConfig {
+    fn default() -> Self {
+        Self {
+            color: "teal".into(),
+            mode: "dark".into(),
+            texture: "dots".into(),
+            glow: "none".into(),
+            accent_hex: None,
+        }
+    }
+}
+
+fn theme_config_path() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".kazam").join("open-theme.json"))
+}
+
+fn load_theme_config() -> OpenThemeConfig {
+    theme_config_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_theme_config(cfg: &OpenThemeConfig) -> Result<()> {
+    let path = theme_config_path().context("cannot resolve $HOME to save theme preference")?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(&path, serde_json::to_string_pretty(cfg)?)
+        .with_context(|| format!("cannot write {}", path.display()))
+}
+
+fn parse_texture(s: &str) -> Texture {
+    match s {
+        "dots" => Texture::Dots,
+        "grid" => Texture::Grid,
+        "grain" => Texture::Grain,
+        "topography" => Texture::Topography,
+        "diagonal" => Texture::Diagonal,
+        _ => Texture::None,
+    }
+}
+
+fn parse_glow(s: &str) -> Glow {
+    match s {
+        "accent" => Glow::Accent,
+        "corner" => Glow::Corner,
+        _ => Glow::None,
+    }
+}
+
+const VALID_COLORS: &[&str] = &[
+    "default", "red", "orange", "yellow", "green", "teal", "blue", "indigo", "violet",
+];
+const VALID_TEXTURES: &[&str] = &["none", "dots", "grid", "grain", "topography", "diagonal"];
+const VALID_GLOWS: &[&str] = &["none", "accent", "corner"];
+
+fn is_valid_hex_color(s: &str) -> bool {
+    let h = s.strip_prefix('#').unwrap_or(s);
+    h.len() == 6 && h.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn resolve_theme(cfg: &OpenThemeConfig) -> (Theme, Texture, Glow) {
+    let mode = if cfg.mode == "light" {
+        Mode::Light
+    } else {
+        Mode::Dark
+    };
+    let name: &str = if cfg.color == "default" {
+        if cfg.mode == "light" {
+            "light"
+        } else {
+            "dark"
+        }
+    } else {
+        &cfg.color
+    };
+    let mut t = Theme::named(name, mode);
+    if let Some(hex) = cfg.accent_hex.as_deref().filter(|h| !h.is_empty()) {
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert("accent".to_string(), hex.to_string());
+        t = t.with_overrides(&overrides);
+    }
+    (t, parse_texture(&cfg.texture), parse_glow(&cfg.glow))
+}
 
 pub fn run(path: &Path, port: u16) -> Result<()> {
     let path = std::fs::canonicalize(path)
@@ -171,6 +278,11 @@ fn handle(req: tiny_http::Request, st: &State) -> Result<()> {
         // the opened file's directory, not a general static file server.
         (_, true, _) if is_image_asset(&url) => serve_asset(req, st, &url),
 
+        ("/api/theme", true, _) => {
+            server::respond_plain(req, &serde_json::to_string(&load_theme_config())?)
+        }
+        ("/api/theme", _, true) => handle_set_theme(req),
+
         (_, false, false) => server::respond_405(req),
         _ => server::respond_404(req),
     }
@@ -270,6 +382,54 @@ fn handle_post_content(mut req: tiny_http::Request, st: &State) -> Result<()> {
         .with_header(server::hdr("Content-Type", "application/json"))
         .with_header(server::hdr("Cache-Control", "no-store"));
     req.respond(resp).context("respond")
+}
+
+/// Persists a theme choice to `~/.kazam/open-theme.json`. Rejects anything
+/// outside the known color/texture/glow sets or a malformed custom hex,
+/// since this file is hand-editable and a bad value would otherwise surface
+/// as a silent fallback to defaults on the next launch instead of an error
+/// now, while the user is looking at the panel that caused it.
+fn handle_set_theme(mut req: tiny_http::Request) -> Result<()> {
+    let mut body = String::new();
+    req.as_reader()
+        .read_to_string(&mut body)
+        .context("read POST body")?;
+    let cfg: OpenThemeConfig = match serde_json::from_str(&body) {
+        Ok(c) => c,
+        Err(e) => {
+            return server::respond_plain(
+                req,
+                &format!(r#"{{"ok":false,"error":"invalid JSON: {e}"}}"#),
+            )
+        }
+    };
+    let bad = if !VALID_COLORS.contains(&cfg.color.as_str()) {
+        Some(format!("unknown color: {}", cfg.color))
+    } else if !VALID_TEXTURES.contains(&cfg.texture.as_str()) {
+        Some(format!("unknown texture: {}", cfg.texture))
+    } else if !VALID_GLOWS.contains(&cfg.glow.as_str()) {
+        Some(format!("unknown glow: {}", cfg.glow))
+    } else if cfg.mode != "dark" && cfg.mode != "light" {
+        Some(format!("unknown mode: {}", cfg.mode))
+    } else if let Some(hex) = cfg.accent_hex.as_deref().filter(|h| !h.is_empty()) {
+        if is_valid_hex_color(hex) {
+            None
+        } else {
+            Some(format!("invalid hex color: {hex}"))
+        }
+    } else {
+        None
+    };
+    if let Some(msg) = bad {
+        return server::respond_plain(req, &format!(r#"{{"ok":false,"error":"{msg}"}}"#));
+    }
+    if let Err(e) = save_theme_config(&cfg) {
+        return server::respond_plain(
+            req,
+            &format!(r#"{{"ok":false,"error":"{e}"}}"#).replace('\n', " "),
+        );
+    }
+    server::respond_plain(req, r#"{"ok":true}"#)
 }
 
 /// Highlights posted text for the edit-mode overlay. Pure compute, no side
@@ -394,6 +554,42 @@ fn render_page(
         ""
     };
 
+    let cfg = load_theme_config();
+    let (theme, texture, glow) = resolve_theme(&cfg);
+    let theme_css = theme::render_css(&theme, texture, glow);
+    let (syn_key, syn_str, syn_num, syn_bool, syn_null) = if cfg.mode == "light" {
+        ("#0369a1", "#15803d", "#a16207", "#7e22ce", "#b91c1c")
+    } else {
+        ("#7dd3fc", "#86efac", "#fde68a", "#c4b5fd", "#f87171")
+    };
+    let hex_value = cfg.accent_hex.clone().unwrap_or_default();
+    let hex_or_default = if hex_value.is_empty() {
+        "#14b8a6".to_string()
+    } else {
+        hex_value.clone()
+    };
+    let cfg_accent_hex_js = match &cfg.accent_hex {
+        Some(h) if !h.is_empty() => format!("'{}'", h),
+        _ => "null".to_string(),
+    };
+    let swatches_html = color_swatch_html(&cfg.color);
+    let mode_html = mode_toggle_html(&cfg.mode);
+    let texture_options = select_options(
+        &[
+            ("none", "None"),
+            ("dots", "Dots"),
+            ("grid", "Grid"),
+            ("grain", "Grain"),
+            ("topography", "Topography"),
+            ("diagonal", "Diagonal"),
+        ],
+        &cfg.texture,
+    );
+    let glow_options = select_options(
+        &[("none", "None"), ("accent", "Accent"), ("corner", "Corner")],
+        &cfg.glow,
+    );
+
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -402,20 +598,17 @@ fn render_page(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{file_name} — kazam</title>
 <style>
-:root {{
-  --bg: #0f1117;
-  --fg: #e4e4e7;
-  --muted: #71717a;
-  --border: #27272a;
-  --accent: #14b8a6;
-  --surface: #18181b;
-  --code-bg: #1e1e22;
-  --selection: rgba(20,184,166,0.25);
-}}
+{theme_css}
+</style>
+<style>
+/* kazam open chrome — everything below has no curata equivalent (toolbar,
+   editor overlay, theme panel). Typography/texture for rendered markdown
+   comes from the shared stylesheet above via .c-markdown, so this tool
+   looks and updates exactly like curata's own page rendering. */
 * {{ margin:0; padding:0; box-sizing:border-box; }}
+html {{ background: var(--bg); }}
 body {{
-  background: var(--bg);
-  color: var(--fg);
+  color: var(--snow);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.6;
   min-height: 100vh;
@@ -424,8 +617,8 @@ body {{
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--card-border);
   padding: 8px 24px;
   display: flex;
   align-items: center;
@@ -434,11 +627,11 @@ body {{
 }}
 .toolbar .filename {{
   font-weight: 600;
-  color: var(--accent);
+  color: var(--teal);
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
 }}
 .toolbar .badge {{
-  background: var(--border);
+  background: rgba(var(--text-rgb),0.09);
   color: var(--muted);
   padding: 2px 8px;
   border-radius: 4px;
@@ -447,9 +640,10 @@ body {{
   letter-spacing: 0.5px;
 }}
 .toolbar .spacer {{ flex: 1; }}
+.toolbar {{ position: relative; }}
 .toolbar button {{
-  background: var(--border);
-  color: var(--fg);
+  background: rgba(var(--text-rgb),0.09);
+  color: var(--snow);
   border: none;
   padding: 4px 12px;
   border-radius: 4px;
@@ -457,83 +651,42 @@ body {{
   font-size: 13px;
   font-family: inherit;
 }}
-.toolbar button:hover {{ background: var(--accent); color: #000; }}
-.toolbar button.active {{ background: var(--accent); color: #000; }}
+.toolbar button:hover {{ background: var(--teal); color: var(--bg); }}
+.toolbar button.active {{ background: var(--teal); color: var(--bg); }}
 .container {{
   max-width: 820px;
-  margin: 0 auto;
-  padding: 32px 24px;
+  margin: 32px auto;
+  padding: 40px 56px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 40px rgba(0,0,0,0.3);
 }}
 .container.wide {{
   max-width: 1400px;
 }}
 .code-view::-webkit-scrollbar {{ height: 8px; }}
-.code-view::-webkit-scrollbar-thumb {{ background: var(--border); border-radius: 4px; }}
+.code-view::-webkit-scrollbar-thumb {{ background: var(--card-border); border-radius: 4px; }}
 .code-view::-webkit-scrollbar-track {{ background: transparent; }}
 .view-mode {{ display: block; }}
 .edit-mode {{ display: none; }}
 body.editing .view-mode {{ display: none; }}
 body.editing .edit-mode {{ display: block; }}
-/* Markdown styles */
-.markdown h1 {{ font-size: 1.8em; margin: 0.8em 0 0.4em; font-weight: 700; }}
-.markdown h2 {{ font-size: 1.4em; margin: 0.8em 0 0.4em; font-weight: 600; }}
-.markdown h3 {{ font-size: 1.15em; margin: 0.8em 0 0.4em; font-weight: 600; }}
-.markdown p {{ margin: 0.6em 0; }}
-.markdown ul, .markdown ol {{ margin: 0.6em 0; padding-left: 1.5em; }}
-.markdown li {{ margin: 0.2em 0; }}
-.markdown code {{
-  background: var(--code-bg);
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  font-size: 0.9em;
-}}
-.markdown pre {{
-  background: var(--code-bg);
-  padding: 16px;
-  border-radius: 6px;
-  overflow-x: auto;
-  margin: 0.8em 0;
-}}
-.markdown pre code {{
-  background: none;
-  padding: 0;
-}}
-.markdown blockquote {{
-  border-left: 3px solid var(--accent);
-  padding-left: 16px;
-  color: var(--muted);
-  margin: 0.8em 0;
-}}
-.markdown a {{ color: var(--accent); text-decoration: none; }}
-.markdown a:hover {{ text-decoration: underline; }}
-.markdown table {{
-  border-collapse: collapse;
-  width: 100%;
-  margin: 0.8em 0;
-}}
-.markdown th, .markdown td {{
-  border: 1px solid var(--border);
-  padding: 8px 12px;
-  text-align: left;
-}}
-.markdown th {{ background: var(--surface); font-weight: 600; }}
-.markdown hr {{ border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }}
 .frontmatter {{
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
   font-size: 12px;
   line-height: 1.6;
   white-space: pre;
-  color: rgba(var(--text-rgb, 255,255,255), 0.35);
+  color: rgba(var(--text-rgb), 0.35);
   padding-bottom: 0.8em;
   margin-bottom: 1em;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--card-border);
 }}
-.frontmatter .syn-key {{ color: rgba(var(--text-rgb, 255,255,255), 0.45); }}
-.frontmatter .syn-punct {{ color: rgba(var(--text-rgb, 255,255,255), 0.3); }}
-.frontmatter .syn-string {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
-.frontmatter .syn-number {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
-.frontmatter .syn-bool {{ color: rgba(var(--text-rgb, 255,255,255), 0.35); }}
+.frontmatter .syn-key {{ color: rgba(var(--text-rgb), 0.45); }}
+.frontmatter .syn-punct {{ color: rgba(var(--text-rgb), 0.3); }}
+.frontmatter .syn-string {{ color: rgba(var(--text-rgb), 0.35); }}
+.frontmatter .syn-number {{ color: rgba(var(--text-rgb), 0.35); }}
+.frontmatter .syn-bool {{ color: rgba(var(--text-rgb), 0.35); }}
 /* Code view (yaml/json/agl) - plain formatted text, not a boxed card */
 .code-view {{
   overflow-x: auto;
@@ -553,12 +706,14 @@ body.editing .edit-mode {{ display: block; }}
   margin-right: 1.5em;
   opacity: 0.5;
 }}
-/* Syntax colors */
-.syn-key {{ color: #7dd3fc; }}
-.syn-str {{ color: #86efac; }}
-.syn-num {{ color: #fde68a; }}
-.syn-bool {{ color: #c4b5fd; }}
-.syn-null {{ color: #f87171; }}
+/* Syntax colors — fixed, not accent-driven, same reasoning a code editor's
+   syntax theme doesn't follow the UI accent. Picked per-mode for contrast
+   (server-resolved at render time, not switched live). */
+.syn-key {{ color: {syn_key}; }}
+.syn-str {{ color: {syn_str}; }}
+.syn-num {{ color: {syn_num}; }}
+.syn-bool {{ color: {syn_bool}; }}
+.syn-null {{ color: {syn_null}; }}
 .syn-comment {{ color: var(--muted); font-style: italic; }}
 .syn-punct {{ color: var(--muted); }}
 /* Edit mode: a highlighted <pre> sits behind a transparent-text textarea,
@@ -569,13 +724,13 @@ body.editing .edit-mode {{ display: block; }}
 .edit-wrap {{
   position: relative;
   min-height: calc(100vh - 120px);
-  background: var(--code-bg);
-  border: 1px solid var(--border);
+  background: rgba(var(--text-rgb),0.07);
+  border: 1px solid var(--card-border);
   border-radius: 6px;
   overflow: hidden;
 }}
 .edit-wrap:focus-within {{
-  border-color: var(--accent);
+  border-color: var(--teal);
 }}
 .edit-highlight, .edit-area {{
   position: absolute;
@@ -593,13 +748,13 @@ body.editing .edit-mode {{ display: block; }}
   overflow: auto;
 }}
 .edit-highlight {{
-  color: var(--fg);
+  color: var(--snow);
   pointer-events: none;
 }}
 .edit-area {{
   background: transparent;
   color: transparent;
-  caret-color: var(--fg);
+  caret-color: var(--snow);
   border: none;
   outline: none;
   resize: none;
@@ -608,8 +763,8 @@ body.editing .edit-mode {{ display: block; }}
   position: fixed;
   bottom: 16px;
   right: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   padding: 4px 12px;
   border-radius: 4px;
   font-size: 12px;
@@ -618,7 +773,7 @@ body.editing .edit-mode {{ display: block; }}
   transition: opacity 0.2s;
 }}
 .status.show {{ opacity: 1; }}
-::selection {{ background: var(--selection); }}
+::selection {{ background: rgba(var(--accent-rgb),0.25); }}
 .conflict {{
   background: #422006;
   border-bottom: 1px solid #a16207;
@@ -651,6 +806,68 @@ body.editing .edit-mode {{ display: block; }}
   display: none;
 }}
 .syntax-err.show {{ display: block; }}
+/* Theme panel */
+.theme-panel {{
+  display: none;
+  position: absolute;
+  top: 44px;
+  right: 24px;
+  z-index: 20;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+  min-width: 250px;
+  font-size: 13px;
+}}
+.theme-panel.show {{ display: block; }}
+.theme-panel-row {{ display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }}
+.theme-panel-row:last-child {{ margin-bottom: 0; }}
+.theme-panel-label {{ color: var(--muted); font-size: 12px; }}
+.theme-swatches {{ display: flex; gap: 6px; flex-wrap: wrap; max-width: 168px; justify-content: flex-end; }}
+.theme-swatch {{
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--swatch);
+  cursor: pointer;
+  padding: 0;
+}}
+.theme-swatch.active {{ border-color: var(--snow); }}
+.theme-toggle-group {{ display: flex; gap: 4px; }}
+.theme-toggle-group button {{
+  background: rgba(var(--text-rgb),0.08);
+  color: var(--snow);
+  border: none;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+}}
+.theme-toggle-group button.active {{ background: var(--teal); color: var(--bg); }}
+.theme-panel select {{
+  background: rgba(var(--text-rgb),0.08);
+  color: var(--snow);
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+}}
+.theme-hex-row {{ display: flex; gap: 6px; align-items: center; }}
+.theme-hex-row input[type="color"] {{ width: 22px; height: 22px; border: none; padding: 0; background: none; cursor: pointer; }}
+.theme-hex-row input[type="text"] {{
+  width: 84px;
+  background: rgba(var(--text-rgb),0.08);
+  border: none;
+  color: var(--snow);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'SF Mono', Monaco, monospace;
+}}
 </style>
 </head>
 <body>
@@ -658,6 +875,32 @@ body.editing .edit-mode {{ display: block; }}
   <span class="filename">{file_name}</span>
   <span class="badge">{ext}</span>
   <span class="spacer"></span>
+  <button id="themeBtn" onclick="toggleThemePanel()" title="Theme">🎨</button>
+  <div class="theme-panel" id="themePanel">
+    <div class="theme-panel-row">
+      <span class="theme-panel-label">Color</span>
+      <div class="theme-swatches">{swatches_html}</div>
+    </div>
+    <div class="theme-panel-row">
+      <span class="theme-panel-label">Mode</span>
+      <div class="theme-toggle-group">{mode_html}</div>
+    </div>
+    <div class="theme-panel-row">
+      <span class="theme-panel-label">Texture</span>
+      <select id="textureSelect" onchange="applyTheme({{texture:this.value}})">{texture_options}</select>
+    </div>
+    <div class="theme-panel-row">
+      <span class="theme-panel-label">Glow</span>
+      <select id="glowSelect" onchange="applyTheme({{glow:this.value}})">{glow_options}</select>
+    </div>
+    <div class="theme-panel-row">
+      <span class="theme-panel-label">Custom hex</span>
+      <div class="theme-hex-row">
+        <input type="color" id="hexPicker" value="{hex_or_default}" onchange="applyTheme({{color:'default',accent_hex:this.value}})">
+        <input type="text" id="hexText" value="{hex_value}" placeholder='#14b8a6' onkeydown="if(event.key==='Enter')applyTheme({{color:'default',accent_hex:this.value}})">
+      </div>
+    </div>
+  </div>
   <button id="viewBtn" class="active" onclick="setMode('view')">View</button>
   <button id="editBtn" onclick="setMode('edit')">Edit</button>
   <button id="copyBtn" onclick="copyFile()">Copy</button>
@@ -666,7 +909,7 @@ body.editing .edit-mode {{ display: block; }}
 {banner}
 <div class="syntax-err" id="syntaxErr"></div>
 <div class="container{container_wide}">
-  <div class="view-mode markdown" id="viewPane">{rendered}</div>
+  <div class="view-mode c-markdown" id="viewPane">{rendered}</div>
   <div class="edit-mode">
     <div class="edit-wrap">
       <pre class="edit-highlight" id="editorHighlight" aria-hidden="true">{edit_highlighted}</pre>
@@ -826,6 +1069,23 @@ document.addEventListener('keyup',function(e){{if(e.key==='Shift')copySelection(
 fetch('/api/status').then(function(r){{return r.json()}})
   .then(function(s){{showSyntaxError(s.valid?null:s.error);}}).catch(function(){{}});
 </script>
+<script>
+var currentTheme={{color:'{cfg_color}',mode:'{cfg_mode}',texture:'{cfg_texture}',glow:'{cfg_glow}',accent_hex:{cfg_accent_hex_js}}};
+function toggleThemePanel(){{
+  document.getElementById('themePanel').classList.toggle('show');
+}}
+function applyTheme(patch){{
+  for(var k in patch) currentTheme[k]=patch[k];
+  fetch('/api/theme',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(currentTheme)}})
+    .then(function(r){{return r.json();}})
+    .then(function(j){{ if(j.ok) location.reload(); else flash(j.error||'invalid theme'); }})
+    .catch(function(){{flash('theme save failed');}});
+}}
+document.addEventListener('click',function(e){{
+  var p=document.getElementById('themePanel'), b=document.getElementById('themeBtn');
+  if(p && p.classList.contains('show') && !p.contains(e.target) && e.target!==b){{ p.classList.remove('show'); }}
+}});
+</script>
 </body>
 </html>"#,
         file_name = html_escape(file_name),
@@ -841,7 +1101,67 @@ fetch('/api/status').then(function(r){{return r.json()}})
             "yaml" | "yml" | "json" | "agl" => render_code_inline(raw_for_edit, ext),
             _ => html_escape(raw_for_edit),
         },
+        theme_css = theme_css,
+        syn_key = syn_key,
+        syn_str = syn_str,
+        syn_num = syn_num,
+        syn_bool = syn_bool,
+        syn_null = syn_null,
+        swatches_html = swatches_html,
+        mode_html = mode_html,
+        texture_options = texture_options,
+        glow_options = glow_options,
+        hex_or_default = hex_or_default,
+        hex_value = hex_value,
+        cfg_color = cfg.color,
+        cfg_mode = cfg.mode,
+        cfg_texture = cfg.texture,
+        cfg_glow = cfg.glow,
+        cfg_accent_hex_js = cfg_accent_hex_js,
     )
+}
+
+/// Renders the theme panel's color swatches (curata's 8 rainbow accents
+/// plus a neutral "Default"), marking whichever one matches `current`.
+fn color_swatch_html(current: &str) -> String {
+    let colors: &[(&str, &str, &str)] = &[
+        ("default", "Default", "#899878"),
+        ("red", "Red", "#BB7777"),
+        ("orange", "Orange", "#BB8C66"),
+        ("yellow", "Yellow", "#B8A866"),
+        ("green", "Green", "#7A9878"),
+        ("teal", "Teal", "#3CCECE"),
+        ("blue", "Blue", "#7897B8"),
+        ("indigo", "Indigo", "#8A7FBB"),
+        ("violet", "Violet", "#AB7FBB"),
+    ];
+    let mut out = String::new();
+    for (value, label, hex) in colors {
+        let active = if *value == current { " active" } else { "" };
+        out.push_str(&format!(
+            r#"<button class="theme-swatch{active}" title="{label}" style="--swatch: {hex}" onclick="applyTheme({{color:'{value}',accent_hex:null}})"></button>"#,
+        ));
+    }
+    out
+}
+
+fn mode_toggle_html(current: &str) -> String {
+    let dark_cls = if current == "light" { "" } else { "active" };
+    let light_cls = if current == "light" { "active" } else { "" };
+    format!(
+        r#"<button class="{dark_cls}" onclick="applyTheme({{mode:'dark'}})">Dark</button><button class="{light_cls}" onclick="applyTheme({{mode:'light'}})">Light</button>"#,
+    )
+}
+
+fn select_options(options: &[(&str, &str)], current: &str) -> String {
+    let mut out = String::new();
+    for (value, label) in options {
+        let selected = if *value == current { " selected" } else { "" };
+        out.push_str(&format!(
+            r#"<option value="{value}"{selected}>{label}</option>"#,
+        ));
+    }
+    out
 }
 
 fn strip_frontmatter(src: &str) -> (&str, &str) {
@@ -1295,6 +1615,103 @@ fn watch_file(path: PathBuf, st: Arc<State>) {
                 eprintln!("  read failed: {e}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod theme_config_tests {
+    use super::*;
+
+    #[test]
+    fn is_valid_hex_color_accepts_with_or_without_hash() {
+        assert!(is_valid_hex_color("#14b8a6"));
+        assert!(is_valid_hex_color("14b8a6"));
+        assert!(is_valid_hex_color("ABCDEF"));
+    }
+
+    #[test]
+    fn is_valid_hex_color_rejects_bad_input() {
+        assert!(!is_valid_hex_color("#14b8a"));
+        assert!(!is_valid_hex_color("#14b8a6f"));
+        assert!(!is_valid_hex_color("teal"));
+        assert!(!is_valid_hex_color("#gggggg"));
+        assert!(!is_valid_hex_color(""));
+    }
+
+    #[test]
+    fn parse_texture_falls_back_to_none_for_unknown_value() {
+        assert_eq!(parse_texture("dots"), Texture::Dots);
+        assert_eq!(parse_texture("bogus"), Texture::None);
+    }
+
+    #[test]
+    fn parse_glow_falls_back_to_none_for_unknown_value() {
+        assert_eq!(parse_glow("corner"), Glow::Corner);
+        assert_eq!(parse_glow("bogus"), Glow::None);
+    }
+
+    #[test]
+    fn resolve_theme_default_color_picks_neutral_base_for_mode() {
+        let dark_default = OpenThemeConfig {
+            color: "default".into(),
+            mode: "dark".into(),
+            ..Default::default()
+        };
+        let light_default = OpenThemeConfig {
+            color: "default".into(),
+            mode: "light".into(),
+            ..Default::default()
+        };
+        let (dark_theme, _, _) = resolve_theme(&dark_default);
+        let (light_theme, _, _) = resolve_theme(&light_default);
+        // dark()/light() bases have different bg values; "default" + mode
+        // should resolve to the self-contained base, not a rainbow accent.
+        assert_ne!(dark_theme.bg, light_theme.bg);
+    }
+
+    #[test]
+    fn resolve_theme_rainbow_color_ignores_mode_for_the_accent_itself() {
+        let cfg = OpenThemeConfig {
+            color: "violet".into(),
+            mode: "dark".into(),
+            ..Default::default()
+        };
+        let (theme, _, _) = resolve_theme(&cfg);
+        assert_eq!(theme.accent, "#AB7FBB");
+    }
+
+    #[test]
+    fn resolve_theme_custom_hex_overrides_the_named_accent() {
+        let cfg = OpenThemeConfig {
+            color: "violet".into(),
+            mode: "dark".into(),
+            accent_hex: Some("#123456".into()),
+            ..Default::default()
+        };
+        let (theme, _, _) = resolve_theme(&cfg);
+        assert_eq!(theme.accent, "#123456");
+    }
+
+    #[test]
+    fn resolve_theme_texture_and_glow_pass_through() {
+        let cfg = OpenThemeConfig {
+            texture: "grid".into(),
+            glow: "corner".into(),
+            ..Default::default()
+        };
+        let (_, texture, glow) = resolve_theme(&cfg);
+        assert_eq!(texture, Texture::Grid);
+        assert_eq!(glow, Glow::Corner);
+    }
+
+    #[test]
+    fn default_config_has_sane_fallbacks() {
+        let cfg = OpenThemeConfig::default();
+        assert_eq!(cfg.color, "teal");
+        assert_eq!(cfg.mode, "dark");
+        assert_eq!(cfg.texture, "dots");
+        assert_eq!(cfg.glow, "none");
+        assert!(cfg.accent_hex.is_none());
     }
 }
 

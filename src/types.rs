@@ -1736,7 +1736,7 @@ pub enum NavLayout {
 /// `violet`), which pick up the accent color on top of either a dark or
 /// light neutral base. `theme: dark` and `theme: light` are self-contained
 /// and ignore this field.
-#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Mode {
     #[default]
@@ -1883,7 +1883,7 @@ pub struct ResourceItem {
 }
 
 /// Site-wide background pattern. All variants are subtle by design.
-#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Texture {
     #[default]
@@ -1901,7 +1901,7 @@ pub enum Texture {
 }
 
 /// Soft accent-tinted radial gradient. Sits above the texture, below content.
-#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Glow {
     #[default]

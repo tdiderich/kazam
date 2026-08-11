@@ -722,6 +722,7 @@ pub(super) fn parse_markdown(md: &str, base: &str) -> String {
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
+    opts.insert(Options::ENABLE_TASKLISTS);
     let parser = MdParser::new_ext(md, opts);
     // Rewrite link destinations through resolve_href so relative links get
     // the depth-aware base prefix and absolute/protocol hrefs pass through.

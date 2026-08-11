@@ -205,8 +205,12 @@ fn page_level_texture_and_glow_override_site_config() {
     let plain = read(&out.join("plain.html"));
     let corner = read(&out.join("corner.html"));
 
-    // Inherits both site-wide layers.
-    assert_contains(&index, "linear-gradient"); // grid texture signature
+    // Inherits both site-wide layers. "background-size: 44px 44px" is the
+    // grid texture's specific fingerprint — plain "linear-gradient" now
+    // also shows up in unconditional markdown styling (heading rules,
+    // code block accents, hr dividers), so it's no longer unique to the
+    // grid texture layer.
+    assert_contains(&index, "background-size: 44px 44px"); // grid texture signature
     assert_contains(&index, "ellipse at center"); // accent glow signature
 
     // plain.yaml turned texture off — the grid texture signature should
@@ -215,7 +219,7 @@ fn page_level_texture_and_glow_override_site_config() {
     // because glow is still active, so we check for the texture signature
     // specifically rather than any mention of body::before.)
     assert!(
-        !plain.contains("linear-gradient"),
+        !plain.contains("background-size: 44px 44px"),
         "plain page should not render the grid texture"
     );
     // But plain still inherits the site-wide accent glow.

@@ -908,7 +908,6 @@ body.shell-document .doc-card {
   padding: 40px 48px;
   box-shadow: 0 4px 40px rgba(0,0,0,0.3);
 }
-body.shell-document .doc-body { line-height: 1.7; color: rgba(var(--text-rgb),0.9); font-size: 15px; }
 body.shell-document .doc-footer {
   margin-top: 40px;
   padding-top: 20px;
@@ -1672,71 +1671,158 @@ a.c-card { color: inherit; }
 .c-step-detail { font-size: 14px; color: rgba(var(--text-rgb),0.7); line-height: 1.5; }
 
 /* Markdown */
-.c-markdown {
+.c-markdown, body.shell-document .doc-body {
   color: var(--light-muted);
   font-size: 15px;
   line-height: 1.75;
 }
-.c-markdown h1, .c-markdown h2, .c-markdown h3 { color: var(--snow); margin-top: 2em; margin-bottom: 0.75em; }
-.c-markdown h1 { font-size: 24px; }
-.c-markdown h2 { font-size: 18px; }
-.c-markdown h3 { font-size: 16px; color: var(--teal); }
-.c-markdown h1:first-child, .c-markdown h2:first-child, .c-markdown h3:first-child { margin-top: 0; }
-.c-markdown p { margin-bottom: 1em; }
-.c-markdown ul, .c-markdown ol { padding-left: 1.5em; margin-bottom: 1em; }
-.c-markdown li { margin-bottom: 0.4em; }
-.c-markdown strong { color: var(--snow); font-weight: 600; }
-.c-markdown code {
+.c-markdown h1, .c-markdown h2, .c-markdown h3, .c-markdown h4,
+body.shell-document .doc-body h1, body.shell-document .doc-body h2,
+body.shell-document .doc-body h3, body.shell-document .doc-body h4 {
+  color: var(--snow);
+  margin-top: 2em;
+  margin-bottom: 0.75em;
+  letter-spacing: -0.005em;
+}
+.c-markdown h1, body.shell-document .doc-body h1 {
+  font-size: 24px;
+  padding-bottom: 0.4em;
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, var(--teal), var(--card-border) 55%, transparent) 1;
+}
+.c-markdown h2, body.shell-document .doc-body h2 {
+  font-size: 18px;
+  padding-left: 12px;
+  border-left: 3px solid var(--teal);
+}
+.c-markdown h3, body.shell-document .doc-body h3 { font-size: 16px; color: var(--teal); }
+.c-markdown h4, body.shell-document .doc-body h4 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.c-markdown h1:first-child, .c-markdown h2:first-child, .c-markdown h3:first-child, .c-markdown h4:first-child,
+body.shell-document .doc-body h1:first-child, body.shell-document .doc-body h2:first-child,
+body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:first-child { margin-top: 0; }
+.c-markdown p, body.shell-document .doc-body p { margin-bottom: 1em; }
+.c-markdown ul, .c-markdown ol, body.shell-document .doc-body ul, body.shell-document .doc-body ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+.c-markdown li, body.shell-document .doc-body li { margin-bottom: 0.4em; }
+.c-markdown li::marker, body.shell-document .doc-body li::marker { color: var(--teal); }
+.c-markdown li input[type="checkbox"], body.shell-document .doc-body li input[type="checkbox"] {
+  accent-color: var(--teal);
+  margin-right: 0.4em;
+}
+.c-markdown strong, body.shell-document .doc-body strong { color: var(--snow); font-weight: 600; }
+.c-markdown code, body.shell-document .doc-body code {
   font-family: 'SF Mono', 'Monaco', monospace;
   font-size: 13px;
   background: rgba(var(--text-rgb), 0.09);
+  border: 1px solid var(--card-border);
   padding: 2px 6px;
   border-radius: 4px;
   color: var(--teal);
 }
-.c-markdown pre {
+.c-markdown pre, body.shell-document .doc-body pre {
+  position: relative;
   background: rgba(var(--text-rgb), 0.07);
   border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 20px;
   overflow-x: auto;
   margin-bottom: 1.5em;
+  box-shadow: inset 0 1px 0 rgba(var(--text-rgb),0.05);
 }
-.c-markdown pre code { background: none; padding: 0; color: var(--snow); }
-.c-markdown table { width: 100%; border-collapse: collapse; margin-bottom: 1.5em; }
-.c-markdown th {
+.c-markdown pre::before, body.shell-document .doc-body pre::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(90deg, var(--teal), transparent 70%);
+  opacity: 0.6;
+}
+.c-markdown pre code, body.shell-document .doc-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--snow);
+}
+.c-markdown table, body.shell-document .doc-body table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 1.5em;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.c-markdown th, body.shell-document .doc-body th {
   text-align: left;
   font-size: 11px; font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted);
+  background: var(--surface-strong);
   padding: 10px 16px;
   border-bottom: 1px solid var(--card-border);
 }
-.c-markdown td {
+.c-markdown td, body.shell-document .doc-body td {
   padding: 12px 16px;
   border-bottom: 1px solid rgba(var(--text-rgb), 0.07);
   color: var(--light-muted);
 }
-.c-markdown tr:last-child td { border-bottom: none; }
-.c-markdown img { max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 1.5em 0; }
-.c-markdown a { color: var(--teal); }
-.c-markdown a:hover { text-decoration: underline; }
-.c-markdown blockquote {
-  border-left: 3px solid rgba(var(--accent-rgb), 0.3);
-  padding-left: 20px;
+.c-markdown tr:last-child td, body.shell-document .doc-body tr:last-child td { border-bottom: none; }
+.c-markdown tbody tr:nth-child(even), body.shell-document .doc-body tbody tr:nth-child(even) {
+  background: rgba(var(--text-rgb),0.025);
+}
+.c-markdown img, body.shell-document .doc-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+  margin: 1.5em 0;
+}
+.c-markdown a, body.shell-document .doc-body a {
+  color: var(--teal);
+  text-decoration: underline;
+  text-decoration-color: rgba(var(--accent-rgb),0.35);
+  text-underline-offset: 3px;
+  border-radius: 3px;
+}
+.c-markdown a:hover, body.shell-document .doc-body a:hover {
+  background: rgba(var(--accent-rgb),0.12);
+  text-decoration-color: var(--teal);
+}
+.c-markdown blockquote, body.shell-document .doc-body blockquote {
+  position: relative;
+  background: rgba(var(--accent-rgb),0.07);
+  border-left: 3px solid rgba(var(--accent-rgb), 0.5);
+  border-radius: 0 8px 8px 0;
+  padding: 0.6em 1.2em 0.6em 2.2em;
   color: var(--muted);
   font-style: italic;
   margin-bottom: 1em;
 }
-
-/* Document body inherits markdown styling for h3 in teal etc. */
-body.shell-document .doc-body h3 { color: var(--teal); }
-body.shell-document .doc-body h1 { font-size: 24px; margin-bottom: 20px; }
-body.shell-document .doc-body h2 { font-size: 18px; margin: 24px 0 12px; }
-body.shell-document .doc-body h3 { font-size: 16px; margin: 20px 0 10px; }
-body.shell-document .doc-body p { margin-bottom: 12px; }
-body.shell-document .doc-body strong { color: #fff; }
+.c-markdown blockquote::before, body.shell-document .doc-body blockquote::before {
+  content: "\201C";
+  position: absolute;
+  left: 0.22em;
+  top: 0.02em;
+  font-size: 1.6em;
+  font-style: normal;
+  color: var(--teal);
+  opacity: 0.55;
+}
+.c-markdown hr, body.shell-document .doc-body hr {
+  border: none;
+  height: 1px;
+  margin: 2em 0;
+  background: linear-gradient(90deg, transparent, var(--card-border) 20%, var(--card-border) 80%, transparent);
+}
 
 /* Table */
 .c-table-wrap { display: flex; flex-direction: column; gap: 12px; }
