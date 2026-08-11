@@ -621,6 +621,7 @@ function renderBlock(text: string): React.ReactElement {
   let listItems: React.ReactNode[] = [];
   let listTag: "ul" | "ol" = "ul";
   let paraLines: string[] = [];
+  let quoteLines: string[] = [];
   let codeLines: string[] | null = null;
   let codeLang = "";
   let tableLines: string[] = [];
@@ -676,6 +677,13 @@ function renderBlock(text: string): React.ReactElement {
     }
   };
 
+  const flushQuote = () => {
+    if (quoteLines.length > 0) {
+      elements.push(<blockquote key={key++}>{renderInline(quoteLines.join(" "))}</blockquote>);
+      quoteLines = [];
+    }
+  };
+
   const flushCode = () => {
     if (codeLines !== null) {
       const code = codeLines.join("\n");
@@ -705,6 +713,7 @@ function renderBlock(text: string): React.ReactElement {
     if (fenceMatch) {
       flushPara();
       flushList();
+      flushQuote();
       codeLines = [];
       codeLang = fenceMatch[1].trim();
       continue;
@@ -714,6 +723,7 @@ function renderBlock(text: string): React.ReactElement {
     if (isTableLine && (tableLines.length > 0 || /^\|(.+\|){2,}\s*$/.test(trimmed))) {
       flushPara();
       flushList();
+      flushQuote();
       tableLines.push(trimmed);
       continue;
     }
@@ -722,43 +732,70 @@ function renderBlock(text: string): React.ReactElement {
       flushTable();
     }
 
-    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+    const quoteMatch = trimmed.match(/^>\s?(.*)$/);
+    const taskMatch = trimmed.match(/^[-*] \[([ xX])\]\s(.*)$/);
+    if (quoteMatch) {
       flushPara();
+      flushList();
+      quoteLines.push(quoteMatch[1]);
+    } else if (taskMatch) {
+      flushPara();
+      flushQuote();
+      if (listTag !== "ul") flushList();
+      listTag = "ul";
+      const checked = taskMatch[1].toLowerCase() === "x";
+      listItems.push(
+        <li key={key++} className="task-list-item">
+          <input type="checkbox" checked={checked} disabled readOnly />{" "}
+          {renderInline(taskMatch[2])}
+        </li>
+      );
+    } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      flushPara();
+      flushQuote();
       if (listTag !== "ul") flushList();
       listTag = "ul";
       listItems.push(<li key={key++}>{renderInline(trimmed.slice(2))}</li>);
     } else if (/^\d+\.\s/.test(trimmed)) {
       flushPara();
+      flushQuote();
       if (listTag !== "ol") flushList();
       listTag = "ol";
       listItems.push(<li key={key++}>{renderInline(trimmed.replace(/^\d+\.\s/, ""))}</li>);
     } else if (trimmed === "") {
       flushPara();
       flushList();
+      flushQuote();
     } else if (trimmed.startsWith("### ")) {
       flushPara();
       flushList();
+      flushQuote();
       elements.push(<h3 key={key++}>{renderInline(trimmed.slice(4))}</h3>);
     } else if (trimmed.startsWith("## ")) {
       flushPara();
       flushList();
+      flushQuote();
       elements.push(<h2 key={key++}>{renderInline(trimmed.slice(3))}</h2>);
     } else if (trimmed.startsWith("# ")) {
       flushPara();
       flushList();
+      flushQuote();
       elements.push(<h1 key={key++}>{renderInline(trimmed.slice(2))}</h1>);
     } else if (/^!\[.*\]\(.*\)$/.test(trimmed)) {
       flushPara();
       flushList();
+      flushQuote();
       const alt = trimmed.slice(2, trimmed.indexOf("]("));
       const src = trimmed.slice(trimmed.indexOf("](") + 2, -1);
       elements.push(<img key={key++} src={assetSrc(src)} alt={alt} />);
     } else if (trimmed === "---" || trimmed === "***" || trimmed === "___") {
       flushPara();
       flushList();
+      flushQuote();
       elements.push(<hr key={key++} />);
     } else {
       flushList();
+      flushQuote();
       paraLines.push(trimmed);
     }
   }
@@ -766,6 +803,7 @@ function renderBlock(text: string): React.ReactElement {
   flushTable();
   flushPara();
   flushList();
+  flushQuote();
   return <>{elements}</>;
 }
 
@@ -4191,6 +4229,34 @@ mod tests {
         assert!(ts.contains("{ type: \"header\""));
         assert!(ts.contains("{ type: \"chart\""));
         assert!(ts.contains("{ type: \"role_map\""));
+    }
+
+    #[test]
+    fn react_render_block_supports_task_list_checkboxes() {
+        // Component::Markdown's live React path is a hand-rolled parser
+        // (renderBlock), not pulldown_cmark - it never understood
+        // `- [ ]`/`- [x]` and would render the literal brackets as text.
+        let tsx = generate_react();
+        assert!(
+            tsx.contains("taskMatch = trimmed.match(/^[-*] \\[([ xX])\\]\\s(.*)$/)"),
+            "renderBlock must detect task-list syntax before the generic bullet branch"
+        );
+        assert!(
+            tsx.contains("<input type=\"checkbox\" checked={checked} disabled readOnly />"),
+            "task list items must render a real checkbox input, not literal [x]/[ ] text"
+        );
+    }
+
+    #[test]
+    fn react_render_block_supports_blockquotes() {
+        // Same renderBlock gap: a `> ` line fell through to the paragraph
+        // catch-all, so <blockquote> (and the .c-markdown blockquote CSS)
+        // never rendered in the actual live app.
+        let tsx = generate_react();
+        assert!(
+            tsx.contains("<blockquote key={key++}>{renderInline(quoteLines.join(\" \"))}</blockquote>"),
+            "renderBlock must emit a real <blockquote>, not plain paragraph text with a leading '>'"
+        );
     }
 
     #[test]
