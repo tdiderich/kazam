@@ -1802,7 +1802,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   background: rgba(var(--accent-rgb),0.07);
   border-left: 3px solid rgba(var(--accent-rgb), 0.5);
   border-radius: 0 8px 8px 0;
-  padding: 0.6em 1.2em 0.6em 2.2em;
+  padding: 0.6em 1.2em 0.6em 1.4em;
   color: var(--muted);
   font-style: italic;
   margin-bottom: 1em;
@@ -1810,8 +1810,8 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-markdown blockquote::before, body.shell-document .doc-body blockquote::before {
   content: "\201C";
   position: absolute;
-  left: 0.22em;
-  top: 0.02em;
+  left: 0.4em;
+  top: 0.1em;
   font-size: 1.6em;
   font-style: normal;
   color: var(--teal);
