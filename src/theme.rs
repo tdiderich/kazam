@@ -2793,6 +2793,13 @@ body.shell-document .doc-body strong { color: #fff; }
   border-radius: 12px;
   display: flex; flex-direction: column; gap: 14px;
 }
+.c-chart-scale {
+  display: flex;
+  justify-content: center;
+}
+.c-chart-scale > .c-chart {
+  width: calc(var(--kz-scale, 1) * 100%);
+}
 .c-chart-title {
   font-size: 13px; font-weight: 600;
   color: var(--snow);

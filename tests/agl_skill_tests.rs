@@ -2,9 +2,24 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 fn bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_kazam"))
+}
+
+/// Cargo test runs these in parallel threads. A shared fixed directory name
+/// let two tests race on the same file: one truncates it mid-write while
+/// another's subprocess reads it, producing "expected 'spec', found end of
+/// file" instead of the real assertion failure. Each caller gets its own
+/// directory so no two tests ever touch the same path.
+fn unique_dir(base: &str) -> String {
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    format!(
+        "{base}-{}-{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::SeqCst)
+    )
 }
 
 fn write_file(dir: &str, name: &str, contents: &str) -> PathBuf {
@@ -37,16 +52,9 @@ spec HubSpotSync {
 "#;
 
 fn setup_spec() -> PathBuf {
-    write_file(
-        "kazam-agl-skill-tests",
-        "human_approval.agl",
-        HUMAN_APPROVAL_FRAGMENT,
-    );
-    write_file(
-        "kazam-agl-skill-tests",
-        "hubspot_sync.agl",
-        SPEC_WITH_GATED_WRITE,
-    )
+    let dir = unique_dir("kazam-agl-skill-tests");
+    write_file(&dir, "human_approval.agl", HUMAN_APPROVAL_FRAGMENT);
+    write_file(&dir, "hubspot_sync.agl", SPEC_WITH_GATED_WRITE)
 }
 
 #[test]
@@ -120,7 +128,7 @@ fn compiles_to_codex_target_under_a_heading() {
 #[test]
 fn refuses_to_compile_an_invalid_spec() {
     let spec_path = write_file(
-        "kazam-agl-skill-tests",
+        &unique_dir("kazam-agl-skill-tests"),
         "invalid.agl",
         r#"spec Broken {
           in: x: str

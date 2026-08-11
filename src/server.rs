@@ -103,6 +103,13 @@ pub fn respond_plain(req: tiny_http::Request, text: &str) -> Result<()> {
     req.respond(resp).context("respond")
 }
 
+pub fn respond_bytes(req: tiny_http::Request, bytes: Vec<u8>, content_type: &str) -> Result<()> {
+    let resp = Response::from_data(bytes)
+        .with_header(hdr("Content-Type", content_type))
+        .with_header(hdr("Cache-Control", "no-store"));
+    req.respond(resp).context("respond")
+}
+
 pub fn respond_404(req: tiny_http::Request) -> Result<()> {
     req.respond(Response::from_string("404").with_status_code(404))
         .context("respond")
