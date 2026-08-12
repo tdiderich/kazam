@@ -69,6 +69,12 @@ them, and do not invent states that aren't declared. Stop at every
 `gate(...)` and wait for explicit human approval before continuing past
 it. Never take an action an `invariant` denies."#;
 
+/// The AGL execution-semantics preamble, exposed for `kazam agl reference`
+/// so downstream builds (curata's docs emission) can embed it verbatim.
+pub fn primer() -> &'static str {
+    PRIMER
+}
+
 /// Render `spec` (imports already resolved into `spec.invariants` by the
 /// caller) as a skill document for `target`. `templates` is every
 /// `~/.kazam/agl/templates/<name>.md` file whose name a state's

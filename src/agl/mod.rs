@@ -49,6 +49,10 @@ pub enum Command {
         #[arg(long)]
         tools: Option<PathBuf>,
     },
+    /// Print the AGL execution-semantics preamble (the "How to execute an
+    /// AGL graph" primer that compiled skills carry) for embedding in
+    /// downstream builds — e.g. curata emits it as docs/agl-reference.md.
+    Reference,
     /// Compile an .agl spec into a token-dense agent system-prompt block
     Export {
         /// Path to the .agl spec file, or a bare name resolved against
@@ -125,6 +129,10 @@ pub enum Command {
 pub fn run(command: Command) -> Result<()> {
     match command {
         Command::Validate { path, json, tools } => run_validate(&path, json, tools.as_deref()),
+        Command::Reference => {
+            println!("{}", skill::primer());
+            Ok(())
+        }
         Command::Export { path, format, out } => run_export(&path, &format, out.as_deref()),
         Command::Flow { path } => run_flow(&path),
         Command::Skill { path, target, out } => run_skill(&path, target, out.as_deref()),

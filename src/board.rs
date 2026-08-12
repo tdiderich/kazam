@@ -451,6 +451,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
         nav_layout: None,
         nav: None,
         pack: None,
+        skill: None,
     })
 }
 
