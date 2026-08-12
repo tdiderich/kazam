@@ -18,7 +18,7 @@ use crate::types::{Component, Page, Shell, SiteConfig, Slide};
 
 // ── Error type ────────────────────────────────────────
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug)]
 pub struct ValidationError {
     /// Source file that contains the error.
     pub file: String,
@@ -77,7 +77,114 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
         }
     }
     validate_pack(file, page, &mut errors);
+    validate_skill(file, page, &mut errors);
     errors
+}
+
+/// Skill pages (`skill:` present) carry agent procedures. Every ```agl fence
+/// in their markdown runs through the AGL static analyzer — parse, then
+/// reachability / terminal completeness / branch integrity / invariant
+/// soundness — so a broken graph never saves. Fences must be self-contained:
+/// imports resolve against a local specs hub that servers don't have.
+/// Analyzer warnings don't block saves; agents can run `kazam agl validate`
+/// for the full report.
+fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
+    if page.skill.is_none() {
+        return;
+    }
+
+    fn collect_markdown<'a>(components: &'a [Component], out: &mut Vec<&'a str>) {
+        for c in components {
+            match c {
+                Component::Markdown { body } => out.push(body),
+                Component::Section { components, .. } => collect_markdown(components, out),
+                _ => {}
+            }
+        }
+    }
+    let mut bodies: Vec<&str> = Vec::new();
+    if let Some(components) = &page.components {
+        collect_markdown(components, &mut bodies);
+    }
+
+    if bodies.iter().all(|b| b.trim().is_empty()) {
+        errors.push(ValidationError::new(
+            file,
+            "skill",
+            "skill",
+            "skill pages need at least one non-empty markdown component — that's the procedure agents follow",
+            Some("Add a markdown component with the skill's steps (or an ```agl fence), or remove the skill: block.".into()),
+        ));
+        return;
+    }
+
+    let mut fence_idx = 0;
+    for body in bodies {
+        for fence in extract_agl_fences(body) {
+            fence_idx += 1;
+            let path = format!("skill.flow[{}]", fence_idx);
+            let parsed = match crate::agl::parser::parse(&fence) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    errors.push(ValidationError::new(
+                        file,
+                        path,
+                        "skill",
+                        format!("agl parse error (fence line {}): {}", e.line, e.message),
+                        Some("Fix the AGL syntax — run `kazam agl validate` on the fence for the full report.".into()),
+                    ));
+                    continue;
+                }
+            };
+            if !parsed.imports.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    path,
+                    "skill",
+                    "agl fences in skill pages must be self-contained — imports resolve against a local specs hub the server doesn't have",
+                    Some("Inline the imported invariants into the fence.".into()),
+                ));
+                continue;
+            }
+            for d in crate::agl::validator::validate(&parsed.spec, &parsed.state_lines) {
+                if d.severity == crate::agl::validator::Severity::Error {
+                    errors.push(ValidationError::new(
+                        file,
+                        path.clone(),
+                        "skill",
+                        format!("agl {}: {} ({})", d.code, d.message, d.location),
+                        Some("Fix the flow graph — run `kazam agl validate` for the full report including warnings.".into()),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Pulls the contents of every ```agl fenced block out of a markdown body.
+fn extract_agl_fences(body: &str) -> Vec<String> {
+    let mut fences = Vec::new();
+    let mut current: Option<String> = None;
+    for line in body.lines() {
+        let trimmed = line.trim();
+        match &mut current {
+            None => {
+                if trimmed == "```agl" {
+                    current = Some(String::new());
+                }
+            }
+            Some(buf) => {
+                if trimmed == "```" {
+                    fences.push(std::mem::take(buf));
+                    current = None;
+                } else {
+                    buf.push_str(line);
+                    buf.push('\n');
+                }
+            }
+        }
+    }
+    fences
 }
 
 /// Pack pages (`pack:` present) must actually be installable: at least one
@@ -1365,6 +1472,7 @@ mod tests {
             nav_layout: None,
             nav: None,
             pack: None,
+            skill: None,
         }
     }
 
@@ -1501,6 +1609,7 @@ mod tests {
             nav_layout: None,
             nav: None,
             pack: None,
+            skill: None,
         };
         let errors = validate_page("deck.yaml", &page);
         assert!(
@@ -1752,5 +1861,80 @@ mod tests {
         assert_eq!(normalize_href("foo/bar.yaml"), "foo/bar.html");
         assert_eq!(normalize_href(""), "index.html");
         assert_eq!(normalize_href("/"), "index.html");
+    }
+
+    // ── skill page validation ────────────────────────────
+
+    const GOOD_AGL: &str = "```agl\nspec Demo {\n  in: none: str\n  out: done: bool\n  description: \"demo\"\n\n  flow {\n    state START -> call(Bash, \"echo hi\") -> next\n    state FINISH -> evaluate(result vs expectation) -> TERMINATE(\"done\")\n  }\n}\n```";
+
+    fn skill_page(body: &str) -> Page {
+        let mut page = make_page(
+            Shell::Document,
+            Some(vec![Component::Markdown { body: body.into() }]),
+        );
+        page.skill = Some(crate::types::SkillMeta {
+            trigger: Some("demo".into()),
+            requires: Vec::new(),
+        });
+        page
+    }
+
+    #[test]
+    fn skill_page_with_valid_agl_fence_passes() {
+        let page = skill_page(&format!("Steps first.\n\n{GOOD_AGL}"));
+        let errors = validate_page("skill.yaml", &page);
+        assert!(errors.is_empty(), "unexpected: {errors:?}");
+    }
+
+    #[test]
+    fn skill_page_without_markdown_errors() {
+        let mut page = make_page(Shell::Document, Some(vec![]));
+        page.skill = Some(crate::types::SkillMeta {
+            trigger: None,
+            requires: Vec::new(),
+        });
+        let errors = validate_page("skill.yaml", &page);
+        assert!(errors
+            .iter()
+            .any(|e| e.error_type == "skill" && e.message.contains("markdown")));
+    }
+
+    #[test]
+    fn skill_page_with_broken_agl_graph_errors() {
+        // ORPHAN is unreachable — the analyzer must block the save.
+        let body = "```agl\nspec Demo {\n  in: none: str\n  out: done: bool\n  description: \"demo\"\n\n  flow {\n    state START -> call(Bash, \"echo hi\") -> TERMINATE(\"done\")\n    state ORPHAN -> call(Bash, \"echo lost\") -> TERMINATE(\"lost\")\n  }\n}\n```";
+        let page = skill_page(body);
+        let errors = validate_page("skill.yaml", &page);
+        assert!(
+            errors.iter().any(|e| e.error_type == "skill"),
+            "expected analyzer error: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn skill_page_with_parse_error_errors() {
+        let page = skill_page("```agl\nthis is not agl\n```");
+        let errors = validate_page("skill.yaml", &page);
+        assert!(errors.iter().any(|e| e.message.contains("parse error")));
+    }
+
+    #[test]
+    fn skill_page_with_imports_errors() {
+        let body = "```agl\nimport \"shared\"\nspec Demo {\n  in: none: str\n  out: done: bool\n  description: \"demo\"\n\n  flow {\n    state START -> call(Bash, \"echo hi\") -> TERMINATE(\"done\")\n  }\n}\n```";
+        let page = skill_page(body);
+        let errors = validate_page("skill.yaml", &page);
+        assert!(errors.iter().any(|e| e.message.contains("self-contained")));
+    }
+
+    #[test]
+    fn non_skill_page_ignores_agl_fences() {
+        let page = make_page(
+            Shell::Document,
+            Some(vec![Component::Markdown {
+                body: "```agl\nbroken\n```".into(),
+            }]),
+        );
+        let errors = validate_page("plain.yaml", &page);
+        assert!(errors.is_empty(), "unexpected: {errors:?}");
     }
 }

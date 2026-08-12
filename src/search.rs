@@ -368,6 +368,7 @@ mod tests {
             nav_layout: None,
             nav: None,
             pack: None,
+            skill: None,
         }
     }
 

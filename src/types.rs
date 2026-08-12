@@ -52,6 +52,21 @@ pub struct HubLink {
     pub href: String,
 }
 
+/// `skill:` block on a page — marks it as an agent skill whose procedure
+/// content (markdown steps and/or ```agl fences) `kazam validate` checks.
+#[derive(Deserialize)]
+// trigger/requires are schema contract for the skill compile path
+// (kazam install -> .claude/skills); validation only checks presence today.
+#[allow(dead_code)]
+pub struct SkillMeta {
+    /// Phrases that should route an agent to this skill.
+    #[serde(default)]
+    pub trigger: Option<String>,
+    /// Tools/servers the skill needs at run time (informational).
+    #[serde(default)]
+    pub requires: Vec<String>,
+}
+
 /// `pack:` block on a page — marks it as an AI tool pack.
 #[derive(Deserialize)]
 pub struct PackMeta {
@@ -197,6 +212,11 @@ pub struct Page {
     /// component (top-level or inside a section) when this is set.
     #[serde(default)]
     pub pack: Option<PackMeta>,
+    /// Marks this page as an agent skill. Skill pages carry procedure
+    /// content (markdown steps and/or ```agl fences); `kazam validate` runs
+    /// the AGL static analyzer on every fence so a broken graph never saves.
+    #[serde(default)]
+    pub skill: Option<SkillMeta>,
     /// Links to sources of truth that inform this page's content.
     /// Each entry has a URL and an optional note explaining what it references.
     #[serde(default)]
