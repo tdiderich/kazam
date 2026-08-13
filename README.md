@@ -352,7 +352,7 @@ Internal: run a declarative pack hook (registered in settings by install)
 
 #### `kazam wish`
 
-Grant a wish — install a recipe for self-refreshing docs
+Grant a wish - install a recipe for self-refreshing docs
 
 ##### `kazam wish list`
 
@@ -375,7 +375,7 @@ Install a wish from the registry into local wishes/
 
 #### `kazam track`
 
-Manage the work graph — tasks, dependencies, activity log
+Manage the work graph - tasks, dependencies, activity log
 
 | Flag | Default | Description |
 |---|---|---|
@@ -537,7 +537,7 @@ Add a manual log entry
 
 #### `kazam ctx`
 
-Manage context intelligence — file anatomy, learnings, bugs
+Manage context intelligence - file anatomy, learnings, bugs
 
 | Flag | Default | Description |
 |---|---|---|
@@ -677,7 +677,7 @@ Show hook installation status
 
 #### `kazam board`
 
-Live dashboard — renders .kazam/ state as a visual board
+Live dashboard - renders .kazam/ state as a visual board
 
 - `dir` - Project directory (default: current directory)
 
@@ -870,7 +870,7 @@ Initialize an action template in .github/workflows/
 
 #### `kazam audit`
 
-Audit site health — freshness, structural quality, and completeness
+Audit site health - freshness, structural quality, and completeness
 
 - `dir` - Site directory
 
@@ -888,8 +888,8 @@ Import pages from a Notion workspace
 
 | Flag | Default | Description |
 |---|---|---|
-| `--database` |  | Notion database ID — each row becomes a page |
-| `--page` |  | Notion page ID — import a single page and its children |
+| `--database` |  | Notion database ID - each row becomes a page |
+| `--page` |  | Notion page ID - import a single page and its children |
 | `--token` |  | Notion API token (default: .env NOTION_TOKEN or env var) |
 | `--out` | `.` | Output directory for generated YAML files (default: current dir) |
 | `--dry-run` |  | Preview what would be created without writing files |
@@ -1006,7 +1006,11 @@ Validate an .agl spec: parse it, resolve its imports, then run the static graph 
 | Flag | Default | Description |
 |---|---|---|
 | `--json` |  | Emit machine-readable JSON instead of the human-readable report |
-| `--tools` |  | Optional flat JSON array of dotted `Server.method` tool names. When given, warns about any call()/map() function in the flow that isn't listed. This is a name-existence check only, not schema validation — the manifest is hand-maintained and has no notion of a server's actual tool/argument schema. Omit this flag for zero behavior change |
+| `--tools` |  | Optional flat JSON array of dotted `Server.method` tool names. When given, warns about any call()/map() function in the flow that isn't listed. This is a name-existence check only, not schema validation - the manifest is hand-maintained and has no notion of a server's actual tool/argument schema. Omit this flag for zero behavior change |
+
+##### `kazam agl reference`
+
+Print the AGL execution-semantics preamble (the "How to execute an AGL graph" primer that compiled skills carry) for embedding in downstream builds - e.g. curata emits it as docs/agl-reference.md
 
 ##### `kazam agl export`
 
@@ -1021,7 +1025,7 @@ Compile an .agl spec into a token-dense agent system-prompt block
 
 ##### `kazam agl flow`
 
-Print a top-to-bottom ASCII rendering of a spec's flow — states, actions, and transitions, with branches fanned out underneath the state that owns them. A plan preview, not the graph's source syntax
+Print a top-to-bottom ASCII rendering of a spec's flow - states, actions, and transitions, with branches fanned out underneath the state that owns them. A plan preview, not the graph's source syntax
 
 - `path` - Path to the .agl spec file, or a bare name resolved against ~/.kazam/agl/specs/<name>.agl
 
@@ -1038,7 +1042,7 @@ Compile a validated .agl spec (imports resolved) into a portable skill document 
 
 ##### `kazam agl load`
 
-Compile every spec in ~/.kazam/agl/specs/ into a Claude Code subagent + a thin dispatcher skill in the target project. Cursor/Codex aren't wired up here yet — use `kazam agl skill --target cursor|codex` one spec at a time until they are
+Compile every spec in ~/.kazam/agl/specs/ into a Claude Code subagent + a thin dispatcher skill in the target project. Cursor/Codex aren't wired up here yet - use `kazam agl skill --target cursor|codex` one spec at a time until they are
 
 | Flag | Default | Description |
 |---|---|---|
