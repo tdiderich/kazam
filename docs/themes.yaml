@@ -107,18 +107,18 @@ components:
           # kazam.yaml
           name: My Site
           theme: violet            # any rainbow color, or dark/light
-          mode: light              # optional — flips rainbow themes onto light base
+          mode: light              # optional - flips rainbow themes onto light base
           texture: grid            # pairs with any theme
           glow: accent             # picks up the active accent
 
       - type: markdown
         body: |
-          `mode` only affects the rainbow themes (`red` / `orange` / …). `theme: dark` and `theme: light` are self-contained and ignore it. Need a custom accent outside the stock set? Override any theme token directly with `colors:` — the named theme is just a starting point.
+          `mode` only affects the rainbow themes (`red` / `orange` / …). `theme: dark` and `theme: light` are self-contained and ignore it. Need a custom accent outside the stock set? Override any theme token directly with `colors:` - the named theme is just a starting point.
 
       - type: code
         language: yaml
         code: |
-          # kazam.yaml — your brand color on top of the dark base
+          # kazam.yaml - your brand color on top of the dark base
           theme: dark
           colors:
             accent: '#14B8B8'
@@ -127,7 +127,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Once your theme looks right, the last step is shipping it. Any static host works — copy-paste recipes for the handful most people pick.
+    body: Once your theme looks right, the last step is shipping it. Any static host works - copy-paste recipes for the handful most people pick.
     links:
       - label: Deploy recipes →
         href: deploy.html

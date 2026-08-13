@@ -17,7 +17,7 @@ fn head(page: &Page, config: &SiteConfig, base: &str, rel_path: &str) -> String 
         r#"<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title} — {site}</title>
+<title>{title} - {site}</title>
 {social}{favicon}
 <style>{css}</style>
 </head>"#,
@@ -38,8 +38,8 @@ fn head(page: &Page, config: &SiteConfig, base: &str, rel_path: &str) -> String 
 /// leak internal working pages into search results.
 fn social_meta(page: &Page, config: &SiteConfig, base: &str, rel_path: &str) -> String {
     let mut out = String::new();
-    // Social titles use the page title on its own — og:site_name already
-    // conveys the site, so duplicating it here produces ugly "Foo — Site — Site"
+    // Social titles use the page title on its own - og:site_name already
+    // conveys the site, so duplicating it here produces ugly "Foo - Site - Site"
     // strings in unfurls.
     let title = page.title.as_str();
     let description = page
@@ -153,7 +153,7 @@ fn social_meta(page: &Page, config: &SiteConfig, base: &str, rel_path: &str) -> 
 }
 
 /// When a site doesn't declare a `favicon:`, synthesize one from theme colors.
-/// Produces the kazam genie-bottle mark as an inline data-URI SVG — accent on
+/// Produces the kazam genie-bottle mark as an inline data-URI SVG - accent on
 /// bg. Stopper + narrow neck + bulbous body, sized for 32px and 16px alike.
 fn default_favicon(theme: &theme::Theme) -> String {
     let svg = format!(
@@ -210,7 +210,7 @@ fn render_nav_entry(link: &crate::types::NavLink, base: &str) -> String {
             let mut dd = String::from(r#"<div class="nav-dropdown">"#);
             for child in children {
                 // Children render as plain links even if they themselves
-                // have `children:` — we don't nest dropdowns beyond one
+                // have `children:` - we don't nest dropdowns beyond one
                 // level, to keep the UX predictable.
                 let href = child
                     .href
@@ -892,7 +892,7 @@ fn view_source_html(
 
     let mut items = String::new();
 
-    // Copy edit prompt — always first
+    // Copy edit prompt - always first
     items.push_str(&format!(
         r#"<button class="source-pill-item" role="menuitem" data-copy-prompt="{prompt}">{icon} Copy edit prompt</button>"#,
         prompt = esc(&prompt),

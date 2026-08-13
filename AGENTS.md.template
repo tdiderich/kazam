@@ -1,4 +1,4 @@
-# AGENTS.md — kazam authoring guide for LLMs
+# AGENTS.md - kazam authoring guide for LLMs
 
 This file tells LLMs (Claude, GPT, etc.) how to author pages in a kazam site.
 Read this before generating or editing any `.yaml` file.
@@ -8,11 +8,11 @@ Read this before generating or editing any `.yaml` file.
 kazam is a Rust CLI that does two things: (1) turns YAML files into themed
 static HTML, and (2) provides an agent workspace with codebase indexing, task
 tracking, and a visual board. This guide covers the site-generation side. For
-the workspace side, run `kazam workspace init --agent claude` in any repo —
+the workspace side, run `kazam workspace init --agent claude` in any repo -
 it indexes your codebase, installs hooks, and writes workspace rules so your
 agent navigates faster and tracks its work.
 
-The site format is designed for you — the machine — to generate easily:
+The site format is designed for you - the machine - to generate easily:
 consistent `type:` tags, no nested conditionals, no templating logic.
 
 ## File structure
@@ -28,16 +28,16 @@ my-site/
 
 Any non-`.yaml` file (images, SVGs, fonts) is copied verbatim into the output.
 
-## kazam.yaml — site config
+## kazam.yaml - site config
 
 ```yaml
 name: Site Name
 theme: dark              # dark | light | red | orange | yellow | green | blue | indigo | violet
-mode: dark               # optional: dark (default) | light — flips rainbow themes onto the light base
+mode: dark               # optional: dark (default) | light - flips rainbow themes onto the light base
 colors:                  # optional per-token overrides
   accent: '#14b8b8'
 favicon: favicon.svg
-logo: /assets/logo.svg   # optional — replaces the text `name:` in the site bar with an <img>.
+logo: /assets/logo.svg   # optional - replaces the text `name:` in the site bar with an <img>.
                          # Expanded form: logo: { src, height, alt }. height caps rendered px;
                          # alt defaults to `name`. Rendered height is bounded by the site-bar
                          # content area (never pushes the bar taller); width flows from aspect
@@ -53,7 +53,7 @@ nav:
   - label: Guide
     href: /guide.html
   - label: Components     # parent with a dropdown / sidebar section
-    href: /components/index.html   # optional — acts as default link when clicked
+    href: /components/index.html   # optional - acts as default link when clicked
     children:
       - label: Content
         href: /components/content.html
@@ -68,7 +68,7 @@ with children become labeled sections, their leaves become indented links.
 Sidebar layout is only applied to `shell: standard` pages.
 
 `theme` picks a built-in palette. The seven rainbow themes share the
-neutral dark base by default and only swap the accent color — safe to use
+neutral dark base by default and only swap the accent color - safe to use
 with any `texture`/`glow` combination. Set `mode: light` to flip any
 rainbow theme onto the light base (#F7F7F2 paper + near-black text).
 `theme: dark` and `theme: light` are self-contained and ignore `mode`.
@@ -87,10 +87,10 @@ OR `slides:` (for deck). Nothing else is required.
 ```yaml
 title: Page Title           # required
 shell: standard             # standard | document | deck
-eyebrow: Reference          # optional — small label in document/deck headers
-subtitle: Q4 2026           # optional — date / context in document/deck
-texture: none               # optional — override site-wide texture on this page
-glow: corner                # optional — override site-wide glow on this page
+eyebrow: Reference          # optional - small label in document/deck headers
+subtitle: Q4 2026           # optional - date / context in document/deck
+texture: none               # optional - override site-wide texture on this page
+glow: corner                # optional - override site-wide glow on this page
 components:                 # for standard + document shells
   - type: header
     title: Hello
@@ -108,7 +108,7 @@ value.
 
 Pages can declare review cadence + sources of truth. At build time, kazam
 computes staleness against today's date and injects a banner at the top
-of the page — **yellow** if the review comes due within the next 7 days,
+of the page - **yellow** if the review comes due within the next 7 days,
 **red** if it's already overdue. No runtime JS; staleness is a pure
 date compare. A build-time report also prints every stale page, grouped
 by overdue vs due-soon, sorted most-urgent first. Silent when nothing
@@ -118,7 +118,7 @@ is stale.
 freshness:
   updated: 2026-01-15              # ISO date of last content change
   review_every: 90d                # Nd | Nw | Nm | Ny | weekly | monthly | quarterly | yearly
-  owner: owner@example.com         # free-form — email, handle, team name
+  owner: owner@example.com         # free-form - email, handle, team name
   sources_of_truth:                # bare URL or { label, href }
     - https://notion.so/abc123
     - label: "#ts-hub"
@@ -132,21 +132,21 @@ still computes the banner; missing either field means the page is never
 stale (nothing to compare against). To simulate "today" for tests or
 snapshot builds, set `KAZAM_TODAY=YYYY-MM-DD` in the environment.
 
-kazam does not fetch the sources — it just renders the labels as links.
+kazam does not fetch the sources - it just renders the labels as links.
 Refreshing the content is the agent's job: when a reader (or an agent
 working on the page) clicks through, they read the source and propose
 updates.
 
 ### Pack pages (optional)
 
-A page with a top-level `pack:` block is an **AI tool pack** — installable into
+A page with a top-level `pack:` block is an **AI tool pack** - installable into
 a repo with `kazam install <instance-url>/pages/<slug>`. The page's markdown
 components are concatenated in order (recursing into sections) and written into
 a managed block in local AI tool config files.
 
 ```yaml
 pack:
-  targets: [claude, cursor]   # optional — omit to write every supported target
+  targets: [claude, cursor]   # optional - omit to write every supported target
 ```
 
 `targets` selects which config files to write: `claude` → `CLAUDE.md`,
@@ -215,10 +215,10 @@ prefix, and use `field` to scan one argument instead of the whole tool input:
 Every `kazam build` also runs a link-graph pass. Two things surface in the
 build summary and in `_site/links.md`:
 
-- **Orphan pages** — built pages not reachable from `index.html` via nav or
+- **Orphan pages** - built pages not reachable from `index.html` via nav or
   any in-page href. Either link them from somewhere reachable, delete them,
   or set `unlisted: true` on the page (same flag `llms.txt` uses).
-- **Broken internal links** — `.html` hrefs that don't match any built page.
+- **Broken internal links** - `.html` hrefs that don't match any built page.
 
 Silent on clean builds; `links.md` is removed when there's nothing to
 report. `kazam dev` and `kazam build --allow-orphans` silence orphan
@@ -226,11 +226,11 @@ detection (useful for drafts); broken links always surface.
 
 ## Shells
 
-- **standard** — sticky site header + nav + 1200px container. Default. Use for
+- **standard** - sticky site header + nav + 1200px container. Default. Use for
   dashboards, reference pages, wikis, blog-style content.
-- **document** — centered 720px card, teal-bordered header (driven by `eyebrow` +
+- **document** - centered 720px card, teal-bordered header (driven by `eyebrow` +
   `subtitle`), print-optimized. Use for meeting agendas, one-pagers, briefs.
-- **deck** — full-viewport slides. Arrow keys to navigate. Print/PDF exports all
+- **deck** - full-viewport slides. Arrow keys to navigate. Print/PDF exports all
   slides paginated. Use for QBRs, pitch decks, strategy reviews.
 
 ## Component catalog
@@ -240,7 +240,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 ### Content
 
-- **header** — page title block. Auto-emits `id` from the `title` slug
+- **header** - page title block. Auto-emits `id` from the `title` slug
   so `/page.html#my-title` works; override with explicit `id:` for a
   stable anchor that survives copy edits.
   ```yaml
@@ -251,8 +251,8 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     id: optional-stable-anchor   # else auto-slugged from title
   ```
 
-- **hero_banner** — full-width hero with eyebrow, title, subtitle, and CTA buttons.
-  Use on landing pages only — one per page, first component.
+- **hero_banner** - full-width hero with eyebrow, title, subtitle, and CTA buttons.
+  Use on landing pages only - one per page, first component.
   ```yaml
   - type: hero_banner
     title: AI Native Knowledge Base
@@ -268,7 +268,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         external: true
   ```
 
-- **meta** — key-value strip (author, date, status, version)
+- **meta** - key-value strip (author, date, status, version)
   ```yaml
   - type: meta
     fields:
@@ -278,7 +278,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         value: '2026-04-17'
   ```
 
-- **markdown** — rich prose (CommonMark + tables + strikethrough)
+- **markdown** - rich prose (CommonMark + tables + strikethrough)
   ```yaml
   - type: markdown
     body: |
@@ -290,7 +290,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       | 1 | 2 |
   ```
 
-- **code** — syntax-styled code block
+- **code** - syntax-styled code block
   ```yaml
   - type: code
     language: rust
@@ -298,7 +298,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       fn main() { println!("hi"); }
   ```
 
-- **callout** — info/warn/success/danger box
+- **callout** - info/warn/success/danger box
   ```yaml
   - type: callout
     variant: warn            # info | warn | success | danger
@@ -306,14 +306,14 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     body: Body can include **markdown**.
   ```
 
-- **blockquote** — testimonial with optional attribution
+- **blockquote** - testimonial with optional attribution
   ```yaml
   - type: blockquote
     body: The best product we've shipped.
     attribution: Jane Doe, CTO
   ```
 
-- **image** — figure with caption + max_width
+- **image** - figure with caption + max_width
   ```yaml
   - type: image
     src: /dashboard.png
@@ -322,15 +322,15 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     max_width: 600
   ```
 
-- **embed** — responsive iframe (Loom, YouTube, Vimeo, etc.)
+- **embed** - responsive iframe (Loom, YouTube, Vimeo, etc.)
   ```yaml
   - type: embed
     src: https://www.youtube.com/embed/dQw4w9WgXcQ
     title: Product demo
-    aspect: "16:9"       # optional — default 16:9
+    aspect: "16:9"       # optional - default 16:9
   ```
 
-- **kbd** — keyboard keys joined by `+`
+- **kbd** - keyboard keys joined by `+`
   ```yaml
   - type: kbd
     keys: [Cmd, K]
@@ -338,10 +338,10 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 ### Indicators
 
-- **badge** — small colored label. Colors: default, green, yellow, red, teal.
-- **tag** — monospace pill label. Same color palette as badge.
-- **status** — dot + label (operational / degraded / down). Same colors.
-- **progress_bar** — horizontal fill
+- **badge** - small colored label. Colors: default, green, yellow, red, teal.
+- **tag** - monospace pill label. Same color palette as badge.
+- **status** - dot + label (operational / degraded / down). Same colors.
+- **progress_bar** - horizontal fill
   ```yaml
   - type: progress_bar
     value: 72                # 0-100
@@ -349,7 +349,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     color: green
     detail: 72 of 100 accounts
   ```
-- **divider** — horizontal rule, optionally with a center label
+- **divider** - horizontal rule, optionally with a center label
   ```yaml
   - type: divider
     label: Operational data  # optional
@@ -357,7 +357,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 ### Grids
 
-- **card_grid** — responsive cards with optional badge, description, links
+- **card_grid** - responsive cards with optional badge, description, links
   ```yaml
   - type: card_grid
     min_width: 320           # optional; default 320
@@ -366,13 +366,13 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         badge:
           label: Healthy
           color: green
-        description: Enterprise — AWS
+        description: Enterprise - AWS
         links:
           - label: Open
             href: /acme
   ```
 
-- **stat_grid** — big-number metric tiles
+- **stat_grid** - big-number metric tiles
   ```yaml
   - type: stat_grid
     columns: 3
@@ -383,7 +383,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         color: green
   ```
 
-- **selectable_grid** — interactive phase tracker / click-to-focus cards
+- **selectable_grid** - interactive phase tracker / click-to-focus cards
   ```yaml
   - type: selectable_grid
     interaction: single_select   # single_select | multi_select | none
@@ -395,7 +395,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
           - Use cases defined
   ```
 
-- **before_after** — transformation storytelling (QBR-style)
+- **before_after** - transformation storytelling (QBR-style)
   ```yaml
   - type: before_after
     items:
@@ -405,7 +405,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         after_context: fully automated
   ```
 
-- **split_compare** — side-by-side panel comparison (before/after, today/with-product)
+- **split_compare** - side-by-side panel comparison (before/after, today/with-product)
   ```yaml
   - type: split_compare
     left:
@@ -430,7 +430,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
           color: green
   ```
 
-- **avatar** — profile circle with initials fallback
+- **avatar** - profile circle with initials fallback
   ```yaml
   - type: avatar
     name: Sarah M.
@@ -439,7 +439,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     subtitle: VP Engineering   # optional inline text
   ```
 
-- **avatar_group** — overlapping avatar stack
+- **avatar_group** - overlapping avatar stack
   ```yaml
   - type: avatar_group
     size: md
@@ -449,7 +449,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       - name: Marcus T.
   ```
 
-- **definition_list** — term/definition pairs
+- **definition_list** - term/definition pairs
   ```yaml
   - type: definition_list
     items:
@@ -457,7 +457,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         definition: Annual contract value.
   ```
 
-- **resources** — structured link collection with per-item metadata
+- **resources** - structured link collection with per-item metadata
   ```yaml
   - type: resources
     items:
@@ -471,7 +471,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 ### Data Visualization
 
-- **chart** — inline SVG chart (pie, bar, or timeseries). No JS dependencies.
+- **chart** - inline SVG chart (pie, bar, or timeseries). No JS dependencies.
   ```yaml
   - type: chart
     kind: bar                    # pie | bar | timeseries
@@ -479,7 +479,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     height: 300                  # optional pixel height
     x_label: Month               # optional, ignored by pie
     y_label: Users               # optional, ignored by pie
-    orientation: vertical        # vertical (default) | horizontal — bar only
+    orientation: vertical        # vertical (default) | horizontal - bar only
     data:                        # single-series data
       - label: Jan
         value: 1200
@@ -512,7 +512,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 ### Interactive
 
-- **table** — sortable + filterable
+- **table** - sortable + filterable
   ```yaml
   - type: table
     filterable: true
@@ -525,7 +525,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       - name: Acme Corp
   ```
 
-- **tabs** — tabbed panels with arbitrary content
+- **tabs** - tabbed panels with arbitrary content
   ```yaml
   - type: tabs
     tabs:
@@ -535,7 +535,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         components: [...]
   ```
 
-- **accordion** — collapsible sections
+- **accordion** - collapsible sections
   ```yaml
   - type: accordion
     items:
@@ -543,7 +543,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         components: [...]
   ```
 
-- **role_map** — grid of role cards read from the site's `roles:` config in kazam.yaml. Each
+- **role_map** - grid of role cards read from the site's `roles:` config in kazam.yaml. Each
   card is a jump point to a role-specific landing page. Renders an empty-state message
   when no roles are defined.
   ```yaml
@@ -567,7 +567,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 ### Navigation
 
-- **breadcrumb** — multi-hop trail (last item = current, no href)
+- **breadcrumb** - multi-hop trail (last item = current, no href)
   ```yaml
   - type: breadcrumb
     items:
@@ -575,10 +575,10 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         href: /
       - label: Reference
         href: /reference
-      - label: Components       # current page — no href
+      - label: Components       # current page - no href
   ```
 
-- **button_group** — CTA button row
+- **button_group** - CTA button row
   ```yaml
   - type: button_group
     buttons:
@@ -594,7 +594,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 ### Layout
 
-- **section** — grouping with eyebrow + heading + nested components.
+- **section** - grouping with eyebrow + heading + nested components.
   Auto-emits `id` from the `heading` slug (no heading → no id); override
   with explicit `id:` for a stable anchor. Duplicate slugs on a page
   dedupe with `-2`, `-3`, etc.
@@ -606,7 +606,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     components: [...]
   ```
 
-- **columns** — multi-column row
+- **columns** - multi-column row
   ```yaml
   - type: columns
     equal_heights: true          # optional; makes children fill column height
@@ -618,7 +618,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   ```
   Note the `- -` pattern: each column is itself a list of components.
 
-- **timeline** — horizontal phase tracker
+- **timeline** - horizontal phase tracker
   ```yaml
   - type: timeline
     items:
@@ -626,7 +626,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         status: completed        # completed | active | upcoming
   ```
 
-- **event_timeline** — vertical event history with severity filter
+- **event_timeline** - vertical event history with severity filter
   ```yaml
   - type: event_timeline
     default_filter: major        # major | all (default: all)
@@ -635,27 +635,27 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     events:
       - date: 2026-04-27
         severity: major          # major | minor | info (default: minor)
-        title: Weekly sync — Jira asset model confirmed
+        title: Weekly sync - Jira asset model confirmed
         summary: |               # optional markdown body; renders inside <details>
           Working session booked Tuesday 3 PM CT.
         source: granola          # optional small chip
         link: https://...        # optional; renders an "open source" arrow icon
   ```
   Use for chronological event lists where the reader wants the big picture first
-  but full history on demand. The `summary` field is markdown — when present, the
+  but full history on demand. The `summary` field is markdown - when present, the
   event collapses behind a `<details>` toggle. Sort order is rendered as given;
   the component does not re-sort. When `show_filter_toggle: false` and
   `default_filter` is not `all`, only matching events are rendered at build time
   (instead of rendering all and CSS-hiding some). Use `limit:` to cap the number
-  of events — handy for deck slides where space is tight.
+  of events - handy for deck slides where space is tight.
 
-- **tree** — nested status tree (deployment plans, project breakdowns)
+- **tree** - nested status tree (deployment plans, project breakdowns)
   ```yaml
   - type: tree
     default_filter: all          # all (default) | incomplete | blocked | priority
     show_filter_toggle: true     # default: false; renders an All / Incomplete / Blocked / Priority toggle
     nodes:
-      - label: "Phase 1 — Planning"
+      - label: "Phase 1 - Planning"
         status: completed         # default | completed | active | blocked | priority | upcoming
         children:
           - label: Identify stakeholders
@@ -667,7 +667,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
             status: priority
             note: "Must land before Q3 close"
   ```
-  Recursive — each node can have `children:`. Status drives the glyph (✓ / ▸ / ⚠ / ★ / ○)
+  Recursive - each node can have `children:`. Status drives the glyph (✓ / ▸ / ⚠ / ★ / ○)
   and color. Optional inline `note:` renders on the same row as the label; for
   blocked nodes it gets red emphasis, for priority nodes it gets yellow emphasis.
   With `show_filter_toggle: true` the user can flip between **All** (everything),
@@ -678,7 +678,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   (instead of rendering all and CSS-hiding some). Tiny inline
   JS for the toggle; semantic `<ul>`/`<li>` underneath.
 
-- **venn** — two- or three-set venn diagram (inline SVG)
+- **venn** - two- or three-set venn diagram (inline SVG)
   ```yaml
   - type: venn
     title: "Team overlap"          # optional
@@ -694,9 +694,9 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   Native SVG, no charting library. Two-set or three-set; circles are positioned
   automatically. Per-set color uses the standard `color:` enum. `overlaps[].sets`
   takes 2 or 3 indices and places its `label` at the centroid of the involved
-  circles. Inherits theme tokens — light/dark theme swap just works.
+  circles. Inherits theme tokens - light/dark theme swap just works.
 
-- **steps** — numbered or bulleted ordered list
+- **steps** - numbered or bulleted ordered list
   ```yaml
   - type: steps
     numbered: true               # default; false for bullets
@@ -705,7 +705,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         detail: Optional detail.
   ```
 
-- **empty_state** — zero-data placeholder with optional action
+- **empty_state** - zero-data placeholder with optional action
   ```yaml
   - type: empty_state
     icon: inbox                  # any bundled lucide icon
@@ -716,7 +716,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       href: /new
   ```
 
-- **icon** — standalone inline SVG
+- **icon** - standalone inline SVG
   ```yaml
   - type: icon
     name: github                 # any bundled lucide icon
@@ -737,21 +737,21 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 Every colored component accepts the same 5-value palette:
 
-- `default` — teal accent (brand)
-- `green` — success, healthy
-- `yellow` — warning, at-risk
-- `red` — danger, critical
-- `teal` — explicit teal (same as default)
+- `default` - teal accent (brand)
+- `green` - success, healthy
+- `yellow` - warning, at-risk
+- `red` - danger, critical
+- `teal` - explicit teal (same as default)
 
 ## Common gotchas
 
-- **YAML number-parsing**: `"47"`, `"1.2"` — quote anything that should stay a
+- **YAML number-parsing**: `"47"`, `"1.2"` - quote anything that should stay a
   string. Unquoted `47` is an integer, which will fail `label: expected string`.
 - **Columns pattern**: each column is a list of components, so you get `- -` at
   the start of each inner list. This is correct YAML.
 - **nav_back was removed**. Use `breadcrumb` instead (first component on the page).
 - **Hrefs** follow standard HTML/Markdown semantics:
-  - **Bare names** (`content.html`, `assets/foo.svg`) are page-relative — the
+  - **Bare names** (`content.html`, `assets/foo.svg`) are page-relative - the
     browser resolves them against the current page. Use these for siblings
     and same-directory references.
   - **Leading `/`** (`/index.html`, `/components/grids.html`) is site-root.
@@ -764,10 +764,10 @@ Every colored component accepts the same 5-value palette:
   slide has its own `label:` + `components:` list. Optional top-level
   `print_flow: slides | continuous` controls PDF export shape. `slides`
   (default) = one slide per landscape page (Keynote-style). `continuous`
-  = all slides flow as one portrait document with thin separators — nicer
+  = all slides flow as one portrait document with thin separators - nicer
   for sharing as a readable artifact.
 - **Markdown body scalars**: use the `|` literal block style in YAML to preserve
-  newlines — `body: |` followed by indented content.
+  newlines - `body: |` followed by indented content.
 
 ## 404 page
 
@@ -778,7 +778,7 @@ not found" empty state with a "Go home" button.
 
 All internal links in the 404 page are absolute (root-relative or, if the
 site has a `url:` configured, full canonical URLs) because the hosting
-platform serves the page at whatever path the browser tried — relative links
+platform serves the page at whatever path the browser tried - relative links
 would break.
 
 To customize, create `404.yaml` in the source directory. It renders through
@@ -954,7 +954,7 @@ If `.kazam/` exists in the project, follow this loop:
 
 1. **Pick work**: `kazam track ready --json` → pick the highest-priority task.
 2. **Claim it**: `kazam track claim <ID> --name <your-name>` (fails if another
-   agent already claimed it — pick a different task).
+   agent already claimed it - pick a different task).
 3. **Check context before editing**: `kazam ctx bugs --file <path>` for known
    bugs on files you're about to touch. Skim `.kazam/ctx/anatomy.tsv` for
    token budgets and descriptions.
@@ -984,12 +984,12 @@ kazam track import plan.md             # ## headings → epics, - bullets → ta
 Agents using this guide are on the front line of catching kazam bugs. If you
 reproduce one (parser error on valid YAML, surprising rendering, flag that
 doesn't work as documented), please file it upstream so the next agent hits a
-fixed version. Follow this protocol in order — do not skip the dedup step.
+fixed version. Follow this protocol in order - do not skip the dedup step.
 
 1. **Confirm `gh` is authenticated.** Run `gh auth status`. If it errors, skip
    to step 4 and tell the user how to file by hand.
 
-2. **Search for duplicates before filing.** Covers both open and closed —
+2. **Search for duplicates before filing.** Covers both open and closed -
    a closed issue may mean the fix already landed and the user just needs to
    upgrade.
 
@@ -1007,12 +1007,12 @@ fixed version. Follow this protocol in order — do not skip the dedup step.
      `cargo install kazam --force`). Don't file a duplicate.
 
 3. **If no duplicate, file a new issue.** Tell the user what you're about to
-   do before running the command — file-and-surprise is rude. Use this
+   do before running the command - file-and-surprise is rude. Use this
    template:
 
    ```bash
    gh issue create --repo tdiderich/kazam \
-     --title "<short imperative — what breaks>" \
+     --title "<short imperative - what breaks>" \
      --label bug \
      --body "$(cat <<'EOF'
    ## What happened
@@ -1025,7 +1025,7 @@ fixed version. Follow this protocol in order — do not skip the dedup step.
    <what the docs say should happen>
 
    ## Actual
-   <what kazam does — paste the error message or wrong HTML snippet>
+   <what kazam does - paste the error message or wrong HTML snippet>
 
    ## Version
    <paste `kazam --version`>
@@ -1035,28 +1035,28 @@ fixed version. Follow this protocol in order — do not skip the dedup step.
 
 4. **Fallback when `gh` isn't available.** Show the user:
 
-   > Couldn't auto-file this — open
+   > Couldn't auto-file this - open
    > https://github.com/tdiderich/kazam/issues/new and paste:
    > [then show the filled-out template body]
 
 Rules of thumb:
 
 - File only reproducible bugs here. Feature requests use the protocol below.
-- Keep the repro minimal — smallest YAML + command that triggers it.
+- Keep the repro minimal - smallest YAML + command that triggers it.
 - Never open duplicates. When in doubt, comment on the closest existing issue
   instead.
 
 ## If you have a feature idea for kazam
 
 Agents often bump into "kazam would be more useful if it could do X" while
-authoring a site. Great — that signal is valuable, but the filing bar is
+authoring a site. Great - that signal is valuable, but the filing bar is
 higher than for bugs because the maintainer has to weigh scope. Follow this
 protocol in order.
 
 1. **Confirm `gh` is authenticated.** Same check as bug filing (step 1 above).
    If not, drop to step 5 and tell the user how to file by hand.
 
-2. **Search for duplicates — both issues and open PRs.** Feature ideas get
+2. **Search for duplicates - both issues and open PRs.** Feature ideas get
    proposed and deferred more than bugs do; the same idea may be open, closed
    as wontfix, or already in flight as a PR.
 
@@ -1080,33 +1080,33 @@ protocol in order.
 
    - kazam ships as a single Rust binary with no network at build time. A
      feature that pulls data from a live API at build time is out of scope
-     — it belongs in the user's own `sync.sh` that emits YAML.
+     - it belongs in the user's own `sync.sh` that emits YAML.
    - kazam does NOT ship third-party connectors (HubSpot, Linear, Slack,
      etc.). Same reason: user owns the fetcher.
-   - The YAML schema stays narrow on purpose — the goal is LLMs producing it
+   - The YAML schema stays narrow on purpose - the goal is LLMs producing it
      correctly on the first try, which gets harder with every new component.
      "Nice-to-have" components are a high bar.
 
    If the idea looks out-of-scope, tell the user and stop. Don't file a
-   request that will be closed as wontfix — that's noise.
+   request that will be closed as wontfix - that's noise.
 
 4. **If it fits, file a well-shaped feature request.** Tell the user what
    you're about to do before running the command. Use this template:
 
    ```bash
    gh issue create --repo tdiderich/kazam \
-     --title "<short imperative — what to add or change>" \
+     --title "<short imperative - what to add or change>" \
      --label enhancement \
      --body "$(cat <<'EOF'
    ## What I'm trying to do
-   <the user-level goal — "I want to render a sortable table of customers
-   with per-row health badges" — not the implementation)
+   <the user-level goal - "I want to render a sortable table of customers
+   with per-row health badges" - not the implementation)
 
    ## Why kazam's current primitives don't fit
    <specific components / flags you tried, and where they fell short>
 
    ## Proposed shape
-   <what the YAML would look like if this existed — be concrete>
+   <what the YAML would look like if this existed - be concrete>
 
    ```yaml
    - type: <whatever>
@@ -1124,7 +1124,7 @@ protocol in order.
 
 5. **Fallback when `gh` isn't available.** Show the user:
 
-   > Couldn't auto-file this — open
+   > Couldn't auto-file this - open
    > https://github.com/tdiderich/kazam/issues/new and paste:
    > [then show the filled-out template body]
 

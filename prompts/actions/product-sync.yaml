@@ -18,7 +18,7 @@ jobs:
             "Generate a sprint status page from Linear. Team: Engineering. Cycle: current. Write to status/sprint.yaml."
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # MCP tools require their own auth — configure in .mcp.json
+          # MCP tools require their own auth - configure in .mcp.json
           # or pass product-specific env vars as needed
 
       - name: Validate and build

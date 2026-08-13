@@ -12,7 +12,7 @@ components:
         badge:
           label: Healthy
           color: green
-        description: Enterprise — AWS us-east-1
+        description: Enterprise - AWS us-east-1
         links:
           - label: Deployment Guide
             href: customers/acme.html
@@ -25,7 +25,7 @@ components:
         badge:
           label: At Risk
           color: yellow
-        description: Mid-Market — Azure
+        description: Mid-Market - Azure
         links:
           - label: Deployment Guide
             href: customers/beta.html
@@ -33,7 +33,7 @@ components:
       - title: Gamma Inc
         badge:
           label: TBD
-        description: Enterprise — GCP
+        description: Enterprise - GCP
         links:
           - label: Deployment Guide
             href: customers/gamma.html

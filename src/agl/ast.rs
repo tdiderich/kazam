@@ -11,17 +11,17 @@ pub struct AglSpec {
     /// One-sentence purpose, used verbatim as the compiled skill's frontmatter
     /// `description:` (what a coding agent matches a request against to pick
     /// this skill). `None` falls back to a generic "Runs the X AGL graph"
-    /// placeholder that carries no routing signal — always declare this.
+    /// placeholder that carries no routing signal - always declare this.
     pub description: Option<String>,
     /// Dotted `Server.method` tool names this spec's flow depends on (e.g.
     /// `TechnicalSuccessHub.write_page`), declared once so a compiled skill
     /// can render a preflight check instead of failing mid-graph on a
-    /// missing tool. Empty for specs written before this field existed —
+    /// missing tool. Empty for specs written before this field existed -
     /// nothing downstream treats an empty list as an error.
     pub requires: Vec<String>,
     /// Explicit name for the compiled skill/subagent this spec becomes.
     /// `None` means the caller should default to a kebab-cased `name`
-    /// (`skill::default_skill_name`) — most specs need this unset.
+    /// (`skill::default_skill_name`) - most specs need this unset.
     pub skill: Option<String>,
     /// Where `kazam agl load`/`kazam agl skill` (with no explicit `-o`) writes
     /// this spec's compiled skill: a directory, absolute or `~`-expanded.
@@ -134,7 +134,7 @@ pub enum StateAction {
 /// A `call(...)` argument: either a bare-ident variable reference
 /// (`customer`, resolved against the spec's own `in:`/local names at
 /// runtime) or a quoted string literal (`"https://..."`, config data with
-/// nowhere else to live now that lexer comments never reach the AST — see
+/// nowhere else to live now that lexer comments never reach the AST - see
 /// `.agl` files noting kz-700a). Both round-trip through `render_agl_source`
 /// distinctly, unlike a comment.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

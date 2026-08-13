@@ -155,12 +155,12 @@ enum Command {
         #[arg(long, default_value = ".")]
         dir: PathBuf,
     },
-    /// Grant a wish — install a recipe for self-refreshing docs
+    /// Grant a wish - install a recipe for self-refreshing docs
     Wish {
         #[command(subcommand)]
         command: WishCommand,
     },
-    /// Manage the work graph — tasks, dependencies, activity log.
+    /// Manage the work graph - tasks, dependencies, activity log.
     Track {
         #[command(subcommand)]
         command: track::Command,
@@ -168,7 +168,7 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
-    /// Manage context intelligence — file anatomy, learnings, bugs.
+    /// Manage context intelligence - file anatomy, learnings, bugs.
     Ctx {
         #[command(subcommand)]
         command: ctx::Command,
@@ -176,7 +176,7 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
-    /// Live dashboard — renders .kazam/ state as a visual board.
+    /// Live dashboard - renders .kazam/ state as a visual board.
     Board {
         /// Project directory (default: current directory)
         #[arg(default_value = ".")]
@@ -275,7 +275,7 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
-    /// Audit site health — freshness, structural quality, and completeness
+    /// Audit site health - freshness, structural quality, and completeness
     Audit {
         /// Site directory
         #[arg(default_value = ".")]
@@ -813,10 +813,10 @@ pub enum IngestCommand {
     ///   DB URL:    notion.so/abc123?v=...         → --database abc123...
     ///   The 32-char hex string in the URL is the ID (add dashes for UUID format)
     Notion {
-        /// Notion database ID — each row becomes a page
+        /// Notion database ID - each row becomes a page
         #[arg(long)]
         database: Option<String>,
-        /// Notion page ID — import a single page and its children
+        /// Notion page ID - import a single page and its children
         #[arg(long)]
         page: Option<String>,
         /// Notion API token (default: .env NOTION_TOKEN or env var)

@@ -82,9 +82,9 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
 }
 
 /// Skill pages (`skill:` present) carry agent procedures. Every ```agl fence
-/// in their markdown runs through the AGL static analyzer — parse, then
+/// in their markdown runs through the AGL static analyzer - parse, then
 /// reachability / terminal completeness / branch integrity / invariant
-/// soundness — so a broken graph never saves. Fences must be self-contained:
+/// soundness - so a broken graph never saves. Fences must be self-contained:
 /// imports resolve against a local specs hub that servers don't have.
 /// Analyzer warnings don't block saves; agents can run `kazam agl validate`
 /// for the full report.
@@ -112,7 +112,7 @@ fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
             file,
             "skill",
             "skill",
-            "skill pages need at least one non-empty markdown component — that's the procedure agents follow",
+            "skill pages need at least one non-empty markdown component - that's the procedure agents follow",
             Some("Add a markdown component with the skill's steps (or an ```agl fence), or remove the skill: block.".into()),
         ));
         return;
@@ -131,7 +131,7 @@ fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
                         path,
                         "skill",
                         format!("agl parse error (fence line {}): {}", e.line, e.message),
-                        Some("Fix the AGL syntax — run `kazam agl validate` on the fence for the full report.".into()),
+                        Some("Fix the AGL syntax - run `kazam agl validate` on the fence for the full report.".into()),
                     ));
                     continue;
                 }
@@ -141,7 +141,7 @@ fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
                     file,
                     path,
                     "skill",
-                    "agl fences in skill pages must be self-contained — imports resolve against a local specs hub the server doesn't have",
+                    "agl fences in skill pages must be self-contained - imports resolve against a local specs hub the server doesn't have",
                     Some("Inline the imported invariants into the fence.".into()),
                 ));
                 continue;
@@ -153,7 +153,7 @@ fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
                         path.clone(),
                         "skill",
                         format!("agl {}: {} ({})", d.code, d.message, d.location),
-                        Some("Fix the flow graph — run `kazam agl validate` for the full report including warnings.".into()),
+                        Some("Fix the flow graph - run `kazam agl validate` for the full report including warnings.".into()),
                     ));
                 }
             }
@@ -228,7 +228,7 @@ fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
             file,
             "pack",
             "structural",
-            "pack pages need at least one non-empty markdown component — that's what `kazam install` compiles into tool config files",
+            "pack pages need at least one non-empty markdown component - that's what `kazam install` compiles into tool config files",
             Some("Add a markdown component (top level or inside a section) with the pack's rules, or remove the pack: block.".into()),
         ));
     }
@@ -714,7 +714,7 @@ fn validate_component(
                     file,
                     path,
                     "structural",
-                    "chart cannot have both data: and series: — pick one",
+                    "chart cannot have both data: and series: - pick one",
                     Some("Use data: for single-series charts, series: for multi-series.".into()),
                 ));
             }
@@ -799,7 +799,7 @@ fn validate_component(
         }
 
         Component::Section { components, .. } => {
-            // A section can be a pure heading/anchor with no nested components — valid.
+            // A section can be a pure heading/anchor with no nested components - valid.
             if !components.is_empty() {
                 validate_components(file, &format!("{}.components", path), components, errors);
             }
@@ -882,7 +882,7 @@ fn validate_component(
                         file,
                         format!("{}.events[{}].date", path, ei),
                         "format",
-                        format!("invalid date {:?} — must be YYYY-MM-DD", event.date),
+                        format!("invalid date {:?} - must be YYYY-MM-DD", event.date),
                         Some("Use ISO date format: 2026-01-15".into()),
                     ));
                 }
@@ -950,7 +950,7 @@ fn validate_component(
         }
 
         Component::ButtonGroup { .. } => {
-            // An empty button_group is valid — buttons may be conditionally populated.
+            // An empty button_group is valid - buttons may be conditionally populated.
         }
 
         Component::DefinitionList { items } => {
@@ -1327,7 +1327,7 @@ fn validate_freshness(
                 file,
                 format!("{}.updated", path),
                 "format",
-                format!("invalid date {:?} — must be YYYY-MM-DD", updated),
+                format!("invalid date {:?} - must be YYYY-MM-DD", updated),
                 Some("Use ISO date format: 2026-01-15".into()),
             ));
         }
@@ -1339,7 +1339,7 @@ fn validate_freshness(
                 format!("{}.review_every", path),
                 "format",
                 format!(
-                    "invalid duration {:?} — accepts Nd/Nw/Nm/Ny or weekly/monthly/quarterly/yearly",
+                    "invalid duration {:?} - accepts Nd/Nw/Nm/Ny or weekly/monthly/quarterly/yearly",
                     review_every
                 ),
                 Some("Examples: 30d, 4w, 3m, 1y, weekly, monthly, quarterly, yearly".into()),
@@ -1901,7 +1901,7 @@ mod tests {
 
     #[test]
     fn skill_page_with_broken_agl_graph_errors() {
-        // ORPHAN is unreachable — the analyzer must block the save.
+        // ORPHAN is unreachable - the analyzer must block the save.
         let body = "```agl\nspec Demo {\n  in: none: str\n  out: done: bool\n  description: \"demo\"\n\n  flow {\n    state START -> call(Bash, \"echo hi\") -> TERMINATE(\"done\")\n    state ORPHAN -> call(Bash, \"echo lost\") -> TERMINATE(\"lost\")\n  }\n}\n```";
         let page = skill_page(body);
         let errors = validate_page("skill.yaml", &page);

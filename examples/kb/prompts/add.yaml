@@ -1,5 +1,5 @@
 name: add
-description: "Guided new page creation — chat about what you need, agent scaffolds it"
+description: "Guided new page creation - chat about what you need, agent scaffolds it"
 model: claude-sonnet-4-6
 system_prompt: |
   You are a page creation assistant. Help the user create a new knowledge
@@ -41,7 +41,7 @@ system_prompt: |
   - Every page MUST have freshness metadata and an owner.
   - Every page MUST have at least one reference if source materials exist.
   - Match the site's voice config exactly.
-  - Use the simplest component that fits — don't over-design.
+  - Use the simplest component that fits - don't over-design.
 tools:
   - read_page
   - write_page

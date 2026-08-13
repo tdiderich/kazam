@@ -1,10 +1,10 @@
-//! `kazam agl skill` — compiles a validated, import-resolved `.agl` spec
+//! `kazam agl skill` - compiles a validated, import-resolved `.agl` spec
 //! into a portable "skill" document for an LLM coding tool (Claude Code,
 //! Cursor, Codex): a static primer on how to execute an AGL graph, plus the
 //! fully-resolved spec rendered back out in native `.agl` syntax, wrapped
 //! per target.
 //!
-//! This is a different, unrelated export path from `compiler::to_prompt` —
+//! This is a different, unrelated export path from `compiler::to_prompt` -
 //! that renders a natural-language `<agent_spec>` prompt block; this module
 //! renders the spec's actual source syntax so a reader (human or LLM) can
 //! see exactly what was authored, imports and all.
@@ -33,7 +33,7 @@ pub enum Target {
 }
 
 /// A short, static primer that teaches an LLM reading it cold how to
-/// execute an AGL graph. Written once here — never duplicated per target.
+/// execute an AGL graph. Written once here - never duplicated per target.
 const PRIMER: &str = r#"## How to execute an AGL graph
 
 This document contains a spec written in Agent Graph Language (AGL): a
@@ -61,7 +61,7 @@ task compiled into a static directed graph, not a free-form instruction.
   indefinitely.
 - `invariant { deny: ACTION(TARGET) without gate(NAME) ... }`: a hard rule.
   Never perform an action an `invariant` denies, even if a later step
-  seems to require it — this holds regardless of what any state says.
+  seems to require it - this holds regardless of what any state says.
 - `TERMINATE("msg")`: stop immediately and return `msg` as the result.
 
 Execute this graph exactly as written. Do not skip states, do not reorder
@@ -333,7 +333,7 @@ fn render_templates(templates: &[(String, String)]) -> String {
 
 /// Connective instruction between the (optional) preflight section and the
 /// flow diagram: what to do, in order, before running the first state. The
-/// diagram itself is purely informational — showing it isn't an approval
+/// diagram itself is purely informational - showing it isn't an approval
 /// gate, it's just letting a human see the plan before the agent starts.
 /// Only a `gate(...)` inside the graph itself should ever block on approval.
 const RUN_ORDER: &str = "## Before you start
@@ -346,7 +346,7 @@ const RUN_ORDER: &str = "## Before you start
 /// declaration order, its action, and where it goes next. Branches fan out
 /// as an indented case list directly under the state that owns them. Meant
 /// to be shown to a human (or printed by a cold agent at the start of a
-/// run) as "here's what I'm about to do" — a plan preview, not the graph's
+/// run) as "here's what I'm about to do" - a plan preview, not the graph's
 /// actual source syntax (that's `render_agl_source`).
 pub fn render_ascii_flow(spec: &AglSpec) -> String {
     let mut out = String::new();
@@ -464,7 +464,7 @@ fn render_invariant(rule: &InvariantRule) -> String {
 }
 
 /// Pretty-print `spec` back to native `.agl` source. Not the compact
-/// `to_prompt` natural-language export — this round-trips the actual
+/// `to_prompt` natural-language export - this round-trips the actual
 /// grammar so a reader can see precisely what was authored (and, via
 /// `render`, what an import pulled in).
 pub fn render_agl_source(spec: &AglSpec) -> String {

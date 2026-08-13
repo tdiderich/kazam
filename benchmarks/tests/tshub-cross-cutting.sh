@@ -1,5 +1,5 @@
-# DESC: Medium Python repo (233 files) — cross-cutting change across multiple modules
-# Tests a change that touches several files — the agent needs to find all the right places.
+# DESC: Medium Python repo (233 files) - cross-cutting change across multiple modules
+# Tests a change that touches several files - the agent needs to find all the right places.
 
 REPO="$HOME/maze-repos/technical-success-hub"
 MODEL="claude-sonnet-4-6"

@@ -12,7 +12,7 @@ components:
   - type: header
     title: Search incidents
     eyebrow: "POST · /v1/incidents/search"
-    subtitle: Return a paginated list of incidents, optionally filtered by updated time. Fictional endpoint on a fictional API — the structure is what matters.
+    subtitle: Return a paginated list of incidents, optionally filtered by updated time. Fictional endpoint on a fictional API - the structure is what matters.
 
   # ── Request panel ──────────────────────────────────────────────
   - type: section
@@ -161,12 +161,12 @@ components:
   - type: callout
     variant: info
     title: This page is ~130 lines of YAML
-    body: "No OpenAPI runtime, no Scalar/Stoplight/Redoc dependency — just kazam components composed like any other page. Swap the endpoint, keep the shape."
+    body: "No OpenAPI runtime, no Scalar/Stoplight/Redoc dependency - just kazam components composed like any other page. Swap the endpoint, keep the shape."
 
   - type: callout
     variant: info
     title: Next up
-    body: Other example pages — docs, KBs, decks, landing pages, meeting briefs, dashboards from live data.
+    body: Other example pages - docs, KBs, decks, landing pages, meeting briefs, dashboards from live data.
     links:
       - label: See all use cases
         href: ../about.html

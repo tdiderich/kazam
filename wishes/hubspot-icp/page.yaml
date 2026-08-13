@@ -25,7 +25,7 @@ components:
         body: |
           Below is an example of a populated ICP analysis:
 
-          #### Tier 1 — Best fit
+          #### Tier 1 - Best fit
           | Attribute | Value |
           |---|---|
           | Company size | 200–2,000 employees |

@@ -1,4 +1,4 @@
-title: Acme Corp — Q2 Meeting Agenda
+title: Acme Corp - Q2 Meeting Agenda
 shell: document
 eyebrow: Meeting Agenda
 subtitle: Acme Corp
@@ -13,8 +13,8 @@ components:
   - type: markdown
     body: |
       ## Attendees
-      - **Sarah M.** — VP Engineering, Acme Corp
-      - **Tyler M.** — Technical Success, Maze Security
+      - **Sarah M.** - VP Engineering, Acme Corp
+      - **Tyler M.** - Technical Success, Maze Security
 
       ## Agenda
 
@@ -34,13 +34,13 @@ components:
       - Enable automated remediation for P3/P4 findings
 
       ### 4. Roadmap Preview (10 min)
-      - CSPM enhancements — GA in May
-      - API security scanning — beta in June
-      - Compliance reporting (SOC 2, ISO 27001) — Q3
+      - CSPM enhancements - GA in May
+      - API security scanning - beta in June
+      - Compliance reporting (SOC 2, ISO 27001) - Q3
 
       ### 5. Open Q&A (10 min)
 
       ## Action Items from Last Meeting
-      - **Sarah** — Share list of EU AWS account IDs *(due Apr 20)*
-      - **Tyler** — Send Slack integration setup guide *(done)*
-      - **Tyler** — Schedule Q2 executive review *(done — May 14)*
+      - **Sarah** - Share list of EU AWS account IDs *(due Apr 20)*
+      - **Tyler** - Send Slack integration setup guide *(done)*
+      - **Tyler** - Schedule Q2 executive review *(done - May 14)*

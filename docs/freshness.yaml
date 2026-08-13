@@ -1,6 +1,6 @@
 title: Freshness
 shell: standard
-description: Build-time staleness checking for docs and knowledge bases — review cadence, owners, sources of truth, zero runtime JS.
+description: Build-time staleness checking for docs and knowledge bases - review cadence, owners, sources of truth, zero runtime JS.
 freshness:
   updated: 2026-04-21
   review_every: 90d
@@ -14,7 +14,7 @@ freshness:
 components:
   - type: header
     title: Freshness
-    subtitle: Every page can declare who owns it, when it was last updated, how often it should be reviewed, and where the sources of truth live. kazam turns that into a banner — yellow if a review is due within a week, red if it's already overdue — and a build-time report of everything that needs attention.
+    subtitle: Every page can declare who owns it, when it was last updated, how often it should be reviewed, and where the sources of truth live. kazam turns that into a banner - yellow if a review is due within a week, red if it's already overdue - and a build-time report of everything that needs attention.
 
   - type: section
     eyebrow: The metadata
@@ -22,7 +22,7 @@ components:
     components:
       - type: markdown
         body: |
-          Add a `freshness:` block to any page's YAML. Every field is optional — a page with only
+          Add a `freshness:` block to any page's YAML. Every field is optional - a page with only
           `updated:` and `review_every:` will still compute status correctly; fields you don't set
           just aren't shown in the banner.
 
@@ -35,7 +35,7 @@ components:
           freshness:
             updated: 2026-01-15              # ISO date of the last content change
             review_every: 90d                # Nd | Nw | Nm | Ny | weekly | monthly | quarterly | yearly
-            owner: owner@example.com          # free-form — email, Slack handle, team name
+            owner: owner@example.com          # free-form - email, Slack handle, team name
             sources_of_truth:                # bare URL or { label, href }
               - https://notion.so/abc123
               - label: "#ts-hub"
@@ -55,7 +55,7 @@ components:
       - type: markdown
         body: |
           kazam injects a banner at the top of the rendered page based on how close it is to the
-          review deadline. **No runtime JavaScript** — the check runs at `kazam build` time and
+          review deadline. **No runtime JavaScript** - the check runs at `kazam build` time and
           the banner is baked into the HTML. To keep the banner accurate between rebuilds, run
           a scheduled daily build (a GitHub Action on `schedule:` works).
 
@@ -72,7 +72,7 @@ components:
       - type: markdown
         body: |
           When `sources_of_truth:` is set, the real banner also renders a list of links
-          underneath — the reviewer clicks straight through to the doc / Slack channel / Linear
+          underneath - the reviewer clicks straight through to the doc / Slack channel / Linear
           project to do the refresh. *(The two callouts above show the banner body; the real
           banner adds a sources-of-truth row beneath.)*
 
@@ -84,7 +84,7 @@ components:
         body: |
           `kazam build` always prints a grouped summary of every page past (or nearly past) its
           review window. Overdue items sort first, most-overdue at the top. Silent when nothing
-          is stale — no noise on healthy builds.
+          is stale - no noise on healthy builds.
 
       - type: code
         language: text
@@ -97,8 +97,8 @@ components:
           ✓ 3 page(s) → _site
 
           ⚠ 2 overdue page(s):
-              onboarding.html                         20 day(s) overdue (cadence: every 90d) — owner owner@example.com
-              api/reference.html                       5 day(s) overdue (cadence: every 180d) — owner eng@example.com
+              onboarding.html                         20 day(s) overdue (cadence: every 90d) - owner owner@example.com
+              api/reference.html                       5 day(s) overdue (cadence: every 180d) - owner eng@example.com
 
           ⏳ 1 page(s) due for review soon:
               guide.html                              due in 3 day(s) (cadence: every 30d)
@@ -110,12 +110,12 @@ components:
 
   - type: section
     eyebrow: Sources of truth
-    heading: kazam doesn't fetch — your agent does
+    heading: kazam doesn't fetch - your agent does
     components:
       - type: markdown
         body: |
           The `sources_of_truth:` list is deliberately just labeled URLs. kazam never reaches
-          out to Notion, Linear, Slack, or anything else at build time — that preserves the
+          out to Notion, Linear, Slack, or anything else at build time - that preserves the
           zero-supply-chain, no-network-at-build-time guarantee.
 
           Where this gets interesting: an agent refreshing the page can see the sources, fetch
@@ -128,7 +128,7 @@ components:
         columns:
           - - type: markdown
               body: |
-                **Shorthand** — just a URL. The label becomes the URL itself.
+                **Shorthand** - just a URL. The label becomes the URL itself.
             - type: code
               language: yaml
               code: |
@@ -136,7 +136,7 @@ components:
                   - https://notion.so/abc
           - - type: markdown
               body: |
-                **Labeled** — any link (Slack channel, Linear project, HubSpot dashboard) gets a readable label.
+                **Labeled** - any link (Slack channel, Linear project, HubSpot dashboard) gets a readable label.
             - type: code
               language: yaml
               code: |
@@ -152,7 +152,7 @@ components:
     components:
       - type: markdown
         body: |
-          The check is a pure date comparison — `updated + review_every` vs today (from
+          The check is a pure date comparison - `updated + review_every` vs today (from
           `KAZAM_TODAY` when set, else the system clock). Three states:
 
       - type: stat_grid
@@ -173,7 +173,7 @@ components:
 
       - type: markdown
         body: |
-          Pages missing either `updated:` or `review_every:` are always Fresh — there's nothing
+          Pages missing either `updated:` or `review_every:` are always Fresh - there's nothing
           to compare against. The yellow-window size (currently 7 days) will become configurable
           per site in a future release if demand surfaces.
 
@@ -204,12 +204,12 @@ components:
 
   - type: section
     eyebrow: Health dashboard
-    heading: "_health.html — site-wide freshness at a glance"
+    heading: "_health.html - site-wide freshness at a glance"
     components:
       - type: markdown
         body: |
           `kazam build` generates `_health.html` alongside your site pages. It's an operational
-          summary of freshness state across the entire site — not a content page, not in nav,
+          summary of freshness state across the entire site - not a content page, not in nav,
           not in search, not in `llms.txt`.
 
       - type: stat_grid
@@ -232,22 +232,22 @@ components:
         body: |
           The dashboard contains:
 
-          - **Stat grid** — total pages, fresh, due soon, overdue counts
-          - **Progress bar** — percentage of pages that carry any freshness metadata at all
-          - **Overdue table** — sorted by days overdue, filterable; each row links to the page
-          - **Due-soon table** — same shape, lighter urgency
-          - **Ownership summary** — pages per owner grouped by status, so you can see whose
+          - **Stat grid** - total pages, fresh, due soon, overdue counts
+          - **Progress bar** - percentage of pages that carry any freshness metadata at all
+          - **Overdue table** - sorted by days overdue, filterable; each row links to the page
+          - **Due-soon table** - same shape, lighter urgency
+          - **Ownership summary** - pages per owner grouped by status, so you can see whose
             section of the KB is drifting
 
           The page is assembled programmatically during the build using the same component
-          system as any kazam page — stat grids, tables, the works.
+          system as any kazam page - stat grids, tables, the works.
 
       - type: code
         language: bash
         code: |
           kazam build . --out _site
-          # _site/_health.html — freshness dashboard
-          # _site/stale.md — machine-readable staleness manifest
+          # _site/_health.html - freshness dashboard
+          # _site/stale.md - machine-readable staleness manifest
 
       - type: markdown
         body: |
@@ -267,16 +267,16 @@ components:
           Same shape, different signal. Every `kazam build` also walks the page graph
           from `index.html` + the site `nav:` and reports two classes of problem:
 
-          - **Orphan pages** — built pages not reachable from `index.html` via nav
+          - **Orphan pages** - built pages not reachable from `index.html` via nav
             or any in-page `href:`. Either link them, delete them, or set
             `unlisted: true` on the page (same flag that excludes drafts from
             `llms.txt`).
-          - **Broken internal links** — `.html` hrefs that don't match any built
+          - **Broken internal links** - `.html` hrefs that don't match any built
             page. Conservative: assets, externals, anchors, `mailto:`, and `tel:`
             are skipped.
 
           Silent on clean builds. When anything surfaces, the build prints a grouped
-          summary and writes `_site/links.md` — same agent-consumable pattern as
+          summary and writes `_site/links.md` - same agent-consumable pattern as
           `stale.md`.
 
       - type: code
@@ -297,7 +297,7 @@ components:
 
       - type: markdown
         body: |
-          `kazam dev` and `kazam build --allow-orphans` silence orphan detection —
+          `kazam dev` and `kazam build --allow-orphans` silence orphan detection -
           useful for work-in-progress pages you haven't wired into nav yet. Broken
           links always surface; there's no legitimate reason to tolerate a dead
           internal href.

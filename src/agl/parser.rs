@@ -36,7 +36,7 @@ pub struct Parsed {
     pub state_lines: HashMap<String, usize>,
     /// Raw `import "..."` strings declared before the `spec` keyword, in
     /// source order. Resolving these into `InvariantRule`s is the resolver
-    /// module's job, not the parser's — the parser just records what was
+    /// module's job, not the parser's - the parser just records what was
     /// asked for.
     pub imports: Vec<String>,
 }
@@ -770,7 +770,7 @@ mod tests {
 
     #[test]
     fn branch_target_referencing_missing_key_still_parses() {
-        // Parser doesn't validate that branch targets exist — that's the validator's job.
+        // Parser doesn't validate that branch targets exist - that's the validator's job.
         let src = r#"spec Foo {
             in: x: str
             out: y: str

@@ -5,7 +5,7 @@ components:
   - type: header
     title: Authoring Guide
     eyebrow: 5 minutes
-    subtitle: How a kazam site is shaped — file tree, shells, components, freshness metadata, kazam.yaml. Everything you need to write real pages.
+    subtitle: How a kazam site is shaped - file tree, shells, components, freshness metadata, kazam.yaml. Everything you need to write real pages.
 
   - type: section
     eyebrow: Anatomy
@@ -65,7 +65,7 @@ components:
         body: |
           Any page can carry a `freshness:` block. Add it when the page has a
           real owner and should be reviewed on a schedule. kazam uses it at
-          build time — no runtime, no network calls.
+          build time - no runtime, no network calls.
 
       - type: code
         language: yaml
@@ -76,9 +76,9 @@ components:
           freshness:
             updated: 2026-05-01              # ISO date of the last content change
             review_every: 90d                # Nd | Nw | Nm | Ny | weekly | monthly | quarterly | yearly
-            owner: hr@example.com            # free-form — email, Slack handle, team name
+            owner: hr@example.com            # free-form - email, Slack handle, team name
             sources_of_truth:               # bare URL or { label, href }
-              - label: Notion — HR onboarding doc
+              - label: Notion - HR onboarding doc
                 href: https://notion.so/your-page
               - label: "#onboarding"
                 href: https://company.slack.com/archives/C012345
@@ -89,7 +89,7 @@ components:
       - type: markdown
         body: |
           Build output: a yellow banner if review is due within 7 days, a red
-          banner if overdue. `_site/stale.md` lists every stale page — hand it
+          banner if overdue. `_site/stale.md` lists every stale page - hand it
           to your agent to prioritize what to refresh.
 
       - type: callout
@@ -108,7 +108,7 @@ components:
       - type: markdown
         body: |
           The `shell` decides the top-level layout. Every shell gets the same
-          built-in site bar — you're picking how the content area behaves.
+          built-in site bar - you're picking how the content area behaves.
 
       - type: tabs
         tabs:
@@ -117,7 +117,7 @@ components:
               - type: markdown
                 body: |
                   The default. Nav links on the right of the bar, flowing
-                  content below. Docs, guides, landing pages, references —
+                  content below. Docs, guides, landing pages, references -
                   anything you'd reach for a docs site for.
               - type: code
                 language: yaml
@@ -189,8 +189,8 @@ components:
         code: |
           name: My Knowledge Base
           theme: dark                      # dark | light | red/orange/yellow/green/blue/indigo/violet
-          texture: dots                    # optional — decorative background
-          glow: accent                     # optional — soft accent wash
+          texture: dots                    # optional - decorative background
+          glow: accent                     # optional - soft accent wash
           description: My knowledge base.  # meta description
           url: https://example.com         # absolute URL for og:image / canonical
 
@@ -207,7 +207,7 @@ components:
                 - label: CLI
                   href: reference/cli.html
 
-          colors:                          # optional — override any token
+          colors:                          # optional - override any token
             accent: "#ff9e00"
             bg: "#0b0b10"
 
@@ -227,7 +227,7 @@ components:
       - type: markdown
         body: |
           Copy one of these into a new `.yaml` file and start editing. The
-          `dev` server reloads on save — tweak, see the result, repeat.
+          `dev` server reloads on save - tweak, see the result, repeat.
 
       - type: tabs
         tabs:
@@ -251,7 +251,7 @@ components:
                     - type: markdown
                       body: |
                         A paragraph here. Add `**markdown**`, lists, tables,
-                        whatever — it all renders.
+                        whatever - it all renders.
 
                     - type: callout
                       variant: success
@@ -263,7 +263,7 @@ components:
               - type: markdown
                 body: |
                   Header + stat grid + table. The shape most business pages
-                  want — a QBR summary, a weekly report, a service catalog.
+                  want - a QBR summary, a weekly report, a service catalog.
               - type: code
                 language: yaml
                 code: |
@@ -310,13 +310,13 @@ components:
               - type: code
                 language: yaml
                 code: |
-                  title: Incident brief — 2026-04-19
+                  title: Incident brief - 2026-04-19
                   shell: document
 
                   components:
                     - type: header
                       title: Incident Brief
-                      subtitle: Payments outage — 2026-04-19
+                      subtitle: Payments outage - 2026-04-19
 
                     - type: markdown
                       body: |
@@ -324,9 +324,9 @@ components:
                         Payments returned 500s for ~18 minutes.
 
                         ## Timeline
-                        - **14:02** — first alert
-                        - **14:05** — rollback started
-                        - **14:20** — all green
+                        - **14:02** - first alert
+                        - **14:05** - rollback started
+                        - **14:20** - all green
 
                         ## Impact
                         ~340 failed transactions, all retried successfully.

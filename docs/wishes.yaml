@@ -14,7 +14,7 @@ components:
         body: |
           A **wish** is a workspace template plus the prompt that tells your agent
           how to turn that workspace into a valid kazam YAML. kazam scaffolds the
-          workspace and shells out to your agent — it doesn't parse PDFs, chunk
+          workspace and shells out to your agent - it doesn't parse PDFs, chunk
           large files, or do anything the agent is already good at.
 
       - type: columns
@@ -27,7 +27,7 @@ components:
           - - type: callout
               variant: info
               title: 2. Add your context
-              body: "Fill in any parts of `questions.md` you already know the answer to. Drop your real material into the folder — meeting notes, transcripts, last quarter's deck, PDFs, metrics dumps. Anything the agent can read is fair game."
+              body: "Fill in any parts of `questions.md` you already know the answer to. Drop your real material into the folder - meeting notes, transcripts, last quarter's deck, PDFs, metrics dumps. Anything the agent can read is fair game."
           - - type: callout
               variant: info
               title: 3. Grant it
@@ -39,19 +39,19 @@ components:
     components:
       - type: markdown
         body: |
-          Every shipped wish has the same three-mode shape — scaffold-and-grant,
+          Every shipped wish has the same three-mode shape - scaffold-and-grant,
           `--yolo` for invent-everything, and portable `--stdout` / `--dry-run`
           for paste-into-any-LLM. Click through for the CLI shape, modes, and
           the worked example.
 
       - type: accordion
         items:
-          - title: "kazam wish deck — 7-slide QBR / strategy review"
+          - title: "kazam wish deck - 7-slide QBR / strategy review"
             components:
               - type: markdown
                 body: |
-                  A 7-slide deck. The agent writes every slide — cover, context,
-                  wins, challenges, learnings, next, the ask — from whatever you
+                  A 7-slide deck. The agent writes every slide - cover, context,
+                  wins, challenges, learnings, next, the ask - from whatever you
                   drop into the workspace. No placeholder copy.
 
               - type: code
@@ -71,9 +71,9 @@ components:
               - type: callout
                 variant: info
                 title: 🎲 YOLO mode
-                body: "Skip the workspace entirely with `kazam wish deck --yolo`. The agent invents every slide — no questions, no context files, just vibes. Pass an optional topic (`--yolo \"about me\"`, `--yolo \"history of coffee\"`) or leave it bare for a surprise. Great for demos, warm-ups, or when your agent already knows you well enough to write the deck."
+                body: "Skip the workspace entirely with `kazam wish deck --yolo`. The agent invents every slide - no questions, no context files, just vibes. Pass an optional topic (`--yolo \"about me\"`, `--yolo \"history of coffee\"`) or leave it bare for a surprise. Great for demos, warm-ups, or when your agent already knows you well enough to write the deck."
 
-          - title: "kazam wish brief — short, print-optimized meeting brief"
+          - title: "kazam wish brief - short, print-optimized meeting brief"
             components:
               - type: markdown
                 body: |
@@ -101,7 +101,7 @@ components:
               - type: callout
                 variant: info
                 title: MCP-first for personal-world topics
-                body: "Briefs are artifacts you walk into real meetings carrying — invented specifics are a hard failure, not a creative liberty. When `--yolo`'s topic names a person, company, meeting, deal, ticket, channel, or incident, the agent's first actions are MCP lookups (HubSpot → Calendar → Granola → Linear → Slack → Attention) before any YAML is written. Every concrete claim must trace to a tool result; fields with no grounding write `TBD — confirm before sending` rather than fabricate. Public/external topics (\"the history of TLS\", \"a deck about coffee\") skip MCP entirely."
+                body: "Briefs are artifacts you walk into real meetings carrying - invented specifics are a hard failure, not a creative liberty. When `--yolo`'s topic names a person, company, meeting, deal, ticket, channel, or incident, the agent's first actions are MCP lookups (HubSpot → Calendar → Granola → Linear → Slack → Attention) before any YAML is written. Every concrete claim must trace to a tool result; fields with no grounding write `TBD - confirm before sending` rather than fabricate. Public/external topics (\"the history of TLS\", \"a deck about coffee\") skip MCP entirely."
 
   - type: section
     eyebrow: Applications
@@ -117,22 +117,22 @@ components:
         columns: 2
         cards:
           - title: "Claude Code"
-            description: "`claude -p` — best for agents that want to use Read tools on your context."
+            description: "`claude -p` - best for agents that want to use Read tools on your context."
             color: default
           - title: "Gemini CLI"
-            description: "`gemini -p` — Google's CLI, same one-shot prompt shape."
+            description: "`gemini -p` - Google's CLI, same one-shot prompt shape."
             color: default
           - title: "Codex"
-            description: "`codex exec` — OpenAI's Codex CLI, subcommand form."
+            description: "`codex exec` - OpenAI's Codex CLI, subcommand form."
             color: default
           - title: "OpenCode"
-            description: "`opencode run` — SST's open-source agent CLI."
+            description: "`opencode run` - SST's open-source agent CLI."
             color: default
           - title: "No CLI agent? No problem."
             badge:
               label: universal
               color: teal
-            description: "Scaffold the workspace with `kazam wish deck`, fill in questions.md, then `kazam wish deck --dry-run` prints the full grant prompt. Paste it into ChatGPT, Claude.ai, Gemini web, Cursor, Aider, or any other LLM context window — save what comes back as `deck.yaml`."
+            description: "Scaffold the workspace with `kazam wish deck`, fill in questions.md, then `kazam wish deck --dry-run` prints the full grant prompt. Paste it into ChatGPT, Claude.ai, Gemini web, Cursor, Aider, or any other LLM context window - save what comes back as `deck.yaml`."
             color: teal
 
   - type: section
@@ -141,7 +141,7 @@ components:
     components:
       - type: markdown
         body: |
-          `deck` ships today. The rest land one at a time — each one a Friday drop for a
+          `deck` ships today. The rest land one at a time - each one a Friday drop for a
           minor release. More wishes get added as patterns emerge in the wild.
 
       - type: card_grid
@@ -177,7 +177,7 @@ components:
             badge:
               label: planned
               color: default
-            description: "Structured incident post-mortem — timeline, impact, learnings."
+            description: "Structured incident post-mortem - timeline, impact, learnings."
           - title: "kazam wish resume"
             badge:
               label: planned
@@ -195,4 +195,4 @@ components:
       - type: callout
         variant: info
         title: Next up → Components
-        body: Browse the component catalog to see what the rendered output can look like. `kazam agents` prints the full authoring guide — it's also what kazam drops into every wish workspace as `reference/kazam-schema.md`.
+        body: Browse the component catalog to see what the rendered output can look like. `kazam agents` prints the full authoring guide - it's also what kazam drops into every wish workspace as `reference/kazam-schema.md`.

@@ -2,10 +2,10 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 
-// NOTE: r####"..."#### — the script emits markdown headings ("## ", "### "),
+// NOTE: r####"..."#### - the script emits markdown headings ("## ", "### "),
 // so anything shorter than four hashes terminates the literal early.
 const SESSION_START_SH: &str = r####"#!/bin/bash
-# kazam workspace — session start hook
+# kazam workspace - session start hook
 #
 # Fires on startup / resume / clear / compact. Stdout IS injected into the
 # fresh context, which makes this the one reliable place to restore state that
@@ -21,7 +21,7 @@ const SESSION_START_SH: &str = r####"#!/bin/bash
 set -uo pipefail
 
 if ! command -v kazam >/dev/null 2>&1; then
-  echo '{"ok":false,"error":"kazam not installed — run: cargo install --git https://github.com/tdiderich/kazam"}'
+  echo '{"ok":false,"error":"kazam not installed - run: cargo install --git https://github.com/tdiderich/kazam"}'
   exit 0
 fi
 cd "$(dirname "$0")/../.." || exit 0
@@ -56,7 +56,7 @@ fi
 echo "## kazam state (post-compaction)"
 echo
 echo "Replayed from .kazam/ stores. Where this disagrees with the summary above,"
-echo "this is correct — the summary is lossy, these files are not."
+echo "this is correct - the summary is lossy, these files are not."
 echo
 
 ACTIVE=$(kazam track list --status active --json 2>/dev/null \
@@ -147,7 +147,7 @@ exit 0
 "####;
 
 const PRE_COMPACT_SH: &str = r##"#!/bin/bash
-# kazam workspace — pre-compact hook
+# kazam workspace - pre-compact hook
 #
 # Fires immediately before /compact (manual) and before auto-compaction.
 # PreCompact stdout is not reliably injected into the compacted context, so
@@ -187,7 +187,7 @@ exit 0
 "##;
 
 const POST_TOOL_SH: &str = r##"#!/bin/bash
-# kazam workspace — post-tool hook
+# kazam workspace - post-tool hook
 #
 # Runs after Read / Write / Edit. Claude Code delivers the tool payload as JSON
 # on STDIN. An earlier version of this hook read a $KAZAM_TOOL_INPUT env var
@@ -220,7 +220,7 @@ fi
 # Normalize to a project-relative path so it matches anatomy entries.
 ROOT=$(pwd -P)
 case "$FILE" in "$ROOT"/*) FILE="${FILE#"$ROOT"/}" ;; esac
-# Still absolute means the file lives outside the project — not our business.
+# Still absolute means the file lives outside the project - not our business.
 case "$FILE" in /*) exit 0 ;; esac
 
 case "$TOOL" in
@@ -237,7 +237,7 @@ exit 0
 "##;
 
 const STOP_SH: &str = r#"#!/bin/bash
-# kazam workspace — session stop hook
+# kazam workspace - session stop hook
 # Rescans anatomy, then summarizes session activity and suggests enrichment.
 kazam ctx scan 2>/dev/null
 DIFF=$(kazam ctx scan --check --json 2>/dev/null)
@@ -254,27 +254,27 @@ fi
 const WORKSPACE_RULES: &str = r#"# Kazam Workspace
 
 This project uses **kazam** for task tracking and context intelligence.
-Use kazam for ALL task tracking — do NOT use the built-in TaskCreate/TaskUpdate tools.
+Use kazam for ALL task tracking - do NOT use the built-in TaskCreate/TaskUpdate tools.
 State lives in `.kazam/` as YAML files.
 
 ## Prerequisites
 - kazam must be installed: `cargo install --git https://github.com/tdiderich/kazam`
 - If `kazam` is not on PATH, install it before using any workspace commands.
 
-## Navigating the codebase — MANDATORY
+## Navigating the codebase - MANDATORY
 **Before you `grep`, `find`, `ls`, or spawn a subagent to explore, read the
 anatomy index.** This is not optional. The index exists so you don't waste
 tokens scanning the filesystem.
 
-**Step 1 — Read the summary:**
-`.kazam/ctx/anatomy.tsv` — compact index with root files and directory rollups
+**Step 1 - Read the summary:**
+`.kazam/ctx/anatomy.tsv` - compact index with root files and directory rollups
 (file count, total tokens, description). ~68 lines even for huge repos.
 
-**Step 2 — Drill into a directory:**
-`.kazam/ctx/anatomy/<dir>.tsv` — individual files in that directory.
+**Step 2 - Drill into a directory:**
+`.kazam/ctx/anatomy/<dir>.tsv` - individual files in that directory.
 Nested paths use `--` as separator: `frontend/src/app` → `anatomy/frontend--src--app.tsv`.
 
-**Step 3 — Read the source file you need.**
+**Step 3 - Read the source file you need.**
 
 Summary → detail → source. Three reads, zero exploration.
 
@@ -286,7 +286,7 @@ citations, keeping file dumps out of the main conversation.
 **When delegating to subagents:** subagents don't see these rules, so you
 must brief them. Include in every subagent prompt:
 1. **Anatomy:** "Read `.kazam/ctx/anatomy.tsv` for project layout, then
-   `.kazam/ctx/anatomy/<dir>.tsv` for the directory you need — don't
+   `.kazam/ctx/anatomy/<dir>.tsv` for the directory you need - don't
    grep or find for structure."
 2. **Task context:** "You are working on task `<ID>`: <title>. When done,
    run `kazam track close <ID> --reason '<what you did>'`."
@@ -314,7 +314,7 @@ outside kazam's normal stores, so there is no second source of truth to drift.
 - **MANDATORY: before fixing any error**, run `kazam ctx bugs --file <path>`
   to check if it was solved before. Do not skip this step.
 
-## During work — close tasks as you go, don't batch
+## During work - close tasks as you go, don't batch
 - **After each commit**, check if it completes an open task. If so, close it
   immediately: `kazam track close <ID> --reason "what you did"`.
 - Tasks with `--owner human` are not yours to close. If one blocks your work,
@@ -354,11 +354,11 @@ model: sonnet
 ---
 
 You are kazam-scout, a repository exploration subagent. Your job is to find
-code and return citations — never to fix, refactor, or judge it.
+code and return citations - never to fix, refactor, or judge it.
 
 ## Protocol
 
-1. Check for `.kazam/ctx/anatomy.tsv`. If it exists, read it first — root
+1. Check for `.kazam/ctx/anatomy.tsv`. If it exists, read it first - root
    files and directory rollups. If it does not exist, skip to the fallback
    protocol below.
 2. Drill into `.kazam/ctx/anatomy/<dir>.tsv` for the directories that matter.
@@ -379,8 +379,8 @@ error out just because kazam isn't set up.
 Return ONLY this format:
 
 FINDINGS
-- path/to/file.rs:42-58 — router definition, handles the auth redirect
-- path/to/other.ts:101-119 — the only caller
+- path/to/file.rs:42-58 - router definition, handles the auth redirect
+- path/to/other.ts:101-119 - the only caller
 
 NOT FOUND (only if applicable)
 - searched: <patterns and directories covered>
@@ -586,7 +586,7 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
     // Reference the hook scripts through $CLAUDE_PROJECT_DIR rather than a
     // canonicalized absolute path. .claude/settings.json is committed in plenty
     // of repos, and an absolute path pins those hooks to whichever machine ran
-    // `workspace init` — every teammate then gets commands pointing at a
+    // `workspace init` - every teammate then gets commands pointing at a
     // directory that does not exist for them. Falls back to the working
     // directory if the variable is ever absent.
     let hooks_abs = format!(

@@ -1,4 +1,4 @@
-//! `kazam pack-hook` — the trusted runner for declarative pack hooks.
+//! `kazam pack-hook` - the trusted runner for declarative pack hooks.
 //!
 //! Packs never ship executable code. They ship declarative hook config (a
 //! [`crate::types::PackHook`]) that this runner interprets. The runner reads a
@@ -75,7 +75,7 @@ fn unescape(pattern: &str) -> String {
 }
 
 /// Text a block/require primitive scans. With `field`, scan just that
-/// `tool_input` field (string value verbatim, non-string serialized) — lets an
+/// `tool_input` field (string value verbatim, non-string serialized) - lets an
 /// MCP-tool hook target one arg like a Slack message body. Without `field`,
 /// scan the whole serialized `tool_input`, falling back to the whole payload.
 /// Mirrors how the existing shell guards grep the full hook input.

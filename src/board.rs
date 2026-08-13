@@ -35,7 +35,7 @@ pub fn run(project: &Path, port: u16) -> Result<()> {
     // HTTP server
     let (server, actual_port) = crate::server::bind_next_available(port)?;
     if actual_port != port {
-        println!("\n  ⚠ port {port} is in use — serving on {actual_port} instead");
+        println!("\n  ⚠ port {port} is in use - serving on {actual_port} instead");
     }
     let url = format!("http://localhost:{actual_port}");
     println!("\n  ➜ {url}");
@@ -174,7 +174,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
     if !human_blockers.is_empty() {
         let names: Vec<String> = human_blockers
             .iter()
-            .map(|t| format!("{} — {}", t.id, t.title))
+            .map(|t| format!("{} - {}", t.id, t.title))
             .collect();
         let n = human_blockers.len();
         let title = match sass {
@@ -183,7 +183,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 s = if n == 1 { "" } else { "s" }
             ),
             workspace::SassLevel::Some => format!(
-                "Hey — {n} task{s} need{v} your attention",
+                "Hey - {n} task{s} need{v} your attention",
                 s = if n == 1 { "" } else { "s" },
                 v = if n == 1 { "s" } else { "" }
             ),
@@ -361,11 +361,11 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 );
                 row.insert(
                     "file".into(),
-                    serde_yaml::Value::String(b.file_path.clone().unwrap_or_else(|| "—".into())),
+                    serde_yaml::Value::String(b.file_path.clone().unwrap_or_else(|| "-".into())),
                 );
                 row.insert(
                     "fix".into(),
-                    serde_yaml::Value::String(b.resolution.clone().unwrap_or_else(|| "—".into())),
+                    serde_yaml::Value::String(b.resolution.clone().unwrap_or_else(|| "-".into())),
                 );
                 row
             })
@@ -430,7 +430,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
     });
 
     Ok(Page {
-        title: format!("{} — Board", config.name),
+        title: format!("{} - Board", config.name),
         shell: Shell::Standard,
         eyebrow: Some("Agent Workspace".into()),
         subtitle: None,
@@ -479,7 +479,7 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
         meta_parts.push(t.task_type.label().to_string());
         let meta = meta_parts.join(" · ");
         let note = match &t.note {
-            Some(n) => Some(format!("{meta} — {n}")),
+            Some(n) => Some(format!("{meta} - {n}")),
             None => Some(meta),
         };
         TreeNode {
@@ -639,7 +639,7 @@ fn anatomy_to_tree_nodes(files: &[crate::ctx::types::FileEntry]) -> Vec<TreeNode
         for (name, tokens, desc) in &node.files {
             let note = match desc {
                 Some(d) if !d.is_empty() => {
-                    format!("~{} tokens — {d}", format_token_count(*tokens))
+                    format!("~{} tokens - {d}", format_token_count(*tokens))
                 }
                 _ => format!("~{} tokens", format_token_count(*tokens)),
             };

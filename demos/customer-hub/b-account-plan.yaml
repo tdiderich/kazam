@@ -1,4 +1,4 @@
-title: "Acme Corp — Account Plan (B)"
+title: "Acme Corp - Account Plan (B)"
 shell: hub
 hub:
   name: Acme Corp
@@ -35,5 +35,5 @@ components:
     numbered: true
     items:
       - { title: Verify auto-closing in prod, detail: Confirm closure rate holds after 1–2 weeks of production runs. }
-      - { title: Platform-team expansion, detail: Demo to platform eng leads — champion is VP Security. }
+      - { title: Platform-team expansion, detail: Demo to platform eng leads - champion is VP Security. }
       - { title: Renewal + expansion proposal, detail: Target August; anchor on noise-reduction metrics. }

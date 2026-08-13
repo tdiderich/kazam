@@ -37,7 +37,7 @@ impl Theme {
                     Mode::Light => light(),
                 };
                 // Muted, earthy accents sibling to the dark theme's sage
-                // (#899878). ~45% saturation, ~60% lightness — they sit on
+                // (#899878). ~45% saturation, ~60% lightness - they sit on
                 // a dark bg without screaming. Users can still override any
                 // accent via `colors:` for a brighter brand pop.
                 let accent = match other {
@@ -186,7 +186,7 @@ fn hex_to_rgb_triple(hex: &str) -> Option<String> {
 
 pub fn dark() -> Theme {
     // Surface/border at the old 3–7% range read too subtle against
-    // #121113 — cards, code blocks, and meta grids faded into the bg.
+    // #121113 - cards, code blocks, and meta grids faded into the bg.
     // Bumped to 5/9/11% for clearer card definition without making the
     // chrome feel heavy.
     Theme {
@@ -209,7 +209,7 @@ pub fn dark() -> Theme {
 }
 
 pub fn light() -> Theme {
-    // Light mode needs roughly 2x the overlay opacity dark mode uses — a
+    // Light mode needs roughly 2x the overlay opacity dark mode uses - a
     // 4% near-black wash on paper reads as invisible, while a 4% white
     // wash on #121113 reads clearly. Bumping surface/border/overlay values
     // keeps card definition, code blocks, and meta grids from washing out.
@@ -251,7 +251,7 @@ pub fn render_switchable_css(theme: &Theme) -> String {
     // ── Light mode override ───────────────────────────────────────────────
     // These values are hardcoded (not derived from light()) because the
     // data-attribute override context cannot use self-referential
-    // `var(--text-rgb)` chains — the circular references resolve incorrectly
+    // `var(--text-rgb)` chains - the circular references resolve incorrectly
     // when layered over the dark :root.
     out.push_str(
         "[data-mode=\"light\"] {\n\
@@ -317,7 +317,7 @@ pub fn render_switchable_css(theme: &Theme) -> String {
            rgba(var(--text-rgb), 0.04) 0 1px, transparent 1px 14px); }\n",
     );
 
-    // Grain: inline SVG with fractal noise — feColorMatrix cannot resolve CSS
+    // Grain: inline SVG with fractal noise - feColorMatrix cannot resolve CSS
     // vars, so we keep hardcoded float values derived from the dark theme text color.
     let text_rgb = hex_to_rgb_triple(&theme.text).unwrap_or_else(|| "255, 255, 255".into());
     let layer = "content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1;";
@@ -449,7 +449,7 @@ fn texture_css(texture: Texture, text_rgb: &str) -> String {
             )
         }
         Texture::Topography => {
-            // Two stacked wavy contours with offsets — gives a calm topo feel.
+            // Two stacked wavy contours with offsets - gives a calm topo feel.
             let svg = format!(
                 "<svg xmlns='http://www.w3.org/2000/svg' width='240' height='160' viewBox='0 0 240 160'>\
 <g fill='none' stroke='rgb({rgb})' stroke-opacity='0.07' stroke-width='1'>\
@@ -747,7 +747,7 @@ body.shell-document [id] {
 .site-bar nav .nav-chevron { font-size: 9px; opacity: 0.6; margin-top: 1px; }
 .site-bar nav .nav-dropdown {
   position: absolute;
-  /* Touch the bottom of the button — no hover gap between trigger and
+  /* Touch the bottom of the button - no hover gap between trigger and
      panel, otherwise the pointer leaves the :hover region while moving
      toward the menu and the dropdown snaps shut. */
   top: 100%;
@@ -757,7 +757,7 @@ body.shell-document [id] {
   border: 1px solid var(--card-border);
   border-radius: 10px;
   /* The 6px top padding gives visual breathing room without a dead hover
-     zone — the whole panel edge-to-edge is still a hover target. */
+     zone - the whole panel edge-to-edge is still a hover target. */
   padding: 6px 4px 4px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
   opacity: 0;
@@ -1292,7 +1292,7 @@ body.shell-hub { min-height: 100vh; }
 
 /* ──────────────────── Components ──────────────────── */
 
-/* — stack spacing for components in main flow — */
+/* - stack spacing for components in main flow - */
 .main-content > *, .deck-inner > *, .doc-body > *, .hub-content > *, .c-section > *:not(.c-section-header), .tab-panel > * {
   margin-bottom: 32px;
 }
@@ -1903,8 +1903,8 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 
 /* Freshness banner: the review-overdue / due-soon nudge that kazam
    injects at the top of a page when its freshness metadata is expired.
-   Builds on `c-callout` for colors — yellow for "due soon", red for
-   "overdue" — and adds a sources-of-truth list underneath. */
+   Builds on `c-callout` for colors - yellow for "due soon", red for
+   "overdue" - and adds a sources-of-truth list underneath. */
 .c-freshness-banner { margin-bottom: 24px; }
 .c-freshness-sources {
   margin-top: 12px;
@@ -2264,7 +2264,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
    the dot bottom (~30px from rail top). */
 .c-event:first-child .c-event-rail::before { top: 18px; }
 .c-event:last-child .c-event-rail::before { bottom: calc(100% - 30px); }
-/* Filter visibility — when filter=major, hide non-major events */
+/* Filter visibility - when filter=major, hide non-major events */
 .c-event-timeline.filter-major .c-event[data-severity="minor"],
 .c-event-timeline.filter-major .c-event[data-severity="info"] { display: none; }
 .c-event-rail {
@@ -2512,7 +2512,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   color: var(--teal);
 }
 /* filter-incomplete: hide every node whose status is `completed`.
-   A `completed` branch correctly hides its descendants — they're "done",
+   A `completed` branch correctly hides its descendants - they're "done",
    the user didn't ask for them. The non-completed siblings stay visible. */
 .c-tree.filter-incomplete .c-tree-node.status-completed { display: none; }
 /* filter-blocked: show only blocked nodes + their ancestor chain.
@@ -3085,7 +3085,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-rule-red .c-rule-label { color: #F87171; }
 .c-rule-teal .c-rule-label { color: #3CCECE; }
 
-/* Gauge — grid variant (Rust renderer) */
+/* Gauge - grid variant (Rust renderer) */
 .c-gauge-grid { display: grid; grid-template-columns: repeat(var(--gauge-cols, 3), 1fr); gap: 20px; }
 .c-gauge-grid .c-gauge-title { grid-column: 1 / -1; }
 .c-gauge-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -3093,7 +3093,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-gauge-value { font-size: 13px; font-weight: 600; fill: var(--snow); }
 .c-gauge-label { font-size: 12px; color: rgba(var(--text-rgb),0.6); text-align: center; }
 
-/* Gauge — donut variant (TSX renderer) */
+/* Gauge - donut variant (TSX renderer) */
 .c-gauge { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; margin: 0; }
 .c-gauge-title { font-size: 14px; font-weight: 600; color: var(--snow); }
 .c-gauge-svg { display: block; }
@@ -3484,7 +3484,7 @@ a.c-queue-label:hover {
 
 /* ──────────────────── Print ──────────────────── */
 
-/* Default @page — portrait content pages; deck in slides mode forces
+/* Default @page - portrait content pages; deck in slides mode forces
    landscape full-bleed. `print-continuous` decks stay on the default
    portrait page. Standard shell uses a zero-margin named page so the
    theme background reaches the sheet edges; breathing room is added
@@ -3543,7 +3543,7 @@ body.shell-standard { page: standard-page; }
   body.shell-standard.print-continuous .c-hero + .c-divider + .c-section { break-before: auto; page-break-before: auto; }
   body.shell-standard.print-continuous .c-divider { display: block !important; height: auto !important; margin: 0.2in 0 !important; border-bottom: 1px solid var(--muted) !important; }
 
-  /* Keep card grids horizontal in print — 10in landscape page is wide enough */
+  /* Keep card grids horizontal in print - 10in landscape page is wide enough */
   .c-card-grid { flex-direction: row !important; flex-wrap: nowrap !important; }
   .c-card-grid-arrow { flex-direction: row !important; }
   .c-card-grid .c-card { min-width: 0 !important; flex: 1 !important; }
@@ -3570,7 +3570,7 @@ body.shell-standard { page: standard-page; }
   body.shell-deck .deck-slide { min-width: 100% !important; overflow: visible !important; }
   body.shell-deck .deck-nav { display: none !important; }
 
-  /* Drop the JS-applied scale transform when printing — the screen-fit
+  /* Drop the JS-applied scale transform when printing - the screen-fit
      scale calculation has nothing to do with the print page size and
      leaves content top-anchored on the printed page. Browsers honor
      `!important` on regular CSS over inline styles set via JS. */
@@ -3581,7 +3581,7 @@ body.shell-standard { page: standard-page; }
 
   /* Default print mode: one slide per landscape page, Keynote-style.
      Pin slide height to the page so flex centering inside .deck-inner
-     actually has a container to center against — otherwise content hugs
+     actually has a container to center against - otherwise content hugs
      the top of each page. Width is the @page deck-page landscape size. */
   body.shell-deck.print-slides .deck-slide {
     height: 7.5in !important;
@@ -3972,7 +3972,7 @@ mod tests {
     fn grain_emits_url_encoded_svg_data_uri() {
         let css = decoration_css(&dark(), Texture::Grain, Glow::None);
         assert!(css.contains("data:image/svg+xml;utf8,"));
-        // SVG body must be URL-encoded — no raw <, >, # in the URL payload.
+        // SVG body must be URL-encoded - no raw <, >, # in the URL payload.
         let uri_start = css.find("data:image/svg+xml;utf8,").unwrap();
         let uri_end = css[uri_start..].find('"').unwrap() + uri_start;
         let payload = &css[uri_start..uri_end];
@@ -3982,7 +3982,7 @@ mod tests {
 
     #[test]
     fn rainbow_themes_swap_accent_only() {
-        // Each rainbow theme keeps the chosen base — same bg, same text — and
+        // Each rainbow theme keeps the chosen base - same bg, same text - and
         // swaps just the accent hex. Default mode is Dark.
         let cases = [
             ("red", "#BB7777"),

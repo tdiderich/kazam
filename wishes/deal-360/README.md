@@ -7,12 +7,12 @@ Per-deal dossiers combining CRM data, call intelligence, and Slack activity into
 | Source | What it provides | How it's accessed |
 |--------|-----------------|-------------------|
 | HubSpot | Deal stage, amount, owner, company, contacts, health | REST API via script (HUBSPOT_API_TOKEN) |
-| Attention | Pain points, competition, objections, next steps, risk signals | MCP — agent queries per deal |
-| Slack | Channel activity, blockers, scoping notes, POV progress | MCP — agent checks #int-deal-* channels |
+| Attention | Pain points, competition, objections, next steps, risk signals | MCP - agent queries per deal |
+| Slack | Channel activity, blockers, scoping notes, POV progress | MCP - agent checks #int-deal-* channels |
 
 ## Prerequisites
 
-- `HUBSPOT_API_TOKEN` — HubSpot private app token with CRM read access
+- `HUBSPOT_API_TOKEN` - HubSpot private app token with CRM read access
 - Attention MCP connected in your AI coding tool
 - Slack MCP connected in your AI coding tool
 - Python 3.8+ with `requests`
@@ -52,8 +52,8 @@ The finished page has:
 ## Architecture
 
 This is the first cross-source recipe. The pattern:
-1. **Script** handles the data source with a REST API (HubSpot) — fetches structured data, writes JSON
-2. **Prompt** instructs the agent to enrich via MCPs (Attention, Slack) — these don't have REST APIs accessible from a script, but are available as MCPs in the agent's environment
+1. **Script** handles the data source with a REST API (HubSpot) - fetches structured data, writes JSON
+2. **Prompt** instructs the agent to enrich via MCPs (Attention, Slack) - these don't have REST APIs accessible from a script, but are available as MCPs in the agent's environment
 3. **Agent** combines all three into the final page
 
 This pattern works for any recipe that mixes API-accessible and MCP-only sources.

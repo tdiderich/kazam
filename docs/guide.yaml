@@ -14,7 +14,7 @@ components:
       - type: markdown
         body: |
           kazam is a single self-contained Rust binary. No runtime, no Node,
-          no Python. Pick whichever install method is convenient — all three
+          no Python. Pick whichever install method is convenient - all three
           land the same binary on your `PATH`.
 
       - type: tabs
@@ -79,7 +79,7 @@ components:
       - type: markdown
         body: |
           `kazam init` writes a `kazam.yaml`, an `index.yaml`, and a minimal nav.
-          `kazam dev` starts a local server with live reload — edit a YAML file,
+          `kazam dev` starts a local server with live reload - edit a YAML file,
           the browser updates. That's the authoring loop.
 
       - type: callout
@@ -157,7 +157,7 @@ components:
             review_every: 90d
             owner: hr@example.com
             sources_of_truth:
-              - label: Notion — HR onboarding doc
+              - label: Notion - HR onboarding doc
                 href: https://notion.so/your-page
               - label: "Linear: Onboarding project"
                 href: https://linear.app/your-co/project/onboarding
@@ -201,7 +201,7 @@ components:
           kazam prompt show add-page     # scaffold a new page from source material
           kazam prompt show refresh      # update a stale page from its sources of truth
           kazam prompt show audit        # review a page for accuracy and gaps
-          kazam prompt show review       # editorial review — tone, structure, completeness
+          kazam prompt show review       # editorial review - tone, structure, completeness
 
       - type: markdown
         body: |
@@ -238,7 +238,7 @@ components:
       - type: callout
         variant: info
         title: Workspace guide
-        body: Anatomy index, task tracking commands, benchmarks, corrections, and the visual board — all covered in the workspace reference.
+        body: Anatomy index, task tracking commands, benchmarks, corrections, and the visual board - all covered in the workspace reference.
         links:
           - label: Agent Workspace →
             href: workspace.html
@@ -254,7 +254,7 @@ components:
           Eight tools: `read_page`, `list_pages`, `search`, `get_config`, `write_page`,
           `annotate_page`, `list_annotations`, `update_annotation`.
 
-          **Local (stdio)** — for Claude Code, Cursor, or any agent on the same machine:
+          **Local (stdio)** - for Claude Code, Cursor, or any agent on the same machine:
 
       - type: code
         language: bash
@@ -263,7 +263,7 @@ components:
 
       - type: markdown
         body: |
-          **Remote (HTTP)** — serve over a network so your whole team's agents can connect:
+          **Remote (HTTP)** - serve over a network so your whole team's agents can connect:
 
       - type: code
         language: bash
@@ -286,7 +286,7 @@ components:
     components:
       - type: markdown
         body: |
-          Annotations capture human context that data sources miss — competitive intel,
+          Annotations capture human context that data sources miss - competitive intel,
           timeline changes, corrections from customer calls. They live as sidecar YAML
           files, not embedded in the page.
 
@@ -303,8 +303,8 @@ components:
           highest-priority source and marks them `incorporated` after use. The 14-day decay
           window ensures nothing sits unreviewed.
 
-          The same annotation tools are available via MCP — `annotate_page`,
-          `list_annotations`, `update_annotation` — so agents can write annotations
+          The same annotation tools are available via MCP - `annotate_page`,
+          `list_annotations`, `update_annotation` - so agents can write annotations
           programmatically during their workflows.
 
   - type: callout

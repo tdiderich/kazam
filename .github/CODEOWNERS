@@ -5,7 +5,7 @@
 # Default owner for everything in the repo.
 *                                   @tdiderich
 
-# CI and security-sensitive files — same owner, but listed explicitly so a
+# CI and security-sensitive files - same owner, but listed explicitly so a
 # reviewer notices a diff here.
 /.github/                           @tdiderich
 /.github/workflows/                 @tdiderich

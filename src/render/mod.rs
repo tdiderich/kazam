@@ -50,7 +50,7 @@ pub fn render_source_view(
     }
 
     let synthetic = Page {
-        title: format!("{} — Source", original.title),
+        title: format!("{} - Source", original.title),
         shell: Shell::Standard,
         eyebrow: original.eyebrow.clone(),
         subtitle: Some(source_filename.to_string()),
@@ -210,8 +210,8 @@ fn references_section(refs: &[crate::types::Reference]) -> String {
 /// Build the freshness banner HTML for a page, or return `None` when the
 /// page is fresh (or has no freshness metadata). The banner reuses the
 /// existing callout variants so color treatment stays consistent with the
-/// rest of the theme: yellow (`c-callout-warn`) for "due soon" — within
-/// 7 days of the review deadline — and red (`c-callout-danger`) for
+/// rest of the theme: yellow (`c-callout-warn`) for "due soon" - within
+/// 7 days of the review deadline - and red (`c-callout-danger`) for
 /// overdue pages. A `c-freshness-banner` class is added for future
 /// per-element styling.
 fn freshness_banner(page: &Page, base: &str) -> Option<String> {
@@ -376,10 +376,10 @@ fn default_404_page() -> Page {
 
 /// Rewrite an `href:` value for emission inside a page at `base` depth.
 ///
-/// - Bare names (`content.html`, `assets/og.svg`) are **page-relative** —
+/// - Bare names (`content.html`, `assets/og.svg`) are **page-relative** -
 ///   left untouched so the browser resolves them against the current page,
 ///   matching standard HTML / Markdown semantics.
-/// - Leading-`/` paths (`/index.html`, `/assets/og.svg`) are **site-root** —
+/// - Leading-`/` paths (`/index.html`, `/assets/og.svg`) are **site-root** -
 ///   the depth-base prefix (`../`) is prepended so they keep working under
 ///   subpath deployments (e.g. GitHub Pages `/kazam/`).
 /// - `../`, `./`, `http(s)://`, `#`, `mailto:`, `tel:` pass through verbatim.
@@ -493,7 +493,7 @@ mod tests {
 
     #[test]
     fn resolve_href_passes_through_bare_names_as_page_relative() {
-        // Bare names are page-relative — the browser resolves them against
+        // Bare names are page-relative - the browser resolves them against
         // the current page, so the depth base must NOT be prepended.
         assert_eq!(resolve_href("index.html", ""), "index.html");
         assert_eq!(resolve_href("index.html", "../"), "index.html");

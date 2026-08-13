@@ -16,7 +16,7 @@ freshness:
 components:
   - type: header
     title: Audit Fix Report
-    subtitle: "Last audit run — issues found, PRs opened, owner notifications sent"
+    subtitle: "Last audit run - issues found, PRs opened, owner notifications sent"
 
   - type: callout
     style: info
@@ -45,9 +45,9 @@ components:
           | Health score | 85% → 96% |
 
           ### PRs opened
-          - `audit/fix-docs-team` — 5 issues (3 overdue bumps, 2 missing sources)
-          - `audit/fix-eng-team` — 2 issues (1 overdue bump, 1 missing owner)
-          - `audit/fix-archive-review` — 1 expired page flagged for archive
+          - `audit/fix-docs-team` - 5 issues (3 overdue bumps, 2 missing sources)
+          - `audit/fix-eng-team` - 2 issues (1 overdue bump, 1 missing owner)
+          - `audit/fix-archive-review` - 1 expired page flagged for archive
 
   - type: section
     heading: "Last Run"

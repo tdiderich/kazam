@@ -1,7 +1,7 @@
-title: Acme × Northwind — Renewal Sync Brief
+title: Acme × Northwind - Renewal Sync Brief
 shell: document
 eyebrow: Partner Brief
-subtitle: Pre-call prep — Renewal & expansion conversation
+subtitle: Pre-call prep - Renewal & expansion conversation
 
 components:
   - type: meta
@@ -56,9 +56,9 @@ components:
       - type: steps
         items:
           - title: Open and frame (3 min)
-            detail: Reaffirm the goal — confirm renewal, scope expansion conversation. Acknowledge their pilot results.
+            detail: Reaffirm the goal - confirm renewal, scope expansion conversation. Acknowledge their pilot results.
           - title: Renewal scope (8 min)
-            detail: Walk through the proposed renewal — same seats, same price, June 30 → June 30. Confirm legal/procurement path.
+            detail: Walk through the proposed renewal - same seats, same price, June 30 → June 30. Confirm legal/procurement path.
           - title: Pilot review (10 min)
             detail: Share usage data from the analytics pilot. Let Priya speak to outcomes. Position the +30% expansion as a natural next step, not a push.
           - title: Concerns and pushback (6 min)
@@ -74,7 +74,7 @@ components:
         columns: 2
         cards:
           - title: Renewal is a layup
-            description: "Adoption is 94%, ticket volume is low and well-handled, and Priya is a vocal champion. Don't oversell — confirm and move on."
+            description: "Adoption is 94%, ticket volume is low and well-handled, and Priya is a vocal champion. Don't oversell - confirm and move on."
           - title: Pilot data tells the story
             description: "47% week-over-week growth in active analytics queries, three exec-facing dashboards built. Let the numbers do the work."
           - title: Procurement needs space
@@ -98,7 +98,7 @@ components:
         variant: warn
         title: New stakeholder
         body: |
-          Dev is new to the account this quarter — replacing the previous procurement
+          Dev is new to the account this quarter - replacing the previous procurement
           lead who championed the original deal. Spend the first 2 minutes
           establishing rapport and shared context; don't assume institutional memory.
 

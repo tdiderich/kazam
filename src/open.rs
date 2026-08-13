@@ -14,7 +14,7 @@ use crate::types::{Glow, Mode, Texture};
 
 /// `kazam open`'s theme preference, persisted at `~/.kazam/open-theme.json`
 /// so it survives across invocations even though each one binds a fresh
-/// (possibly different) port — a per-origin store like localStorage would
+/// (possibly different) port - a per-origin store like localStorage would
 /// silently lose the setting the moment the port changes.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -128,7 +128,7 @@ pub fn run(path: &Path, port: u16) -> Result<()> {
     match ext.as_str() {
         "md" | "yaml" | "yml" | "json" | "agl" => {}
         _ => anyhow::bail!(
-            "unsupported format '.{ext}' — kazam open supports .md, .yaml, .yml, .json, .agl"
+            "unsupported format '.{ext}' - kazam open supports .md, .yaml, .yml, .json, .agl"
         ),
     }
 
@@ -163,7 +163,7 @@ pub fn run(path: &Path, port: u16) -> Result<()> {
     // HTTP server
     let (srv, actual_port) = server::bind_next_available(port)?;
     if actual_port != port {
-        println!("\n  ⚠ port {port} is in use — serving on {actual_port} instead");
+        println!("\n  ⚠ port {port} is in use - serving on {actual_port} instead");
     }
     let url = format!("http://localhost:{actual_port}");
     println!("\n  ➜ {url}");
@@ -219,7 +219,7 @@ fn handle(req: tiny_http::Request, st: &State) -> Result<()> {
     match (url.as_str(), get, post) {
         ("/__version__", true, _) => server::respond_version(req, &st.version),
 
-        // Raw text — what an agent reads. Unsaved browser edits win.
+        // Raw text - what an agent reads. Unsaved browser edits win.
         ("/api/content", true, _) => server::respond_plain(req, &st.text()),
 
         ("/api/content", _, true) => handle_post_content(req, st),
@@ -433,7 +433,7 @@ fn handle_set_theme(mut req: tiny_http::Request) -> Result<()> {
 }
 
 /// Highlights posted text for the edit-mode overlay. Pure compute, no side
-/// effects on `st.buffer` — the save debounce owns writing to the buffer, this
+/// effects on `st.buffer` - the save debounce owns writing to the buffer, this
 /// just needs `st.ext` to pick a highlighter.
 fn handle_highlight(mut req: tiny_http::Request, st: &State) -> Result<()> {
     let mut body = String::new();
@@ -596,12 +596,12 @@ fn render_page(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{file_name} — kazam</title>
+<title>{file_name} - kazam</title>
 <style>
 {theme_css}
 </style>
 <style>
-/* kazam open chrome — everything below has no curata equivalent (toolbar,
+/* kazam open chrome - everything below has no curata equivalent (toolbar,
    editor overlay, theme panel). Typography/texture for rendered markdown
    comes from the shared stylesheet above via .c-markdown, so this tool
    looks and updates exactly like curata's own page rendering. */
@@ -706,7 +706,7 @@ body.editing .edit-mode {{ display: block; }}
   margin-right: 1.5em;
   opacity: 0.5;
 }}
-/* Syntax colors — fixed, not accent-driven, same reasoning a code editor's
+/* Syntax colors - fixed, not accent-driven, same reasoning a code editor's
    syntax theme doesn't follow the UI accent. Picked per-mode for contrast
    (server-resolved at render time, not switched live). */
 .syn-key {{ color: {syn_key}; }}
@@ -919,7 +919,7 @@ body.editing .edit-mode {{ display: block; }}
 </div>
 <div class="status" id="status"></div>
 <script>
-// Poll for disk changes. Never reload over unsaved edits — surface the
+// Poll for disk changes. Never reload over unsaved edits - surface the
 // conflict in place instead, so typing and cursor position survive.
 (function(){{
   var v=0;
@@ -1201,7 +1201,7 @@ fn render_markdown(src: &str) -> String {
 }
 
 /// CommonMark link destinations can't contain a raw space unless wrapped in
-/// `<...>` — without that, pulldown_cmark treats `![x](my screenshot.png)`
+/// `<...>` - without that, pulldown_cmark treats `![x](my screenshot.png)`
 /// as literal text, not an image. Screenshot tool filenames (CleanShot,
 /// macOS's default, VS Code's paste-image) almost always have spaces, so
 /// wrap any image destination that has one and isn't already bracketed.
@@ -1553,7 +1553,7 @@ fn validate_content(content: &str, ext: &str) -> Result<()> {
     if let Some(e) = syntax_error(content, ext) {
         let label = if ext == "json" { "JSON" } else { "YAML" };
         eprintln!("  ⚠ invalid {label}: {e}");
-        eprintln!("  opening anyway — fix the syntax and the view will reload\n");
+        eprintln!("  opening anyway - fix the syntax and the view will reload\n");
     }
     Ok(())
 }
@@ -1601,7 +1601,7 @@ fn watch_file(path: PathBuf, st: Arc<State>) {
                 *st.disk.write().unwrap() = new_content;
                 if dirty && !same {
                     st.conflict.store(true, Ordering::SeqCst);
-                    println!("  ⚠ file changed on disk — you have unsaved edits");
+                    println!("  ⚠ file changed on disk - you have unsaved edits");
                 } else {
                     // Buffer matched disk, so it is no longer an unsaved edit.
                     if same {

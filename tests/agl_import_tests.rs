@@ -50,7 +50,7 @@ spec HubSpotSync {
 #[test]
 fn imported_invariant_flags_an_ungated_write_reachable_in_the_spec() {
     // Real gap this reproduces: a HubSpot sync state reachable without a
-    // gate, where the deny rule lives only in a shared imported fragment —
+    // gate, where the deny rule lives only in a shared imported fragment -
     // not written inline in the spec itself.
     write_file(
         "kazam-agl-import-tests",

@@ -220,7 +220,7 @@ pub fn run_command(cmd: crate::WorkspaceCommand, project: &Path) -> Result<()> {
             write_yaml(&root(project).join("ctx/anatomy.flat.yaml"), &store)?;
             crate::ctx::scan::write_layered(project, &store)?;
             println!(
-                "  ✓ workspace initialized — {} files indexed",
+                "  ✓ workspace initialized - {} files indexed",
                 store.files.len()
             );
 
@@ -251,7 +251,7 @@ pub fn run_command(cmd: crate::WorkspaceCommand, project: &Path) -> Result<()> {
                     }
                 }
                 Err(_) => {
-                    println!("  no workspace found — run `kazam workspace init`");
+                    println!("  no workspace found - run `kazam workspace init`");
                     return Ok(());
                 }
             }

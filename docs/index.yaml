@@ -11,7 +11,7 @@ components:
   - type: hero_banner
     title: AI Native Knowledge Base
     eyebrow: kazam
-    subtitle: Structured pages, sidecar annotations, and an MCP server — so your agents can manage your knowledge base the same way your team does.
+    subtitle: Structured pages, sidecar annotations, and an MCP server - so your agents can manage your knowledge base the same way your team does.
     buttons:
       - label: Get Started
         href: /guide.html
@@ -30,7 +30,7 @@ components:
           - title: Ghost ownership
             description: The onboarding guide was last verified by someone who left in Q2.
           - title: Version drift
-            description: Your API docs say v2 but you shipped v4 — a customer files a ticket before anyone notices.
+            description: Your API docs say v2 but you shipped v4 - a customer files a ticket before anyone notices.
           - title: Lost context
             description: Someone mentions a competitive threat on a call. It lives in Granola notes and nowhere else. The customer page never gets updated.
           - title: Agent tax
@@ -80,7 +80,7 @@ components:
     components:
       - type: markdown
         body: |
-          Drop context from a call, a Slack thread, or your own notes — right onto the page that matters.
+          Drop context from a call, a Slack thread, or your own notes - right onto the page that matters.
           Annotations live as sidecar files, not embedded in content. When an agent refreshes the page,
           it reads your annotations first and incorporates what's relevant.
 
@@ -155,7 +155,7 @@ components:
           - title: Product / GTM lead
             description: Keep sales decks, one-pagers, and competitive docs current. Know when a renewal brief is out of date.
           - title: Technical founder
-            description: Ship a knowledge base your AI agents can actually read — MCP server, structured YAML, no scraping.
+            description: Ship a knowledge base your AI agents can actually read - MCP server, structured YAML, no scraping.
 
   - type: section
     align: center

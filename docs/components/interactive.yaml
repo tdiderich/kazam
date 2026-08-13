@@ -87,7 +87,7 @@ components:
     heading: Tabbed panels
     components:
       - type: markdown
-        body: "Progressive disclosure. Tab labels as buttons, panels below. First tab shows by default. Each tab's `components:` can contain anything — including nested tabs or accordions."
+        body: "Progressive disclosure. Tab labels as buttons, panels below. First tab shows by default. Each tab's `components:` can contain anything - including nested tabs or accordions."
 
       - type: tabs
         tabs:
@@ -115,7 +115,7 @@ components:
                   - title: Can tabs contain other components?
                     components:
                       - type: markdown
-                        body: Yes — any component, including accordions like this one.
+                        body: Yes - any component, including accordions like this one.
                   - title: What about nested tabs?
                     components:
                       - type: markdown
@@ -149,14 +149,14 @@ components:
             components:
               - type: markdown
                 body: |
-                  Open an issue or add it — each component is ~30 lines of Rust
+                  Open an issue or add it - each component is ~30 lines of Rust
                   plus CSS. See `src/render/components.rs` for the pattern.
 
           - title: Can I theme the colors?
             components:
               - type: markdown
                 body: |
-                  Yes — pick `dark` or `light` as the base via the `theme:` key
+                  Yes - pick `dark` or `light` as the base via the `theme:` key
                   in `kazam.yaml`, and override any individual token with a
                   `colors:` map. See the [Theming section of the guide](../guide.html).
 
@@ -164,7 +164,7 @@ components:
             components:
               - type: markdown
                 body: |
-                  Yes — `kazam build` produces plain HTML files. Open them
+                  Yes - `kazam build` produces plain HTML files. Open them
                   directly with `file://` URLs. Nav and interactive components
                   all work locally.
 
@@ -185,7 +185,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Layout components are the skeleton every page hangs on — sections, columns, dividers, timelines, steps.
+    body: Layout components are the skeleton every page hangs on - sections, columns, dividers, timelines, steps.
     links:
       - label: Layout
         href: layout.html

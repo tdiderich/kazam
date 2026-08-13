@@ -3,7 +3,7 @@
 //!
 //! An imported file ("fragment") holds leading imports, zero or more named
 //! `cache { ... }` blocks, and an optional top-level `invariant { ... }`
-//! block — see `parser::parse_fragment`. Fragments may themselves `import`
+//! block - see `parser::parse_fragment`. Fragments may themselves `import`
 //! other fragments, so resolution is recursive; cycles are detected by
 //! tracking canonicalized paths on the current resolution chain.
 
@@ -123,7 +123,7 @@ fn locate_fragment(from_path: &Path, import: &str) -> Result<PathBuf> {
     }
 
     bail!(
-        "could not resolve import \"{import}\" — checked {} and {}",
+        "could not resolve import \"{import}\" - checked {} and {}",
         relative.display(),
         shared.display()
     );
@@ -132,7 +132,7 @@ fn locate_fragment(from_path: &Path, import: &str) -> Result<PathBuf> {
 fn home_dir() -> Result<PathBuf> {
     match std::env::var_os("HOME") {
         Some(h) => Ok(PathBuf::from(h)),
-        None => bail!("HOME is not set — cannot resolve ~/.kazam/agl/shared imports"),
+        None => bail!("HOME is not set - cannot resolve ~/.kazam/agl/shared imports"),
     }
 }
 

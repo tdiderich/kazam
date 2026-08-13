@@ -1,4 +1,4 @@
-# Wishes as Recipes — Design Spec
+# Wishes as Recipes - Design Spec
 
 **Date:** 2026-05-05
 **Status:** Approved
@@ -6,7 +6,7 @@
 
 ## Problem
 
-The current `kazam wish` system scaffolds static pages — workspace, questions, agent shell-out, YAML output. In practice, nobody uses it. The real value is self-refreshing docs: a data pipeline (script → structured output → agent analysis → kazam page) backed by a `refresh` block that tells agents how to keep the page alive.
+The current `kazam wish` system scaffolds static pages - workspace, questions, agent shell-out, YAML output. In practice, nobody uses it. The real value is self-refreshing docs: a data pipeline (script → structured output → agent analysis → kazam page) backed by a `refresh` block that tells agents how to keep the page alive.
 
 We proved this with the ICP page on maze-brain: a Python script pulls HubSpot deals + Apollo enrichment, dumps CSV, and a prompt tells the agent how to synthesize it into a kazam YAML page. The refresh block on the page captures the full loop (run script → prompt agent → human review).
 
@@ -48,7 +48,7 @@ Fields:
 
 ### script.py
 
-A real, runnable data-gathering script. Not a template with placeholders — a working example that an agent can read, understand, and adapt. The README explains what's org-specific.
+A real, runnable data-gathering script. Not a template with placeholders - a working example that an agent can read, understand, and adapt. The README explains what's org-specific.
 
 Conventions:
 - Loads env vars from `.env` in the site root
@@ -59,7 +59,7 @@ Conventions:
 
 ### prompt.md
 
-The analysis instructions passed to the agent after the script runs. Tells the agent what to look for in the data and how to structure the kazam page output. This is the portable part — it works regardless of how the script was customized.
+The analysis instructions passed to the agent after the script runs. Tells the agent what to look for in the data and how to structure the kazam page output. This is the portable part - it works regardless of how the script was customized.
 
 ### page.yaml
 
@@ -82,11 +82,11 @@ freshness:
 
 The customization guide. Written for both humans and agents. Structured as:
 
-1. **What this wish does** — one paragraph
-2. **Prerequisites** — API keys, access needed
-3. **What to customize** — specific lines/values that are org-dependent, with explanations
-4. **How to run** — step-by-step after customization
-5. **What the output looks like** — description of the page structure
+1. **What this wish does** - one paragraph
+2. **Prerequisites** - API keys, access needed
+3. **What to customize** - specific lines/values that are org-dependent, with explanations
+4. **How to run** - step-by-step after customization
+5. **What the output looks like** - description of the page structure
 
 The "what to customize" section is the critical part. Example:
 
@@ -125,7 +125,7 @@ Local wishes appear first. Registry wishes that are already installed locally ar
 
 If `<name>` matches a registry entry, fetches the wish directory from GitHub into local `wishes/<name>/`. If it already exists locally, warns and skips (pass `--force` to overwrite).
 
-Fetch mechanism: GitHub Contents API (`GET /repos/tdiderich/kazam/contents/wishes/<name>`) — lists files in the directory, then fetches each file's content. No auth needed for public repos. No git clone or submodules.
+Fetch mechanism: GitHub Contents API (`GET /repos/tdiderich/kazam/contents/wishes/<name>`) - lists files in the directory, then fetches each file's content. No auth needed for public repos. No git clone or submodules.
 
 After fetching:
 
@@ -150,7 +150,7 @@ After fetching:
 
 ## Registry
 
-The binary embeds a `registry.yaml` — a flat list of wish metadata:
+The binary embeds a `registry.yaml` - a flat list of wish metadata:
 
 ```yaml
 - name: hubspot-icp
@@ -170,10 +170,10 @@ The registry is updated with each kazam release. Users on older binaries see few
 ## What gets deleted
 
 The entire old wish module:
-- `src/wish/mod.rs` — workspace scaffolding, agent detection/shelling, grant flow
-- `src/wish/deck.rs` — deck wish templates
-- `src/wish/brief.rs` — brief wish templates
-- `src/wish/dashboard.rs` — dashboard wish templates
+- `src/wish/mod.rs` - workspace scaffolding, agent detection/shelling, grant flow
+- `src/wish/deck.rs` - deck wish templates
+- `src/wish/brief.rs` - brief wish templates
+- `src/wish/dashboard.rs` - dashboard wish templates
 
 Removed concepts:
 - Workspace scaffolding (`wish-deck/`, `questions.md`, `README.md`)
@@ -184,9 +184,9 @@ Removed concepts:
 
 ## What stays
 
-- `RefreshValue` / `RefreshConfig` / `RefreshMode` / `RefreshStep` types in `types.rs` — the contract between recipes and agents
-- `prompts` module — separate system for agent prompt templates
-- `actions` module — GitHub Actions scaffolding
+- `RefreshValue` / `RefreshConfig` / `RefreshMode` / `RefreshStep` types in `types.rs` - the contract between recipes and agents
+- `prompts` module - separate system for agent prompt templates
+- `actions` module - GitHub Actions scaffolding
 
 ## New module structure
 
@@ -198,10 +198,10 @@ src/wish/
 
 ## Starter wishes to ship
 
-1. **hubspot-icp** — the proven recipe from maze-brain (HubSpot deals + Apollo enrichment → ICP page)
-2. **linear-ownership** — map Linear projects/issues to people → "who owns what" page (the next recipe Tyler wants to build)
+1. **hubspot-icp** - the proven recipe from maze-brain (HubSpot deals + Apollo enrichment → ICP page)
+2. **linear-ownership** - map Linear projects/issues to people → "who owns what" page (the next recipe Tyler wants to build)
 
-More can be added via PR without a kazam release — just add the directory to `wishes/` and an entry to `registry.yaml`.
+More can be added via PR without a kazam release - just add the directory to `wishes/` and an entry to `registry.yaml`.
 
 ## Workflow end-to-end
 
@@ -217,7 +217,7 @@ More can be added via PR without a kazam release — just add the directory to `
 
 ## Future considerations (not in scope)
 
-- `kazam wish run <name>` — execute the refresh steps directly from CLI
+- `kazam wish run <name>` - execute the refresh steps directly from CLI
 - Registry served from a URL instead of embedded (always-latest without binary updates)
 - Community wish contributions via PR
-- `kazam wish update <name>` — pull latest version from registry
+- `kazam wish update <name>` - pull latest version from registry

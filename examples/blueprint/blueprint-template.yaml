@@ -1,11 +1,11 @@
-title: "Deployment Blueprint — Template"
+title: "Deployment Blueprint - Template"
 shell: standard
 theme: dark
 print_flow: continuous
 
 components:
 - type: header
-  title: "{Company} — Maze Deployment Blueprint"
+  title: "{Company} - Maze Deployment Blueprint"
   subtitle: "Generated {Date}"
   align: center
 
@@ -20,7 +20,7 @@ components:
     min_width: 200
     cards:
     - title: "Scanner Sources"
-      description: "Wiz, CrowdStrike, Tenable — generating 69,200 findings."
+      description: "Wiz, CrowdStrike, Tenable - generating 69,200 findings."
       badge:
         label: "69,200 findings"
         color: red
@@ -55,7 +55,7 @@ components:
       color: green
     - label: "Exploitable"
       value: "25%"
-      detail: "17,300 findings — properly triaged"
+      detail: "17,300 findings - properly triaged"
       color: red
     - label: "With Remediation Context"
       value: "100%"
@@ -65,11 +65,11 @@ components:
     numbered: true
     items:
     - title: "Exploitability Analysis"
-      detail: "Every finding analyzed for real-world exploitability — runtime context, network exposure, exploit maturity. 75% eliminated as not exploitable."
+      detail: "Every finding analyzed for real-world exploitability - runtime context, network exposure, exploit maturity. 75% eliminated as not exploitable."
     - title: "Severity Re-Rating"
       detail: "Exploitable findings re-rated by actual impact and likelihood. Critical drops from 1,384 to 69. Your team sees right-sized risk, not scanner noise."
     - title: "Remediation Routing"
-      detail: "Actionable findings sent to Jira, ServiceNow, or Slack with ownership, root cause, and fix steps. Developers get what they need to fix — no back-and-forth with security."
+      detail: "Actionable findings sent to Jira, ServiceNow, or Slack with ownership, root cause, and fix steps. Developers get what they need to fix - no back-and-forth with security."
 
 - type: divider
 
@@ -86,7 +86,7 @@ components:
         value: "69,200 unanalyzed"
         color: red
       - label: "Critical Findings"
-        value: "1,384 — mostly noise"
+        value: "1,384 - mostly noise"
         color: red
       - label: "Security-Dev Handoff"
         value: "manual, no context"
@@ -105,7 +105,7 @@ components:
         value: "17,300 verified exploitable"
         color: green
       - label: "Critical Findings"
-        value: "69 — real risk only"
+        value: "69 - real risk only"
         color: green
       - label: "Security-Dev Handoff"
         value: "automated with fix steps"

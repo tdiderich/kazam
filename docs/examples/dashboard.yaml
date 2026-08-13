@@ -1,7 +1,7 @@
 title: Customer Health Dashboard
 shell: standard
 eyebrow: Customer Success
-subtitle: Portfolio health — Q2 2026
+subtitle: Portfolio health - Q2 2026
 
 components:
   - type: stat_grid
@@ -12,15 +12,15 @@ components:
         detail: Active accounts
       - label: Healthy
         value: "118"
-        detail: Green — on track
+        detail: Green - on track
         color: green
       - label: At Risk
         value: "19"
-        detail: Yellow — needs attention
+        detail: Yellow - needs attention
         color: yellow
       - label: Critical
         value: "5"
-        detail: Red — escalation required
+        detail: Red - escalation required
         color: red
 
   - type: callout
@@ -42,7 +42,7 @@ components:
             badge:
               label: Critical
               color: red
-            description: Enterprise — AWS — $420K ARR
+            description: Enterprise - AWS - $420K ARR
             links:
               - label: View account
                 href: /accounts/acme
@@ -50,7 +50,7 @@ components:
             badge:
               label: Critical
               color: red
-            description: Mid-market — GCP — $180K ARR
+            description: Mid-market - GCP - $180K ARR
             links:
               - label: View account
                 href: /accounts/bluestone
@@ -58,7 +58,7 @@ components:
             badge:
               label: Healthy
               color: green
-            description: Enterprise — Azure — $310K ARR
+            description: Enterprise - Azure - $310K ARR
             links:
               - label: View account
                 href: /accounts/northwind
@@ -66,7 +66,7 @@ components:
             badge:
               label: At Risk
               color: yellow
-            description: SMB — AWS — $72K ARR
+            description: SMB - AWS - $72K ARR
             links:
               - label: View account
                 href: /accounts/riverdale
@@ -134,26 +134,26 @@ components:
         events:
           - date: 2026-04-29
             severity: major
-            title: Acme Corp — support SLA breached (P1 ticket #4821)
+            title: Acme Corp - support SLA breached (P1 ticket #4821)
             summary: |
               Ticket open 48 hours with no engineer response. Escalated to VP
               Engineering. Customer contacted by CSM.
             source: linear
           - date: 2026-04-28
             severity: major
-            title: Bluestone Inc — no login in 21 days, renewal at risk
+            title: Bluestone Inc - no login in 21 days, renewal at risk
             summary: |
               Automated health check flagged zero session activity since Apr 7.
               Renewal is June 15. CSM Priya assigned outreach task.
           - date: 2026-04-27
             severity: minor
-            title: Northwind Co — analytics pilot hit 50-query milestone
+            title: Northwind Co - analytics pilot hit 50-query milestone
           - date: 2026-04-26
             severity: info
-            title: Riverdale Tech — new user seat provisioned (8 → 9 seats)
+            title: Riverdale Tech - new user seat provisioned (8 → 9 seats)
           - date: 2026-04-25
             severity: major
-            title: Harrow Medical — procurement escalated timeline concern
+            title: Harrow Medical - procurement escalated timeline concern
             summary: |
               Procurement lead flagged a Q2 budget freeze. Renewal is May 31.
               Account team to schedule exec sync.
@@ -164,16 +164,16 @@ components:
     components:
       - type: progress_bar
         value: 83
-        label: Sam T. — capacity
+        label: Sam T. - capacity
         color: yellow
         detail: 42 of 50 accounts at healthy cadence
       - type: progress_bar
         value: 91
-        label: Jordan M. — capacity
+        label: Jordan M. - capacity
         color: green
         detail: 46 of 50 accounts at healthy cadence
       - type: progress_bar
         value: 60
-        label: Priya K. — capacity
+        label: Priya K. - capacity
         color: red
         detail: 30 of 50 accounts at healthy cadence

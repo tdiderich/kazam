@@ -42,7 +42,7 @@ components:
     heading: Key-value strip
     components:
       - type: markdown
-        body: "Horizontal grid of labeled values. Great for page metadata — author, date, status, version."
+        body: "Horizontal grid of labeled values. Great for page metadata - author, date, status, version."
 
       - type: meta
         fields:
@@ -140,7 +140,7 @@ components:
     heading: Contextual message box
     components:
       - type: markdown
-        body: "Four variants — `info` (default), `success`, `warn`, `danger`. Title is optional. Body is markdown."
+        body: "Four variants - `info` (default), `success`, `warn`, `danger`. Title is optional. Body is markdown."
 
       - type: callout
         variant: info
@@ -160,7 +160,7 @@ components:
       - type: callout
         variant: danger
         title: Action required
-        body: Credentials leaked — rotate immediately.
+        body: Credentials leaked - rotate immediately.
 
       - type: code
         language: yaml
@@ -178,8 +178,8 @@ components:
       - type: markdown
         body: |
           Figure with optional caption and `max_width` constraint. `alt` is required for
-          accessibility. Any non-`.yaml` file in the source directory — `.svg`, `.png`,
-          `.jpg`, etc. — is copied verbatim into the output directory, so just reference
+          accessibility. Any non-`.yaml` file in the source directory - `.svg`, `.png`,
+          `.jpg`, etc. - is copied verbatim into the output directory, so just reference
           it by relative path. Use `align: center | right` to place the image inside
           its flow (defaults to left).
 
@@ -205,7 +205,7 @@ components:
     heading: Testimonial / pulled quote
     components:
       - type: markdown
-        body: "Standalone styled quote with optional attribution. Different from a quote inside a markdown block — this one is decorative, for testimonials or pulled quotes."
+        body: "Standalone styled quote with optional attribution. Different from a quote inside a markdown block - this one is decorative, for testimonials or pulled quotes."
 
       - type: blockquote
         body: The best product we've shipped in years. Our team went from monitoring 12 accounts to 47 in under a month.
@@ -221,7 +221,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Grid components arrange your content — card grids, stat grids, before/after cards, definition lists.
+    body: Grid components arrange your content - card grids, stat grids, before/after cards, definition lists.
     links:
       - label: Grids
         href: grids.html

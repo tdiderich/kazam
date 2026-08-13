@@ -1,4 +1,4 @@
-//! Integration tests — invoke the kazam binary end-to-end.
+//! Integration tests - invoke the kazam binary end-to-end.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -96,8 +96,8 @@ fn build_release_minifies() {
     // HTML comments stripped (we don't emit any but this guards future regressions)
     assert!(!html.contains("<!-- "));
     // Multi-byte content preserved
-    assert_contains(&html, "—");
-    // Release builds must NOT inject the dev hot-reload poller (issue #28) —
+    assert_contains(&html, "-");
+    // Release builds must NOT inject the dev hot-reload poller (issue #28) -
     // the site is served from static hosts where /__kazam_version__ 404s.
     assert!(
         !html.contains("__kazam_version__"),
@@ -206,14 +206,14 @@ fn page_level_texture_and_glow_override_site_config() {
     let corner = read(&out.join("corner.html"));
 
     // Inherits both site-wide layers. "background-size: 44px 44px" is the
-    // grid texture's specific fingerprint — plain "linear-gradient" now
+    // grid texture's specific fingerprint - plain "linear-gradient" now
     // also shows up in unconditional markdown styling (heading rules,
     // code block accents, hr dividers), so it's no longer unique to the
     // grid texture layer.
     assert_contains(&index, "background-size: 44px 44px"); // grid texture signature
     assert_contains(&index, "ellipse at center"); // accent glow signature
 
-    // plain.yaml turned texture off — the grid texture signature should
+    // plain.yaml turned texture off - the grid texture signature should
     // be absent even though the site-wide config specifies it. (The print
     // `body::before, body::after { display: none }` rule still appears
     // because glow is still active, so we check for the texture signature
@@ -318,7 +318,7 @@ fn build_skips_hidden_entries_and_is_idempotent() {
     )
     .unwrap();
 
-    // Hidden directory with a nested file — must be skipped.
+    // Hidden directory with a nested file - must be skipped.
     let hidden = dir.join(".stealth");
     std::fs::create_dir_all(hidden.join("nested")).unwrap();
     std::fs::write(hidden.join("nested/file.bin"), b"should-not-copy").unwrap();
@@ -338,7 +338,7 @@ fn build_skips_hidden_entries_and_is_idempotent() {
     assert!(run().success(), "first build failed");
     assert!(
         run().success(),
-        "second build failed — walker not idempotent"
+        "second build failed - walker not idempotent"
     );
 
     // Hidden dir must not be present in output.
@@ -672,7 +672,7 @@ fn logo_src_site_root_path_resolves_depth_aware() {
 #[test]
 fn logo_bare_path_is_page_relative() {
     // Bare paths (no leading `/`) are page-relative, matching standard
-    // HTML semantics — the browser resolves them against the current page,
+    // HTML semantics - the browser resolves them against the current page,
     // so the renderer leaves them alone.
     let dir = tmp_dir("logo-bare");
     std::fs::create_dir_all(dir.join("sub")).unwrap();
@@ -937,8 +937,8 @@ fn hrefs_honor_verbatim_prefix_rule() {
     // - Site-root paths (leading `/`) get the depth base prepended so the
     //   link still resolves under subpath deployments.
     // - `../‑relative`, hash, mailto, and `https://` hrefs pass through
-    //   verbatim — they're already explicit.
-    // - Bare names are page-relative — the browser resolves them against
+    //   verbatim - they're already explicit.
+    // - Bare names are page-relative - the browser resolves them against
     //   the current page, so the renderer leaves them alone.
     let dir = tmp_dir("href-verbatim");
     std::fs::create_dir_all(dir.join("tsp")).unwrap();
@@ -1001,7 +1001,7 @@ components:
     assert_contains(&html, r#"href="../abs-action.html""#);
     assert_contains(&html, r#"href="../abs-md.html""#);
     // The button labelled "Already Canonical" uses `../customers/demo.html`
-    // which also resolves to `../customers/demo.html` — same target as the
+    // which also resolves to `../customers/demo.html` - same target as the
     // site-root form above, so we verify the absence of any unrewritten
     // `/customers/demo.html` slash-prefixed survivor in the output.
     assert!(
@@ -1012,7 +1012,7 @@ components:
     assert_contains(&html, "href=\"#section\"");
     assert_contains(&html, r#"href="mailto:hi@example.com""#);
     assert_contains(&html, r#"href="https://example.com""#);
-    // Bare relative href in markdown is page-relative — passes through
+    // Bare relative href in markdown is page-relative - passes through
     // unchanged for the browser to resolve.
     assert_contains(&html, r#"href="relative.html""#);
     assert!(
@@ -1023,7 +1023,7 @@ components:
 
 #[test]
 fn deck_print_flow_square_emits_print_square_class_and_page() {
-    // `print_flow: square` is the LinkedIn-carousel-friendly mode — one
+    // `print_flow: square` is the LinkedIn-carousel-friendly mode - one
     // 8.5×8.5in page per slide, content centered, no letterbox. Verify the
     // body class and the @page rule both land in the rendered output.
     let dir = tmp_dir("deck-square");
@@ -1080,7 +1080,7 @@ fn plain_build(dir: &Path, out: &Path) -> String {
 #[test]
 fn links_flags_orphan_page_and_writes_report() {
     // index.yaml links to /guide.html. `draft.yaml` is built but nothing
-    // links to it — it should surface as an orphan in stdout and in
+    // links to it - it should surface as an orphan in stdout and in
     // _site/links.md, but not block the build.
     let dir = tmp_dir("links-orphan");
     std::fs::create_dir_all(&dir).unwrap();
@@ -1114,7 +1114,7 @@ fn links_flags_orphan_page_and_writes_report() {
 #[test]
 fn links_unlisted_pages_excluded_from_orphans() {
     // A page with `unlisted: true` is an explicit opt-out. Skipping llms.txt
-    // should also mean skipping the orphan check — the author knows it's
+    // should also mean skipping the orphan check - the author knows it's
     // not meant to be navigable.
     let dir = tmp_dir("links-unlisted");
     std::fs::create_dir_all(&dir).unwrap();
@@ -1167,7 +1167,7 @@ fn links_reports_broken_internal_href() {
 #[test]
 fn links_silent_on_clean_build_removes_stale_report() {
     // Seed a build with an orphan so links.md exists, then remove the
-    // orphan and rebuild into the same output dir — links.md must be
+    // orphan and rebuild into the same output dir - links.md must be
     // deleted so a clean build never carries stale state forward.
     let dir = tmp_dir("links-clean");
     std::fs::create_dir_all(&dir).unwrap();
@@ -1267,7 +1267,7 @@ fn section_auto_slugs_id_from_heading() {
 
 #[test]
 fn section_explicit_id_overrides_heading_slug() {
-    // Author locks `id: outcomes` — the stable anchor must win over the
+    // Author locks `id: outcomes` - the stable anchor must win over the
     // auto-slug from the heading text, so deep-links survive copy edits.
     let html = build_one_page(
         "anchor-explicit",
@@ -1308,7 +1308,7 @@ fn section_without_heading_or_id_emits_no_id() {
 
 #[test]
 fn colliding_headings_get_suffixed_ids() {
-    // Two sections with the same heading on the same page must dedupe —
+    // Two sections with the same heading on the same page must dedupe -
     // first wins `outcomes`, second becomes `outcomes-2`, third `outcomes-3`.
     let html = build_one_page(
         "anchor-collide",
@@ -1608,7 +1608,7 @@ components:
     assert_contains(&html, r#"data-filter="all""#);
     assert_contains(&html, r#"data-filter="incomplete""#);
     assert_contains(&html, r#"data-filter="blocked""#);
-    // Phase 2 + Sub A both have a blocked descendant — both must be marked
+    // Phase 2 + Sub A both have a blocked descendant - both must be marked
     // so the filter-blocked CSS keeps the path-to-root visible.
     let blocked_anc_count = html
         .matches(r#"data-has-blocked-descendant="true""#)
@@ -1618,7 +1618,7 @@ components:
         "expected ≥2 ancestors marked, got {}",
         blocked_anc_count
     );
-    // The blocked node itself must NOT carry the descendant attr — only ancestors.
+    // The blocked node itself must NOT carry the descendant attr - only ancestors.
     assert!(
         html.contains(r#"class="c-tree-node status-blocked""#)
             && !html.contains(
@@ -2278,7 +2278,7 @@ components:
         !html.contains(r#"><span class="c-tree-label">Done item</span>"#),
         "completed items should be pruned at build time"
     );
-    // "Moving item" is under Phase 2 but is not blocked — it should also be pruned
+    // "Moving item" is under Phase 2 but is not blocked - it should also be pruned
     assert!(
         !html.contains(r#"><span class="c-tree-label">Moving item</span>"#),
         "non-blocked sibling should be pruned at build time"
@@ -2320,7 +2320,7 @@ fn validate_invalid_yaml_dir_fails_with_json_errors() {
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("kazam.yaml"), "name: Test\ntheme: dark\n").unwrap();
 
-    // Standard page with no components — structural error.
+    // Standard page with no components - structural error.
     std::fs::write(dir.join("bad.yaml"), "title: Bad\nshell: standard\n").unwrap();
 
     let output = Command::new(bin())

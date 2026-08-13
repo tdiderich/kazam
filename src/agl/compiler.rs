@@ -129,10 +129,10 @@ pub fn to_prompt(spec: &AglSpec) -> String {
 
     out.push_str(
         "<execution_contract>\n\
-         Execute this finite-state program exactly as specified — do not skip, reorder, or invent states.\n\
+         Execute this finite-state program exactly as specified - do not skip, reorder, or invent states.\n\
          1. Run the current state's action, then follow its `=>` transition.\n\
          2. Before any action matching a `WITHOUT gate(...)` invariant, stop and obtain that gate's \
-         approval before proceeding — never perform the action first.\n\
+         approval before proceeding - never perform the action first.\n\
          3. Never perform an action a `DENY` rule forbids, even if a later step seems to need it.\n\
          4. On a branch, evaluate its conditions in order and follow the first that matches.\n\
          5. On `TERMINATE(\"msg\")`, stop immediately and return msg as the result.\n\

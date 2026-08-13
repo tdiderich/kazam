@@ -495,7 +495,7 @@ tags: []
     #[test]
     fn list_empty_returns_ok() {
         let d = tmp_dir("list-empty");
-        // No prompts/ directory at all — should not error
+        // No prompts/ directory at all - should not error
         let result = list(&d, true);
         assert!(result.is_ok());
     }
@@ -568,7 +568,7 @@ tags: []
         let out = expand_template_vars("{{kazam_agents}}", &d);
         assert!(!out.contains("{{kazam_agents}}"));
         assert!(!out.is_empty());
-        // AGENTS_MD has content — verify we got something from the bundle
+        // AGENTS_MD has content - verify we got something from the bundle
         assert_eq!(out, agents::AGENTS_MD);
     }
 }

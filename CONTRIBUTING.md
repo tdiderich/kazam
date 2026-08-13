@@ -1,13 +1,13 @@
 # Contributing to kazam
 
-Thanks for the interest. kazam is small on purpose — Rust CLI, YAML in, HTML out — and the goal is to keep it that way. This guide covers how to propose a change, what we value in a PR, and how contributors can safely use coding agents alongside their own work.
+Thanks for the interest. kazam is small on purpose - Rust CLI, YAML in, HTML out - and the goal is to keep it that way. This guide covers how to propose a change, what we value in a PR, and how contributors can safely use coding agents alongside their own work.
 
 ## What kind of contributions are valued
 
 - **Bug fixes** with a reproducer in the description.
 - **New components** that compose with existing ones. A component earns its place by unlocking a real page type; a one-off CSS trick usually doesn't.
 - **Theme tokens / print / accessibility improvements** to existing components.
-- **Docs** — the hosted site lives in `docs/`, authored in kazam itself. Adding examples is always welcome.
+- **Docs** - the hosted site lives in `docs/`, authored in kazam itself. Adding examples is always welcome.
 - **CI / dev ergonomics.**
 
 If you're unsure whether a change fits, open a small issue first and describe the use case.
@@ -23,13 +23,13 @@ cargo test --release
 ./target/release/kazam dev docs --port 3002   # live-edit the docs site
 ```
 
-The `core.hooksPath` line activates the repo's pre-commit hook (`.githooks/pre-commit`), which runs `cargo fmt --check` and `cargo clippy` before every commit. Use the latest stable Rust toolchain via [rustup](https://rustup.rs). The repo pins nothing — if stable works, we support it.
+The `core.hooksPath` line activates the repo's pre-commit hook (`.githooks/pre-commit`), which runs `cargo fmt --check` and `cargo clippy` before every commit. Use the latest stable Rust toolchain via [rustup](https://rustup.rs). The repo pins nothing - if stable works, we support it.
 
 ## Fork + PR flow
 
 1. Fork on GitHub and clone your fork.
 2. Branch off `main`: `git checkout -b feature/short-name`.
-3. Make changes. Keep the diff focused — one concern per PR is easiest to review.
+3. Make changes. Keep the diff focused - one concern per PR is easiest to review.
 4. Run the local checks before pushing:
    ```bash
    cargo test --release
@@ -66,7 +66,7 @@ kazam is fine territory for LLM-assisted contributions. A couple of expectations
 - **Don't paste secrets or third-party code** into agent prompts or into the repo. See `SECURITY.md` for more.
 - **Disclose agent usage in the PR body** if a meaningful portion was agent-authored. We're not against it; we just want the review to focus on the right things.
 
-## Architecture — where things live
+## Architecture - where things live
 
 ```
 src/

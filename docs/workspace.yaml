@@ -5,7 +5,7 @@ components:
   - type: header
     title: Agent Workspace
     eyebrow: Make your agent faster
-    subtitle: Codebase indexing, task tracking, and a visual board — one command to set up.
+    subtitle: Codebase indexing, task tracking, and a visual board - one command to set up.
 
   # ── Why ───────────────────────────────────
   - type: section
@@ -19,7 +19,7 @@ components:
               variant: warn
               title: Without workspace
               body: |
-                The agent runs `find`, `ls`, and `grep` to map the repo — burning
+                The agent runs `find`, `ls`, and `grep` to map the repo - burning
                 hundreds of tokens per turn. Context compaction wipes all that
                 work. The next session starts from zero. Task progress is
                 invisible: no handoff, no history, no way to know what's done.
@@ -30,7 +30,7 @@ components:
                 A two-tier anatomy index answers "what's where" in one read.
                 Structured task tracking survives sessions, compaction, and agent
                 handoffs. A visual board shows status at a glance. Git hooks fire
-                silently — no workflow changes.
+                silently - no workflow changes.
 
   # ── Quickstart ────────────────────────────
   - type: section
@@ -48,7 +48,7 @@ components:
 
           1. Scans the codebase and writes `.kazam/ctx/anatomy.tsv` (root files)
              and `.kazam/ctx/anatomy/<dir>.tsv` (per-directory detail files).
-          2. Installs git hooks — session-start, post-write, session-stop.
+          2. Installs git hooks - session-start, post-write, session-stop.
           3. Writes `.claude/rules/kazam-workspace.md` (or equivalent) so your
              agent knows the conventions automatically.
           4. Creates `.kazam/track/tasks.yaml` ready for task entries.
@@ -72,13 +72,13 @@ components:
         body: |
           Navigation is a two-step read, not a filesystem crawl.
 
-          **Step 1 — summary.** `.kazam/ctx/anatomy.tsv` lists every root file
+          **Step 1 - summary.** `.kazam/ctx/anatomy.tsv` lists every root file
           with token counts and descriptions, plus a rollup for each directory
           (file count, total tokens, one-line description). Even for repos
-          with thousands of files this summary is ~68 lines — one read, full
+          with thousands of files this summary is ~68 lines - one read, full
           orientation.
 
-          **Step 2 — detail.** `.kazam/ctx/anatomy/<dir>.tsv` lists every file
+          **Step 2 - detail.** `.kazam/ctx/anatomy/<dir>.tsv` lists every file
           in that directory with per-file metadata. Nested paths use `--` as
           separator: `frontend/src/app` → `anatomy/frontend--src--app.tsv`.
 
@@ -119,7 +119,7 @@ components:
         body: |
           Tasks live in `.kazam/track/tasks.yaml`. They survive session ends,
           context compaction, and agent handoffs. The workspace rules file
-          instructs agents to close tasks immediately after each commit — no
+          instructs agents to close tasks immediately after each commit - no
           batching, no forgetting.
 
       - type: code
@@ -162,7 +162,7 @@ components:
           - Recent activity from the post-write hook log
 
           Run it in a separate terminal while the agent works. No config needed
-          — it picks up the site theme from `kazam.yaml` if one exists.
+          - it picks up the site theme from `kazam.yaml` if one exists.
 
       - type: code
         language: bash
@@ -247,7 +247,7 @@ components:
     components:
       - type: markdown
         body: |
-          Three hooks install automatically. They fire silently — no prompts,
+          Three hooks install automatically. They fire silently - no prompts,
           no workflow changes required.
 
       - type: columns
@@ -268,8 +268,8 @@ components:
           - - type: callout
               variant: info
               title: session-stop
-              body: Rescans the anatomy on exit so the next session — human or
-                agent — opens with a fresh index. No manual `kazam workspace scan`
+              body: Rescans the anatomy on exit so the next session - human or
+                agent - opens with a fresh index. No manual `kazam workspace scan`
                 needed between sessions.
 
   # ── Benchmarks ────────────────────────────
@@ -319,7 +319,7 @@ components:
       - type: markdown
         body: |
           Tested with Sonnet 4.6, identical prompts, git worktrees. Input tokens
-          per turn dropped 81–94% across the board — the anatomy index eliminates
+          per turn dropped 81–94% across the board - the anatomy index eliminates
           exploratory file reads.
 
   # ── Corrections ──────────────────────────
@@ -329,8 +329,8 @@ components:
     components:
       - type: markdown
         body: |
-          When an agent gets something wrong — misreads a file, applies the wrong
-          pattern, makes a false assumption — record it so future sessions don't
+          When an agent gets something wrong - misreads a file, applies the wrong
+          pattern, makes a false assumption - record it so future sessions don't
           repeat the mistake.
 
       - type: code
@@ -357,7 +357,7 @@ components:
       - type: markdown
         body: |
           Over time, resolved bugs pile up and learnings duplicate. `consolidate`
-          cleans house — removes resolved bugs older than N days and deduplicates
+          cleans house - removes resolved bugs older than N days and deduplicates
           learnings.
 
       - type: code
@@ -384,7 +384,7 @@ components:
         body: |
           `kazam workspace init` writes a default rules file for your agent
           (e.g. `.claude/rules/kazam-workspace.md`). If the defaults don't fit,
-          create `.kazam/ctx/rules-override.md` — its contents are appended to
+          create `.kazam/ctx/rules-override.md` - its contents are appended to
           the generated rules on every workspace init or rescan.
 
       - type: code
@@ -395,7 +395,7 @@ components:
           ## Project-specific rules
 
           - Always run `make lint` before committing.
-          - The `legacy/` directory is frozen — never modify files there.
+          - The `legacy/` directory is frozen - never modify files there.
           - Prefer integration tests over unit tests in this repo.
           EOF
 
@@ -412,7 +412,7 @@ components:
     variant: info
     title: Next up
     body: "Get the binary and run `kazam workspace init` in any repo. Then see
-      the components reference for the static site gen side — every primitive
+      the components reference for the static site gen side - every primitive
       you can drop into a kazam page."
     links:
       - label: Quickstart guide →

@@ -1,13 +1,13 @@
 # Source-of-Truth Mapping
 
-You are mapping source code files to documentation pages. Each kazam page can declare `freshness.sources_of_truth` — a list of source files that, when changed, should trigger a doc review.
+You are mapping source code files to documentation pages. Each kazam page can declare `freshness.sources_of_truth` - a list of source files that, when changed, should trigger a doc review.
 
 ## Inputs
 
 You need:
-1. **Site directory** — the kazam site with YAML pages
-2. **Source repos** — one or more code repositories to map from
-3. **Repo prefix map** — how GitHub URLs map to local paths (e.g., `https://github.com/org/repo/ → ~/repos/repo`)
+1. **Site directory** - the kazam site with YAML pages
+2. **Source repos** - one or more code repositories to map from
+3. **Repo prefix map** - how GitHub URLs map to local paths (ex. `https://github.com/org/repo/ → ~/repos/repo`)
 
 ## Process
 
@@ -24,7 +24,7 @@ Use `kazam` MCP tools (`list_pages`, `read_page`) or read files directly. If `sc
 ### Step 2: Scan source repos
 
 For each source repo:
-- Check for `.kazam/ctx/anatomy.tsv` — if it exists, start there (it's a compact index of directories and files with descriptions)
+- Check for `.kazam/ctx/anatomy.tsv` - if it exists, start there (it's a compact index of directories and files with descriptions)
 - Drill into `.kazam/ctx/anatomy/<dir>.tsv` for detail on specific directories
 - If no anatomy files exist, use `find` or `ls` to understand the structure
 
@@ -59,7 +59,7 @@ For each documentation page, identify which source files define the behavior it 
 For each page, output the updated `sources_of_truth` block as YAML. Format:
 
 ```yaml
-# <page_path>  —  <page_title>
+# <page_path>  -  <page_title>
 sources_of_truth:
 - label: <descriptive label of what this source defines>
   href: <full GitHub URL>
@@ -74,6 +74,6 @@ Group output by section (environments, scanners, workflows, etc.) for readabilit
 - Labels should describe WHAT the source defines for this doc, not just the file name
   - Good: "CloudFormation IAM role and policies"
   - Bad: "parent_template.yaml.j2"
-- External documentation URLs (e.g., Docker Hub docs, vendor docs) are valid sources of truth but won't be checked by `kazam freshness drift`
-- Pages that are pure product overviews (no specific code backing) can point at the repo root — that's fine
+- External documentation URLs (ex. Docker Hub docs, vendor docs) are valid sources of truth but won't be checked by `kazam freshness drift`
+- Pages that are pure product overviews (no specific code backing) can point at the repo root - that's fine
 - Normalize all hrefs to full GitHub URLs for consistency

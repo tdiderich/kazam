@@ -1,4 +1,4 @@
-title: Observo — Infrastructure clarity, one dashboard
+title: Observo - Infrastructure clarity, one dashboard
 shell: standard
 eyebrow: Example
 subtitle: Landing page for a fictional product
@@ -7,7 +7,7 @@ components:
   - type: header
     title: Infrastructure clarity, one dashboard.
     eyebrow: Observo · not a real product
-    subtitle: Observo watches every service you run and pages exactly one person, exactly once — only when something actually broke.
+    subtitle: Observo watches every service you run and pages exactly one person, exactly once - only when something actually broke.
 
   - type: button_group
     buttons:
@@ -52,7 +52,7 @@ components:
           - title: Incident review
             description: One-click postmortems pre-filled from the incident timeline.
           - title: Bring your own data
-            description: Prometheus, Datadog, OTLP — pipe it all in, query it all here.
+            description: Prometheus, Datadog, OTLP - pipe it all in, query it all here.
 
   - type: section
     eyebrow: How it feels
@@ -74,7 +74,7 @@ components:
   - type: callout
     variant: info
     title: Free for teams up to 10
-    body: "No credit card. Two-minute install. **[Start free](#)** — or **[book a 20-min demo](#)** if you'd rather see it live."
+    body: "No credit card. Two-minute install. **[Start free](#)** - or **[book a 20-min demo](#)** if you'd rather see it live."
 
   - type: divider
     label: Meta
@@ -82,7 +82,7 @@ components:
   - type: markdown
     body: |
       This page is ~80 lines of YAML. Every block above is a plain kazam
-      component — `header`, `button_group`, `stat_grid`, `card_grid`,
+      component - `header`, `button_group`, `stat_grid`, `card_grid`,
       `before_after`, `blockquote`, `callout`. No custom CSS, no React, no
       framework. kazam isn't really a landing-page tool, but if you need to
       ship one alongside your docs, you can.
@@ -92,7 +92,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Other example pages — docs, KBs, decks, meeting briefs, API references, dashboards from live data.
+    body: Other example pages - docs, KBs, decks, meeting briefs, API references, dashboards from live data.
     links:
       - label: See all use cases
         href: ../about.html

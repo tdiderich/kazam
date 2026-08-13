@@ -5,7 +5,7 @@ components:
   - type: header
     title: Deploy
     eyebrow: Any static host works
-    subtitle: "Run `kazam build . --out dist --release` once — the output is a self-contained folder of HTML, CSS, and assets. Every recipe below is just how to upload that folder somewhere with a URL."
+    subtitle: "Run `kazam build . --out dist --release` once - the output is a self-contained folder of HTML, CSS, and assets. Every recipe below is just how to upload that folder somewhere with a URL."
 
   - type: section
     eyebrow: Recipes
@@ -48,7 +48,7 @@ components:
             components:
               - type: markdown
                 body: |
-                  Same drill — Netlify treats any directory as a static site.
+                  Same drill - Netlify treats any directory as a static site.
 
               - type: code
                 language: bash
@@ -170,7 +170,7 @@ components:
               - type: callout
                 variant: info
                 title: Tip
-                body: "Serve `*.html` with a short max-age (300s) and hash-named assets with a long one — but kazam doesn't hash asset filenames, so keep everything short-lived or add a cache-busting query string to `src=` paths in YAML."
+                body: "Serve `*.html` with a short max-age (300s) and hash-named assets with a long one - but kazam doesn't hash asset filenames, so keep everything short-lived or add a cache-busting query string to `src=` paths in YAML."
 
           - label: Firebase Hosting
             components:
@@ -208,7 +208,7 @@ components:
               - type: markdown
                 body: |
                   Any web server that serves static files works. Nginx
-                  example — copy the build and reload:
+                  example - copy the build and reload:
 
               - type: code
                 language: bash
@@ -227,7 +227,7 @@ components:
                     root /var/www/my-site;
                     index index.html;
 
-                    # kazam emits plain .html files — this lets /guide
+                    # kazam emits plain .html files - this lets /guide
                     # resolve to /guide.html automatically
                     location / {
                       try_files $uri $uri.html $uri/ =404;
@@ -248,17 +248,17 @@ components:
           - title: Cache headers
             description: "HTML pages can change on every build. Default to short cache lifetimes (5 min) for `.html` unless you're sure nothing links to a stale version."
           - title: Minify for prod
-            description: "Always pass `--release` on production builds — it strips whitespace from HTML/CSS/inline JS, shrinking pages by ~40%."
+            description: "Always pass `--release` on production builds - it strips whitespace from HTML/CSS/inline JS, shrinking pages by ~40%."
 
   - type: callout
     variant: success
     title: Nothing fancy required
-    body: "If your host can serve a folder of static files, it can serve a kazam build. If it can't, it's probably not worth the headache — pick one of the recipes above."
+    body: "If your host can serve a folder of static files, it can serve a kazam build. If it can't, it's probably not worth the headache - pick one of the recipes above."
 
   - type: callout
     variant: info
     title: Next up
-    body: That's the full loop — write YAML, build, deploy. Browse the component reference to see what else you can compose into a page.
+    body: That's the full loop - write YAML, build, deploy. Browse the component reference to see what else you can compose into a page.
     links:
       - label: Components reference
         href: components/index.html

@@ -219,7 +219,7 @@ fn cmd_init(project: &Path, do_scan: bool, skunkworks: bool) -> Result<()> {
         crate::workspace::write_yaml(&anatomy_path(project), &store)?;
         scan::write_layered(project, &store)?;
         println!(
-            "  ✓ .kazam/ctx/ initialized — {} files indexed",
+            "  ✓ .kazam/ctx/ initialized - {} files indexed",
             store.files.len()
         );
     } else {
@@ -386,7 +386,7 @@ fn cmd_describe(project: &Path, file: &str, description: &str) -> Result<()> {
 
         println!("  ✓ updated description for {file}");
     } else {
-        bail!("file {file} not found in anatomy — run `kazam ctx scan` first");
+        bail!("file {file} not found in anatomy - run `kazam ctx scan` first");
     }
     Ok(())
 }
@@ -425,7 +425,7 @@ fn cmd_learnings(project: &Path, json: bool) -> Result<()> {
         println!("  no learnings recorded");
     } else {
         for l in &store.learnings {
-            println!("  [{}] {} — {}", l.category.label(), l.id, l.text);
+            println!("  [{}] {} - {}", l.category.label(), l.id, l.text);
         }
     }
     Ok(())
@@ -482,7 +482,7 @@ fn cmd_bugs(project: &Path, file: Option<String>, json: bool) -> Result<()> {
                 .as_deref()
                 .map(|f| format!(" [{f}]"))
                 .unwrap_or_default();
-            println!("  {status} {}{file_str} — {}", b.id, b.symptom);
+            println!("  {status} {}{file_str} - {}", b.id, b.symptom);
             if let Some(ref fix) = b.resolution {
                 println!("    fix: {fix}");
             }

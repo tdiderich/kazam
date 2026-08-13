@@ -31,7 +31,7 @@ impl Shell {
 /// detected from the page being rendered.
 #[derive(Deserialize, Clone)]
 pub struct HubConfig {
-    /// Hub identity shown in the masthead — usually the customer name.
+    /// Hub identity shown in the masthead - usually the customer name.
     pub name: String,
     /// Small label above the name, e.g. "CUSTOMER" or the segment.
     #[serde(default)]
@@ -52,7 +52,7 @@ pub struct HubLink {
     pub href: String,
 }
 
-/// `skill:` block on a page — marks it as an agent skill whose procedure
+/// `skill:` block on a page - marks it as an agent skill whose procedure
 /// content (markdown steps and/or ```agl fences) `kazam validate` checks.
 #[derive(Deserialize)]
 // trigger/requires are schema contract for the skill compile path
@@ -67,7 +67,7 @@ pub struct SkillMeta {
     pub requires: Vec<String>,
 }
 
-/// `pack:` block on a page — marks it as an AI tool pack.
+/// `pack:` block on a page - marks it as an AI tool pack.
 #[derive(Deserialize)]
 pub struct PackMeta {
     /// Which tool config files to write. Empty = all supported targets.
@@ -178,7 +178,7 @@ pub struct Page {
     pub glow: Option<Glow>,
     /// How `shell: deck` pages export to PDF. `slides` (default): one slide per
     /// landscape page, Keynote-style. `continuous`: all slides flow on a single
-    /// scrolling document with a thin separator between them — nicer for
+    /// scrolling document with a thin separator between them - nicer for
     /// sharing as a readable artifact rather than a presentation. `square`:
     /// one slide per square page, sized for LinkedIn-style document carousels
     /// where the viewport is near-square and landscape PDFs letterbox badly.
@@ -196,18 +196,18 @@ pub struct Page {
     /// and sources of truth the agent / reader can consult to refresh the
     /// page. When the page is past its review window, a banner is injected
     /// at the top of the rendered output and the build reports the page as
-    /// stale. Zero runtime JS — staleness is computed at `kazam build` time.
+    /// stale. Zero runtime JS - staleness is computed at `kazam build` time.
     /// Set to `"never"` to explicitly opt out of freshness checks with no
     /// warning emitted.
     #[serde(default)]
     pub freshness: Option<FreshnessValue>,
-    /// Who is responsible for this page. Free-form string — email, Slack
+    /// Who is responsible for this page. Free-form string - email, Slack
     /// handle, or team name. Serves as a fallback for `freshness.owner` in
     /// the stale-page report when no freshness block is present.
     #[serde(default)]
     pub owner: Option<String>,
     /// AI tool pack marker. Present = this page is installable via
-    /// `kazam install` — its markdown components compile into local AI
+    /// `kazam install` - its markdown components compile into local AI
     /// config files. Validation requires at least one non-empty markdown
     /// component (top-level or inside a section) when this is set.
     #[serde(default)]
@@ -262,12 +262,12 @@ impl Page {
     }
 }
 
-/// Freshness value: either the bare string `"never"` (explicit opt-out —
+/// Freshness value: either the bare string `"never"` (explicit opt-out -
 /// no decay checks, no warning) or a full metadata struct.
 #[derive(Deserialize, Clone)]
 #[serde(untagged)]
 pub enum FreshnessValue {
-    /// Bare string `"never"` — page explicitly opts out of freshness checks.
+    /// Bare string `"never"` - page explicitly opts out of freshness checks.
     Never(FreshnessNever),
     /// Full freshness metadata struct.
     Full(Freshness),
@@ -306,7 +306,7 @@ pub struct Reference {
     pub note: Option<String>,
 }
 
-/// Freshness metadata for a page — when was it last updated, who owns it,
+/// Freshness metadata for a page - when was it last updated, who owns it,
 /// how often should it be reviewed, and where are the sources of truth.
 #[derive(Deserialize, Clone)]
 pub struct Freshness {
@@ -317,7 +317,7 @@ pub struct Freshness {
     /// string shortcuts `weekly`, `monthly`, `quarterly`, `yearly`,
     /// `annually`.
     pub review_every: Option<String>,
-    /// Who should be contacted before changes land. Free-form — email,
+    /// Who should be contacted before changes land. Free-form - email,
     /// Slack handle, or team name.
     pub owner: Option<String>,
     /// Pointers the agent / reader should consult to refresh the content.
@@ -326,12 +326,12 @@ pub struct Freshness {
     #[serde(default)]
     pub sources_of_truth: Option<Vec<SourceOfTruth>>,
     /// Hard expiration date (ISO YYYY-MM-DD). Pages past this date are
-    /// treated as expired — excluded from nav/search, rendered with an
+    /// treated as expired - excluded from nav/search, rendered with an
     /// "expired" banner. For time-bound content like event materials or
     /// campaign pages.
     #[serde(default)]
     pub expires: Option<String>,
-    /// How this page gets refreshed — bare string (prompt shorthand) or
+    /// How this page gets refreshed - bare string (prompt shorthand) or
     /// full config with mode + steps. Not used by the build.
     #[serde(default)]
     pub refresh: Option<RefreshValue>,
@@ -365,7 +365,7 @@ impl SourceOfTruth {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum RefreshValue {
-    /// Bare string shorthand — assisted mode with a single prompt step.
+    /// Bare string shorthand - assisted mode with a single prompt step.
     Prompt(String),
     /// Full refresh configuration with mode and steps.
     Full(RefreshConfig),
@@ -700,7 +700,7 @@ pub enum Component {
         kind: ChartKind,
         title: Option<String>,
         /// Pixel height of the chart area. Width is fluid (SVG scales to the
-        /// container). Defaults depend on `kind` — see the renderer.
+        /// container). Defaults depend on `kind` - see the renderer.
         #[serde(default)]
         height: Option<u32>,
         /// Axis labels. Ignored by `pie`.
@@ -1461,7 +1461,7 @@ pub enum ChartOrientation {
 pub struct ChartPoint {
     pub label: String,
     pub value: f64,
-    /// Optional slice/bar tint. Only meaningful for single-series charts —
+    /// Optional slice/bar tint. Only meaningful for single-series charts -
     /// multi-series charts color by series instead.
     #[serde(default)]
     pub color: Option<SemColor>,
@@ -1795,12 +1795,12 @@ pub struct SiteConfig {
     /// Nav layout for `shell: standard` pages. Defaults to `top`.
     #[serde(default)]
     pub nav_layout: NavLayout,
-    /// Base tone for rainbow themes — dark (default) or light. Ignored when
+    /// Base tone for rainbow themes - dark (default) or light. Ignored when
     /// `theme:` is already `dark` or `light`.
     #[serde(default)]
     pub mode: Mode,
     /// Fallback `<meta name="description">` and `og:description` used when a
-    /// page has no subtitle of its own. Keep it short — one sentence is ideal.
+    /// page has no subtitle of its own. Keep it short - one sentence is ideal.
     #[serde(default)]
     pub description: Option<String>,
     /// Canonical base URL for the site, e.g. `https://tdiderich.github.io/kazam`.
@@ -1830,8 +1830,8 @@ pub struct SiteConfig {
     pub drift: Option<DriftConfig>,
 }
 
-/// Brand voice configuration — tone, reading level, and terminology preferences.
-/// All fields are optional; add what you want. This is config only — kazam does
+/// Brand voice configuration - tone, reading level, and terminology preferences.
+/// All fields are optional; add what you want. This is config only - kazam does
 /// not enforce these rules at build time.
 #[derive(Deserialize, Clone, Default)]
 pub struct Voice {
@@ -1934,7 +1934,7 @@ pub enum Glow {
 
 /// Logo image for the site-bar brand slot. Accepts either a shorthand
 /// string (a path to the image) or an object with `src`, optional
-/// `height` (px — upper bound on rendered height; defaults to the
+/// `height` (px - upper bound on rendered height; defaults to the
 /// site-bar content height), and optional `alt` (defaults to the site
 /// `name`).
 #[derive(Deserialize)]

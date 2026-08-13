@@ -1,5 +1,5 @@
 name: audit-fix
-description: "Run kazam audit, fix issues, and open PRs — grouped by strategy (all, per-owner, or per-page)"
+description: "Run kazam audit, fix issues, and open PRs - grouped by strategy (all, per-owner, or per-page)"
 tags: [ops, freshness, audit, github, slack, teams]
 env: []
 data_sources: [kazam, github, slack, teams]

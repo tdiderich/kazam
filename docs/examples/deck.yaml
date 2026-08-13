@@ -51,7 +51,7 @@ slides:
           - title: "`kazam build`"
             description: A single Rust binary walks the directory and renders each page.
           - title: Themed output
-            description: Every page picks up the site's theme, shell, and nav — no per-page boilerplate.
+            description: Every page picks up the site's theme, shell, and nav - no per-page boilerplate.
           - title: Ship static HTML
             description: Drop it on S3, Pages, Vercel, or any host that serves files.
 
@@ -123,8 +123,8 @@ slides:
           - title: Install
             detail: "`cargo install --git https://github.com/tdiderich/kazam`"
           - title: Scaffold
-            detail: "`kazam init my-site` — drops a starter `kazam.yaml` and `index.yaml`"
+            detail: "`kazam init my-site` - drops a starter `kazam.yaml` and `index.yaml`"
           - title: Dev loop
-            detail: "`kazam dev my-site --port 3000` — live reload on YAML change"
+            detail: "`kazam dev my-site --port 3000` - live reload on YAML change"
           - title: Ship
-            detail: "`kazam build my-site --out dist --release` — minified HTML/CSS, ready to upload"
+            detail: "`kazam build my-site --out dist --release` - minified HTML/CSS, ready to upload"

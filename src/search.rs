@@ -1,4 +1,4 @@
-//! Emits `_site/search.json` — a compact search index over every built page.
+//! Emits `_site/search.json` - a compact search index over every built page.
 //! Consumed by the MCP server's `search` tool and any client-side JS widget.
 
 use std::path::Path;
@@ -39,7 +39,7 @@ pub fn entry_for(path: &str, page: &Page, freshness_status: Option<&str>) -> Sea
         extract_searchable_text(comps, &mut headings, &mut snippets);
     }
 
-    // Deck pages — walk every slide's components.
+    // Deck pages - walk every slide's components.
     if let Some(slides) = &page.slides {
         for slide in slides {
             extract_searchable_text(&slide.components, &mut headings, &mut snippets);
@@ -219,9 +219,9 @@ fn extract_searchable_text(
                     }
                 }
             }
-            // Code blocks skipped — not useful as search content.
+            // Code blocks skipped - not useful as search content.
             Component::Code { .. } => {}
-            // Purely decorative / non-textual — skip.
+            // Purely decorative / non-textual - skip.
             Component::Meta { .. }
             | Component::Divider { .. }
             | Component::Kbd { .. }
@@ -277,7 +277,7 @@ fn push_snippet(snippets: &mut Vec<String>, text: &str) {
 }
 
 /// Very rough markdown stripping: remove common syntax characters.
-/// We don't need a full parser — just make the text readable for search.
+/// We don't need a full parser - just make the text readable for search.
 fn strip_markdown(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();

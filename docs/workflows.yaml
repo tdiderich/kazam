@@ -1,6 +1,6 @@
 title: Prompt Templates
 shell: standard
-description: Use kazam's built-in prompt templates to migrate, create, refresh, audit, and review content — manually or fully automated.
+description: Use kazam's built-in prompt templates to migrate, create, refresh, audit, and review content - manually or fully automated.
 freshness:
   updated: 2026-05-03
   review_every: 90d
@@ -26,7 +26,7 @@ components:
           system prompt, and tool list. They live in `prompts/` inside your site directory
           and are versioned with your content.
 
-          Templates are not executed by kazam — they're read by your agent. The CLI
+          Templates are not executed by kazam - they're read by your agent. The CLI
           just makes them easy to inspect and pipe.
 
       - type: code
@@ -67,7 +67,7 @@ components:
           - title: review
             badge:
               label: opus
-            description: Full content review for accuracy, completeness, and tone. Thorough — costs more, misses less. Use before shipping or after major changes.
+            description: Full content review for accuracy, completeness, and tone. Thorough - costs more, misses less. Use before shipping or after major changes.
 
   # ── Content lifecycle ─────────────────────
   - type: section
@@ -95,13 +95,13 @@ components:
             template: add-page
           - stage: Check before building
             command: kazam validate .
-            template: "—"
+            template: "-"
           - stage: Publish
             command: kazam build .
-            template: "—"
+            template: "-"
           - stage: Track freshness
             command: freshness block in page YAML
-            template: "—"
+            template: "-"
           - stage: Review stale pages
             command: kazam prompt show refresh
             template: refresh
@@ -227,8 +227,8 @@ components:
       - type: markdown
         body: |
           Start the MCP server pointing at your site directory. When an agent has MCP
-          access, templates can work end-to-end — reading pages, fetching sources,
-          writing updates — without manual copy-paste.
+          access, templates can work end-to-end - reading pages, fetching sources,
+          writing updates - without manual copy-paste.
 
       - type: code
         language: bash
@@ -363,7 +363,7 @@ components:
       - type: markdown
         body: |
           Most kazam sites live in a GitHub repo. These workflow templates automate
-          the content lifecycle — copy them to `.github/workflows/` and configure
+          the content lifecycle - copy them to `.github/workflows/` and configure
           your secrets.
 
       - type: card_grid
@@ -376,7 +376,7 @@ components:
           - title: audit-on-release
             description: "Voice and structure audit on YAML changes. Catches consistency issues before deploy."
           - title: product-sync
-            description: "Sync content from a product (e.g., Linear sprint status) on a schedule. Adapt for any integration."
+            description: "Sync content from a product (ex. Linear sprint status) on a schedule. Adapt for any integration."
 
       - type: code
         language: bash
@@ -405,7 +405,7 @@ components:
           # Scaffold a new template
           kazam prompt init changelog
 
-          # Scaffolds prompts/changelog.yaml — edit system_prompt and tools
+          # Scaffolds prompts/changelog.yaml - edit system_prompt and tools
 
       - type: markdown
         body: |
@@ -439,7 +439,7 @@ components:
           your actual org. It also generates an org chart page using the Tree component.
 
           **Requires:** Gmail MCP and Slack MCP (or Google Directory MCP). The template
-          will not run with partial data sources — both must be configured and accessible.
+          will not run with partial data sources - both must be configured and accessible.
 
       - type: code
         language: bash
@@ -450,7 +450,7 @@ components:
         body: |
           The command produces two outputs:
 
-          - **Updated roles config** — overwrites the `roles:` block in `kazam.yaml` with
+          - **Updated roles config** - overwrites the `roles:` block in `kazam.yaml` with
             ids, labels, descriptions, and hrefs derived from your directory.
-          - **Org chart page** — generates or refreshes a YAML page using the Tree component
+          - **Org chart page** - generates or refreshes a YAML page using the Tree component
             so the structure is immediately browsable on your site.

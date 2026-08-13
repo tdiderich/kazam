@@ -1,4 +1,4 @@
-title: Acme Corp — Q2 Business Review
+title: Acme Corp - Q2 Business Review
 shell: deck
 eyebrow: Acme Corp
 subtitle: April 2026
@@ -59,6 +59,6 @@ slides:
           - title: Expand to EU region
             detail: Connect 8 additional AWS accounts in eu-west-1 by May 15
           - title: Enable Slack alerting
-            detail: Route critical findings to #security-alerts — setup guide sent
+            detail: Route critical findings to #security-alerts - setup guide sent
           - title: Schedule executive review
             detail: Q2 review with CTO confirmed for May 14, 2026

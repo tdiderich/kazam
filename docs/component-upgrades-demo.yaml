@@ -114,20 +114,20 @@ components:
               - deployment
             summary: Rolled out new auth middleware to all regions.
           - date: "2026-06-18"
-            title: Config update — rate limits
+            title: Config update - rate limits
             severity: minor
             source: Internal
             tags:
               - config
           - date: "2026-06-15"
-            title: Incident — elevated error rates
+            title: Incident - elevated error rates
             severity: major
             source: PagerDuty
             tags:
               - incident
             summary: 5xx spike in us-east-1 for 12 minutes. Root cause was connection pool exhaustion.
           - date: "2026-06-10"
-            title: Feature flag enabled — dark mode
+            title: Feature flag enabled - dark mode
             severity: info
             tags:
               - config
@@ -187,7 +187,7 @@ components:
       - type: aside
         body: |
           This is a muted aside block. Use it for supplementary context that
-          doesn't warrant a full callout — background info, editorial notes,
+          doesn't warrant a full callout - background info, editorial notes,
           or soft guidance. Supports **markdown** including [links](https://example.com).
       - type: markdown
         body: Regular content flows normally around asides. They're visually quieter than callouts.

@@ -13,7 +13,7 @@ components:
     filterable: true
     show_counts: true
     items:
-      # Overdue — past due, not completed
+      # Overdue - past due, not completed
       - label: Deploy remaining 8 account and region stacks
         detail: Terraform approach agreed May 7. Not started since.
         due: "2026-06-20"
@@ -67,7 +67,7 @@ components:
             color: teal
           - label: Phase 2
 
-      # Slip — due after original_due
+      # Slip - due after original_due
       - label: Confirm autoclose threshold for deployment patterns
         detail: Backend enabled May 27. Interface work still open.
         due: "2026-07-30"
@@ -79,7 +79,7 @@ components:
             color: teal
           - label: Phase 4
 
-      # Pull-in — due before original_due
+      # Pull-in - due before original_due
       - label: Configure severity-based routing
         detail: Customer accelerated timeline after incident last week.
         due: "2026-07-29"
@@ -91,7 +91,7 @@ components:
             color: teal
           - label: Phase 4
 
-      # Drift — horizon says "later" but due date says this week
+      # Drift - horizon says "later" but due date says this week
       - label: Migrate legacy alert rules
         detail: Marked low-priority but deadline crept up during planning.
         due: "2026-07-30"
@@ -121,7 +121,7 @@ components:
             color: teal
           - label: Phase 4
 
-      # Explicit horizon — no date needed
+      # Explicit horizon - no date needed
       - label: Evaluate replacement SIEM vendors
         detail: Discovery calls scheduled for mid-August.
         horizon: next
@@ -141,7 +141,7 @@ components:
             color: teal
           - label: Phase 2
 
-      # Later — 8+ weeks
+      # Later - 8+ weeks
       - label: Annual security review
         detail: Scheduled for Q4. Legal team coordinating.
         due: "2026-10-15"
@@ -151,7 +151,7 @@ components:
             color: teal
           - label: Compliance
 
-      # Completed — past due but done, should not appear overdue
+      # Completed - past due but done, should not appear overdue
       - label: Deploy initial Maze stack
         detail: Finished two days early.
         due: "2026-07-15"

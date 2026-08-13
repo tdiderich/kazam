@@ -147,7 +147,7 @@ const SEARCH: &str = r#"
   function render(hits) {
     selected = -1;
     if (loadFailed) {
-      results.innerHTML = '<div class="site-search-empty">Search is unavailable — the index failed to load. Reload the page to retry.</div>';
+      results.innerHTML = '<div class="site-search-empty">Search is unavailable - the index failed to load. Reload the page to retry.</div>';
       announce('Search unavailable');
       return;
     }
@@ -705,13 +705,13 @@ const SOURCE_EDIT: &str = r#"
       if (r.ok) { setStatus('Saved', 'ok'); }
       else {
         r.text().then(function (t) {
-          setStatus('Save failed: ' + t + ' — fix the YAML and press Save (or ⌘S) to retry.', 'error');
+          setStatus('Save failed: ' + t + ' - fix the YAML and press Save (or ⌘S) to retry.', 'error');
         });
       }
       saveBtn.disabled = false;
     })
     .catch(function (e) {
-      setStatus('Save failed: ' + e.message + ' — is the dev server still running? Retry with Save (or ⌘S).', 'error');
+      setStatus('Save failed: ' + e.message + ' - is the dev server still running? Retry with Save (or ⌘S).', 'error');
       saveBtn.disabled = false;
     });
   }

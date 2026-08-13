@@ -55,7 +55,7 @@ components:
     components:
       - type: markdown
         body: |
-          Row of linked buttons. Three variants — `primary` (solid teal), `secondary`
+          Row of linked buttons. Three variants - `primary` (solid teal), `secondary`
           (outlined), `ghost` (no border). Set `external: true` to add a `↗` icon and
           open in a new tab. Optional `icon:` names any bundled lucide icon.
 
@@ -93,7 +93,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: That's the full component set. See them composed into real pages — docs, decks, briefs, dashboards, API references.
+    body: That's the full component set. See them composed into real pages - docs, decks, briefs, dashboards, API references.
     links:
       - label: See examples
         href: ../about.html

@@ -114,7 +114,7 @@ fn find_template(name: &str) -> Option<&'static Template> {
 pub fn list() -> Result<()> {
     println!("Available action templates:");
     for t in TEMPLATES {
-        println!("  {:<12}— {}", t.name, t.description);
+        println!("  {:<12}- {}", t.name, t.description);
     }
     Ok(())
 }

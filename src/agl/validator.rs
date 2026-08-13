@@ -102,7 +102,7 @@ pub fn validate(spec: &AglSpec, state_lines: &HashMap<String, usize>) -> Vec<Dia
 }
 
 /// Cross-checks the spec's own `requires:` declaration against what the
-/// flow actually calls. Only runs when `requires` is non-empty — specs
+/// flow actually calls. Only runs when `requires` is non-empty - specs
 /// written before this field existed declare nothing and get no warnings,
 /// so this is a strictly opt-in check exercised by authoring a `requires:`
 /// line, not a flag.
@@ -161,7 +161,7 @@ fn check_tool_dependencies(
 /// Opt-in tool-name existence check: for every `call(...)`/`map(...)` in the
 /// flow, warn if its function string isn't present in `manifest` (an
 /// exact/case-insensitive match against a flat list of dotted
-/// `Server.method` names). This is deliberately thin — a name-existence
+/// `Server.method` names). This is deliberately thin - a name-existence
 /// check only, not schema validation; the manifest is hand-maintained and
 /// has no notion of a server's actual tool/argument schema. Only called
 /// when the caller has an explicit `--tools` manifest, so it never changes
@@ -249,7 +249,7 @@ fn check_reference_integrity(
                     diags,
                 ),
                 None => {
-                    // Orphaned branch — already reported by check_branch_integrity.
+                    // Orphaned branch - already reported by check_branch_integrity.
                 }
             }
         }
@@ -308,7 +308,7 @@ fn check_target(
     }
 }
 
-/// Pure graph successors (no diagnostics) — used by reachability, cycle
+/// Pure graph successors (no diagnostics) - used by reachability, cycle
 /// detection, and invariant path analysis alike.
 fn successors(
     target: &TransitionTarget,
@@ -424,7 +424,7 @@ fn check_cycles(
             Diagnostic::error(
                 "non-terminating-cycle",
                 format!(
-                    "state '{name}' is part of a cycle that never reaches TERMINATE — every path must terminate"
+                    "state '{name}' is part of a cycle that never reaches TERMINATE - every path must terminate"
                 ),
                 name.clone(),
             )
@@ -502,7 +502,7 @@ fn check_branch_integrity(
             diags.push(Diagnostic::warning(
                 "branch-not-exhaustive",
                 format!(
-                    "branch '{key}' only handles condition '{}' with no fallback case — \
+                    "branch '{key}' only handles condition '{}' with no fallback case - \
                      unmatched inputs will dead-end at runtime",
                     block.cases[0].condition
                 ),
@@ -692,7 +692,7 @@ fn check_invariant_soundness(
                             Diagnostic::warning(
                                 "invariant-constraint-unchecked",
                                 format!(
-                                    "state '{}' calls '{function}' but doesn't pass '{}' — \
+                                    "state '{}' calls '{function}' but doesn't pass '{}' - \
                                      cannot statically confirm constraint '{condition}' holds",
                                     state.name, input.name
                                 ),
@@ -1076,7 +1076,7 @@ mod tests {
 
     #[test]
     fn tool_dependency_checks_are_silent_when_requires_is_absent() {
-        // TOOL_SPEC has no `requires:` line at all — the check must not
+        // TOOL_SPEC has no `requires:` line at all - the check must not
         // fire just because a call() exists with nothing declared.
         let parsed = parse(TOOL_SPEC).unwrap();
         let diags = validate(&parsed.spec, &parsed.state_lines);

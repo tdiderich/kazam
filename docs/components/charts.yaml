@@ -13,7 +13,7 @@ components:
   - type: header
     title: Charts
     eyebrow: Reference
-    subtitle: Three kinds — pie, bar, timeseries — rendered as inline SVG at build time. No JS, no runtime. Add a second dimension by passing `series:` instead of `data:`.
+    subtitle: Three kinds - pie, bar, timeseries - rendered as inline SVG at build time. No JS, no runtime. Add a second dimension by passing `series:` instead of `data:`.
 
   # ── pie ────────────────────────────────────
   - type: section
@@ -21,7 +21,7 @@ components:
     heading: Slice of total
     components:
       - type: markdown
-        body: "Single-series only. Each slice takes a `label`, `value`, and optional `color`. Percentages are computed from the values you give — no need to pre-normalize to 100."
+        body: "Single-series only. Each slice takes a `label`, `value`, and optional `color`. Percentages are computed from the values you give - no need to pre-normalize to 100."
 
       - type: chart
         kind: pie
@@ -190,7 +190,7 @@ components:
     heading: Time series
     components:
       - type: markdown
-        body: "A line per series. X-axis is treated as ordered buckets — pass your dates (or weeks, or sprints) as `label:` and they render in the order you list them. When there are many buckets, kazam thins the tick labels automatically."
+        body: "A line per series. X-axis is treated as ordered buckets - pass your dates (or weeks, or sprints) as `label:` and they render in the order you list them. When there are many buckets, kazam thins the tick labels automatically."
 
       - type: chart
         kind: timeseries
@@ -221,7 +221,7 @@ components:
     heading: Multi-line timeseries
     components:
       - type: markdown
-        body: "Multiple series render as overlaid lines — one per segment. Each point gets a hover tooltip with the exact value."
+        body: "Multiple series render as overlaid lines - one per segment. Each point gets a hover tooltip with the exact value."
 
       - type: chart
         kind: timeseries

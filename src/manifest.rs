@@ -1,4 +1,4 @@
-//! Emits `_site/site.json` — a structured JSON index of every page in the
+//! Emits `_site/site.json` - a structured JSON index of every page in the
 //! build. Lets any HTTP client treat the static site as a headless API and
 //! lets drift dashboards consume per-page freshness status without parsing HTML.
 

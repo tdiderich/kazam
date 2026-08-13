@@ -14,7 +14,7 @@ pub fn run(path: &Path) -> Result<()> {
     match ext.as_str() {
         "md" | "yaml" | "yml" | "json" => {}
         _ => anyhow::bail!(
-            "unsupported format '.{ext}' — kazam show supports .md, .yaml, .yml, .json"
+            "unsupported format '.{ext}' - kazam show supports .md, .yaml, .yml, .json"
         ),
     }
 

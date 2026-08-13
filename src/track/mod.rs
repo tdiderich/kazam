@@ -347,7 +347,7 @@ fn cmd_import(project: &Path, file: &str, dry_run: bool, json: bool) -> Result<(
                 .collect();
             json_ok(&serde_json::json!({ "dry_run": true, "tasks": items }));
         } else {
-            println!("  dry run — {} tasks found in {file}:", tasks.len());
+            println!("  dry run - {} tasks found in {file}:", tasks.len());
             for (title, parent) in &tasks {
                 if parent.is_none() {
                     println!("    ★ {title} (epic)");
@@ -481,7 +481,7 @@ fn cmd_add(
     if json {
         json_ok(&task);
     } else {
-        println!("  ✓ {id} — {title}");
+        println!("  ✓ {id} - {title}");
     }
     Ok(())
 }
@@ -758,7 +758,7 @@ fn cmd_show(project: &Path, id: &str, json: bool) -> Result<()> {
         };
         json_ok(&rt);
     } else {
-        println!("  {} — {}", task.id, task.title);
+        println!("  {} - {}", task.id, task.title);
         println!(
             "  status: {}  priority: {}  type: {}",
             task.status, task.priority, task.task_type
@@ -817,7 +817,7 @@ fn cmd_dep_add(project: &Path, blocker: &str, blocked: &str, json: bool) -> Resu
         if json {
             json_err(&format!("cycle detected involving {cycle}"));
         } else {
-            bail!("cycle detected involving {cycle} — dependency not added");
+            bail!("cycle detected involving {cycle} - dependency not added");
         }
         return Ok(());
     }
@@ -897,7 +897,7 @@ fn cmd_log_list(project: &Path, limit: usize, json: bool) -> Result<()> {
                 .as_deref()
                 .map(|s| format!(" [{s}]"))
                 .unwrap_or_default();
-            println!("  {} —{src} {}", e.date, e.title);
+            println!("  {} -{src} {}", e.date, e.title);
         }
     }
     Ok(())

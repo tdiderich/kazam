@@ -767,7 +767,7 @@ pub(super) fn parse_markdown_inline(md: &str) -> String {
 /// Render a table cell: HTML-escape the raw value, then linkify any
 /// `[text](url)` spans. Only `http(s)://`, `mailto:`, and path-like relative
 /// URLs are accepted; anything else (e.g. `javascript:`) stays as literal
-/// escaped text. Intentionally narrow — cells only grow links, not bold /
+/// escaped text. Intentionally narrow - cells only grow links, not bold /
 /// italic / code.
 fn render_cell(v: &str) -> String {
     let escaped = esc(v);
@@ -2084,7 +2084,7 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
         return Rendered::new(h);
     }
 
-    // Geometry constants — viewBox is sized so the 3-set bounding box leaves
+    // Geometry constants - viewBox is sized so the 3-set bounding box leaves
     // ~30-40px of breathing room on every side at default radius. Circles
     // stay at r=90 regardless of layout so 2-set and 3-set look at the same
     // visual scale.
@@ -2127,7 +2127,7 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
         ));
     }
 
-    // Set labels — placed outside the central overlap so they read cleanly.
+    // Set labels - placed outside the central overlap so they read cleanly.
     for (i, set) in sets.iter().take(centers.len()).enumerate() {
         let (cx, cy) = centers[i];
         // Offset away from the diagram centroid, then label that point.
@@ -2147,7 +2147,7 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
     }
 
     // Overlap labels. For pairwise overlaps in a 3-set venn the naïve centroid
-    // of the two circles lands too close to the triangle centroid — every
+    // of the two circles lands too close to the triangle centroid - every
     // pairwise label collides with the 3-way overlap label in the middle. Push
     // pairwise labels outward from the un-included set's center so they land
     // in the actual lune (the part of the overlap that excludes the third set).
@@ -2430,7 +2430,7 @@ fn blockquote(body: &str, attribution: &Option<String>) -> Rendered {
     );
     if let Some(a) = attribution {
         h.push_str(&format!(
-            r#"<figcaption class="c-blockquote-attribution">— {}</figcaption>"#,
+            r#"<figcaption class="c-blockquote-attribution">- {}</figcaption>"#,
             esc(a)
         ));
     }
@@ -2982,7 +2982,7 @@ mod tests {
     #[test]
     fn render_cell_preserves_multibyte_text() {
         // Em dash (3 bytes in UTF-8) must survive unchanged.
-        assert_eq!(render_cell("One — two"), "One — two");
+        assert_eq!(render_cell("One - two"), "One - two");
         assert_eq!(
             render_cell("[résumé](https://example.com/cv)"),
             r#"<a href="https://example.com/cv">résumé</a>"#

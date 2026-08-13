@@ -236,8 +236,8 @@ fn derive_dir_description(files: &[&FileEntry]) -> Option<String> {
 
 /// Build and write the two-tier layered anatomy files (TSV format).
 /// Writes:
-///   - `ctx/anatomy.tsv`  — summary (root files + directory rollups)
-///   - `ctx/anatomy/<dir>.tsv` — per-directory file listings
+///   - `ctx/anatomy.tsv`  - summary (root files + directory rollups)
+///   - `ctx/anatomy/<dir>.tsv` - per-directory file listings
 ///   - Also removes stale `.yaml` anatomy files (except `anatomy.flat.yaml`).
 pub fn write_layered(project: &Path, store: &AnatomyStore) -> Result<()> {
     let ctx_dir = workspace::root(project).join("ctx");
@@ -378,7 +378,7 @@ pub fn check(project: &Path) -> Result<ScanDiff> {
         });
     };
 
-    // If parse fails (e.g., anatomy.yaml is now a summary not a flat store), return empty diff
+    // If parse fails (ex. anatomy.yaml is now a summary not a flat store), return empty diff
     let stored: AnatomyStore = match workspace::read_yaml(&stored_path).context("read anatomy") {
         Ok(s) => s,
         Err(_) => {

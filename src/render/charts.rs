@@ -1,4 +1,4 @@
-//! Build-time SVG chart renderer. Three kinds — pie, bar, timeseries — with an
+//! Build-time SVG chart renderer. Three kinds - pie, bar, timeseries - with an
 //! optional second dimension via `series:`. No JS, no runtime deps.
 //!
 //! Chart colors use the canonical `SemColor` hexes (teal/green/yellow/red)
@@ -12,7 +12,7 @@ use crate::types::{ChartKind, ChartOrientation, ChartPoint, ChartSeries, SemColo
 
 const VB_W: f64 = 720.0;
 
-/// Bundle of chart render inputs. Mirrors the `Component::Chart` fields —
+/// Bundle of chart render inputs. Mirrors the `Component::Chart` fields -
 /// passed as one arg so the entry point isn't a 7-positional-parameter blob.
 pub struct ChartSpec<'a> {
     pub kind: ChartKind,
@@ -181,7 +181,7 @@ fn cycle_color(idx: usize) -> SemColor {
 
 fn render_pie(series: &[NormSeries], height: u32) -> String {
     // Pie is always single-series. If the user accidentally passed `series:`
-    // with multiple entries, flatten the first one — matches the "pie = one
+    // with multiple entries, flatten the first one - matches the "pie = one
     // ring of slices" mental model rather than silently dropping data.
     let Some(first) = series.first() else {
         return empty_svg(height);
@@ -359,7 +359,7 @@ fn render_bar_vertical(
             let title = if s.label.is_empty() {
                 format!("{}: {}", bucket, fmt_num(v))
             } else {
-                format!("{} — {}: {}", s.label, bucket, fmt_num(v))
+                format!("{} - {}: {}", s.label, bucket, fmt_num(v))
             };
             out.push_str(&format!(
                 r#"<rect x="{x:.2}" y="{y:.2}" width="{w:.2}" height="{seg_h:.2}" fill="{fill}" class="c-chart-bar"><title>{title}</title></rect>"#,
@@ -463,7 +463,7 @@ fn render_bar_horizontal(
             let title = if s.label.is_empty() {
                 format!("{}: {}", bucket, fmt_num(val))
             } else {
-                format!("{} — {}: {}", s.label, bucket, fmt_num(val))
+                format!("{} - {}: {}", s.label, bucket, fmt_num(val))
             };
             out.push_str(&format!(
                 r#"<rect x="{x:.2}" y="{y:.2}" width="{w:.2}" height="{seg_h:.2}" fill="{fill}" class="c-chart-bar"><title>{title}</title></rect>"#,
@@ -513,7 +513,7 @@ fn render_timeseries(
     }
 
     // Timeseries = multi-line (not stacked). Max is the largest single value
-    // across all series — each line needs its own y-space, not a summed one.
+    // across all series - each line needs its own y-space, not a summed one.
     let max_val = series
         .iter()
         .flat_map(|s| s.points.iter())
@@ -592,7 +592,7 @@ fn render_timeseries(
             let title = if s.label.is_empty() {
                 format!("{}: {}", bucket, fmt_num(p.value))
             } else {
-                format!("{} — {}: {}", s.label, bucket, fmt_num(p.value))
+                format!("{} - {}: {}", s.label, bucket, fmt_num(p.value))
             };
             dots.push_str(&format!(
                 r#"<circle cx="{x:.2}" cy="{y:.2}" r="3" fill="{stroke}" class="c-chart-dot"><title>{title}</title></circle>"#,
@@ -697,7 +697,7 @@ fn empty_svg(height: u32) -> String {
 
 fn fmt_num(v: f64) -> String {
     if v.is_nan() || v.is_infinite() {
-        return "—".into();
+        return "-".into();
     }
     if v.fract().abs() < 1e-9 {
         return format!("{}", v as i64);
@@ -707,7 +707,7 @@ fn fmt_num(v: f64) -> String {
     trimmed.to_string()
 }
 
-/// Round `raw` to a "nice" number — one of {1,2,5} * 10^n. `round=true` picks
+/// Round `raw` to a "nice" number - one of {1,2,5} * 10^n. `round=true` picks
 /// the nearest nice step for tick spacing; `round=false` picks the next nice
 /// number ≥ raw for the axis extent.
 fn nice_number(raw: f64, round: bool) -> f64 {

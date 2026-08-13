@@ -4,7 +4,7 @@ shell: standard
 components:
 - type: section
   eyebrow: "SANKEY"
-  heading: "Finding Flow — Vulnerability Triage Pipeline"
+  heading: "Finding Flow - Vulnerability Triage Pipeline"
   components:
   - type: sankey
     title: "Scanner → Maze → Outcome"
@@ -46,7 +46,7 @@ components:
 
 - type: section
   eyebrow: "RADAR"
-  heading: "Security Program Maturity — Before & After"
+  heading: "Security Program Maturity - Before & After"
   components:
   - type: radar
     title: "Maturity Scorecard"
@@ -112,7 +112,7 @@ components:
   heading: "Deployment Topology"
   components:
   - type: architecture
-    title: "Alloy — Maze Deployment"
+    title: "Alloy - Maze Deployment"
     height: 280
     direction: left_to_right
     nodes:

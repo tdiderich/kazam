@@ -1,4 +1,4 @@
-//! `kazam install` — fetch an AI tool pack page from a curata instance and
+//! `kazam install` - fetch an AI tool pack page from a curata instance and
 //! compile it into local AI tool config files (CLAUDE.md + .cursorrules).
 //!
 //! A pack is an ordinary curata page (usually created from the `ai-tool-pack`
@@ -34,13 +34,13 @@ impl InstallScope {
     }
 }
 
-/// Resolve `$HOME`. macOS/Linux only — there is no Windows user-scope mapping
+/// Resolve `$HOME`. macOS/Linux only - there is no Windows user-scope mapping
 /// yet.
 fn home_dir() -> Result<PathBuf> {
     match std::env::var_os("HOME") {
         Some(h) => Ok(PathBuf::from(h)),
         None => bail!(
-            "HOME is not set — cannot resolve a user-scope install path (macOS/Linux only). \
+            "HOME is not set - cannot resolve a user-scope install path (macOS/Linux only). \
              Pass --repo to install into this directory instead."
         ),
     }
@@ -49,7 +49,7 @@ fn home_dir() -> Result<PathBuf> {
 /// Where to write a resolved target's rules file for a scope. Repo scope
 /// writes every target at the repo root, unchanged from before user scope
 /// existed. User scope only supports the `claude` target, written inside
-/// `claude_dir` (i.e. `~/.claude/CLAUDE.md`) — other tools have no shared
+/// `claude_dir` (i.e. `~/.claude/CLAUDE.md`) - other tools have no shared
 /// user-level config home, so this returns `None` and the caller warns and
 /// skips. Takes `claude_dir` already resolved so it is unit-testable without
 /// touching the real `HOME`.
@@ -128,7 +128,7 @@ fn parse_pack_url(input: &str) -> Result<(String, String, Option<String>)> {
 
     if segs.is_empty() {
         bail!(
-            "no page slug in '{}' — expected <instance>/pages/<slug> or <instance>/<slug>",
+            "no page slug in '{}' - expected <instance>/pages/<slug> or <instance>/<slug>",
             input
         );
     }
@@ -241,7 +241,7 @@ fn upsert_block(existing: Option<&str>, slug: &str, block: &str) -> Result<Strin
             if let Some(s) = text.find(&start) {
                 let e = text[s..].find(&end).with_context(|| {
                     format!(
-                        "found '{}' but no matching end marker — file corrupt, fix by hand",
+                        "found '{}' but no matching end marker - file corrupt, fix by hand",
                         start
                     )
                 })?;
@@ -316,7 +316,7 @@ fn fetch_rest(base: &str, slug: &str, api_key: Option<&str>) -> Result<Option<(S
         Err(ureq::Error::Status(404, _)) => return Ok(None),
         Err(ureq::Error::Status(401, _)) => {
             bail!(
-                "unauthorized fetching '{}' from {} — {}",
+                "unauthorized fetching '{}' from {} - {}",
                 slug,
                 endpoint,
                 AUTH_HINT
@@ -344,7 +344,7 @@ fn fetch_rest(base: &str, slug: &str, api_key: Option<&str>) -> Result<Option<(S
     }
     let result = parsed
         .get("result")
-        .context("response missing 'result' — is this a curata /api/mcp endpoint?")?;
+        .context("response missing 'result' - is this a curata /api/mcp endpoint?")?;
     extract_page(result, slug).map(Some)
 }
 
@@ -363,7 +363,7 @@ fn fetch_stream(base: &str, slug: &str, api_key: Option<&str>) -> Result<(String
         Ok(r) => r,
         Err(ureq::Error::Status(401, _)) => {
             bail!(
-                "unauthorized fetching '{}' from {} — {}",
+                "unauthorized fetching '{}' from {} - {}",
                 slug,
                 endpoint,
                 AUTH_HINT
@@ -488,7 +488,7 @@ fn fetch_via_mcp(base: &str, slug: &str, api_key: Option<&str>) -> Result<String
 }
 
 /// First `{{variable}}` placeholder left in the text, if any. Pages created
-/// from templates can carry unfilled variables — installing those would ship
+/// from templates can carry unfilled variables - installing those would ship
 /// literal `{{rules_markdown}}` into someone's CLAUDE.md.
 fn find_unfilled_var(text: &str) -> Option<&str> {
     let mut rest = text;
@@ -550,7 +550,7 @@ fn resolve_targets(targets: &[String]) -> Result<Vec<&'static str>> {
         match target_file(t) {
             Some(f) => files.push(f),
             None => bail!(
-                "unknown target \"{}\" — supported: {}",
+                "unknown target \"{}\" - supported: {}",
                 t,
                 KNOWN_TARGETS.join(", ")
             ),
@@ -581,7 +581,7 @@ pub fn run(
     let targets = if !cli_override.is_empty() {
         if page.pack.is_none() && !force {
             bail!(
-                "'{}' is not a pack — the page has no top-level pack: block. \
+                "'{}' is not a pack - the page has no top-level pack: block. \
                  Add `pack:` to the page, or rerun with --force.",
                 slug
             );
@@ -592,13 +592,13 @@ pub fn run(
             Some(meta) => resolve_targets(&meta.targets)?,
             None if force => {
                 println!(
-                    "  warning: '{}' has no pack: marker — installing anyway (--force)",
+                    "  warning: '{}' has no pack: marker - installing anyway (--force)",
                     slug
                 );
                 TARGETS.to_vec()
             }
             None => bail!(
-                "'{}' is not a pack — the page has no top-level pack: block. \
+                "'{}' is not a pack - the page has no top-level pack: block. \
                  Add `pack:` (optionally with targets:) to the page, or rerun with --force \
                  to install any page's markdown at your own risk.",
                 slug
@@ -610,7 +610,7 @@ pub fn run(
     collect_markdown(&page.components, &mut bodies);
     if bodies.is_empty() {
         bail!(
-            "pack '{}' has no markdown components — nothing to install. \
+            "pack '{}' has no markdown components - nothing to install. \
              Packs are pages whose rules live in markdown components.",
             slug
         );
@@ -619,7 +619,7 @@ pub fn run(
     let rules = bodies.join("\n\n");
     if let Some(var) = find_unfilled_var(&rules) {
         bail!(
-            "pack '{}' contains an unfilled template variable {{{{{}}}}} — \
+            "pack '{}' contains an unfilled template variable {{{{{}}}}} - \
              fill in the page content before installing",
             slug,
             var
@@ -722,7 +722,7 @@ fn reject_unsafe_hook_fields(yaml: &str) -> Result<()> {
             for banned in ["script", "command", "run", "exec"] {
                 if map.contains_key(serde_yaml::Value::String(banned.to_string())) {
                     bail!(
-                        "pack.hooks[{}] has a '{}' field — packs may not ship executable code; \
+                        "pack.hooks[{}] has a '{}' field - packs may not ship executable code; \
                          hooks are declarative primitives only",
                         i,
                         banned

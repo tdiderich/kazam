@@ -1,4 +1,4 @@
-title: Gamma Inc — Deployment Guide
+title: Gamma Inc - Deployment Guide
 shell: standard
 
 components:
@@ -10,7 +10,7 @@ components:
       - label: Gamma Inc
 
   - type: header
-    title: Gamma Inc — Deployment Guide
+    title: Gamma Inc - Deployment Guide
 
   - type: meta
     fields:
@@ -44,4 +44,4 @@ components:
       3. Identify champion and executive sponsor
       4. Schedule kickoff call for May 5, 2026
 
-      > New logo — referred by Acme Corp. Champion TBD, initial contact is procurement lead Jordan K.
+      > New logo - referred by Acme Corp. Champion TBD, initial contact is procurement lead Jordan K.

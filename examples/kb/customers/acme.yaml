@@ -1,4 +1,4 @@
-title: Acme Corp — Deployment Guide
+title: Acme Corp - Deployment Guide
 shell: standard
 
 components:
@@ -10,7 +10,7 @@ components:
       - label: Acme Corp
 
   - type: header
-    title: Acme Corp — Deployment Guide
+    title: Acme Corp - Deployment Guide
 
   - type: meta
     fields:

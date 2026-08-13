@@ -1,4 +1,4 @@
-//! Lexer for `.agl` source — turns raw text into a flat token stream.
+//! Lexer for `.agl` source - turns raw text into a flat token stream.
 //!
 //! Token recognition uses `winnow` combinators; whitespace/comment skipping
 //! is plain string slicing since it carries no grammar meaning of its own.
@@ -44,13 +44,13 @@ fn is_ident_char(c: char) -> bool {
 }
 
 /// `spec`, `FETCH_CALENDAR`, `GoogleCalendar.get`, `technical-success-hub`,
-/// `NOT`, `no_diff`, ... — every bare word in the grammar, keywords
+/// `NOT`, `no_diff`, ... - every bare word in the grammar, keywords
 /// included; the parser decides what a given ident means from context.
 ///
 /// `-` is a valid ident character (real tool identifiers like
 /// `mcp__technical-success-hub__write_page` are kebab-cased), but it's
 /// never absorbed when it's actually the start of an immediately-following
-/// `->` arrow — `next->TERMINATE(...)`, with no space, must still lex as
+/// `->` arrow - `next->TERMINATE(...)`, with no space, must still lex as
 /// `Ident("next")`, `Arrow`, ..., not swallow the arrow's `-` into the
 /// identifier and choke on a stray `>`. `take_while` can't express that
 /// one-token lookahead, so this scans by hand instead.
@@ -71,7 +71,7 @@ fn ident(input: &mut &str) -> ModalResult<String> {
     Ok(format!("{start}{rest}"))
 }
 
-/// `"..."` — no escape sequences; `.agl` strings are short human messages.
+/// `"..."` - no escape sequences; `.agl` strings are short human messages.
 fn string_lit(input: &mut &str) -> ModalResult<String> {
     let _ = literal("\"").parse_next(input)?;
     let body: &str = take_while(0.., |c| c != '"').parse_next(input)?;

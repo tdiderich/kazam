@@ -391,178 +391,178 @@ curata page can be compiled straight into a repo's AI tool config files.
   and pages with unfilled `{{variables}}` never install. Managed blocks are
   idempotent, carry a source + content-hash header, and coexist one-per-pack.
 
-## [1.5.0] — 2026-05-07
+## [1.5.0] - 2026-05-07
 
 The annotation release. kazam gains a sidecar annotation system, annotation-aware
 agent refresh, hardened HTTP MCP transport, Notion ingestion, a full audit command,
 and wishes-as-recipes. This is the bridge release for curata.
 
 ### Added
-- **Sidecar annotations** — human context stored as individual YAML files in
+- **Sidecar annotations** - human context stored as individual YAML files in
   `.kazam/annotations/<page-slug>/`. CLI: `kazam annotate <page> "text"`.
   MCP tools: `annotate_page`, `list_annotations`, `update_annotation`.
   14-day decay tracking with status lifecycle (pending → incorporated/ignored/stale).
   Build renders annotations inline with age indicators and status badges.
-- **Annotation-aware refresh** — the deal-360 wish prompt reads annotations as
+- **Annotation-aware refresh** - the deal-360 wish prompt reads annotations as
   highest-priority source. Conflict resolution: annotations override CRM/call data.
   Agent updates annotation status after each refresh cycle.
-- **HTTP MCP hardening** — `--local` (127.0.0.1, default) / `--remote` (0.0.0.0)
+- **HTTP MCP hardening** - `--local` (127.0.0.1, default) / `--remote` (0.0.0.0)
   bind modes. `--remote` requires bearer token via `--token` or `KAZAM_MCP_TOKEN`
   env var. CORS includes Authorization header for remote agent access.
-- **`kazam audit`** — site health audit covering freshness compliance, component
+- **`kazam audit`** - site health audit covering freshness compliance, component
   validation, and annotation health. JSON output by default, `--pretty` for
   human-readable.
-- **Notion ingest** — `kazam ingest notion` imports databases, pages, and child
+- **Notion ingest** - `kazam ingest notion` imports databases, pages, and child
   pages. `--all` discovers everything the integration can access. `--stats` for
   metadata-only staleness check. `--dry-run` preview.
-- **Wishes-as-recipes** — wishes are now portable agent recipes in `wishes/`.
+- **Wishes-as-recipes** - wishes are now portable agent recipes in `wishes/`.
   Each has `wish.yaml`, `prompt.md`, optional `page.yaml` template and `script.py`.
   New wishes: `deal-360`, `debrief`, `audit-fix`, `freshness-notifier`, `hubspot-icp`,
   `linear-team-map`, `sources-map`, `notion-ingest`.
-- **Freshness drift** — `kazam freshness drift` checks if source-of-truth files
+- **Freshness drift** - `kazam freshness drift` checks if source-of-truth files
   have changed since pages were last updated. `--repo PREFIX=LOCAL` for multi-repo.
-- **Freshness notify** — `kazam freshness notify` generates a digest of stale
+- **Freshness notify** - `kazam freshness notify` generates a digest of stale
   pages grouped by owner for Slack/email distribution.
-- **`role_map` component** — renders `roles:` from kazam.yaml as clickable
+- **`role_map` component** - renders `roles:` from kazam.yaml as clickable
   jump-point cards. Roles gain an optional `href` field for navigation.
-- **Health dashboard** — `kazam build` now generates `_health.html` with
+- **Health dashboard** - `kazam build` now generates `_health.html` with
   freshness stats (StatGrid, ProgressBar), overdue/due-soon tables, and
   ownership summary. Opt out with `--no-health`.
-- **Template variables in prompts** — `kazam prompt show` expands `{{config}}`
+- **Template variables in prompts** - `kazam prompt show` expands `{{config}}`
   and other variables before output.
 
 ### Changed
-- **MCP server** — 5 → 8 tools. Added `annotate_page`, `list_annotations`,
+- **MCP server** - 5 → 8 tools. Added `annotate_page`, `list_annotations`,
   `update_annotation` alongside existing `read_page`, `list_pages`, `search`,
   `get_config`, `write_page`.
-- **Wishes architecture** — old monolithic wish modules (`wish/brief.rs`,
+- **Wishes architecture** - old monolithic wish modules (`wish/brief.rs`,
   `wish/deck.rs`, `wish/dashboard.rs`) replaced by portable recipe directory
   format in `wishes/`. `kazam wish list` discovers local + registry wishes.
   `kazam wish init <name>` scaffolds from registry.
-- **Search scoring overhaul** — word-boundary detection, tiered field bonuses
+- **Search scoring overhaul** - word-boundary detection, tiered field bonuses
   (title +10, search_terms +8, headings +5, description +3), match context
   snippets shown in results instead of default description.
-- **Freshness-aware search ranking** — overdue pages penalized (-3), expired
+- **Freshness-aware search ranking** - overdue pages penalized (-3), expired
   pages penalized (-5). New `freshness_status` field in search.json.
-- **`kazam init`** — now creates `.kazam/annotations/` alongside track, ctx,
+- **`kazam init`** - now creates `.kazam/annotations/` alongside track, ctx,
   and hooks directories.
 
 ### Fixed
-- **Tree collapse** — toggle JS now loads for all trees with children, not
+- **Tree collapse** - toggle JS now loads for all trees with children, not
   only those with filter toggles. Fixes non-functional chevrons on plain
   trees like org charts.
 
-## [1.3.1] — 2026-05-01
+## [1.3.1] - 2026-05-01
 
 ### Changed
-- **Anatomy format: YAML → TSV** — agent-facing anatomy files
+- **Anatomy format: YAML → TSV** - agent-facing anatomy files
   (`anatomy.tsv`, `anatomy/<dir>.tsv`) now use tab-separated values
   instead of YAML. ~60–80% fewer tokens per read. The internal flat
   store (`anatomy.flat.yaml`) remains YAML for the board and tooling.
   Descriptions are sanitized (tabs replaced with double spaces).
   Old YAML anatomy files are cleaned up automatically on scan.
-- **Dropped `last_scanned` from anatomy output** — agents never used it;
+- **Dropped `last_scanned` from anatomy output** - agents never used it;
   removing it cuts per-entry size further.
-- **Removed dead layered anatomy structs** — `AnatomySummary`,
+- **Removed dead layered anatomy structs** - `AnatomySummary`,
   `DirEntry`, `DirAnatomy` types deleted since TSV replaced YAML
   serialization for the agent-facing layer.
-- **Updated benchmarks** — re-ran with Sonnet 4.6, identical prompts,
+- **Updated benchmarks** - re-ran with Sonnet 4.6, identical prompts,
   git worktrees. Results: 44–46% cheaper, 41–59% faster, 81–94% fewer
   input tokens per turn across 4 real codebases.
 
 ### Added
-- **Benchmark harness** — `benchmarks/run.sh` and `benchmarks/run-all.sh`
+- **Benchmark harness** - `benchmarks/run.sh` and `benchmarks/run-all.sh`
   automate A/B comparisons (kazam vs vanilla) using `claude -p` with
   JSON output. Test definitions in `benchmarks/tests/`.
 
 ### Fixed
-- **Hook format matching** — `retain` logic now matches both nested and
+- **Hook format matching** - `retain` logic now matches both nested and
   legacy flat hook formats (from 1.3.0 fix on this branch).
 
 ### Docs
-- **Nav restructured** — Home → Get Started → Workspace → Sites (Site
+- **Nav restructured** - Home → Get Started → Workspace → Sites (Site
   Guide, Themes, Deploy) → Recipes → Components. Workspace promoted to
   top-level nav item.
-- **Landing page rewritten** — workspace-first hero, three pillars
+- **Landing page rewritten** - workspace-first hero, three pillars
   (tokens, tracking, visibility), updated benchmark stats, condensed
   site-gen section, dual quickstart callouts.
-- **Get Started rewritten** — dual-path tabs (workspace vs sites) with
+- **Get Started rewritten** - dual-path tabs (workspace vs sites) with
   next-up callouts to deep-dive pages.
-- **Site Guide** — `about.yaml` retitled from "Full Tour", workspace
+- **Site Guide** - `about.yaml` retitled from "Full Tour", workspace
   callout removed (workspace has its own page).
-- **Workspace docs polished** — added corrections, consolidation, and
+- **Workspace docs polished** - added corrections, consolidation, and
   rules-override sections. Anatomy examples updated to TSV format.
-- **README updated** — tighter site-gen section, new workspace features
+- **README updated** - tighter site-gen section, new workspace features
   (corrections, consolidation, rules-override), updated benchmarks.
 
-## [1.3.0] — 2026-04-30
+## [1.3.0] - 2026-04-30
 
 kazam is no longer just a static site generator. This release adds a
-full agent workspace — codebase indexing, task tracking, a visual board,
+full agent workspace - codebase indexing, task tracking, a visual board,
 and invisible hooks that wire it all into Claude Code. The positioning
 shifts: kazam is the tool your coding agent didn't know it needed.
 
 ### Added
-- **`kazam workspace init`** — one command to set up an agent workspace
+- **`kazam workspace init`** - one command to set up an agent workspace
   in any repo. Scans the codebase, writes a two-tier anatomy index,
   installs agent hooks, and writes workspace rules. `--agent claude`
   registers Claude Code hooks in `.claude/settings.json`.
   `--skunkworks` auto-creates tasks from TODOs and known patterns.
-- **Two-tier anatomy** — `kazam ctx scan` produces a compact summary
-  (`anatomy.yaml` — root files + top-level directory rollups) and
+- **Two-tier anatomy** - `kazam ctx scan` produces a compact summary
+  (`anatomy.yaml` - root files + top-level directory rollups) and
   per-directory detail files (`anatomy/<dir>.yaml`). Even 5,800-file
   repos compress to a ~68-line summary even with thousands of files. Agents read the summary first,
-  drill into the directory they need — no `find`, no `grep`, no wasted
+  drill into the directory they need - no `find`, no `grep`, no wasted
   turns. Path-aware descriptions infer file roles from directory
   conventions (routes/, models/, lib/, etc.).
-- **Task tracking** — `kazam track add|claim|close|block|ready|list`.
+- **Task tracking** - `kazam track add|claim|close|block|ready|list`.
   Tasks live in `.kazam/track/tasks.yaml`, survive session restarts and
   context compaction. `ready --json` returns unblocked tasks sorted by
-  priority — the entry point for any session start or context recovery.
-- **`kazam board`** — themed, auto-refreshing local dashboard showing
+  priority - the entry point for any session start or context recovery.
+- **`kazam board`** - themed, auto-refreshing local dashboard showing
   task status, codebase anatomy, and activity log. Built with kazam's
   own rendering engine. Auto-refreshes on any `.kazam/*.yaml` change.
-- **Agent hooks** — three Claude Code hooks installed by
+- **Agent hooks** - three Claude Code hooks installed by
   `workspace init`: session-start (surfaces drift + ready tasks),
   post-write (logs file modifications), session-stop (rescans anatomy).
   Silent when nothing is actionable.
-- **Workspace rules** — `.claude/rules/kazam-workspace.md` teaches the
+- **Workspace rules** - `.claude/rules/kazam-workspace.md` teaches the
   agent to use anatomy-first navigation, structured task tracking, and
   commit-triggered task closing. Suppresses built-in TaskCreate/TaskUpdate
   in favor of kazam's tracking.
-- **Settings merge** — `workspace init` appends kazam hook entries to
+- **Settings merge** - `workspace init` appends kazam hook entries to
   existing `.claude/settings.json` arrays instead of replacing them.
   Deduplicates by description prefix on re-init.
-- **Context enrichment** — `kazam ctx describe`, `kazam ctx learn`,
+- **Context enrichment** - `kazam ctx describe`, `kazam ctx learn`,
   `kazam ctx bug` for agents to record what they discover during work.
 
 ### Changed
-- README rewritten — workspace-first positioning, benchmark results,
+- README rewritten - workspace-first positioning, benchmark results,
   dual quickstart (workspace + static sites).
 - `Cargo.toml` description and keywords reflect the dual identity.
 
-## [1.2.2] — 2026-04-28
+## [1.2.2] - 2026-04-28
 
 Three new components plus a small set of polish fixes that surfaced
 during a real-data review against a live customer page.
 
 ### Added
-- **`event_timeline`** — vertical event history with optional Major/All
+- **`event_timeline`** - vertical event history with optional Major/All
   filter toggle. Per-event date, severity (`major | minor | info`),
   optional source chip, and external link. When a `summary` is provided
   the event collapses behind a native `<details>` toggle (no JS for
   expand/collapse). Filter toggle is a tiny class-swap script.
-- **`tree`** — recursive nested status tree. Each node has a label,
+- **`tree`** - recursive nested status tree. Each node has a label,
   optional inline note, and per-node status (`default | completed |
   active | blocked | upcoming`). Status drives glyph + color. Optional
   filter toggle with three modes:
-  - `all` — everything visible
-  - `incomplete` — hides completed nodes (a completed branch correctly
+  - `all` - everything visible
+  - `incomplete` - hides completed nodes (a completed branch correctly
     hides its descendants)
-  - `blocked` — shows only blocked nodes plus their ancestor chain;
+  - `blocked` - shows only blocked nodes plus their ancestor chain;
     server walks the tree and marks ancestors with
     `data-has-blocked-descendant` so the path-to-root keeps context.
-- **`venn`** — two- or three-set venn diagram, native inline SVG. Per-set
+- **`venn`** - two- or three-set venn diagram, native inline SVG. Per-set
   color flows through the `SemColor` enum; optional `overlaps[].sets`
   (length 2 or 3) place intersection labels. For pairwise overlaps in a
   3-set venn the label is pushed away from the un-included set's center
@@ -578,18 +578,18 @@ during a real-data review against a live customer page.
   headers with zero breathing room. Bumped to `margin: 32px 0` for both
   labeled and unlabeled variants.
 
-## [1.2.1] — 2026-04-27
+## [1.2.1] - 2026-04-27
 
 A patch release that exists almost entirely so the v1.2 launch carousel
 could be built with kazam itself. The punchline writes itself.
 
 ### Added
-- **`print_flow: square` for `shell: deck` pages** — one slide per
+- **`print_flow: square` for `shell: deck` pages** - one slide per
   8.5in × 8.5in page, content vertically centered, no letterbox. Built
   for LinkedIn document carousels and other near-square viewports where
   the existing 4:3 landscape mode shrinks each slide into wasted space.
   Set it in the deck's frontmatter, print to PDF, drag the file into a
-  LinkedIn "Add a document" post — no other tweaks required.
+  LinkedIn "Add a document" post - no other tweaks required.
 
 ### Fixed
 - **Deck slides no longer top-anchor when printed.** The deck shell's
@@ -601,14 +601,14 @@ could be built with kazam itself. The punchline writes itself.
   actually works against the print page. Affects all print modes
   (`slides`, `continuous`, and the new `square`).
 
-## [1.2.0] — 2026-04-25
+## [1.2.0] - 2026-04-25
 
-Second wish drop in the 8-week series — `kazam wish brief` — plus a
+Second wish drop in the 8-week series - `kazam wish brief` - plus a
 shared MCP-aware yolo posture across every wish, and an href-resolution
 fix that aligns the renderer with HTML/Markdown semantics.
 
 ### Added
-- `kazam wish brief` — generates a short, print-optimized `shell: document`
+- `kazam wish brief` - generates a short, print-optimized `shell: document`
   artifact for a meeting, incident, vendor sync, 1:1, or exec readout.
   Same three-mode shape as `wish deck`: guided (scaffold `wish-brief/`
   + `questions.md` + `reference/`, drop context, rerun to grant),
@@ -623,16 +623,16 @@ fix that aligns the renderer with HTML/Markdown semantics.
   gather real context. Public/external topics ("the history of TLS",
   "a deck about coffee") never trigger MCP. Wired into both `wish deck`
   and `wish brief`.
-- **MCP-first rule for `wish brief --yolo`** — for any topic that names a
+- **MCP-first rule for `wish brief --yolo`** - for any topic that names a
   person, company, meeting, deal, ticket, channel, or incident, the
   agent's first actions are MCP lookups (HubSpot → Calendar → Granola →
-  Linear → Slack → Attention). Every concrete claim in the brief —
-  attendee names, dates, deal amounts, prior-call counts — must trace
+  Linear → Slack → Attention). Every concrete claim in the brief -
+  attendee names, dates, deal amounts, prior-call counts - must trace
   to a tool result. When a tool returns nothing, the brief writes
-  `TBD — confirm before sending` instead of fabricating. Briefs are
+  `TBD - confirm before sending` instead of fabricating. Briefs are
   artifacts the user walks into real meetings carrying; invented
   specifics are a hard failure, not a creative liberty.
-- `docs/examples/brief.yaml` — worked partner-renewal-sync brief, used
+- `docs/examples/brief.yaml` - worked partner-renewal-sync brief, used
   as the in-workspace `reference/example-brief.yaml` and as a use-case
   example linked from the docs site.
 
@@ -647,27 +647,27 @@ fix that aligns the renderer with HTML/Markdown semantics.
   buttons routed to `/kazam/content.html` instead of
   `/kazam/components/content.html`). The link analyzer already used the
   HTML/Markdown convention; the renderer now matches it.
-- `docs/wishes.yaml` — `kazam wish brief` flipped from `planned` to
+- `docs/wishes.yaml` - `kazam wish brief` flipped from `planned` to
   `shipped` and now links to its rendered example.
-- `docs/index.yaml` — the meeting-agendas use-case card surfaces both
+- `docs/index.yaml` - the meeting-agendas use-case card surfaces both
   the agenda and brief examples.
 
 ### Fixed
 - Docs `Content components` page no longer advertises a `kbd` section in
-  its subtitle — `kbd` lives on the Indicators page. The component
+  its subtitle - `kbd` lives on the Indicators page. The component
   count badge on the index card is now `7`.
 - Docs `kazam.yaml` nav, favicon, and og_image switched to `/`-prefixed
   site-root paths so they remain portable from any page depth.
 
-## [1.0.1] — 2026-04-22
+## [1.0.1] - 2026-04-22
 
-Patch release — three bug fixes reported post-launch.
+Patch release - three bug fixes reported post-launch.
 
 ### Added
 - Table cells linkify `[text](url)` syntax. Scheme-allowlisted
-  (`http://`, `https://`, `mailto:`, and relative paths — `/`, `#`,
+  (`http://`, `https://`, `mailto:`, and relative paths - `/`, `#`,
   `./`, `../`); anything else (`javascript:` etc.) passes through as
-  literal escaped text. Intentionally narrow — cells grow links only,
+  literal escaped text. Intentionally narrow - cells grow links only,
   not bold/italic/code.
 
 ### Fixed
@@ -682,7 +682,7 @@ Patch release — three bug fixes reported post-launch.
   `@media print` restoring reader margins inside the page. `shell: deck`
   and `shell: document` print paths unchanged.
 
-## [1.0.0] — 2026-04-21
+## [1.0.0] - 2026-04-21
 
 The launch release. Earlier `0.x` versions were pre-launch iteration;
 `1.0.0` is the first line we commit to. Everything shipped in the `0.x`
@@ -690,14 +690,14 @@ series is carried forward; the notes below cover only the delta since
 `0.4.0`.
 
 ### Added
-- Anchor `id:` on `section` and `header` components — auto-slugs from
+- Anchor `id:` on `section` and `header` components - auto-slugs from
   `heading` / `title` by default (lowercase, hyphens, punctuation +
   emoji stripped) so `/guide.html#outcomes` links work out of the box.
   Explicit `id:` overrides the slug for stable anchors that survive
   copy edits. Collisions within a page dedupe with `-2`, `-3`, etc.
   Scroll-offset CSS clears the sticky site bar so deep-links don't
   land with the heading hidden behind it.
-- Build-time link report — every `kazam build` now walks the page graph
+- Build-time link report - every `kazam build` now walks the page graph
   and surfaces **orphan pages** (built but unreachable from `index.html`
   or the `nav:`) and **broken internal links** (`.html` hrefs that don't
   match any built page). Silent on clean builds. When anything surfaces,
@@ -706,7 +706,7 @@ series is carried forward; the notes below cover only the delta since
   `kazam build --allow-orphans` silence the orphan check (useful for
   draft pages); broken links always surface. `unlisted: true` on a page
   excludes it from the orphan check.
-- `freshness:` page metadata — declare last-updated date, review cadence,
+- `freshness:` page metadata - declare last-updated date, review cadence,
   owner, and sources-of-truth pointers per page. kazam computes status
   at build time (zero runtime JS) and injects a banner at the top of
   stale pages: **yellow** when the review comes due within 7 days,
@@ -724,7 +724,7 @@ series is carried forward; the notes below cover only the delta since
       - label: "#ts-hub"
         href: https://company.slack.com/archives/C012345
   ```
-- `logo:` field on `kazam.yaml` site config — replaces the text `name:`
+- `logo:` field on `kazam.yaml` site config - replaces the text `name:`
   treatment in the site bar with an `<img>`. Accepts both shorthand
   (`logo: assets/logo.svg`) and expanded object form
   (`logo: { src, height, alt }`). Rendered height is capped at the
@@ -737,7 +737,7 @@ series is carried forward; the notes below cover only the delta since
 - `AGENTS.md` bug-filing + feature-request protocols. When an agent
   reproduces a bug or has a kazam-shaped feature idea, the guide now
   tells it to check `gh auth`, dedup against existing issues/PRs
-  (including closed ones — a closed bug may mean the fix shipped in a
+  (including closed ones - a closed bug may mean the fix shipped in a
   newer version), then file with a consistent template. Feature
   requests also include a scope-check step ("does this fit kazam?")
   before filing, so wontfix noise stays down.
@@ -754,7 +754,7 @@ series is carried forward; the notes below cover only the delta since
 - `kazam dev` now walks forward to the next free port when the
   requested one is in use (matches Vite / Next.js / Parcel UX) instead
   of failing to bind. Prints a one-line warning when it falls back:
-  `⚠ port 3000 is in use — serving on 3001 instead`.
+  `⚠ port 3000 is in use - serving on 3001 instead`.
 - `kazam dev` no longer rebuilds itself in an infinite loop when `out`
   is relative. The watcher canonicalizes `out` up front and also
   ignores any nested `_site` in the watched tree.
@@ -765,17 +765,17 @@ series is carried forward; the notes below cover only the delta since
   directory if one is missing, so the flow works in any fresh empty
   directory without forcing the user to hand-write site config first.
 
-## [0.4.0] — 2026-04-20
+## [0.4.0] - 2026-04-20
 
 ### Added
-- `kazam wish <name>` — scaffolds a `wish-<name>/` workspace with structured
+- `kazam wish <name>` - scaffolds a `wish-<name>/` workspace with structured
   prompts (`questions.md`), usage hints (`README.md`), and a version-matched
   schema + worked example (`reference/`). Fill in what you know, drop real
   context (docs, notes, transcripts, PDFs) into the workspace, then run the
   same command again to grant: kazam shells out to the first agent it finds
   on `$PATH` (Claude, Gemini, Codex, OpenCode) with the workspace as CWD.
   The agent reads everything with its own file tools and writes a populated
-  YAML. kazam itself does no file parsing. First wish: `kazam wish deck` —
+  YAML. kazam itself does no file parsing. First wish: `kazam wish deck` -
   a ~7-slide deck for any topic (QBR, launch review, pitch, retrospective,
   etc.). Flags: `--agent` (force a specific CLI), `--yolo [topic]` (skip
   the workspace, let the agent invent everything), `--dry-run` (print the
@@ -783,7 +783,7 @@ series is carried forward; the notes below cover only the delta since
   (override output path).
 - `/wishes` docs page with the scaffold→grant flow, agent-applications
   panel, and 8-week roadmap.
-- Deck shell typography + layout pass — non-cover slides vertically
+- Deck shell typography + layout pass - non-cover slides vertically
   center their content, inner width widened 900 → 1100px, every content
   primitive steps one type tier up on `shell: deck` so slides read as
   slides, not doc pages. Mobile scales down proportionally.
@@ -811,10 +811,10 @@ series is carried forward; the notes below cover only the delta since
   flows slides as one portrait document with thin separators between them,
   for sharing as a readable artifact rather than a presentation.
 - Chart component renders inline SVG for pie, bar (vertical / horizontal /
-  stacked), and timeseries (single + multi-series) — themed, zero runtime
+  stacked), and timeseries (single + multi-series) - themed, zero runtime
   JS, stackable inside decks/grids/callouts.
 
-## [0.3.0] — 2026-04-18
+## [0.3.0] - 2026-04-18
 
 Renamed from `finro` to `kazam`. No functional changes. Existing
 `cargo install --git` users pick up the rename via GitHub's repository

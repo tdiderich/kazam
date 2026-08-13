@@ -1,6 +1,6 @@
 //! Ingest content from external platforms into kazam page YAML files.
 //!
-//! Currently supports Notion — query a database or walk a page tree and emit
+//! Currently supports Notion - query a database or walk a page tree and emit
 //! one `.yaml` file per page, using the same component model as hand-authored
 //! kazam sites.
 
@@ -426,7 +426,7 @@ impl<'a> BlockConverter<'a> {
                 let final_src = if is_external || src.is_empty() {
                     src.clone()
                 } else {
-                    // Notion-hosted — download to assets/
+                    // Notion-hosted - download to assets/
                     self.image_index += 1;
                     let filename = format!("{}-{}.png", self.page_slug, self.image_index);
                     let dest_rel = format!("assets/images/{}", filename);
@@ -597,7 +597,7 @@ impl<'a> BlockConverter<'a> {
             }
 
             other => {
-                eprintln!("  warning: unknown block type '{}' — skipped", other);
+                eprintln!("  warning: unknown block type '{}' - skipped", other);
             }
         }
         Ok(())
@@ -1286,7 +1286,7 @@ fn print_run_summary(stats: &RunStats, out: &Path, dry_run: bool) {
     };
 
     println!(
-        "\n  Staleness: {}% fresh — {} fresh, {} stale, {} very stale",
+        "\n  Staleness: {}% fresh - {} fresh, {} stale, {} very stale",
         freshness_pct, fresh, stale, very_stale
     );
 
@@ -1385,7 +1385,7 @@ fn collect_page_meta(pages: &[serde_json::Value]) -> Vec<PageMeta> {
 }
 
 fn print_stats(metas: &[PageMeta], source_label: &str) {
-    println!("\n  Notion staleness report — {}\n", source_label);
+    println!("\n  Notion staleness report - {}\n", source_label);
     println!(
         "  {:<45} {:>12} {:>8}  Editor",
         "Page", "Last edited", "Days"

@@ -5,7 +5,7 @@ edit_url: https://github.com/tdiderich/kazam/edit/main/docs
 texture: dots
 glow: accent
 nav_layout: sidebar
-description: The AI-native knowledge base. YAML pages, freshness tracking, prompt templates, MCP server — one Rust binary, no dependencies.
+description: The AI-native knowledge base. YAML pages, freshness tracking, prompt templates, MCP server - one Rust binary, no dependencies.
 url: https://tdiderich.github.io/kazam
 og_image: /assets/og.svg
 nav:

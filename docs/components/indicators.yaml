@@ -85,7 +85,7 @@ components:
     heading: Dot + label
     components:
       - type: markdown
-        body: "A colored dot next to a label — the classic Operational / Degraded / Down pattern."
+        body: "A colored dot next to a label - the classic Operational / Degraded / Down pattern."
 
       - type: columns
         columns:
@@ -115,7 +115,7 @@ components:
     heading: Horizontal progress
     components:
       - type: markdown
-        body: "Linear progress fill with optional label, percentage readout, and trailing detail. Purely static — no indeterminate animation."
+        body: "Linear progress fill with optional label, percentage readout, and trailing detail. Purely static - no indeterminate animation."
 
       - type: progress_bar
         value: 94
@@ -149,7 +149,7 @@ components:
     heading: Keyboard keys
     components:
       - type: markdown
-        body: "Inline keyboard key styling. Pass a list of keys — they render joined by `+`. Great in docs and shortcut hints."
+        body: "Inline keyboard key styling. Pass a list of keys - they render joined by `+`. Great in docs and shortcut hints."
 
       - type: columns
         columns:
@@ -193,7 +193,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Interactive components bring client-side behavior — sortable/filterable tables, tab groups, accordions. All vanilla JS, no framework.
+    body: Interactive components bring client-side behavior - sortable/filterable tables, tab groups, accordions. All vanilla JS, no framework.
     links:
       - label: Interactive
         href: interactive.html

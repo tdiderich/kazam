@@ -1,4 +1,4 @@
-//! `kazam voice` — prints the site's voice configuration from `kazam.yaml`.
+//! `kazam voice` - prints the site's voice configuration from `kazam.yaml`.
 
 use anyhow::Result;
 use std::path::Path;

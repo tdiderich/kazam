@@ -73,7 +73,7 @@ components:
         body: "Distribute components into equal-width columns. Each column is itself a list of components."
 
       - type: markdown
-        body: "**Default** — columns stretch at the grid level, contents sit at natural height:"
+        body: "**Default** - columns stretch at the grid level, contents sit at natural height:"
 
       - type: columns
         columns:
@@ -91,7 +91,7 @@ components:
               body: "Great for comparison layouts. Extra line here. And another."
 
       - type: markdown
-        body: "**`equal_heights: true`** — children grow to fill their column so all three look balanced:"
+        body: "**`equal_heights: true`** - children grow to fill their column so all three look balanced:"
 
       - type: columns
         equal_heights: true
@@ -130,7 +130,7 @@ components:
     heading: Horizontal phase tracker
     components:
       - type: markdown
-        body: "A horizontal row of phases with status indicators. Each item is `completed`, `active`, or `upcoming`. No interaction — purely visual progress."
+        body: "A horizontal row of phases with status indicators. Each item is `completed`, `active`, or `upcoming`. No interaction - purely visual progress."
 
       - type: timeline
         items:
@@ -163,7 +163,7 @@ components:
     heading: Vertical event history with severity filter
     components:
       - type: markdown
-        body: "Vertical chronology with date, severity badge, and optional source/link per event. Each event collapses into a `<details>` body when a `summary` is provided. With `show_filter_toggle: true` a Major-only / All toggle appears at the top — useful for noisy histories where the reader wants the big picture first."
+        body: "Vertical chronology with date, severity badge, and optional source/link per event. Each event collapses into a `<details>` body when a `summary` is provided. With `show_filter_toggle: true` a Major-only / All toggle appears at the top - useful for noisy histories where the reader wants the big picture first."
 
       - type: event_timeline
         default_filter: major
@@ -171,7 +171,7 @@ components:
         events:
           - date: 2026-04-27
             severity: major
-            title: "Weekly sync — Jira asset model confirmed"
+            title: "Weekly sync - Jira asset model confirmed"
             summary: "Working session booked Tuesday 3 PM CT. Two automation rules: create-new + append-to-existing."
             source: granola
             link: https://example.com/notes
@@ -182,7 +182,7 @@ components:
             link: https://example.com/issue
           - date: 2026-04-25
             severity: major
-            title: "First production run — 76.5% noise reduction"
+            title: "First production run - 76.5% noise reduction"
             summary: |
               2,316 investigations across the EKS cluster. High-severity findings dropped from 3,000 to 222.
             source: portal
@@ -204,7 +204,7 @@ components:
             events:
               - date: 2026-04-27
                 severity: major       # major | minor | info (default: minor)
-                title: "Weekly sync — Jira asset model confirmed"
+                title: "Weekly sync - Jira asset model confirmed"
                 summary: |
                   Working session booked Tuesday 3 PM CT.
                 source: granola
@@ -227,7 +227,7 @@ components:
         show_filter_toggle: true
         default_filter: all
         nodes:
-          - label: "Phase 1 — Planning"
+          - label: "Phase 1 - Planning"
             status: completed
             children:
               - label: Identify stakeholders
@@ -236,7 +236,7 @@ components:
                 status: completed
               - label: Identify scanner integrations
                 status: completed
-          - label: "Phase 2 — Initial Configuration"
+          - label: "Phase 2 - Initial Configuration"
             status: active
             children:
               - label: Generate External ID
@@ -248,7 +248,7 @@ components:
                 status: upcoming
               - label: Add initial admin users
                 status: upcoming
-          - label: "Phase 3 — Review and Validate"
+          - label: "Phase 3 - Review and Validate"
             status: upcoming
 
       - type: code
@@ -258,7 +258,7 @@ components:
             default_filter: all          # all (default) | incomplete | blocked
             show_filter_toggle: true     # default: false
             nodes:
-              - label: "Phase 1 — Planning"
+              - label: "Phase 1 - Planning"
                 status: completed       # default | completed | active | blocked | upcoming
                 children:
                   - label: Identify stakeholders
@@ -347,7 +347,7 @@ components:
     heading: Two- or three-set venn (inline SVG)
     components:
       - type: markdown
-        body: "Native inline SVG — no JS, no charting library. Two-set or three-set diagrams supported; per-set color flows through the same `color:` field as cards/badges. Optional `overlaps:` adds intersection labels at the centroid of the involved circles. Renders crisp at any size and inherits theme tokens, so a light/dark theme swap just works."
+        body: "Native inline SVG - no JS, no charting library. Two-set or three-set diagrams supported; per-set color flows through the same `color:` field as cards/badges. Optional `overlaps:` adds intersection labels at the centroid of the involved circles. Renders crisp at any size and inherits theme tokens, so a light/dark theme swap just works."
 
       - type: columns
         equal_heights: true
@@ -408,7 +408,7 @@ components:
           - title: Install the binary
             detail: Build from source with cargo build --release.
           - title: Create a site directory
-            detail: Any directory of .yaml files — kazam walks it recursively.
+            detail: Any directory of .yaml files - kazam walks it recursively.
           - title: Run dev mode
             detail: kazam dev ./my-site watches and live-reloads at localhost:3000.
 
@@ -459,7 +459,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Navigation components thread pages together — breadcrumbs on deep pages, button groups for primary CTAs.
+    body: Navigation components thread pages together - breadcrumbs on deep pages, button groups for primary CTAs.
     links:
       - label: Navigation
         href: navigation.html

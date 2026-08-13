@@ -29,7 +29,7 @@ components:
   - type: markdown
     body: |
       Webhooks push events to a URL you configure. Use them to keep external systems
-      in sync with state changes in your account — new users, payment events, subscription
+      in sync with state changes in your account - new users, payment events, subscription
       changes, and more.
 
   - type: section
@@ -154,13 +154,13 @@ components:
     variant: warn
     title: Idempotency
     body: |
-      Deliveries may retry on failure. Use the `event.id` field as an idempotency key —
+      Deliveries may retry on failure. Use the `event.id` field as an idempotency key -
       we guarantee it's unique across all deliveries of the same event.
 
   - type: callout
     variant: info
     title: Next up
-    body: Other example pages — KBs, decks, landing pages, meeting briefs, API references, dashboards from live data.
+    body: Other example pages - KBs, decks, landing pages, meeting briefs, API references, dashboards from live data.
     links:
       - label: See all use cases
         href: ../about.html

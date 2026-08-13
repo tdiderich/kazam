@@ -23,7 +23,7 @@ components:
 
   - type: section
     eyebrow: Local setup
-    heading: "Stdio transport — single user"
+    heading: "Stdio transport - single user"
     components:
       - type: markdown
         body: |
@@ -78,7 +78,7 @@ components:
 
   - type: section
     eyebrow: Team setup
-    heading: "HTTP transport — serve your whole team"
+    heading: "HTTP transport - serve your whole team"
     components:
       - type: markdown
         body: |
@@ -130,7 +130,7 @@ components:
         body: |
           ### Connecting clients to the remote endpoint
 
-          **Claude Code** — add to `.mcp.json` using the proxy script (see below):
+          **Claude Code** - add to `.mcp.json` using the proxy script (see below):
 
       - type: code
         language: json
@@ -146,9 +146,9 @@ components:
 
       - type: markdown
         body: |
-          **Claude Desktop** — same config in `claude_desktop_config.json`.
+          **Claude Desktop** - same config in `claude_desktop_config.json`.
 
-          **curl** — test the endpoint directly:
+          **curl** - test the endpoint directly:
 
       - type: code
         language: bash
@@ -221,7 +221,7 @@ components:
           2. Open Claude Desktop → Settings → Developer → Edit Config
           3. Add the `mcpServers` entry pointing at the script
           4. Restart Claude Desktop
-          5. Start a new conversation — the MCP tools appear automatically
+          5. Start a new conversation - the MCP tools appear automatically
 
   - type: section
     eyebrow: Reference

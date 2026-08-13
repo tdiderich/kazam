@@ -230,7 +230,7 @@ fn validate_tools_flag_warns_on_unlisted_function() {
         .output()
         .expect("run kazam agl validate --tools");
 
-    // The spec itself is otherwise valid — an unlisted-tool warning alone
+    // The spec itself is otherwise valid - an unlisted-tool warning alone
     // must not flip exit status.
     assert!(
         output.status.success(),

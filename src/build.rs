@@ -121,7 +121,7 @@ pub fn run(
         .into_iter()
         .filter_entry(|e| {
             // Skip the configured output directory (e.g. _site/ nested in
-            // source dir), AND any `_site` folder anywhere in the tree —
+            // source dir), AND any `_site` folder anywhere in the tree -
             // otherwise running kazam from a parent directory that contains
             // previously-built sub-sites would recursively ingest all those
             // `_site/` outputs as if they were source.
@@ -171,7 +171,7 @@ pub fn run(
             let page: Page =
                 serde_yaml::from_str(&content).with_context(|| format!("parsing {:?}", path))?;
 
-            // Semantic validation — catches structural/value errors serde can't.
+            // Semantic validation - catches structural/value errors serde can't.
             let file_str = rel.to_string_lossy().to_string();
             let val_errors = crate::validate::validate_page(&file_str, &page);
             if !val_errors.is_empty() {
@@ -274,7 +274,7 @@ pub fn run(
                 fs::write(&source_view_path, source_view)?;
             }
 
-            // Always copy the raw YAML — llms.txt points at it and it's
+            // Always copy the raw YAML - llms.txt points at it and it's
             // useful for `curl` / programmatic access even without view_source.
             let yaml_out = out.join(rel);
             fs::copy(path, &yaml_out)?;
@@ -337,7 +337,7 @@ pub fn run(
                 .replace('\\', "/");
             page_links.push(crate::links::collect_page_links(&html_rel_for_links, &page));
 
-            // Compute freshness status once — used by both search index and
+            // Compute freshness status once - used by both search index and
             // the stale-page summary so they never disagree.
             let freshness_full = page.freshness.as_ref().and_then(|fv| fv.as_full());
             let freshness_status =
@@ -387,7 +387,7 @@ pub fn run(
             }
             pages += 1;
         } else {
-            // Static asset — copy verbatim
+            // Static asset - copy verbatim
             let out_path = out.join(rel);
             if let Some(parent) = out_path.parent() {
                 fs::create_dir_all(parent)?;
@@ -446,7 +446,7 @@ pub fn run(
 
     // Generate 404.html. If the source dir contains 404.yaml, render that
     // as the 404 page; otherwise use the built-in "Page not found" page.
-    // The 404 page uses a special base so all internal links are absolute —
+    // The 404 page uses a special base so all internal links are absolute -
     // hosting platforms serve 404.html at whatever URL the browser tried.
     let custom_404 = if dir.join("404.yaml").exists() {
         let content =
@@ -470,7 +470,7 @@ pub fn run(
 
     // Link-graph analysis runs after every build. Orphans can be silenced
     // for draft workflows (dev mode, `--allow-orphans`) but broken links
-    // always surface — there's no legitimate reason to tolerate those.
+    // always surface - there's no legitimate reason to tolerate those.
     let mut report = crate::links::analyze(&page_links, config.nav.as_deref());
     if allow_orphans {
         report.orphans.clear();
@@ -548,7 +548,7 @@ fn emit_stale_json(stale: &[StaleEntry]) {
 
 /// Write the stale-page report to `<out>/stale.md` whenever any page is
 /// not Fresh. Markdown so agents can read it straight, humans can too.
-/// Silent (no file written) when nothing is stale — matches the console
+/// Silent (no file written) when nothing is stale - matches the console
 /// behavior, keeps the output dir clean on healthy builds.
 fn write_freshness_report_md(out: &Path, stale: &[StaleEntry], today: &str) -> std::io::Result<()> {
     use crate::freshness::FreshnessStatus;
@@ -587,7 +587,7 @@ fn write_freshness_report_md(out: &Path, stale: &[StaleEntry], today: &str) -> s
 
     let mut md = String::new();
     md.push_str(&format!(
-        "# Stale page report\n\n_Generated {} by `kazam build`. Point an agent at this file and ask it to refresh the listed pages — they're in the source tree as `.yaml`, each with its own `freshness.sources_of_truth`._\n\n",
+        "# Stale page report\n\n_Generated {} by `kazam build`. Point an agent at this file and ask it to refresh the listed pages - they're in the source tree as `.yaml`, each with its own `freshness.sources_of_truth`._\n\n",
         today
     ));
 
@@ -602,10 +602,10 @@ fn write_freshness_report_md(out: &Path, stale: &[StaleEntry], today: &str) -> s
             let owner = e
                 .owner
                 .as_deref()
-                .map(|o| format!(" — owner: {}", o))
+                .map(|o| format!(" - owner: {}", o))
                 .unwrap_or_default();
             md.push_str(&format!(
-                "- **`{}`** — {} day(s) overdue (cadence: every {}){}\n",
+                "- **`{}`** - {} day(s) overdue (cadence: every {}){}\n",
                 e.html_path, days, e.cadence, owner
             ));
         }
@@ -622,10 +622,10 @@ fn write_freshness_report_md(out: &Path, stale: &[StaleEntry], today: &str) -> s
             let owner = e
                 .owner
                 .as_deref()
-                .map(|o| format!(" — owner: {}", o))
+                .map(|o| format!(" - owner: {}", o))
                 .unwrap_or_default();
             md.push_str(&format!(
-                "- **`{}`** — due in {} day(s) (cadence: every {}){}\n",
+                "- **`{}`** - due in {} day(s) (cadence: every {}){}\n",
                 e.html_path, days, e.cadence, owner
             ));
         }
@@ -682,7 +682,7 @@ fn print_freshness_report(stale: &[StaleEntry]) {
             let owner = e
                 .owner
                 .as_deref()
-                .map(|o| format!(" — owner {}", o))
+                .map(|o| format!(" - owner {}", o))
                 .unwrap_or_default();
             println!(
                 "    {:<40}  {} day(s) overdue (cadence: every {}){}",
@@ -710,7 +710,7 @@ fn print_freshness_report(stale: &[StaleEntry]) {
             let owner = e
                 .owner
                 .as_deref()
-                .map(|o| format!(" — owner {}", o))
+                .map(|o| format!(" - owner {}", o))
                 .unwrap_or_default();
             println!(
                 "    {:<40}  due in {} day(s) (cadence: every {}){}",
@@ -863,7 +863,7 @@ fn generate_health_page(
                 );
                 row.insert(
                     "owner".into(),
-                    serde_yaml::Value::String(e.owner.clone().unwrap_or_else(|| "—".into())),
+                    serde_yaml::Value::String(e.owner.clone().unwrap_or_else(|| "-".into())),
                 );
                 row
             })
@@ -932,7 +932,7 @@ fn generate_health_page(
                 );
                 row.insert(
                     "owner".into(),
-                    serde_yaml::Value::String(e.owner.clone().unwrap_or_else(|| "—".into())),
+                    serde_yaml::Value::String(e.owner.clone().unwrap_or_else(|| "-".into())),
                 );
                 row
             })
@@ -987,14 +987,14 @@ fn generate_health_page(
                 .freshness
                 .as_ref()
                 .and_then(|f| f.owner.clone())
-                .unwrap_or_else(|| "—".into());
+                .unwrap_or_else(|| "-".into());
             let e = owner_map.entry(owner_key).or_insert((0, 0, 0, 0));
             e.0 += 1; // total
         }
 
         // Now overlay fresh / due_soon / overdue from stale_pages
         for stale in stale_pages {
-            let owner_key = stale.owner.clone().unwrap_or_else(|| "—".into());
+            let owner_key = stale.owner.clone().unwrap_or_else(|| "-".into());
             match stale.status {
                 FreshnessStatus::DueSoon { .. } => {
                     owner_map.entry(owner_key.clone()).or_insert((0, 0, 0, 0)).2 += 1;
@@ -1095,7 +1095,7 @@ fn generate_health_page(
     let page = Page {
         title: "Site Health".to_string(),
         shell: Shell::Standard,
-        eyebrow: Some(format!("Snapshot — {}", today)),
+        eyebrow: Some(format!("Snapshot - {}", today)),
         subtitle: None,
         components: Some(components),
         slides: None,
@@ -1132,7 +1132,7 @@ fn write_sitemap(out: &Path, site_url: &str, entries: &[PageEntry]) -> Result<()
          <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n",
     );
     for e in entries {
-        // html_path is forward-slash separated, `.html` extension — ready to
+        // html_path is forward-slash separated, `.html` extension - ready to
         // concatenate with the site base.
         xml.push_str(&format!(
             "  <url><loc>{}/{}</loc></url>\n",

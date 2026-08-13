@@ -43,7 +43,7 @@ pub enum Command {
         /// Optional flat JSON array of dotted `Server.method` tool names.
         /// When given, warns about any call()/map() function in the flow
         /// that isn't listed. This is a name-existence check only, not
-        /// schema validation — the manifest is hand-maintained and has no
+        /// schema validation - the manifest is hand-maintained and has no
         /// notion of a server's actual tool/argument schema. Omit this
         /// flag for zero behavior change.
         #[arg(long)]
@@ -51,7 +51,7 @@ pub enum Command {
     },
     /// Print the AGL execution-semantics preamble (the "How to execute an
     /// AGL graph" primer that compiled skills carry) for embedding in
-    /// downstream builds — e.g. curata emits it as docs/agl-reference.md.
+    /// downstream builds - e.g. curata emits it as docs/agl-reference.md.
     Reference,
     /// Compile an .agl spec into a token-dense agent system-prompt block
     Export {
@@ -65,7 +65,7 @@ pub enum Command {
         #[arg(short, long)]
         out: Option<PathBuf>,
     },
-    /// Print a top-to-bottom ASCII rendering of a spec's flow — states,
+    /// Print a top-to-bottom ASCII rendering of a spec's flow - states,
     /// actions, and transitions, with branches fanned out underneath the
     /// state that owns them. A plan preview, not the graph's source syntax.
     Flow {
@@ -89,7 +89,7 @@ pub enum Command {
     },
     /// Compile every spec in ~/.kazam/agl/specs/ into a Claude Code
     /// subagent + a thin dispatcher skill in the target project.
-    /// Cursor/Codex aren't wired up here yet — use `kazam agl skill
+    /// Cursor/Codex aren't wired up here yet - use `kazam agl skill
     /// --target cursor|codex` one spec at a time until they are.
     Load {
         /// Install to the user's global ~/.claude, or the current repo's
@@ -152,7 +152,7 @@ fn read_source(path: &Path) -> Result<String> {
 fn home_dir() -> Result<PathBuf> {
     match std::env::var_os("HOME") {
         Some(h) => Ok(PathBuf::from(h)),
-        None => bail!("HOME is not set — cannot resolve a ~/.kazam/agl spec name"),
+        None => bail!("HOME is not set - cannot resolve a ~/.kazam/agl spec name"),
     }
 }
 
@@ -422,7 +422,7 @@ fn run_skill(path: &Path, target: skill::Target, out: Option<&Path>) -> Result<(
     if validator::has_errors(&diags) {
         println!("{}", validator::format_pretty(&diags));
         bail!(
-            "{} is not valid — fix the errors above before compiling a skill \
+            "{} is not valid - fix the errors above before compiling a skill \
              (run `kazam agl validate {}` for the full report)",
             resolved_path.display(),
             path.display()

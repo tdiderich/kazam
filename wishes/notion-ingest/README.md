@@ -1,6 +1,6 @@
 # Notion Ingest Wish
 
-Migrate a Notion workspace to kazam — ingest pages, audit staleness, triage content.
+Migrate a Notion workspace to kazam - ingest pages, audit staleness, triage content.
 
 ## Setup
 
@@ -21,7 +21,7 @@ kazam ingest notion --all --stats
 # Or target a specific page tree
 kazam ingest notion --page <id> --stats
 
-# Dry run — see what files would be created
+# Dry run - see what files would be created
 kazam ingest notion --all --dry-run
 
 # Import everything
