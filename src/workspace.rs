@@ -207,6 +207,13 @@ pub fn run_command(cmd: crate::WorkspaceCommand, project: &Path) -> Result<()> {
             sass,
         } => {
             ensure(project)?;
+            // `--skunkworks` is a presence-only CLI flag, so a plain re-run of
+            // `kazam workspace init` always reports skunkworks=false even when
+            // config.yaml already has it enabled. Fall back to whatever is
+            // already on disk so re-inits converge on the same settings file
+            // instead of registering hooks into both.
+            let configured_skunkworks = read_config(project).map(|c| c.skunkworks).unwrap_or(false);
+            let skunkworks = skunkworks || configured_skunkworks;
             if skunkworks {
                 set_skunkworks(project)?;
             }
@@ -258,6 +265,65 @@ pub fn run_command(cmd: crate::WorkspaceCommand, project: &Path) -> Result<()> {
             crate::ctx::run(crate::ctx::Command::Status { json: false }, project)?;
             crate::ctx::hooks::status(project)?;
             Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn init(agent: &str, skunkworks: bool, project: &Path) {
+        run_command(
+            crate::WorkspaceCommand::Init {
+                agent: agent.to_string(),
+                skunkworks,
+                sass: "some".to_string(),
+            },
+            project,
+        )
+        .unwrap();
+    }
+
+    /// kz-a4c7 repro: init with --skunkworks once, then plain re-init.
+    /// Before the fix, the re-init dropped skunkworks back to false (since
+    /// the CLI flag itself doesn't persist), registered a second copy of the
+    /// hooks into settings.json, and left the skunkworks copy sitting in
+    /// settings.local.json - Claude Code merges both, so every hook fired
+    /// twice. Re-init should instead honor the config.yaml default and
+    /// converge on a single registration.
+    #[test]
+    fn reinit_without_flag_preserves_skunkworks_and_does_not_duplicate_hooks() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+
+        init("claude", true, project);
+        let local_path = project.join(".claude/settings.local.json");
+        let main_path = project.join(".claude/settings.json");
+        assert!(local_path.exists());
+        assert!(!main_path.exists());
+
+        // Re-init without --skunkworks. Should stay skunkworks because
+        // config.yaml already says so, and must not fork a second
+        // registration into settings.json.
+        init("claude", false, project);
+
+        let config = read_config(project).unwrap();
+        assert!(config.skunkworks, "skunkworks should still be enabled");
+        assert!(
+            !main_path.exists(),
+            "plain re-init must not register hooks into settings.json \
+             when skunkworks is still active"
+        );
+
+        let local: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&local_path).unwrap()).unwrap();
+        for event in ["SessionStart", "PreCompact", "PostToolUse", "Stop"] {
+            assert_eq!(
+                local["hooks"][event].as_array().unwrap().len(),
+                1,
+                "expected exactly one {event} registration after re-init"
+            );
         }
     }
 }
