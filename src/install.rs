@@ -76,6 +76,8 @@ struct PackPage {
     #[serde(default)]
     pack: Option<InstallPackMeta>,
     #[serde(default)]
+    skill: Option<InstallSkillMeta>,
+    #[serde(default)]
     components: Vec<PackComponent>,
 }
 
@@ -85,6 +87,21 @@ struct InstallPackMeta {
     targets: Vec<String>,
     #[serde(default)]
     hooks: Vec<crate::types::PackHook>,
+}
+
+/// Mirrors `crate::types::SkillMeta`'s wire shape. A page carrying this
+/// top-level `skill:` block installs (with `--as-skill`) into
+/// `.claude/skills/<slug>/SKILL.md` instead of the CLAUDE.md/.cursorrules
+/// rules targets.
+#[derive(Deserialize)]
+struct InstallSkillMeta {
+    /// Becomes the compiled skill's frontmatter `description:` when present.
+    #[serde(default)]
+    trigger: Option<String>,
+    /// Tools/servers the skill needs at run time - rendered as an informational
+    /// "## Requires" section in the compiled SKILL.md.
+    #[serde(default)]
+    requires: Vec<String>,
 }
 
 /// Permissive component view: we only care about markdown bodies and
@@ -208,6 +225,32 @@ fn end_marker(slug: &str) -> String {
     format!("<!-- kazam-pack:end {} -->", slug)
 }
 
+/// Build the full managed block for a pack or skill install. `kind` is only
+/// the heading label ("Pack" or "Skill") - the marker/header shape is
+/// identical either way, which is what lets `kazam check` scan both with the
+/// same `scan_blocks` regardless of install mode.
+fn render_block_labeled(
+    kind: &str,
+    slug: &str,
+    source: &str,
+    hash: &str,
+    date: &str,
+    title: &str,
+    rules: &str,
+) -> String {
+    format!(
+        "{}\n<!-- source: {} | hash: {} | installed: {} -->\n\n# {}: {}\n\n{}\n\n{}",
+        start_marker(slug),
+        source,
+        hash,
+        date,
+        kind,
+        title,
+        rules,
+        end_marker(slug)
+    )
+}
+
 /// Build the full managed block for a pack.
 fn render_block(
     slug: &str,
@@ -217,16 +260,19 @@ fn render_block(
     title: &str,
     rules: &str,
 ) -> String {
-    format!(
-        "{}\n<!-- source: {} | hash: {} | installed: {} -->\n\n# Pack: {}\n\n{}\n\n{}",
-        start_marker(slug),
-        source,
-        hash,
-        date,
-        title,
-        rules,
-        end_marker(slug)
-    )
+    render_block_labeled("Pack", slug, source, hash, date, title, rules)
+}
+
+/// Build the full managed block for a skill (see `install_skill`).
+fn render_skill_block(
+    slug: &str,
+    source: &str,
+    hash: &str,
+    date: &str,
+    title: &str,
+    rules: &str,
+) -> String {
+    render_block_labeled("Skill", slug, source, hash, date, title, rules)
 }
 
 /// Insert or replace this pack's managed block, leaving all other content
@@ -261,6 +307,59 @@ fn upsert_block(existing: Option<&str>, slug: &str, block: &str) -> Result<Strin
 
 const AUTH_HINT: &str = "pass --api-key or set KAZAM_CURATA_API_KEY. \
 On tailscale-auth instances, use the https:// Tailscale-served URL.";
+
+/// Env var naming the default curata instance's base URL, so `kazam install`
+/// accepts a bare pack name and `kazam packs list` has something to list
+/// against without repeating the instance on every call. Same fallback
+/// pattern as `KAZAM_CURATA_API_KEY` (an env var backing a flag), just for
+/// the instance itself rather than its credential.
+const CURATA_URL_ENV: &str = "KAZAM_CURATA_URL";
+
+const NO_INSTANCE_HINT: &str = "no curata instance configured - set KAZAM_CURATA_URL to your \
+instance's base URL (e.g. https://curata.ai) and rerun, or pass a full pack URL instead.";
+
+/// A bare pack name has no host and no path separator - anything else
+/// (`curata.ai/pages/x`, `curata.ai`, `https://...`) is left for
+/// `parse_pack_url` to interpret exactly as it does today.
+fn is_bare_slug(input: &str) -> bool {
+    !input.contains("://") && !input.contains('.') && !input.contains('/')
+}
+
+/// Resolve `--url`/an instance argument against an explicit value first,
+/// then `KAZAM_CURATA_URL`. Shared by bare-name install resolution and
+/// `kazam packs list`, which both need "the configured instance" and
+/// nothing else.
+fn configured_base_url(explicit: Option<&str>) -> Result<String> {
+    if let Some(u) = explicit {
+        let trimmed = u.trim();
+        if trimmed.is_empty() {
+            bail!(NO_INSTANCE_HINT);
+        }
+        return Ok(trimmed.trim_end_matches('/').to_string());
+    }
+    match std::env::var(CURATA_URL_ENV) {
+        Ok(v) if !v.trim().is_empty() => Ok(v.trim().trim_end_matches('/').to_string()),
+        _ => bail!(NO_INSTANCE_HINT),
+    }
+}
+
+/// If `input` is a bare pack name, expand it against the configured instance
+/// (`KAZAM_CURATA_URL`). Otherwise it is already some qualified form
+/// (`<instance>/pages/<slug>`, `<instance>/p/<org>/<slug>`, a bare
+/// `<instance>/<slug>`, or a full URL) and is returned unchanged for
+/// `parse_pack_url` to handle.
+fn resolve_install_input(input: &str) -> Result<String> {
+    if !is_bare_slug(input) {
+        return Ok(input.to_string());
+    }
+    let base = configured_base_url(None).with_context(|| {
+        format!(
+            "'{}' looks like a bare pack name (no host, no '/')",
+            input
+        )
+    })?;
+    Ok(format!("{}/{}", base, input))
+}
 
 /// Pull yaml + contentHash out of a read_page result object.
 fn extract_page(result: &serde_json::Value, slug: &str) -> Result<(String, String)> {
@@ -560,6 +659,7 @@ fn resolve_targets(targets: &[String]) -> Result<Vec<&'static str>> {
     Ok(files)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     url: &str,
     api_key: Option<String>,
@@ -567,8 +667,17 @@ pub fn run(
     force: bool,
     cli_override: &[String],
     allow_hooks: bool,
+    as_skill: bool,
 ) -> Result<()> {
-    let (base, slug, org) = parse_pack_url(url)?;
+    if as_skill && !cli_override.is_empty() {
+        bail!(
+            "--as-skill cannot be combined with --cli - a skill installs into \
+             .claude/skills/, not the rules targets --cli picks between."
+        );
+    }
+
+    let resolved = resolve_install_input(url)?;
+    let (base, slug, org) = parse_pack_url(&resolved)?;
     let api_key = api_key.or_else(|| std::env::var("KAZAM_CURATA_API_KEY").ok());
 
     println!("Fetching pack '{}' from {} ...", slug, base);
@@ -576,6 +685,66 @@ pub fn run(
 
     let page: PackPage = serde_yaml::from_str(&yaml)
         .with_context(|| format!("failed to parse page YAML for '{}'", slug))?;
+
+    let mut bodies = Vec::new();
+    collect_markdown(&page.components, &mut bodies);
+    if bodies.is_empty() {
+        bail!(
+            "pack '{}' has no markdown components - nothing to install. \
+             Packs are pages whose rules live in markdown components.",
+            slug
+        );
+    }
+
+    let rules = bodies.join("\n\n");
+    if let Some(var) = find_unfilled_var(&rules) {
+        bail!(
+            "pack '{}' contains an unfilled template variable {{{{{}}}}} - \
+             fill in the page content before installing",
+            slug,
+            var
+        );
+    }
+
+    for warning in injection_warnings(&rules) {
+        println!("  warning: pack content {}", warning);
+    }
+
+    // Record the source in the form it was fetched, so `kazam check` re-fetches
+    // the same way (anonymous raw for public /p/ packs, MCP otherwise).
+    let source = match &org {
+        Some(o) => format!("{}/p/{}/{}", base, o, slug),
+        None => format!("{}/{}", base, slug),
+    };
+    let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+
+    if as_skill {
+        if page.skill.is_none() {
+            if force {
+                println!(
+                    "  warning: '{}' has no skill: marker - installing anyway (--force)",
+                    slug
+                );
+            } else {
+                bail!(
+                    "'{}' is not a skill - the page has no top-level skill: block. \
+                     Add `skill:` to the page, or rerun with --force.",
+                    slug
+                );
+            }
+        }
+        return install_skill(
+            &scope,
+            &slug,
+            &page.title,
+            page.skill.as_ref(),
+            &rules,
+            &source,
+            &hash,
+            &date,
+            bodies.len(),
+        );
+    }
 
     // --cli overrides the page's declared targets when present.
     let targets = if !cli_override.is_empty() {
@@ -606,38 +775,7 @@ pub fn run(
         }
     };
 
-    let mut bodies = Vec::new();
-    collect_markdown(&page.components, &mut bodies);
-    if bodies.is_empty() {
-        bail!(
-            "pack '{}' has no markdown components - nothing to install. \
-             Packs are pages whose rules live in markdown components.",
-            slug
-        );
-    }
-
-    let rules = bodies.join("\n\n");
-    if let Some(var) = find_unfilled_var(&rules) {
-        bail!(
-            "pack '{}' contains an unfilled template variable {{{{{}}}}} - \
-             fill in the page content before installing",
-            slug,
-            var
-        );
-    }
-
-    // Record the source in the form it was fetched, so `kazam check` re-fetches
-    // the same way (anonymous raw for public /p/ packs, MCP otherwise).
-    let source = match &org {
-        Some(o) => format!("{}/p/{}/{}", base, o, slug),
-        None => format!("{}/{}", base, slug),
-    };
-    let date = chrono::Local::now().format("%Y-%m-%d").to_string();
     let block = render_block(&slug, &source, &hash, &date, &page.title, &rules);
-
-    for warning in injection_warnings(&rules) {
-        println!("  warning: pack content {}", warning);
-    }
 
     let claude_dir = scope.claude_dir()?;
     for target in targets {
@@ -889,7 +1027,108 @@ fn install_hooks(scope: &InstallScope, slug: &str, hooks: &[crate::types::PackHo
     Ok(())
 }
 
+/// Compile a page carrying a top-level `skill:` marker into
+/// `.claude/skills/<slug>/SKILL.md`: YAML frontmatter (`name`/`description`)
+/// once at the top of the file, followed by the same managed marker block
+/// used for CLAUDE.md/.cursorrules installs. Reusing the marker/header shape
+/// is what lets `kazam check` scan a SKILL.md for drift with the same
+/// `scan_blocks` used for rules targets - only the file it lives in differs.
+#[allow(clippy::too_many_arguments)]
+fn install_skill(
+    scope: &InstallScope,
+    slug: &str,
+    title: &str,
+    meta: Option<&InstallSkillMeta>,
+    rules: &str,
+    source: &str,
+    hash: &str,
+    date: &str,
+    section_count: usize,
+) -> Result<()> {
+    let requires = meta.map(|m| m.requires.as_slice()).unwrap_or(&[]);
+    let description = meta
+        .and_then(|m| m.trigger.clone())
+        .unwrap_or_else(|| format!("Installed from the '{}' pack", title))
+        .replace('"', "\\\"");
+
+    let mut body = rules.to_string();
+    if !requires.is_empty() {
+        body.push_str(
+            "\n\n## Requires\n\nThis skill expects the following tools/servers to be \
+             available:\n\n",
+        );
+        for r in requires {
+            body.push_str(&format!("- {}\n", r));
+        }
+    }
+
+    let block = render_skill_block(slug, source, hash, date, title, &body);
+    let frontmatter = format!("---\nname: {}\ndescription: \"{}\"\n---\n", slug, description);
+
+    let claude_dir = scope.claude_dir()?;
+    let skill_dir = claude_dir.join("skills").join(slug);
+    fs::create_dir_all(&skill_dir)
+        .with_context(|| format!("failed to create {}", skill_dir.display()))?;
+    let skill_path = skill_dir.join("SKILL.md");
+
+    let existing = if skill_path.exists() {
+        Some(
+            fs::read_to_string(&skill_path)
+                .with_context(|| format!("failed to read {}", skill_path.display()))?,
+        )
+    } else {
+        None
+    };
+
+    let updated = match &existing {
+        Some(text) => upsert_block(Some(text), slug, &block)?,
+        // First install: seed the frontmatter once, ahead of the managed
+        // block. Reinstalls only ever touch the block (via upsert_block
+        // above), so hand-edited frontmatter survives them.
+        None => format!("{}\n{}\n", frontmatter, block),
+    };
+
+    let action = match &existing {
+        Some(text) if text.contains(&start_marker(slug)) => "updated block in",
+        Some(_) => "added block to",
+        None => "created",
+    };
+    fs::write(&skill_path, updated)
+        .with_context(|| format!("failed to write {}", skill_path.display()))?;
+    println!("  {} {}", action, skill_path.display());
+
+    println!(
+        "\nInstalled '{}' as a skill ({} markdown section{}, hash {}).",
+        title,
+        section_count,
+        if section_count == 1 { "" } else { "s" },
+        hash
+    );
+    Ok(())
+}
+
 // ── Drift check ──────────────────────────────────────
+
+/// Which local target an installed pack block was written into. Recorded so
+/// `kazam check` can report a skill install distinctly from a rules-file
+/// install even though the drift check itself (source + hash) is identical
+/// either way.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum InstallMode {
+    /// Written into a rules target (CLAUDE.md, .cursorrules, AGENTS.md, ...).
+    Rules,
+    /// Written into `.claude/skills/<slug>/SKILL.md` via `--as-skill`.
+    Skill,
+}
+
+impl InstallMode {
+    fn label(&self) -> &'static str {
+        match self {
+            InstallMode::Rules => "rules",
+            InstallMode::Skill => "skill",
+        }
+    }
+}
 
 /// One installed pack block found in a config file.
 #[derive(Debug, PartialEq)]
@@ -898,6 +1137,7 @@ struct InstalledPack {
     source: String,
     hash: String,
     file: String,
+    mode: InstallMode,
 }
 
 /// Parse the header line `<!-- source: <url> | hash: <hash> | installed: <date> -->`.
@@ -916,7 +1156,9 @@ fn parse_header(line: &str) -> Option<(String, String)> {
     Some((source?, hash?))
 }
 
-/// Find every kazam-pack block in a file's text.
+/// Find every kazam-pack block in a file's text. `mode` always comes back
+/// `Rules` here - callers scanning a skill-install location override it,
+/// since the marker/header format itself carries no mode of its own.
 fn scan_blocks(text: &str, file: &str) -> Vec<InstalledPack> {
     let mut out = Vec::new();
     let lines: Vec<&str> = text.lines().collect();
@@ -931,6 +1173,7 @@ fn scan_blocks(text: &str, file: &str) -> Vec<InstalledPack> {
                             source,
                             hash,
                             file: file.to_string(),
+                            mode: InstallMode::Rules,
                         });
                     }
                 }
@@ -940,9 +1183,29 @@ fn scan_blocks(text: &str, file: &str) -> Vec<InstalledPack> {
     out
 }
 
-/// Collect installed packs across all known config files in `dir`, plus the
-/// user scope's `~/.claude/CLAUDE.md` if it exists, deduped by (slug, hash) so
-/// a pack present in more than one file (or in both repo and user scope) is
+/// Every `.claude/skills/<slug>/SKILL.md` under `root`, for drift scanning.
+fn skill_manifest_paths(root: &Path) -> Vec<PathBuf> {
+    let dir = root.join(".claude").join("skills");
+    let mut out = Vec::new();
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let skill_md = path.join("SKILL.md");
+            if skill_md.exists() {
+                out.push(skill_md);
+            }
+        }
+    }
+    out
+}
+
+/// Collect installed packs across all known config files in `dir` plus every
+/// `.claude/skills/*/SKILL.md`, and the user scope's `~/.claude/CLAUDE.md` /
+/// `~/.claude/skills/*/SKILL.md` if they exist, deduped by (slug, hash) so a
+/// pack present in more than one file (or in both repo and user scope) is
 /// checked once.
 fn collect_installed(dir: &Path) -> Result<Vec<InstalledPack>> {
     let mut found = Vec::new();
@@ -960,6 +1223,21 @@ fn collect_installed(dir: &Path) -> Result<Vec<InstalledPack>> {
             }
         }
     }
+    for skill_path in skill_manifest_paths(dir) {
+        let text = fs::read_to_string(&skill_path)
+            .with_context(|| format!("failed to read {}", skill_path.display()))?;
+        let label = skill_path
+            .strip_prefix(dir)
+            .unwrap_or(&skill_path)
+            .to_string_lossy()
+            .to_string();
+        for mut pack in scan_blocks(&text, &label) {
+            pack.mode = InstallMode::Skill;
+            if seen.insert((pack.slug.clone(), pack.hash.clone())) {
+                found.push(pack);
+            }
+        }
+    }
     if let Ok(home) = home_dir() {
         let user_path = home.join(".claude").join("CLAUDE.md");
         if user_path.exists() {
@@ -967,6 +1245,17 @@ fn collect_installed(dir: &Path) -> Result<Vec<InstalledPack>> {
                 .with_context(|| format!("failed to read {}", user_path.display()))?;
             let label = user_path.display().to_string();
             for pack in scan_blocks(&text, &label) {
+                if seen.insert((pack.slug.clone(), pack.hash.clone())) {
+                    found.push(pack);
+                }
+            }
+        }
+        for skill_path in skill_manifest_paths(&home) {
+            let text = fs::read_to_string(&skill_path)
+                .with_context(|| format!("failed to read {}", skill_path.display()))?;
+            let label = skill_path.display().to_string();
+            for mut pack in scan_blocks(&text, &label) {
+                pack.mode = InstallMode::Skill;
                 if seen.insert((pack.slug.clone(), pack.hash.clone())) {
                     found.push(pack);
                 }
@@ -991,19 +1280,26 @@ pub fn check(dir: &Path, api_key: Option<String>) -> Result<()> {
         match fetch_pack(&base, &slug, org.as_deref(), api_key.as_deref()) {
             Ok((_, current)) => {
                 if current == pack.hash {
-                    println!("  fresh  {} ({})", pack.slug, pack.file);
+                    println!("  fresh  {} ({}) [{}]", pack.slug, pack.file, pack.mode.label());
                 } else {
                     stale += 1;
                     println!(
-                        "  STALE  {} ({}): installed {}, source now {}",
+                        "  STALE  {} ({}) [{}]: installed {}, source now {}",
                         pack.slug,
                         pack.file,
+                        pack.mode.label(),
                         &pack.hash[..pack.hash.len().min(12)],
                         &current[..current.len().min(12)]
                     );
                 }
             }
-            Err(e) => println!("  ERROR  {} ({}): {}", pack.slug, pack.file, e),
+            Err(e) => println!(
+                "  ERROR  {} ({}) [{}]: {}",
+                pack.slug,
+                pack.file,
+                pack.mode.label(),
+                e
+            ),
         }
     }
 
@@ -1013,6 +1309,216 @@ pub fn check(dir: &Path, api_key: Option<String>) -> Result<()> {
         if installed.len() == 1 { "" } else { "s" },
         stale
     );
+    Ok(())
+}
+
+// ── Pack listing ──────────────────────────────────────
+
+/// Generic listing call: REST shim first, then streamable-HTTP fallback,
+/// mirroring `fetch_pack`'s two-transport pattern but for `list_pages`
+/// instead of `read_page`. Returns the tool call's raw `result` value.
+fn fetch_pack_list(base: &str, api_key: Option<&str>) -> Result<serde_json::Value> {
+    match fetch_rest_list(base, api_key)? {
+        Some(v) => Ok(v),
+        None => fetch_stream_list(base, api_key),
+    }
+}
+
+/// REST shim listing call: POST {base}/api/mcp {"tool": "list_pages", ...}.
+/// Ok(None) means the endpoint isn't there (fall back to the MCP stream route).
+fn fetch_rest_list(base: &str, api_key: Option<&str>) -> Result<Option<serde_json::Value>> {
+    let endpoint = format!("{}/api/mcp", base);
+    let body = serde_json::json!({ "tool": "list_pages", "args": {} });
+
+    let response = match build_request(&endpoint, api_key).send_string(&body.to_string()) {
+        Ok(r) => r,
+        Err(ureq::Error::Status(404, _)) => return Ok(None),
+        Err(ureq::Error::Status(401, _)) => {
+            bail!("unauthorized listing packs from {} - {}", endpoint, AUTH_HINT)
+        }
+        Err(ureq::Error::Status(code, resp)) => {
+            let detail = resp.into_string().unwrap_or_default();
+            bail!("list failed ({}) from {}: {}", code, endpoint, detail)
+        }
+        Err(e) => return Err(e).with_context(|| format!("failed to reach {}", endpoint)),
+    };
+
+    let text = response
+        .into_string()
+        .context("failed to read response body")?;
+    let parsed: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+
+    if let Some(err) = parsed.get("error").and_then(|e| e.as_str()) {
+        bail!("curata returned an error listing packs: {}", err);
+    }
+    let result = parsed
+        .get("result")
+        .context("response missing 'result' - is this a curata /api/mcp endpoint?")?;
+    Ok(Some(result.clone()))
+}
+
+/// Streamable-HTTP MCP listing call: POST {base}/api/mcp/stream, tools/call
+/// `list_pages`.
+fn fetch_stream_list(base: &str, api_key: Option<&str>) -> Result<serde_json::Value> {
+    let endpoint = format!("{}/api/mcp/stream", base);
+    let body = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": { "name": "list_pages", "arguments": {} }
+    });
+
+    let response = match build_request(&endpoint, api_key).send_string(&body.to_string()) {
+        Ok(r) => r,
+        Err(ureq::Error::Status(401, _)) => {
+            bail!("unauthorized listing packs from {} - {}", endpoint, AUTH_HINT)
+        }
+        Err(ureq::Error::Status(code, resp)) => {
+            let detail = resp.into_string().unwrap_or_default();
+            bail!("list failed ({}) from {}: {}", code, endpoint, detail)
+        }
+        Err(e) => return Err(e).with_context(|| format!("failed to reach {}", endpoint)),
+    };
+
+    let text = response
+        .into_string()
+        .context("failed to read response body")?;
+    let message = parse_sse_or_json(&text)?;
+
+    if let Some(err) = message.get("error") {
+        bail!("MCP error listing packs: {}", err);
+    }
+    let tool_result = message
+        .get("result")
+        .context("JSON-RPC response missing 'result'")?;
+    let inner_text = tool_result
+        .get("content")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("text"))
+        .and_then(|t| t.as_str())
+        .context("tools/call result missing content[0].text")?;
+    if tool_result
+        .get("isError")
+        .and_then(|e| e.as_bool())
+        .unwrap_or(false)
+    {
+        bail!("curata returned an error listing packs: {}", inner_text);
+    }
+    let result: serde_json::Value = serde_json::from_str(inner_text)
+        .context("list_pages payload inside tools/call result was not JSON")?;
+    Ok(result)
+}
+
+/// A listing tool's response shape isn't guaranteed - try a bare array first
+/// (some tools return the list directly), then the common wrapper key names.
+fn extract_list_entries(result: &serde_json::Value) -> Vec<serde_json::Value> {
+    if let Some(arr) = result.as_array() {
+        return arr.clone();
+    }
+    for key in ["pages", "items", "result"] {
+        if let Some(arr) = result.get(key).and_then(|v| v.as_array()) {
+            return arr.clone();
+        }
+    }
+    Vec::new()
+}
+
+/// A listing entry's installable slug: `slug` if present, else the last path
+/// segment of `path` with any `.yaml` extension stripped.
+fn entry_slug(entry: &serde_json::Value) -> Option<String> {
+    if let Some(s) = entry.get("slug").and_then(|v| v.as_str()) {
+        return Some(s.to_string());
+    }
+    let path = entry.get("path").and_then(|v| v.as_str())?;
+    let file = path.rsplit('/').next().unwrap_or(path);
+    Some(file.trim_end_matches(".yaml").to_string())
+}
+
+/// Whether a listing entry looks like an AI tool pack, if the listing
+/// carries that signal at all. `None` means the listing gave us nothing to
+/// go on (no `pack` or `template` field) - the caller treats that as "can't
+/// filter" rather than "not a pack".
+fn entry_is_pack(entry: &serde_json::Value) -> Option<bool> {
+    if let Some(b) = entry.get("pack").and_then(|v| v.as_bool()) {
+        return Some(b);
+    }
+    if let Some(v) = entry.get("pack") {
+        if !v.is_null() {
+            return Some(true);
+        }
+    }
+    if let Some(t) = entry.get("template").and_then(|v| v.as_str()) {
+        return Some(t == "ai-tool-pack");
+    }
+    None
+}
+
+/// `kazam packs list`: enumerate installable pack pages from the configured
+/// curata instance. Uses whatever generic page-listing call the instance
+/// exposes (`list_pages`, mirroring `read_page`'s two-transport fetch) and
+/// filters to pages that declare themselves a pack, when the listing itself
+/// carries that signal. When it doesn't, every listed page is shown instead
+/// of silently hiding pages a less-featured instance can't self-report on -
+/// see the printed note, and `kazam install <slug>` still refuses non-pack
+/// pages either way.
+pub fn list_packs(url: Option<String>, api_key: Option<String>) -> Result<()> {
+    let base = configured_base_url(url.as_deref())?;
+    let api_key = api_key.or_else(|| std::env::var("KAZAM_CURATA_API_KEY").ok());
+
+    println!("Listing packs from {} ...", base);
+    let result = fetch_pack_list(&base, api_key.as_deref())?;
+    let entries = extract_list_entries(&result);
+
+    if entries.is_empty() {
+        println!("No pages found at {}.", base);
+        return Ok(());
+    }
+
+    let has_pack_metadata = entries.iter().any(|e| entry_is_pack(e).is_some());
+    let listed: Vec<&serde_json::Value> = if has_pack_metadata {
+        entries
+            .iter()
+            .filter(|e| entry_is_pack(e).unwrap_or(false))
+            .collect()
+    } else {
+        entries.iter().collect()
+    };
+
+    if listed.is_empty() {
+        println!(
+            "No installable packs found at {} (checked {} page{}).",
+            base,
+            entries.len(),
+            if entries.len() == 1 { "" } else { "s" }
+        );
+        return Ok(());
+    }
+
+    for entry in &listed {
+        let slug = entry_slug(entry).unwrap_or_else(|| "?".to_string());
+        let title = entry
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("(untitled)");
+        println!("  {} - {}", slug, title);
+    }
+
+    println!(
+        "\n{} pack{} listed.",
+        listed.len(),
+        if listed.len() == 1 { "" } else { "s" }
+    );
+    if !has_pack_metadata {
+        println!(
+            "\nnote: {} does not report which pages are AI tool packs in its page listing \
+             (no 'pack' or 'template' field on listed entries) - showing every page instead. \
+             `kazam install <slug>` still refuses any page without a pack: marker.",
+            base
+        );
+    }
     Ok(())
 }
 
@@ -1481,5 +1987,248 @@ components:
             .join("kazam-packs")
             .join("pk.hooks.yaml");
         assert!(cfg_path.exists());
+    }
+
+    // ── Bare-name resolution ─────────────────────────────────────
+
+    #[test]
+    fn is_bare_slug_detects_various_forms() {
+        assert!(is_bare_slug("python-security"));
+        assert!(is_bare_slug("company_standards"));
+        assert!(!is_bare_slug("curata.example.com/python-security"));
+        assert!(!is_bare_slug("curata.example.com"));
+        assert!(!is_bare_slug("https://curata.example.com/pages/x"));
+    }
+
+    #[test]
+    fn resolve_install_input_passes_through_qualified_forms() {
+        assert_eq!(
+            resolve_install_input("https://h.co/pages/x").unwrap(),
+            "https://h.co/pages/x"
+        );
+        assert_eq!(
+            resolve_install_input("curata.example.com/django-rest").unwrap(),
+            "curata.example.com/django-rest"
+        );
+        assert_eq!(
+            resolve_install_input("curata.example.com/p/maze/x").unwrap(),
+            "curata.example.com/p/maze/x"
+        );
+    }
+
+    #[test]
+    fn resolve_install_input_bare_slug_needs_configured_instance() {
+        let prev = std::env::var_os(CURATA_URL_ENV);
+        std::env::remove_var(CURATA_URL_ENV);
+
+        let err = resolve_install_input("python-security").unwrap_err();
+
+        if let Some(v) = prev {
+            std::env::set_var(CURATA_URL_ENV, v);
+        }
+        let rendered = format!("{:#}", err);
+        assert!(
+            rendered.contains("KAZAM_CURATA_URL"),
+            "expected the error to name the env var to set: {}",
+            rendered
+        );
+    }
+
+    #[test]
+    fn resolve_install_input_bare_slug_resolves_against_configured_instance() {
+        let prev = std::env::var_os(CURATA_URL_ENV);
+        std::env::set_var(CURATA_URL_ENV, "https://curata.example.com/");
+
+        let result = resolve_install_input("python-security");
+
+        match prev {
+            Some(v) => std::env::set_var(CURATA_URL_ENV, v),
+            None => std::env::remove_var(CURATA_URL_ENV),
+        }
+        assert_eq!(
+            result.unwrap(),
+            "https://curata.example.com/python-security"
+        );
+    }
+
+    // ── Skill install target ─────────────────────────────────────
+
+    #[test]
+    fn render_block_labeled_distinguishes_pack_and_skill_headings() {
+        let pack = render_block("pk", "https://h/pk", "abc", "2026-08-16", "Title", "body");
+        assert!(pack.contains("# Pack: Title"));
+
+        let skill = render_skill_block("pk", "https://h/pk", "abc", "2026-08-16", "Title", "body");
+        assert!(skill.contains("# Skill: Title"));
+        // Same marker/header shape otherwise, so scan_blocks parses either.
+        assert!(skill.starts_with("<!-- kazam-pack:start pk -->"));
+    }
+
+    #[test]
+    fn install_skill_writes_frontmatter_and_is_idempotent_on_reinstall() {
+        let tmp = tempfile::tempdir().unwrap();
+        let scope = InstallScope::Repo(tmp.path().to_path_buf());
+        let meta = InstallSkillMeta {
+            trigger: Some("route on X".to_string()),
+            requires: vec!["mcp__foo".to_string()],
+        };
+
+        install_skill(
+            &scope,
+            "my-skill",
+            "My Skill",
+            Some(&meta),
+            "steps here",
+            "https://h/my-skill",
+            "hash1",
+            "2026-08-16",
+            1,
+        )
+        .unwrap();
+
+        let path = tmp.path().join(".claude/skills/my-skill/SKILL.md");
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.starts_with("---\nname: my-skill\n"));
+        assert!(content.contains("description: \"route on X\""));
+        assert!(content.contains("## Requires"));
+        assert!(content.contains("mcp__foo"));
+        assert!(content.contains("steps here"));
+        assert!(content.contains("# Skill: My Skill"));
+
+        // Reinstalling with a new hash replaces the block but keeps the
+        // frontmatter untouched.
+        install_skill(
+            &scope,
+            "my-skill",
+            "My Skill",
+            Some(&meta),
+            "steps here v2",
+            "https://h/my-skill",
+            "hash2",
+            "2026-08-17",
+            1,
+        )
+        .unwrap();
+
+        let content2 = fs::read_to_string(&path).unwrap();
+        assert!(content2.starts_with("---\nname: my-skill\n"));
+        assert!(content2.contains("steps here v2"));
+        assert!(!content2.contains("steps here v2 v2"));
+        assert!(content2.contains("hash2"));
+        assert!(!content2.contains("hash1"));
+    }
+
+    #[test]
+    fn install_skill_defaults_description_without_trigger() {
+        let tmp = tempfile::tempdir().unwrap();
+        let scope = InstallScope::Repo(tmp.path().to_path_buf());
+
+        install_skill(
+            &scope,
+            "my-skill",
+            "My Skill",
+            None,
+            "steps",
+            "https://h/my-skill",
+            "hash1",
+            "2026-08-16",
+            1,
+        )
+        .unwrap();
+
+        let path = tmp.path().join(".claude/skills/my-skill/SKILL.md");
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("description: \"Installed from the 'My Skill' pack\""));
+        assert!(!content.contains("## Requires"));
+    }
+
+    #[test]
+    fn collect_installed_detects_skill_mode_from_claude_skills_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let skill_dir = tmp.path().join(".claude/skills/my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        let block = render_skill_block(
+            "my-skill",
+            "https://h/my-skill",
+            "hash1",
+            "2026-08-16",
+            "My Skill",
+            "steps",
+        );
+        let content = format!("---\nname: my-skill\ndescription: \"d\"\n---\n\n{}\n", block);
+        fs::write(skill_dir.join("SKILL.md"), content).unwrap();
+
+        let found = collect_installed(tmp.path()).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].slug, "my-skill");
+        assert_eq!(found[0].hash, "hash1");
+        assert_eq!(found[0].mode, InstallMode::Skill);
+    }
+
+    #[test]
+    fn collect_installed_rules_blocks_default_to_rules_mode() {
+        let tmp = tempfile::tempdir().unwrap();
+        let block = render_block("pk", "https://h/pk", "hash1", "2026-08-16", "P", "rules");
+        fs::write(tmp.path().join("CLAUDE.md"), format!("{}\n", block)).unwrap();
+
+        let found = collect_installed(tmp.path()).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].mode, InstallMode::Rules);
+    }
+
+    // ── Pack listing ──────────────────────────────────────────────
+
+    #[test]
+    fn extract_list_entries_handles_bare_array_and_wrapped_shapes() {
+        let arr = serde_json::json!([{"slug":"a"},{"slug":"b"}]);
+        assert_eq!(extract_list_entries(&arr).len(), 2);
+
+        let wrapped = serde_json::json!({"pages": [{"slug":"a"}]});
+        assert_eq!(extract_list_entries(&wrapped).len(), 1);
+
+        let none = serde_json::json!({"other": 1});
+        assert!(extract_list_entries(&none).is_empty());
+    }
+
+    #[test]
+    fn entry_slug_prefers_slug_then_path() {
+        assert_eq!(
+            entry_slug(&serde_json::json!({"slug":"x"})),
+            Some("x".to_string())
+        );
+        assert_eq!(
+            entry_slug(&serde_json::json!({"path":"pages/python-security.yaml"})),
+            Some("python-security".to_string())
+        );
+        assert_eq!(entry_slug(&serde_json::json!({})), None);
+    }
+
+    #[test]
+    fn entry_is_pack_reads_pack_and_template_fields() {
+        assert_eq!(entry_is_pack(&serde_json::json!({"pack": true})), Some(true));
+        assert_eq!(entry_is_pack(&serde_json::json!({"pack": {}})), Some(true));
+        assert_eq!(
+            entry_is_pack(&serde_json::json!({"template": "ai-tool-pack"})),
+            Some(true)
+        );
+        assert_eq!(
+            entry_is_pack(&serde_json::json!({"template": "other"})),
+            Some(false)
+        );
+        assert_eq!(entry_is_pack(&serde_json::json!({})), None);
+    }
+
+    #[test]
+    fn configured_base_url_prefers_explicit_over_env() {
+        let prev = std::env::var_os(CURATA_URL_ENV);
+        std::env::set_var(CURATA_URL_ENV, "https://env.example.com");
+
+        let result = configured_base_url(Some("https://explicit.example.com/"));
+
+        match prev {
+            Some(v) => std::env::set_var(CURATA_URL_ENV, v),
+            None => std::env::remove_var(CURATA_URL_ENV),
+        }
+        assert_eq!(result.unwrap(), "https://explicit.example.com");
     }
 }

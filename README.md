@@ -208,6 +208,32 @@ pack:
 
 Targets map to files: `claude` (CLAUDE.md), `cursor` (.cursorrules), `agents` (AGENTS.md, read by 30+ tools), plus `windsurf`, `copilot`, `gemini`, `aider`.
 
+### Your own instance: bare names and listing
+
+Set `KAZAM_CURATA_URL` once to your org's curata instance and every other pack command drops the host:
+
+```bash
+export KAZAM_CURATA_URL=https://curata.internal
+
+# Bare pack name - resolves against KAZAM_CURATA_URL
+kazam install company-standards
+
+# Browse what's installable before picking one
+kazam packs list
+```
+
+Without `KAZAM_CURATA_URL` set, a bare name refuses with the exact env var to set (or pass a full pack URL instead, same as always).
+
+### Installing as a skill
+
+A page can carry a top-level `skill:` block instead of (or alongside) `pack:`. `--as-skill` compiles it into a Claude Code skill (`.claude/skills/<slug>/SKILL.md`, YAML frontmatter + markdown body) rather than writing into CLAUDE.md/.cursorrules:
+
+```bash
+kazam install curata.ai/pages/org-chart-sync --as-skill
+```
+
+`--as-skill` is mutually exclusive with `--cli` (a skill install has one destination, not a choice of targets). `skill.trigger` becomes the frontmatter `description:`; `skill.requires` renders as an informational "## Requires" section. `kazam check` scans `.claude/skills/*/SKILL.md` for drift the same way it scans rules files, and tags each entry `[skill]` or `[rules]` so you can tell installs apart at a glance.
+
 ### Install scope: user (default) or repo
 
 `kazam install` defaults to a **user** install (`~/.claude`), so a personal guardrail pack (a voice or de-AI ruleset) applies to every project you work in:
@@ -318,17 +344,18 @@ Print the LLM authoring guide (full AGENTS.md to stdout)
 
 Install an AI tool pack from a curata instance (writes CLAUDE.md + .cursorrules)
 
-- `url` - Pack URL: https://<instance>/pages/<slug>, /p/<org>/<slug>, or <instance>/<slug>
+- `url` - Pack URL: https://<instance>/pages/<slug>, /p/<org>/<slug>, <instance>/<slug>, or a bare pack name (resolved against KAZAM_CURATA_URL)
 
 | Flag | Default | Description |
 |---|---|---|
 | `--api-key` |  | API key for the curata instance (falls back to KAZAM_CURATA_API_KEY) |
 | `--dir, -d` | `.` | Directory to write config files into (implies --repo if not "."; repo scope) |
-| `--force` |  | Install even if the page has no pack: marker |
+| `--force` |  | Install even if the page has no pack: (or skill:, with --as-skill) marker |
 | `--cli` |  | Override the pack's declared targets. Repeatable or comma-separated. Supported: claude, cursor, agents, windsurf, copilot, gemini, aider |
 | `--allow-hooks` |  | Also install the pack's declarative hooks (writes hook config + registers the kazam runner in .claude/settings.json). Off by default |
 | `--user` |  | Install for the current user (~/.claude), shared across every project. This is the default when no scope flag is given |
 | `--repo` |  | Install into this repo only (writes at --dir). Mutually exclusive with --user |
+| `--as-skill` |  | Install a skill:-marked page as a Claude Code skill (.claude/skills/<slug>/SKILL.md) instead of into rules targets. Mutually exclusive with --cli |
 
 #### `kazam check`
 
@@ -337,6 +364,19 @@ Check installed packs for drift against their curata source pages
 | Flag | Default | Description |
 |---|---|---|
 | `--dir, -d` | `.` | Directory to scan for installed packs |
+| `--api-key` |  | API key for the curata instance (falls back to KAZAM_CURATA_API_KEY) |
+
+#### `kazam packs`
+
+Manage AI tool packs on the configured curata instance
+
+##### `kazam packs list`
+
+List installable pack pages from the configured curata instance
+
+| Flag | Default | Description |
+|---|---|---|
+| `--url` |  | Curata instance base URL (falls back to KAZAM_CURATA_URL) |
 | `--api-key` |  | API key for the curata instance (falls back to KAZAM_CURATA_API_KEY) |
 
 #### `kazam pack-hook`

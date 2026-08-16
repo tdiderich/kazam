@@ -101,7 +101,8 @@ enum Command {
     Agents,
     /// Install an AI tool pack from a curata instance (writes CLAUDE.md + .cursorrules)
     Install {
-        /// Pack URL: https://<instance>/pages/<slug>, /p/<org>/<slug>, or <instance>/<slug>
+        /// Pack URL: https://<instance>/pages/<slug>, /p/<org>/<slug>, <instance>/<slug>,
+        /// or a bare pack name (resolved against KAZAM_CURATA_URL)
         url: String,
         /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
         #[arg(long)]
@@ -109,7 +110,7 @@ enum Command {
         /// Directory to write config files into (implies --repo if not "."; repo scope)
         #[arg(short, long, default_value = ".")]
         dir: PathBuf,
-        /// Install even if the page has no pack: marker
+        /// Install even if the page has no pack: (or skill:, with --as-skill) marker
         #[arg(long)]
         force: bool,
         /// Override the pack's declared targets. Repeatable or comma-separated.
@@ -128,6 +129,11 @@ enum Command {
         /// with --user.
         #[arg(long)]
         repo: bool,
+        /// Install a skill:-marked page as a Claude Code skill
+        /// (.claude/skills/<slug>/SKILL.md) instead of into rules targets.
+        /// Mutually exclusive with --cli.
+        #[arg(long)]
+        as_skill: bool,
     },
     /// Check installed packs for drift against their curata source pages
     Check {
@@ -137,6 +143,11 @@ enum Command {
         /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
         #[arg(long)]
         api_key: Option<String>,
+    },
+    /// Manage AI tool packs on the configured curata instance
+    Packs {
+        #[command(subcommand)]
+        command: PacksCommand,
     },
     /// Internal: run a declarative pack hook (registered in settings by install)
     PackHook {
@@ -397,6 +408,19 @@ enum WishCommand {
     },
 }
 
+#[derive(Subcommand)]
+enum PacksCommand {
+    /// List installable pack pages from the configured curata instance
+    List {
+        /// Curata instance base URL (falls back to KAZAM_CURATA_URL)
+        #[arg(long)]
+        url: Option<String>,
+        /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
+        #[arg(long)]
+        api_key: Option<String>,
+    },
+}
+
 /// Resolve `kazam install`'s scope from CLI flags, prompting interactively
 /// when the scope is ambiguous. Kept deterministic input-wise (no hidden
 /// state beyond argv/stdin) so the CLI stays scriptable: an explicit `--dir`
@@ -499,11 +523,15 @@ fn main() -> Result<()> {
             allow_hooks,
             user,
             repo,
+            as_skill,
         } => {
             let scope = resolve_install_scope(user, repo, dir)?;
-            install::run(&url, api_key, scope, force, &cli, allow_hooks)
+            install::run(&url, api_key, scope, force, &cli, allow_hooks, as_skill)
         }
         Command::Check { dir, api_key } => install::check(&dir, api_key),
+        Command::Packs { command } => match command {
+            PacksCommand::List { url, api_key } => install::list_packs(url, api_key),
+        },
         Command::PackHook {
             pack,
             index,

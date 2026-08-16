@@ -4,6 +4,31 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`kazam install <bare-name>`**: a pack name with no host resolves against
+  a configured curata instance via `KAZAM_CURATA_URL` (same env-var-fallback
+  pattern as `KAZAM_CURATA_API_KEY`, just for the instance rather than its
+  credential). Every fully-qualified form still works unchanged; a bare name
+  without `KAZAM_CURATA_URL` set refuses with the exact env var to set.
+- **`kazam packs list`**: enumerates installable pack pages from the
+  configured curata instance, using whatever generic page-listing call the
+  instance exposes (`list_pages`, mirroring `read_page`'s two-transport
+  fetch: REST shim first, then streamable-HTTP MCP). Filters to pages that
+  self-report as packs (a `pack` or `template` field on the listing entry)
+  when the listing carries that signal; when it doesn't, every listed page
+  is shown instead, with a printed note - `kazam install <slug>` still
+  refuses any page without a `pack:` marker either way.
+- **`kazam install --as-skill`**: a page carrying a top-level `skill:` block
+  installs into `.claude/skills/<slug>/SKILL.md` (YAML frontmatter +
+  markdown body) instead of the CLAUDE.md/.cursorrules rules targets.
+  `skill.trigger` becomes the frontmatter `description:`; `skill.requires`
+  renders as an informational "## Requires" section. Mutually exclusive
+  with `--cli`. `kazam check` now also scans `.claude/skills/*/SKILL.md`
+  for drift and tags each installed pack `[skill]` or `[rules]` so the two
+  install modes are distinguishable in the report.
+
 ## [1.21.0] - 2026-08-07
 
 ### Added
