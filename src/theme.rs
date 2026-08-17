@@ -2541,7 +2541,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 }
 .c-venn-svg {
   width: 100%;
-  max-width: 560px;
+  max-width: 680px;
   height: auto;
 }
 .c-venn-circle {

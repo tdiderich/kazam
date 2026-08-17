@@ -1675,7 +1675,7 @@ components:
     assert_contains(&html, "Backend");
     // Overlap label
     assert_contains(&html, r#"class="c-venn-overlap-label""#);
-    assert_contains(&html, ">APIs</text>");
+    assert_contains(&html, ">APIs</tspan>");
     // Title
     assert_contains(&html, r#"class="c-venn-title""#);
 }
@@ -1721,7 +1721,7 @@ components:
         circle_count
     );
     // 3-way overlap label centered at centroid
-    assert_contains(&html, ">All three</text>");
+    assert_contains(&html, ">All three</tspan>");
 }
 
 // ── 404 page ──────────────────────────────────────────

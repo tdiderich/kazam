@@ -2070,6 +2070,37 @@ fn render_queue_group<F>(
 
 // ── Venn ──────────────────────────────────────────
 
+// Greedy word-wrap for overlap labels, which are often full phrases rather
+// than single words - long ones need to break across lines or they collide
+// with a neighboring pairwise label's text.
+fn wrap_venn_label(s: &str, max_chars: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut cur = String::new();
+    for word in s.split_whitespace() {
+        let candidate_len = if cur.is_empty() {
+            word.len()
+        } else {
+            cur.len() + 1 + word.len()
+        };
+        if candidate_len > max_chars && !cur.is_empty() {
+            lines.push(std::mem::take(&mut cur));
+            cur.push_str(word);
+        } else {
+            if !cur.is_empty() {
+                cur.push(' ');
+            }
+            cur.push_str(word);
+        }
+    }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
 fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rendered {
     // Supported: 2-set or 3-set venn. Anything else degrades to a single-set
     // diagram with a warning note, so a malformed YAML doesn't break the page.
@@ -2086,10 +2117,12 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
 
     // Geometry constants - viewBox is sized so the 3-set bounding box leaves
     // ~30-40px of breathing room on every side at default radius. Circles
-    // stay at r=90 regardless of layout so 2-set and 3-set look at the same
-    // visual scale.
-    let (vb_w, vb_h) = (480.0, 340.0);
-    let r = 90.0_f64;
+    // stay at r=108 regardless of layout so 2-set and 3-set look at the same
+    // visual scale. Sized ~20% bigger than a bare-minimum fit (r=90) because
+    // overlap labels are often full phrases - the extra canvas grows the gap
+    // between circles and label text without having to shrink the font.
+    let (vb_w, vb_h) = (580.0, 410.0);
+    let r = 108.0_f64;
 
     h.push_str(&format!(
         r#"<svg class="c-venn-svg" viewBox="0 0 {vb_w} {vb_h}" role="img" aria-label="{}">"#,
@@ -2175,13 +2208,17 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
 
         // Pairwise overlap inside a 3-set venn: nudge outward from the
         // unincluded set's center so the label sits in the pairwise lune.
+        // Pushed further than the circle radius alone would suggest (0.58 vs
+        // the ~0.45 that lands right at the lune) because overlap labels are
+        // often full phrases, not single words - the extra room keeps two
+        // adjacent pairwise labels from running into each other's text.
         if n == 3 && count == 2 {
             if let Some(third_idx) = (0..3).find(|i| !ov.sets.contains(i)) {
                 let (tx, ty) = centers[third_idx];
                 let dx = lx - tx;
                 let dy = ly - ty;
                 let mag = (dx * dx + dy * dy).sqrt().max(1.0);
-                let push = r * 0.45;
+                let push = r * 0.58;
                 lx += dx / mag * push;
                 ly += dy / mag * push;
             }
@@ -2189,10 +2226,20 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
 
         let label = ov.label.as_deref().unwrap_or("");
         if !label.is_empty() {
+            let lines = wrap_venn_label(label, 18);
+            let line_h = 13.0;
+            let start_dy = -(lines.len() as f64 - 1.0) * line_h / 2.0;
             h.push_str(&format!(
-                r#"<text class="c-venn-overlap-label" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle">{label}</text>"#,
-                label = esc(label),
+                r#"<text class="c-venn-overlap-label" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle">"#,
             ));
+            for (i, line) in lines.iter().enumerate() {
+                let dy = if i == 0 { start_dy } else { line_h };
+                h.push_str(&format!(
+                    r#"<tspan x="{lx:.1}" dy="{dy:.1}">{}</tspan>"#,
+                    esc(line),
+                ));
+            }
+            h.push_str("</text>");
         }
     }
 

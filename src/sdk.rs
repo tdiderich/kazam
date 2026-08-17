@@ -571,6 +571,8 @@ interface PageRendererProps {
   activeHubHref?: string;
   /** When true, renders for export: hides nav, freshness, wraps in .export-root. */
   exportMode?: boolean;
+  /** Optional wrapper around each top-level component (edit mode chrome, drag handles, etc.). */
+  componentWrapper?: React.ComponentType<{ comp: ComponentData; index: number; children: React.ReactNode }>;
 }
 
 function esc(s: string): string {
@@ -2813,25 +2815,104 @@ function ComponentView({
       const sets = (comp.sets as Array<{ label: string; color?: string }>) || [];
       const overlaps = (comp.overlaps as Array<{ sets: number[]; label?: string }>) || [];
       const title = comp.title as string | undefined;
+      const n = sets.length;
+
+      if (n === 0) {
+        return (
+          <div id={id} className="c-venn">
+            {title && <div className="c-venn-title">{title}</div>}
+            <div className="c-venn-empty">No sets provided.</div>
+          </div>
+        );
+      }
+
+      const VB_W = 580, VB_H = 410, R = 108;
+      const centers: [number, number][] =
+        n === 1 ? [[VB_W / 2, VB_H / 2]] :
+        n === 2 ? [
+          [VB_W / 2 - R * 0.55, VB_H / 2],
+          [VB_W / 2 + R * 0.55, VB_H / 2],
+        ] : (() => {
+          const d = R * 0.62;
+          const cx = VB_W / 2, cy = VB_H / 2 + d * 0.3;
+          return [
+            [cx, cy - d],
+            [cx - d * 0.866, cy + d * 0.5],
+            [cx + d * 0.866, cy + d * 0.5],
+          ] as [number, number][];
+        })();
+
+      const centroidX = centers.reduce((s, c) => s + c[0], 0) / centers.length;
+      const centroidY = centers.reduce((s, c) => s + c[1], 0) / centers.length;
+
+      const circles = sets.slice(0, centers.length).map((s, i) => (
+        <circle key={i} className={`c-venn-circle c-venn-circle-${s.color || "default"}`} cx={centers[i][0]} cy={centers[i][1]} r={R} />
+      ));
+
+      const labels = sets.slice(0, centers.length).map((s, i) => {
+        const [cx, cy] = centers[i];
+        const dx = cx - centroidX, dy = cy - centroidY;
+        const mag = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+        const push = n === 1 ? 0 : R * 0.55;
+        const lx = cx + (dx / mag) * push;
+        const ly = cy + (dy / mag) * push;
+        return (
+          <text key={i} className={`c-venn-label c-venn-label-${s.color || "default"}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle">{s.label}</text>
+        );
+      });
+
+      const overlapLabels = overlaps.map((o, i) => {
+        if (!o.sets || o.sets.length === 0 || !o.label) return null;
+        let sumX = 0, sumY = 0, count = 0;
+        for (const idx of o.sets) {
+          const c = centers[idx];
+          if (c) { sumX += c[0]; sumY += c[1]; count++; }
+        }
+        if (count === 0) return null;
+        let lx = sumX / count, ly = sumY / count;
+        if (n === 3 && count === 2) {
+          const thirdIdx = [0, 1, 2].find(x => !o.sets.includes(x));
+          if (thirdIdx !== undefined) {
+            const [tx, ty] = centers[thirdIdx];
+            const ddx = lx - tx, ddy = ly - ty;
+            const mag = Math.max(Math.sqrt(ddx * ddx + ddy * ddy), 1);
+            const push = R * 0.58;
+            lx += (ddx / mag) * push;
+            ly += (ddy / mag) * push;
+          }
+        }
+        const words = o.label.split(/\s+/);
+        const lines: string[] = [];
+        let cur = "";
+        for (const word of words) {
+          const candidate = cur ? `${cur} ${word}` : word;
+          if (candidate.length > 18 && cur) {
+            lines.push(cur);
+            cur = word;
+          } else {
+            cur = candidate;
+          }
+        }
+        if (cur) lines.push(cur);
+        const lineH = 13;
+        const startDy = -(lines.length - 1) * lineH / 2;
+        return (
+          <text key={i} className="c-venn-overlap-label" x={lx} y={ly} textAnchor="middle" dominantBaseline="middle">
+            {lines.map((line, li) => (
+              <tspan key={li} x={lx} dy={li === 0 ? startDy : lineH}>{line}</tspan>
+            ))}
+          </text>
+        );
+      });
+
       return (
         <div id={id} className="c-venn">
-          {title && <h3 className="c-venn-title">{title}</h3>}
-          <div className="c-venn-diagram">
-            {sets.map((s, i) => (
-              <div key={i} className={`c-venn-set c-venn-set-${i} c-venn-color-${s.color || "default"}`}>
-                <span>{s.label}</span>
-              </div>
-            ))}
-          </div>
-          {overlaps.length > 0 && (
-            <div className="c-venn-overlaps">
-              {overlaps.map((o, i) => o.label && (
-                <div key={i} className="c-venn-overlap">
-                  {sets.filter((_, si) => o.sets.includes(si)).map(s => s.label).join(" ∩ ")}: {o.label}
-                </div>
-              ))}
-            </div>
-          )}
+          {title && <div className="c-venn-title">{title}</div>}
+          <svg className="c-venn-svg" viewBox={`0 0 ${VB_W} ${VB_H}`} role="img" aria-label={title || ""}>
+            {circles}
+            {labels}
+            {overlapLabels}
+          </svg>
         </div>
       );
     }
@@ -3379,53 +3460,41 @@ function ComponentView({
     case "gauge": {
       const items = (comp.items as Array<{ label: string; value: number; color?: string }>) || [];
       const maxVal = (comp.max as number) || 100;
+      const columns = (comp.columns as number) || 3;
+      const title = comp.title as string | undefined;
       const cx = 32, cy = 32, r = 26, strokeW = 6;
       const circ = 2 * Math.PI * r;
-      const total = items.reduce((acc, it) => acc + it.value, 0);
-      const title = comp.title as string | undefined;
-      let offset = 0;
-      const arcs = items.map((item, i) => {
-        const fraction = maxVal > 0 ? Math.min(item.value / maxVal, 1) : 0;
-        const dash = fraction * circ;
-        const gap = circ - dash;
-        const arc = (
-          <circle
-            key={i}
-            cx={cx}
-            cy={cy}
-            r={r}
-            fill="none"
-            strokeWidth={strokeW}
-            className={`c-gauge-arc c-gauge-arc-${item.color || "default"}`}
-            strokeDasharray={`${dash.toFixed(2)} ${gap.toFixed(2)}`}
-            strokeDashoffset={(-offset * circ / (maxVal > 0 ? maxVal : 1)).toFixed(2)}
-            transform={`rotate(-90 ${cx} ${cy})`}
-          >
-            <title>{item.label}: {item.value}</title>
-          </circle>
-        );
-        offset += item.value;
-        return arc;
-      });
+      const fmtValue = (v: number) => (v % 1 === 0 ? String(v) : v.toFixed(1));
       return (
-        <figure id={id} className="c-gauge">
-          {title && <figcaption className="c-gauge-title">{title}</figcaption>}
-          <svg viewBox="0 0 64 64" width={64} height={64} className="c-gauge-svg" aria-label={title || "Gauge"}>
-            <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={strokeW} className="c-gauge-track" />
-            {arcs}
-            <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" className="c-gauge-total">{total}</text>
-          </svg>
-          {items.length > 0 && (
-            <ul className="c-gauge-legend">
-              {items.map((item, i) => (
-                <li key={i} className={`c-gauge-legend-item c-gauge-legend-item-${item.color || "default"}`}>
-                  <span className="c-gauge-swatch" />
-                  <span>{item.label}: {item.value}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </figure>
+        <div id={id} className="c-gauge-grid" style={{ "--gauge-cols": columns } as React.CSSProperties}>
+          {title && <div className="c-gauge-title">{title}</div>}
+          {items.map((item, i) => {
+            const fraction = maxVal > 0 ? Math.min(item.value / maxVal, 1) : 0;
+            const dash = fraction * circ;
+            const gap = circ - dash;
+            const color = semToHex[item.color || "default"] || semToHex.default;
+            return (
+              <div key={i} className="c-gauge-item">
+                <svg viewBox="0 0 64 64" className="c-gauge-ring">
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={strokeW} />
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={r}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth={strokeW}
+                    strokeDasharray={`${dash.toFixed(1)} ${gap.toFixed(1)}`}
+                    strokeLinecap="round"
+                    transform={`rotate(-90 ${cx} ${cy})`}
+                  />
+                  <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="c-gauge-value">{fmtValue(item.value)}</text>
+                </svg>
+                <div className="c-gauge-label">{item.label}</div>
+              </div>
+            );
+          })}
+        </div>
       );
     }
 
@@ -3678,7 +3747,7 @@ function HubMasthead({ hub, resolveHref, activeHref, exportMode }: { hub: HubDat
   );
 }
 
-export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap, resolveHubHref, activeHubHref, exportMode }: PageRendererProps) {
+export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap, resolveHubHref, activeHubHref, exportMode, componentWrapper: CW }: PageRendererProps) {
   if (page.shell === "deck" && page.slides && page.slides.length > 0) {
     if (exportMode) {
       return (
@@ -3708,9 +3777,10 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
   const body = (
     <>
       {!exportMode && <FreshnessBanner freshness={page.freshness} />}
-      {components.map((comp, i) => (
-        <ComponentView key={i} comp={comp} index={i} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
-      ))}
+      {components.map((comp, i) => {
+        const cv = <ComponentView comp={comp} index={i} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+        return CW ? <CW key={i} comp={comp} index={i}>{cv}</CW> : <React.Fragment key={i}>{cv}</React.Fragment>;
+      })}
     </>
   );
   if (page.shell === "hub" && page.hub) {
