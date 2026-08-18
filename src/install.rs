@@ -352,12 +352,8 @@ fn resolve_install_input(input: &str) -> Result<String> {
     if !is_bare_slug(input) {
         return Ok(input.to_string());
     }
-    let base = configured_base_url(None).with_context(|| {
-        format!(
-            "'{}' looks like a bare pack name (no host, no '/')",
-            input
-        )
-    })?;
+    let base = configured_base_url(None)
+        .with_context(|| format!("'{}' looks like a bare pack name (no host, no '/')", input))?;
     Ok(format!("{}/{}", base, input))
 }
 
@@ -1063,7 +1059,10 @@ fn install_skill(
     }
 
     let block = render_skill_block(slug, source, hash, date, title, &body);
-    let frontmatter = format!("---\nname: {}\ndescription: \"{}\"\n---\n", slug, description);
+    let frontmatter = format!(
+        "---\nname: {}\ndescription: \"{}\"\n---\n",
+        slug, description
+    );
 
     let claude_dir = scope.claude_dir()?;
     let skill_dir = claude_dir.join("skills").join(slug);
@@ -1280,7 +1279,12 @@ pub fn check(dir: &Path, api_key: Option<String>) -> Result<()> {
         match fetch_pack(&base, &slug, org.as_deref(), api_key.as_deref()) {
             Ok((_, current)) => {
                 if current == pack.hash {
-                    println!("  fresh  {} ({}) [{}]", pack.slug, pack.file, pack.mode.label());
+                    println!(
+                        "  fresh  {} ({}) [{}]",
+                        pack.slug,
+                        pack.file,
+                        pack.mode.label()
+                    );
                 } else {
                     stale += 1;
                     println!(
@@ -1334,7 +1338,11 @@ fn fetch_rest_list(base: &str, api_key: Option<&str>) -> Result<Option<serde_jso
         Ok(r) => r,
         Err(ureq::Error::Status(404, _)) => return Ok(None),
         Err(ureq::Error::Status(401, _)) => {
-            bail!("unauthorized listing packs from {} - {}", endpoint, AUTH_HINT)
+            bail!(
+                "unauthorized listing packs from {} - {}",
+                endpoint,
+                AUTH_HINT
+            )
         }
         Err(ureq::Error::Status(code, resp)) => {
             let detail = resp.into_string().unwrap_or_default();
@@ -1374,7 +1382,11 @@ fn fetch_stream_list(base: &str, api_key: Option<&str>) -> Result<serde_json::Va
     let response = match build_request(&endpoint, api_key).send_string(&body.to_string()) {
         Ok(r) => r,
         Err(ureq::Error::Status(401, _)) => {
-            bail!("unauthorized listing packs from {} - {}", endpoint, AUTH_HINT)
+            bail!(
+                "unauthorized listing packs from {} - {}",
+                endpoint,
+                AUTH_HINT
+            )
         }
         Err(ureq::Error::Status(code, resp)) => {
             let detail = resp.into_string().unwrap_or_default();
@@ -2155,7 +2167,10 @@ components:
             "My Skill",
             "steps",
         );
-        let content = format!("---\nname: my-skill\ndescription: \"d\"\n---\n\n{}\n", block);
+        let content = format!(
+            "---\nname: my-skill\ndescription: \"d\"\n---\n\n{}\n",
+            block
+        );
         fs::write(skill_dir.join("SKILL.md"), content).unwrap();
 
         let found = collect_installed(tmp.path()).unwrap();
@@ -2205,7 +2220,10 @@ components:
 
     #[test]
     fn entry_is_pack_reads_pack_and_template_fields() {
-        assert_eq!(entry_is_pack(&serde_json::json!({"pack": true})), Some(true));
+        assert_eq!(
+            entry_is_pack(&serde_json::json!({"pack": true})),
+            Some(true)
+        );
         assert_eq!(entry_is_pack(&serde_json::json!({"pack": {}})), Some(true));
         assert_eq!(
             entry_is_pack(&serde_json::json!({"template": "ai-tool-pack"})),

@@ -8,7 +8,7 @@
 
 The full Rust binary. Build sites, track freshness, run audits, ingest from Notion, scaffold wishes, install AI tool packs, MCP server with annotation tools, agent workspace: everything in this repo.
 
-**AI tool packs** are the newest capability and the tightest tie to the curata story: `kazam install <curata-url>` pulls a pack page from a curata instance and compiles it into a repo's CLAUDE.md / .cursorrules. Org knowledge authored in curata flows straight into every engineer's AI tools, and the content hash makes drift from the source page detectable. The pack catalog (curata-managed first, community later) is where the OSS install command becomes a distribution channel for the platform.
+**AI tool packs** are the newest capability and the tightest tie to the curata story: `kazam install <curata-url>` pulls a pack page from your org's private curata instance and compiles it into a repo's CLAUDE.md / .cursorrules. Knowledge that lives inside your company - standards, voice rules, engineering playbooks - flows straight into every engineer's AI tools. Content hashes make drift from the source page detectable, so packs stay current without manual tracking. The private registry is the distribution channel: org knowledge a public scraper can't reach, installed with managed versioning no GitHub directory offers.
 
 Users install via `cargo install` or Homebrew, run locally or in CI, own everything. Every curata customer starts here.
 

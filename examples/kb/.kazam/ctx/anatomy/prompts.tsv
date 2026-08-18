@@ -1,7 +1,7 @@
 path	tokens	reads	description
-prompts/add.yaml	511	0	YAML configuration/data
-prompts/audit.yaml	431	0	YAML configuration/data
-prompts/migrate.yaml	510	0	YAML configuration/data
-prompts/refresh.yaml	467	0	YAML configuration/data
+prompts/add.yaml	510	0	YAML configuration/data
+prompts/audit.yaml	430	0	YAML configuration/data
+prompts/migrate.yaml	508	0	YAML configuration/data
+prompts/refresh.yaml	466	0	YAML configuration/data
 prompts/reviewer.yaml	169	0	YAML configuration/data
 prompts/writer.yaml	108	0	YAML configuration/data

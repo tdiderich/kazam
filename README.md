@@ -180,7 +180,7 @@ The `--local` flag (default) binds to 127.0.0.1. The `--remote` flag binds to 0.
 
 ## AI tool packs
 
-Install shared AI agent rules straight from a curata instance into your repo:
+Your org's private knowledge, compiled into every engineer's AI tools. `kazam install` pulls a pack page from your curata instance and writes managed blocks into CLAUDE.md / .cursorrules - drift-tracked against the source, so you know when local copies fall behind:
 
 ```bash
 # Fetch a pack page and write CLAUDE.md + .cursorrules
@@ -208,9 +208,9 @@ pack:
 
 Targets map to files: `claude` (CLAUDE.md), `cursor` (.cursorrules), `agents` (AGENTS.md, read by 30+ tools), plus `windsurf`, `copilot`, `gemini`, `aider`.
 
-### Your own instance: bare names and listing
+### Private registry: bare names and listing
 
-Set `KAZAM_CURATA_URL` once to your org's curata instance and every other pack command drops the host:
+Point at your org's curata instance once and every pack command drops the host. Your private packs never leave your instance - no public registry involved:
 
 ```bash
 export KAZAM_CURATA_URL=https://curata.internal
