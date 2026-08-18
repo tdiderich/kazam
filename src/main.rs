@@ -707,7 +707,13 @@ fn main() -> Result<()> {
                 switchable,
             } => {
                 if switchable {
-                    let t = theme::dark();
+                    let m = parse_mode(&mode);
+                    let base_theme = if theme_name == "dark" {
+                        "violet"
+                    } else {
+                        &theme_name
+                    };
+                    let t = theme::Theme::named(base_theme, m);
                     print!("{}", theme::render_switchable_css(&t));
                 } else {
                     let m = parse_mode(&mode);

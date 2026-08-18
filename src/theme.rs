@@ -4032,4 +4032,16 @@ mod tests {
         // URL-encoded SVG keeps commas/parens raw, only spaces become %20.
         assert!(css.contains("rgb(247,%20247,%20242)"));
     }
+
+    #[test]
+    fn switchable_css_renders_root_with_theme_accent() {
+        let violet = Theme::named("violet", Mode::Dark);
+        let css = render_switchable_css(&violet);
+        assert!(css.contains(":root {"));
+        assert!(css.contains("--teal: #AB7FBB;"));
+        assert!(css.contains("--accent-rgb: 171, 127, 187;"));
+        assert!(css.contains("[data-mode=\"light\"]"));
+        assert!(css.contains("[data-theme=\"violet\"]"));
+        assert!(css.contains("[data-theme=\"green\"]"));
+    }
 }
