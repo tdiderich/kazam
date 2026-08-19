@@ -4,7 +4,7 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.22.0] - 2026-08-19
 
 ### Added
 - **`kazam install <bare-name>`**: a pack name with no host resolves against
