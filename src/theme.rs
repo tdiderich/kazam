@@ -130,10 +130,12 @@ impl Theme {
         let accent_rgb = hex_to_rgb_triple(&self.accent).unwrap_or_else(|| "60, 206, 206".into());
         let bg_rgb = hex_to_rgb_triple(&self.bg).unwrap_or_else(|| "9, 13, 24".into());
         let text_rgb = hex_to_rgb_triple(&self.text).unwrap_or_else(|| "255, 255, 255".into());
+        let panel = panel_from_bg(&self.bg);
         format!(
             ":root {{\
              --bg: {bg};\
              --bg-rgb: {bg_rgb};\
+             --surface: {panel};\
              --card-bg: {surface};\
              --card-border: {border};\
              --card-hover-border: {border_strong};\
@@ -171,6 +173,29 @@ impl Theme {
             header_border = self.header_border,
         )
     }
+}
+
+/// Opaque panel color for floating chrome (modals, overlays, pickers) that
+/// must not let page content bleed through. Derived from the page bg: dark
+/// grounds get a slightly lifted shade, light grounds get white.
+fn panel_from_bg(bg: &str) -> String {
+    let h = bg.trim().trim_start_matches('#');
+    if h.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&h[0..2], 16),
+            u8::from_str_radix(&h[2..4], 16),
+            u8::from_str_radix(&h[4..6], 16),
+        ) {
+            let luma = 0.2126 * r as f32 + 0.7152 * g as f32 + 0.0722 * b as f32;
+            if luma < 128.0 {
+                // Lift the dark bg ~4% toward white for an elevated panel.
+                let lift = |c: u8| -> u8 { c.saturating_add(((255 - c as u16) / 16) as u8) };
+                return format!("#{:02X}{:02X}{:02X}", lift(r), lift(g), lift(b));
+            }
+            return "#FFFFFF".into();
+        }
+    }
+    "#1C1B1E".into()
 }
 
 fn hex_to_rgb_triple(hex: &str) -> Option<String> {
@@ -257,6 +282,7 @@ pub fn render_switchable_css(theme: &Theme) -> String {
         "[data-mode=\"light\"] {\n\
           --bg: #F7F7F2;\n\
           --bg-rgb: 247, 247, 242;\n\
+          --surface: #FFFFFF;\n\
           --snow: #1a1a1a;\n\
           --text-rgb: 26, 26, 26;\n\
           --muted: #888888;\n\
