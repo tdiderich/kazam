@@ -4,6 +4,16 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.1] - 2026-08-21
+
+### Fixed
+- Switchable theme CSS now emits an opaque `--surface` panel token for
+  floating chrome (modals, overlays, pickers). Downstream apps styled panels
+  with `var(--surface)`, which was previously undefined and fell back to
+  transparent, letting page content bleed through. The value derives from the
+  bg luminance: dark grounds get a ~4% lift toward white, light grounds get
+  pure white; the `[data-mode="light"]` override sets `#FFFFFF`.
+
 ## [1.22.0] - 2026-08-19
 
 ### Added
