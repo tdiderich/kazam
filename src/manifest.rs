@@ -227,12 +227,14 @@ mod tests {
             eyebrow: None,
             align: Default::default(),
             id: None,
+            scale: None,
         }
     }
 
     fn make_markdown() -> Component {
         Component::Markdown {
             body: "Hello".to_string(),
+            scale: None,
         }
     }
 
@@ -243,6 +245,7 @@ mod tests {
             components: inner,
             align: Default::default(),
             id: None,
+            scale: None,
         }
     }
 
@@ -284,6 +287,7 @@ mod tests {
         let tab2 = make_tab("B", vec![make_markdown()]);
         let tabs = Component::Tabs {
             tabs: vec![tab1, tab2],
+            scale: None,
         };
         let names = collect_component_types(&[tabs]);
         assert!(names.contains(&"tabs".to_string()));
@@ -296,6 +300,7 @@ mod tests {
         let cols = Component::Columns {
             columns: vec![vec![make_header()], vec![make_markdown()]],
             equal_heights: false,
+            scale: None,
         };
         let names = collect_component_types(&[cols]);
         assert!(names.contains(&"columns".to_string()));
@@ -310,6 +315,7 @@ mod tests {
                 title: "Q".to_string(),
                 components: vec![make_markdown()],
             }],
+            scale: None,
         };
         let names = collect_component_types(&[acc]);
         assert!(names.contains(&"accordion".to_string()));

@@ -1489,6 +1489,7 @@ mod tests {
             Shell::Standard,
             Some(vec![Component::Markdown {
                 body: "rules".into(),
+                scale: None,
             }]),
         );
         page.pack = Some(pack_meta(&[]));
@@ -1504,9 +1505,11 @@ mod tests {
                 eyebrow: None,
                 components: vec![Component::Markdown {
                     body: "rules".into(),
+                    scale: None,
                 }],
                 align: Default::default(),
                 id: None,
+                scale: None,
             }]),
         );
         page.pack = Some(pack_meta(&["claude", "cursor"]));
@@ -1527,7 +1530,10 @@ mod tests {
     fn pack_with_empty_markdown_fails_structural() {
         let mut page = make_page(
             Shell::Standard,
-            Some(vec![Component::Markdown { body: "   ".into() }]),
+            Some(vec![Component::Markdown {
+                body: "   ".into(),
+                scale: None,
+            }]),
         );
         page.pack = Some(pack_meta(&[]));
         let errors = validate_page("p.yaml", &page);
@@ -1542,6 +1548,7 @@ mod tests {
             Shell::Standard,
             Some(vec![Component::Markdown {
                 body: "rules".into(),
+                scale: None,
             }]),
         );
         page.pack = Some(pack_meta(&["claude", "notatool"]));
@@ -1558,6 +1565,7 @@ mod tests {
             eyebrow: None,
             align: Default::default(),
             id: None,
+            scale: None,
         }
     }
 
@@ -1654,6 +1662,7 @@ mod tests {
                 cards: vec![],
                 min_width: None,
                 connector: Connector::None,
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1674,6 +1683,7 @@ mod tests {
                 rows: vec![],
                 filterable: false,
                 summary: None,
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1754,6 +1764,7 @@ mod tests {
                 detail: None,
                 target: None,
                 thresholds: std::collections::HashMap::new(),
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1870,7 +1881,10 @@ mod tests {
     fn skill_page(body: &str) -> Page {
         let mut page = make_page(
             Shell::Document,
-            Some(vec![Component::Markdown { body: body.into() }]),
+            Some(vec![Component::Markdown {
+                body: body.into(),
+                scale: None,
+            }]),
         );
         page.skill = Some(crate::types::SkillMeta {
             trigger: Some("demo".into()),
@@ -1932,6 +1946,7 @@ mod tests {
             Shell::Document,
             Some(vec![Component::Markdown {
                 body: "```agl\nbroken\n```".into(),
+                scale: None,
             }]),
         );
         let errors = validate_page("plain.yaml", &page);
