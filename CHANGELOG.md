@@ -4,6 +4,24 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.2] - 2026-08-24
+
+### Fixed
+- `kazam open` edit mode: cursor now aligns with visible text. The
+  transparent textarea overlay was misaligned due to missing
+  `-webkit-appearance: none`, independent scroll containers on the pre
+  and textarea, and a relative `line-height` that browsers rounded
+  differently between element types.
+- `kazam open` edit mode: copy/paste works normally. Auto-copy on mouseup
+  no longer fires in edit mode (was overwriting the clipboard on every
+  text selection), and native Cmd+C/V operates on the textarea directly.
+
+### Changed
+- `kazam open` edit mode: syntax highlighting now runs client-side via
+  `requestAnimationFrame` instead of round-tripping each keystroke to
+  the server. Typing is immediate; the 400ms debounced POST to
+  `/api/content` still persists edits to the server buffer for agents.
+
 ## [1.22.1] - 2026-08-21
 
 ### Fixed

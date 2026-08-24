@@ -741,23 +741,35 @@ body.editing .edit-mode {{ display: block; }}
   padding: 20px;
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 21px;
   tab-size: 2;
   white-space: pre-wrap;
   word-wrap: break-word;
-  overflow: auto;
+  overflow-wrap: break-word;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-variant-ligatures: none;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
 }}
 .edit-highlight {{
   color: var(--snow);
   pointer-events: none;
+  overflow: hidden;
 }}
 .edit-area {{
+  -webkit-appearance: none;
+  appearance: none;
   background: transparent;
   color: transparent;
   caret-color: var(--snow);
   border: none;
   outline: none;
   resize: none;
+  overflow: auto;
+}}
+.edit-area::selection {{
+  background: rgba(var(--accent-rgb),0.3);
 }}
 .status {{
   position: fixed;
@@ -973,26 +985,72 @@ function refreshView(){{
 }}
 var editor=document.getElementById('editor');
 var highlightPane=document.getElementById('editorHighlight');
-var debounce=null, highlightDebounce=null;
+var debounce=null,hlRaf=null;
+var FILE_EXT='{ext}';
+function esc(s){{return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}}
+function colorVal(v){{
+  if(!v)return'';
+  if(v==='true'||v==='false')return'<span class="syn-bool">'+v+'</span>';
+  if(v==='null'||v==='~')return'<span class="syn-null">'+v+'</span>';
+  if(v.charAt(0)==='"'||v.charAt(0)==="'")return'<span class="syn-str">'+esc(v)+'</span>';
+  if(v!==''&&!isNaN(v))return'<span class="syn-num">'+v+'</span>';
+  return esc(v);
+}}
+function hlYaml(ln){{
+  var t=ln.trimStart(),sp=ln.length-t.length,pad=' '.repeat(sp);
+  if(t.charAt(0)==='#')return pad+'<span class="syn-comment">'+esc(t)+'</span>';
+  var ci=t.indexOf(':');
+  if(ci>=0){{var k=t.substring(0,ci),r=t.substring(ci+1).trim();return pad+'<span class="syn-key">'+esc(k)+'</span><span class="syn-punct">:</span> '+colorVal(r);}}
+  if(t.substring(0,2)==='- ')return pad+'<span class="syn-punct">-</span> '+colorVal(t.substring(2).trim());
+  return pad+esc(t);
+}}
+function hlJson(ln){{
+  var o='',i=0;
+  while(i<ln.length){{
+    var c=ln.charAt(i);
+    if(c==='"'){{var s='"',e2=false;i++;while(i<ln.length){{var x=ln.charAt(i);s+=x;i++;if(e2){{e2=false;continue;}}if(x==='\\'){{e2=true;continue;}}if(x==='"')break;}}var rest=ln.substring(i).trimStart();o+='<span class="'+(rest.charAt(0)===':'?'syn-key':'syn-str')+'">'+esc(s)+'</span>';}}
+    else if((c>='0'&&c<='9')||c==='-'){{var n='';while(i<ln.length&&/[\d.eE+\-]/.test(ln.charAt(i))){{n+=ln.charAt(i);i++;}}o+='<span class="syn-num">'+esc(n)+'</span>';}}
+    else if(c==='t'||c==='f'||c==='n'){{var w='';while(i<ln.length&&/[a-z]/.test(ln.charAt(i))){{w+=ln.charAt(i);i++;}}if(w==='true'||w==='false')o+='<span class="syn-bool">'+w+'</span>';else if(w==='null')o+='<span class="syn-null">'+w+'</span>';else o+=esc(w);}}
+    else if('{{}}[]:,'.indexOf(c)>=0){{o+='<span class="syn-punct">'+esc(c)+'</span>';i++;}}
+    else{{o+=esc(c);i++;}}
+  }}
+  return o;
+}}
+var AGL_KW='spec in out requires skill cache invariant flow state branch if deny without gate import call map evaluate fan watch TERMINATE next'.split(' ');
+function hlAgl(ln){{
+  var o='',chars=ln.split(''),i=0;
+  while(i<chars.length){{
+    var c=chars[i];
+    if(c==='"'){{var p=i;i++;while(i<chars.length&&chars[i]!=='"')i++;if(i<chars.length)i++;o+='<span class="syn-str">'+esc(chars.slice(p,i).join(''))+'</span>';}}
+    else if(c==='/'&&chars[i+1]==='/'){{o+='<span class="syn-comment">'+esc(chars.slice(i).join(''))+'</span>';i=chars.length;}}
+    else if(c==='-'&&chars[i+1]==='>'){{o+='<span class="syn-punct">-&gt;</span>';i+=2;}}
+    else if(/[a-zA-Z_]/.test(c)){{var p2=i;while(i<chars.length&&(/[\w.]/.test(chars[i])||(chars[i]==='-'&&chars[i+1]!=='>')))i++;var wd=chars.slice(p2,i).join('');o+=(AGL_KW.indexOf(wd)>=0?'<span class="syn-key">'+esc(wd)+'</span>':esc(wd));}}
+    else if('{{}}(),:'.indexOf(c)>=0){{o+='<span class="syn-punct">'+esc(c)+'</span>';i++;}}
+    else{{o+=esc(c);i++;}}
+  }}
+  return o;
+}}
+function updateHighlight(){{
+  var text=editor.value;
+  if(FILE_EXT==='md'){{highlightPane.innerHTML=esc(text);return;}}
+  highlightPane.innerHTML=text.split('\n').map(function(ln){{
+    if(FILE_EXT==='yaml'||FILE_EXT==='yml')return hlYaml(ln);
+    if(FILE_EXT==='json')return hlJson(ln);
+    if(FILE_EXT==='agl')return hlAgl(ln);
+    return esc(ln);
+  }}).join('\n');
+}}
 editor.addEventListener('input',function(){{
   dirty=true;
   clearTimeout(debounce);
   debounce=setTimeout(postContent,400);
-  clearTimeout(highlightDebounce);
-  highlightDebounce=setTimeout(updateHighlight,120);
+  if(hlRaf)cancelAnimationFrame(hlRaf);
+  hlRaf=requestAnimationFrame(updateHighlight);
 }});
-// Keeps the highlighted <pre> behind the (invisible-text) textarea in view,
-// since the two scroll independently otherwise.
 editor.addEventListener('scroll',function(){{
   highlightPane.scrollTop=editor.scrollTop;
   highlightPane.scrollLeft=editor.scrollLeft;
 }});
-function updateHighlight(){{
-  fetch('/api/highlight',{{method:'POST',body:editor.value}})
-    .then(function(r){{return r.text()}})
-    .then(function(h){{highlightPane.innerHTML=h;}})
-    .catch(function(){{}});
-}}
 // Tab key inserts spaces
 editor.addEventListener('keydown',function(e){{
   if(e.key==='Tab'){{
@@ -1057,9 +1115,8 @@ document.addEventListener('keydown',function(e){{
 }});
 // Selecting text copies it, in the rendered view and the textarea both.
 function copySelection(){{
-  var a=document.activeElement, t='';
-  if(a&&a.id==='editor') t=a.value.substring(a.selectionStart,a.selectionEnd);
-  else t=String(window.getSelection()||'');
+  if(document.body.className==='editing') return;
+  var t=String(window.getSelection()||'');
   if(!t.trim())return;
   copyText(t,'copied '+t.length+' chars');
 }}
