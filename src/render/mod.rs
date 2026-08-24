@@ -28,6 +28,7 @@ pub fn render_source_view(
     rendered.extend(components::render(
         &Component::Markdown {
             body: format!("[← Back to rendered page]({})", html_href),
+            scale: None,
         },
         base,
         config,
@@ -36,6 +37,7 @@ pub fn render_source_view(
         &Component::Code {
             language: Some("yaml".to_string()),
             code: yaml_content.to_string(),
+            scale: None,
         },
         base,
         config,
@@ -353,6 +355,7 @@ fn default_404_page() -> Page {
                 href: "/index.html".to_string(),
             }),
             icon: Some("file".to_string()),
+            scale: None,
         }]),
         slides: None,
         unlisted: true,

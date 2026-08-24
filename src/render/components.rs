@@ -5,61 +5,69 @@ use crate::icons;
 use crate::types::*;
 
 pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
-    match c {
+    let rendered = match c {
         Component::Header {
             title,
             subtitle,
             eyebrow,
             align,
             id,
+            ..
         } => header(title, subtitle, eyebrow, *align, id.as_deref()),
         Component::HeroBanner {
             title,
             eyebrow,
             subtitle,
             buttons,
+            ..
         } => hero_banner(title, eyebrow, subtitle, buttons.as_deref(), base),
-        Component::Meta { fields } => meta(fields),
+        Component::Meta { fields, .. } => meta(fields),
         Component::CardGrid {
             cards,
             min_width,
             connector,
+            ..
         } => card_grid(cards, *min_width, *connector, base),
         Component::SelectableGrid {
             cards,
             interaction,
             connector,
+            ..
         } => selectable_grid(cards, *interaction, *connector, base),
-        Component::Timeline { items } => timeline(items),
-        Component::StatGrid { stats, columns } => stat_grid(stats, *columns),
+        Component::Timeline { items, .. } => timeline(items),
+        Component::StatGrid { stats, columns, .. } => stat_grid(stats, *columns),
         Component::BeforeAfter {
             items,
             before_label,
             after_label,
+            ..
         } => before_after(items, before_label.as_deref(), after_label.as_deref()),
-        Component::SplitCompare { left, right } => split_compare(left, right),
-        Component::Steps { items, numbered } => steps(items, *numbered),
-        Component::Markdown { body } => markdown(body, base),
+        Component::SplitCompare { left, right, .. } => split_compare(left, right),
+        Component::Steps { items, numbered, .. } => steps(items, *numbered),
+        Component::Markdown { body, .. } => markdown(body, base),
         Component::Table {
             columns,
             rows,
             filterable,
             summary,
+            ..
         } => table(columns, rows, *filterable, summary.as_ref()),
         Component::Callout {
             variant,
             title,
             body,
             links,
+            ..
         } => callout(*variant, title, body, links.as_deref(), base),
-        Component::Code { language, code } => code_block(language, code),
-        Component::Tabs { tabs } => tabs_component(tabs, base, config),
+        Component::Code { language, code, .. } => code_block(language, code),
+        Component::Tabs { tabs, .. } => tabs_component(tabs, base, config),
         Component::Section {
             heading,
             eyebrow,
             components,
             align,
             id,
+            ..
         } => section(
             heading,
             eyebrow,
@@ -72,8 +80,9 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
         Component::Columns {
             columns,
             equal_heights,
+            ..
         } => columns_component(columns, *equal_heights, base, config),
-        Component::Accordion { items } => accordion(items, base, config),
+        Component::Accordion { items, .. } => accordion(items, base, config),
         Component::EventTimeline {
             events,
             default_filter,
@@ -81,6 +90,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             limit,
             filter_by,
             group_by,
+            ..
         } => event_timeline(
             events,
             *default_filter,
@@ -99,6 +109,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             show_counts,
             show_summary,
             default_view,
+            ..
         } => tree(
             nodes,
             *default_filter,
@@ -113,6 +124,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             sets,
             overlaps,
             title,
+            ..
         } => venn(sets, overlaps, title.as_deref()),
         Component::Image {
             src,
@@ -120,26 +132,34 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             caption,
             max_width,
             align,
+            ..
         } => image(src, alt, caption, *max_width, *align, base),
-        Component::Embed { src, title, aspect } => embed(src, title, aspect),
-        Component::Resources { items } => resources(items),
+        Component::Embed {
+            src, title, aspect, ..
+        } => embed(src, title, aspect),
+        Component::Resources { items, .. } => resources(items),
         // Phase 1 additions
-        Component::Badge { label, color } => badge(label, *color),
-        Component::Tag { label, color } => tag(label, *color),
-        Component::Divider { label } => divider(label),
-        Component::Kbd { keys } => kbd(keys),
-        Component::Status { label, color } => status(label, *color),
-        Component::Breadcrumb { items } => breadcrumb(items, base),
-        Component::ButtonGroup { buttons } => button_group(buttons, base),
-        Component::DefinitionList { items } => definition_list(items),
-        Component::Blockquote { body, attribution } => blockquote(body, attribution),
+        Component::Badge { label, color, .. } => badge(label, *color),
+        Component::Tag { label, color, .. } => tag(label, *color),
+        Component::Divider { label, .. } => divider(label),
+        Component::Kbd { keys, .. } => kbd(keys),
+        Component::Status { label, color, .. } => status(label, *color),
+        Component::Breadcrumb { items, .. } => breadcrumb(items, base),
+        Component::ButtonGroup { buttons, .. } => button_group(buttons, base),
+        Component::DefinitionList { items, .. } => definition_list(items),
+        Component::Blockquote {
+            body, attribution, ..
+        } => blockquote(body, attribution),
         Component::Avatar {
             name,
             src,
             size,
             subtitle,
+            ..
         } => avatar(name, src, *size, subtitle),
-        Component::AvatarGroup { avatars, size, max } => avatar_group(avatars, *size, *max),
+        Component::AvatarGroup {
+            avatars, size, max, ..
+        } => avatar_group(avatars, *size, *max),
         Component::ProgressBar {
             value,
             label,
@@ -147,14 +167,18 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             detail,
             target,
             thresholds,
+            ..
         } => progress_bar(*value, label, *color, detail, *target, thresholds),
         Component::EmptyState {
             title,
             body,
             action,
             icon,
+            ..
         } => empty_state(title, body, action, icon, base),
-        Component::Icon { name, size, color } => icon_component(name, *size, *color),
+        Component::Icon {
+            name, size, color, ..
+        } => icon_component(name, *size, *color),
         Component::Chart {
             kind,
             title,
@@ -164,39 +188,33 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             orientation,
             data,
             series,
-            scale,
-        } => apply_scale(
-            charts::render(charts::ChartSpec {
-                kind: *kind,
-                title,
-                height: *height,
-                x_label,
-                y_label,
-                orientation: *orientation,
-                data,
-                series,
-            }),
-            *scale,
-        ),
-        Component::RoleMap { title } => role_map(title.as_deref(), config, base),
+            ..
+        } => charts::render(charts::ChartSpec {
+            kind: *kind,
+            title,
+            height: *height,
+            x_label,
+            y_label,
+            orientation: *orientation,
+            data,
+            series,
+        }),
+        Component::RoleMap { title, .. } => role_map(title.as_deref(), config, base),
         Component::Sankey {
             title,
             height,
             flows,
             colors,
-            scale,
-        } => apply_scale(charts::render_sankey(title, *height, flows, colors), *scale),
+            ..
+        } => charts::render_sankey(title, *height, flows, colors),
         Component::Radar {
             title,
             height,
             axes,
             curves,
             max,
-            scale,
-        } => apply_scale(
-            charts::render_radar(title, *height, axes, curves, *max),
-            *scale,
-        ),
+            ..
+        } => charts::render_radar(title, *height, axes, curves, *max),
         Component::Quadrant {
             title,
             height,
@@ -204,22 +222,16 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             y_axis,
             quadrants,
             points,
-            scale,
-        } => apply_scale(
-            charts::render_quadrant(title, *height, x_axis, y_axis, quadrants, points),
-            *scale,
-        ),
+            ..
+        } => charts::render_quadrant(title, *height, x_axis, y_axis, quadrants, points),
         Component::Architecture {
             title,
             height,
             direction,
             nodes,
             connections,
-            scale,
-        } => apply_scale(
-            charts::render_architecture(title, *height, *direction, nodes, connections),
-            *scale,
-        ),
+            ..
+        } => charts::render_architecture(title, *height, *direction, nodes, connections),
         Component::Pipeline {
             title,
             height,
@@ -227,11 +239,8 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             stages,
             outputs,
             context,
-            scale,
-        } => apply_scale(
-            charts::render_pipeline(title, *height, inputs, stages, outputs, context),
-            *scale,
-        ),
+            ..
+        } => charts::render_pipeline(title, *height, inputs, stages, outputs, context),
         Component::Graph {
             title,
             height,
@@ -240,23 +249,22 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             edges,
             groups,
             row_labels,
-            scale,
-        } => apply_scale(
-            charts::render_graph(title, *height, *direction, nodes, edges, groups, row_labels),
-            *scale,
-        ),
+            ..
+        } => charts::render_graph(title, *height, *direction, nodes, edges, groups, row_labels),
         Component::OrgChart {
             title,
             people,
             default_open_depth,
+            ..
         } => render_org_chart(title, people, *default_open_depth),
-        Component::Aside { body } => aside(body, base),
-        Component::RuleList { items } => rule_list(items),
+        Component::Aside { body, .. } => aside(body, base),
+        Component::RuleList { items, .. } => rule_list(items),
         Component::Gauge {
             items,
             title,
             columns,
             max,
+            ..
         } => gauge(items, title.as_deref(), *columns, *max),
         Component::PriorityQueue {
             items,
@@ -265,6 +273,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             show_counts,
             filterable,
             title,
+            ..
         } => priority_queue(
             items,
             *group_by,
@@ -273,7 +282,8 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             *filterable,
             title.as_deref(),
         ),
-    }
+    };
+    apply_scale(rendered, c.scale())
 }
 
 pub(super) fn sem_color_class(c: SemColor) -> &'static str {

@@ -63,7 +63,7 @@ fn collect_into(components: &[Component], out: &mut Vec<String>) {
             Component::Section {
                 components: inner, ..
             } => collect_into(inner, out),
-            Component::Tabs { tabs } => {
+            Component::Tabs { tabs, .. } => {
                 for tab in tabs {
                     collect_into(&tab.components, out);
                 }
@@ -73,7 +73,7 @@ fn collect_into(components: &[Component], out: &mut Vec<String>) {
                     collect_into(col, out);
                 }
             }
-            Component::Accordion { items } => {
+            Component::Accordion { items, .. } => {
                 for item in items {
                     collect_into(&item.components, out);
                 }

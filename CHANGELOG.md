@@ -4,6 +4,15 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.3] - 2026-08-24
+
+### Added
+- `scale: Option<f32>` on all Component variants. Previously only chart-family
+  types (Chart, Sankey, Radar, Quadrant, Architecture, Pipeline, Graph) accepted
+  scale; now any component can be wrapped in a centered scale container via
+  `scale: 0.7` in YAML. CSS selector broadened from `.c-chart-scale > .c-chart`
+  to `.c-chart-scale > *`.
+
 ## [1.22.2] - 2026-08-24
 
 ### Fixed

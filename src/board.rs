@@ -157,6 +157,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             },
         ],
         columns: 4,
+        scale: None,
     };
 
     // Human blocker callout
@@ -202,6 +203,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             title: Some(title),
             body: names.join("\n"),
             links: None,
+            scale: None,
         });
     }
 
@@ -218,6 +220,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             show_counts: false,
             show_summary: false,
             default_view: TreeDefaultView::Tree,
+            scale: None,
         }],
     };
 
@@ -250,6 +253,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                         },
                     ],
                     columns: 2,
+                    scale: None,
                 },
                 Component::Tree {
                     nodes: anat_nodes,
@@ -260,6 +264,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                     show_counts: false,
                     show_summary: false,
                     default_view: TreeDefaultView::Tree,
+                    scale: None,
                 },
             ],
         }
@@ -271,6 +276,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 title: None,
                 body: "Run kazam ctx scan to populate anatomy.".into(),
                 links: None,
+                scale: None,
             }],
         }
     };
@@ -286,6 +292,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             limit: Some(25),
             filter_by: vec![],
             group_by: None,
+            scale: None,
         });
     }
     if !learnings.learnings.is_empty() {
@@ -333,9 +340,11 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 rows: learn_rows,
                 filterable: false,
                 summary: None,
+                scale: None,
             }],
             align: Align::Left,
             id: None,
+            scale: None,
         });
     }
     if !bugs.bugs.is_empty() {
@@ -407,9 +416,11 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 rows: bug_rows,
                 filterable: false,
                 summary: None,
+                scale: None,
             }],
             align: Align::Left,
             id: None,
+            scale: None,
         });
     }
     if activity_components.is_empty() {
@@ -418,6 +429,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             title: None,
             body: "No activity yet.".into(),
             links: None,
+            scale: None,
         });
     }
     let activity_tab = Tab {
@@ -427,6 +439,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
 
     components.push(Component::Tabs {
         tabs: vec![task_tab, anatomy_tab, activity_tab],
+        scale: None,
     });
 
     Ok(Page {

@@ -2909,7 +2909,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   display: flex;
   justify-content: center;
 }
-.c-chart-scale > .c-chart {
+.c-chart-scale > * {
   width: calc(var(--kz-scale, 1) * 100%);
 }
 .c-chart-title {

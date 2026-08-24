@@ -1,6 +1,6 @@
 [package]
 name = "kazam"
-version = "1.22.2"
+version = "1.22.3"
 edition = "2021"
 description = "Local infrastructure for coding agents: context, visibility, durable execution. One Rust binary, no cloud."
 license = "MIT"

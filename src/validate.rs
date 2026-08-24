@@ -96,7 +96,7 @@ fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
     fn collect_markdown<'a>(components: &'a [Component], out: &mut Vec<&'a str>) {
         for c in components {
             match c {
-                Component::Markdown { body } => out.push(body),
+                Component::Markdown { body, .. } => out.push(body),
                 Component::Section { components, .. } => collect_markdown(components, out),
                 _ => {}
             }
@@ -213,7 +213,7 @@ fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
 
     fn has_installable_markdown(components: &[Component]) -> bool {
         components.iter().any(|c| match c {
-            Component::Markdown { body } => !body.trim().is_empty(),
+            Component::Markdown { body, .. } => !body.trim().is_empty(),
             Component::Section { components, .. } => has_installable_markdown(components),
             _ => false,
         })
@@ -720,7 +720,7 @@ fn validate_component(
             }
         }
 
-        Component::Timeline { items } => {
+        Component::Timeline { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -768,7 +768,7 @@ fn validate_component(
             }
         }
 
-        Component::Tabs { tabs } => {
+        Component::Tabs { tabs, .. } => {
             if tabs.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -835,7 +835,7 @@ fn validate_component(
             }
         }
 
-        Component::Accordion { items } => {
+        Component::Accordion { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -925,7 +925,7 @@ fn validate_component(
             }
         }
 
-        Component::Kbd { keys } => {
+        Component::Kbd { keys, .. } => {
             if keys.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -937,7 +937,7 @@ fn validate_component(
             }
         }
 
-        Component::Breadcrumb { items } => {
+        Component::Breadcrumb { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -953,7 +953,7 @@ fn validate_component(
             // An empty button_group is valid - buttons may be conditionally populated.
         }
 
-        Component::DefinitionList { items } => {
+        Component::DefinitionList { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -977,7 +977,7 @@ fn validate_component(
             }
         }
 
-        Component::Meta { fields } => {
+        Component::Meta { fields, .. } => {
             if fields.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -1246,7 +1246,7 @@ fn validate_component(
             }
         }
 
-        Component::Aside { body } => {
+        Component::Aside { body, .. } => {
             if body.trim().is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -1258,7 +1258,7 @@ fn validate_component(
             }
         }
 
-        Component::RuleList { items } => {
+        Component::RuleList { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,

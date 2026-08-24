@@ -460,15 +460,21 @@ pub enum Component {
         /// bookmarks. Collisions on the same page suffix `-2`, `-3`, etc.
         #[serde(default)]
         id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     HeroBanner {
         title: String,
         eyebrow: Option<String>,
         subtitle: Option<String>,
         buttons: Option<Vec<ButtonConfig>>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Meta {
         fields: Vec<MetaField>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     CardGrid {
         cards: Vec<Card>,
@@ -476,6 +482,8 @@ pub enum Component {
         min_width: Option<u32>,
         #[serde(default)]
         connector: Connector,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     SelectableGrid {
         cards: Vec<SelectableCard>,
@@ -483,14 +491,20 @@ pub enum Component {
         interaction: Interaction,
         #[serde(default)]
         connector: Connector,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Timeline {
         items: Vec<TimelineItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     StatGrid {
         stats: Vec<Stat>,
         #[serde(default = "default_stat_columns")]
         columns: u32,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     BeforeAfter {
         items: Vec<BeforeAfterItem>,
@@ -498,18 +512,26 @@ pub enum Component {
         before_label: Option<String>,
         #[serde(default)]
         after_label: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     SplitCompare {
         left: ComparePanel,
         right: ComparePanel,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Steps {
         items: Vec<Step>,
         #[serde(default = "default_true")]
         numbered: bool,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Markdown {
         body: String,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Table {
         columns: Vec<TableColumn>,
@@ -518,6 +540,8 @@ pub enum Component {
         filterable: bool,
         #[serde(default)]
         summary: Option<TableSummary>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Callout {
         #[serde(default)]
@@ -525,13 +549,19 @@ pub enum Component {
         title: Option<String>,
         body: String,
         links: Option<Vec<ButtonConfig>>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Code {
         language: Option<String>,
         code: String,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Tabs {
         tabs: Vec<Tab>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Section {
         heading: Option<String>,
@@ -545,14 +575,20 @@ pub enum Component {
         /// No heading and no explicit id → no id attribute emitted.
         #[serde(default)]
         id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Columns {
         columns: Vec<Vec<Component>>,
         #[serde(default)]
         equal_heights: bool,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Accordion {
         items: Vec<AccordionItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     EventTimeline {
         events: Vec<EventItem>,
@@ -566,6 +602,8 @@ pub enum Component {
         filter_by: Vec<String>,
         #[serde(default)]
         group_by: Option<EventGroupBy>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Tree {
         nodes: Vec<TreeNode>,
@@ -583,6 +621,8 @@ pub enum Component {
         show_summary: bool,
         #[serde(default)]
         default_view: TreeDefaultView,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     PriorityQueue {
         items: Vec<QueueItem>,
@@ -596,6 +636,8 @@ pub enum Component {
         filterable: bool,
         #[serde(default)]
         title: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Venn {
         sets: Vec<VennSet>,
@@ -603,6 +645,8 @@ pub enum Component {
         overlaps: Vec<VennOverlap>,
         #[serde(default)]
         title: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Image {
         src: String,
@@ -611,51 +655,75 @@ pub enum Component {
         max_width: Option<u32>,
         #[serde(default)]
         align: Align,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     /// Responsive iframe embed for Loom, YouTube, Vimeo, etc.
     Embed {
         src: String,
         title: Option<String>,
         aspect: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     /// Structured link collection with per-item metadata. Consolidates
     /// the "page that's just a few links" pattern into a reviewable list.
     Resources {
         items: Vec<ResourceItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Badge {
         label: String,
         #[serde(default)]
         color: SemColor,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Tag {
         label: String,
         #[serde(default)]
         color: SemColor,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Divider {
         label: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Kbd {
         keys: Vec<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Status {
         label: String,
         #[serde(default)]
         color: SemColor,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Breadcrumb {
         items: Vec<BreadcrumbItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     ButtonGroup {
         buttons: Vec<ButtonConfig>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     DefinitionList {
         items: Vec<DefinitionItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Blockquote {
         body: String,
         attribution: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Avatar {
         name: String,
@@ -663,6 +731,8 @@ pub enum Component {
         #[serde(default)]
         size: AvatarSize,
         subtitle: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     AvatarGroup {
         avatars: Vec<AvatarConfig>,
@@ -670,6 +740,8 @@ pub enum Component {
         size: AvatarSize,
         #[serde(default = "default_avatar_max")]
         max: usize,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     ProgressBar {
         value: u8,
@@ -681,6 +753,8 @@ pub enum Component {
         target: Option<u8>,
         #[serde(default)]
         thresholds: HashMap<String, SemColor>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     EmptyState {
         title: String,
@@ -688,6 +762,8 @@ pub enum Component {
         action: Option<EmptyStateAction>,
         #[serde(default)]
         icon: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Icon {
         name: String,
@@ -695,6 +771,8 @@ pub enum Component {
         size: IconSize,
         #[serde(default)]
         color: SemColor,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Chart {
         kind: ChartKind,
@@ -731,6 +809,8 @@ pub enum Component {
     RoleMap {
         #[serde(default)]
         title: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Sankey {
         title: Option<String>,
@@ -818,12 +898,18 @@ pub enum Component {
         people: Vec<OrgPerson>,
         #[serde(default)]
         default_open_depth: Option<u32>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Aside {
         body: String,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     RuleList {
         items: Vec<RuleItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Gauge {
         items: Vec<GaugeItem>,
@@ -833,7 +919,67 @@ pub enum Component {
         columns: u32,
         #[serde(default = "default_gauge_max")]
         max: f64,
+        #[serde(default)]
+        scale: Option<f32>,
     },
+}
+
+impl Component {
+    pub(crate) fn scale(&self) -> Option<f32> {
+        match self {
+            Component::Header { scale, .. }
+            | Component::HeroBanner { scale, .. }
+            | Component::Meta { scale, .. }
+            | Component::CardGrid { scale, .. }
+            | Component::SelectableGrid { scale, .. }
+            | Component::Timeline { scale, .. }
+            | Component::StatGrid { scale, .. }
+            | Component::BeforeAfter { scale, .. }
+            | Component::SplitCompare { scale, .. }
+            | Component::Steps { scale, .. }
+            | Component::Markdown { scale, .. }
+            | Component::Table { scale, .. }
+            | Component::Callout { scale, .. }
+            | Component::Code { scale, .. }
+            | Component::Tabs { scale, .. }
+            | Component::Section { scale, .. }
+            | Component::Columns { scale, .. }
+            | Component::Accordion { scale, .. }
+            | Component::EventTimeline { scale, .. }
+            | Component::Tree { scale, .. }
+            | Component::PriorityQueue { scale, .. }
+            | Component::Venn { scale, .. }
+            | Component::Image { scale, .. }
+            | Component::Embed { scale, .. }
+            | Component::Resources { scale, .. }
+            | Component::Badge { scale, .. }
+            | Component::Tag { scale, .. }
+            | Component::Divider { scale, .. }
+            | Component::Kbd { scale, .. }
+            | Component::Status { scale, .. }
+            | Component::Breadcrumb { scale, .. }
+            | Component::ButtonGroup { scale, .. }
+            | Component::DefinitionList { scale, .. }
+            | Component::Blockquote { scale, .. }
+            | Component::Avatar { scale, .. }
+            | Component::AvatarGroup { scale, .. }
+            | Component::ProgressBar { scale, .. }
+            | Component::EmptyState { scale, .. }
+            | Component::Icon { scale, .. }
+            | Component::Chart { scale, .. }
+            | Component::RoleMap { scale, .. }
+            | Component::Sankey { scale, .. }
+            | Component::Radar { scale, .. }
+            | Component::Quadrant { scale, .. }
+            | Component::Architecture { scale, .. }
+            | Component::Pipeline { scale, .. }
+            | Component::Graph { scale, .. }
+            | Component::OrgChart { scale, .. }
+            | Component::Aside { scale, .. }
+            | Component::RuleList { scale, .. }
+            | Component::Gauge { scale, .. } => *scale,
+        }
+    }
 }
 
 // ── Supporting types ─────────────────────────────────

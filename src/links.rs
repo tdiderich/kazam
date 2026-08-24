@@ -177,12 +177,12 @@ fn collect_component_hrefs(c: &Component, out: &mut Vec<String>) {
                 out.push(b.href.clone());
             }
         }
-        ButtonGroup { buttons } => {
+        ButtonGroup { buttons, .. } => {
             for b in buttons {
                 out.push(b.href.clone());
             }
         }
-        Breadcrumb { items } => {
+        Breadcrumb { items, .. } => {
             for item in items {
                 if let Some(h) = &item.href {
                     out.push(h.clone());
@@ -194,7 +194,7 @@ fn collect_component_hrefs(c: &Component, out: &mut Vec<String>) {
         } => {
             out.push(a.href.clone());
         }
-        Tabs { tabs } => {
+        Tabs { tabs, .. } => {
             for t in tabs {
                 for c in &t.components {
                     collect_component_hrefs(c, out);
@@ -213,7 +213,7 @@ fn collect_component_hrefs(c: &Component, out: &mut Vec<String>) {
                 }
             }
         }
-        Accordion { items } => {
+        Accordion { items, .. } => {
             for item in items {
                 for c in &item.components {
                     collect_component_hrefs(c, out);

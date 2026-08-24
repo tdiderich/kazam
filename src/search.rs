@@ -74,7 +74,7 @@ fn extract_searchable_text(
                     push_snippet(snippets, sub);
                 }
             }
-            Component::Markdown { body } => {
+            Component::Markdown { body, .. } => {
                 push_snippet(snippets, &strip_markdown(body));
             }
             Component::Callout { title, body, .. } => {
@@ -104,10 +104,10 @@ fn extract_searchable_text(
                     headings.push(col.label.clone());
                 }
             }
-            Component::Aside { body } => {
+            Component::Aside { body, .. } => {
                 push_snippet(snippets, body);
             }
-            Component::RuleList { items } => {
+            Component::RuleList { items, .. } => {
                 for item in items {
                     headings.push(item.label.clone());
                     push_snippet(snippets, &item.body);
@@ -121,7 +121,7 @@ fn extract_searchable_text(
                     headings.push(item.label.clone());
                 }
             }
-            Component::Accordion { items } => {
+            Component::Accordion { items, .. } => {
                 for item in items {
                     headings.push(item.title.clone());
                     extract_searchable_text(&item.components, headings, snippets);
@@ -137,7 +137,7 @@ fn extract_searchable_text(
                 }
                 extract_searchable_text(components, headings, snippets);
             }
-            Component::Tabs { tabs } => {
+            Component::Tabs { tabs, .. } => {
                 for tab in tabs {
                     headings.push(tab.label.clone());
                     extract_searchable_text(&tab.components, headings, snippets);
@@ -156,13 +156,15 @@ fn extract_searchable_text(
                     }
                 }
             }
-            Component::DefinitionList { items } => {
+            Component::DefinitionList { items, .. } => {
                 for item in items {
                     headings.push(item.term.clone());
                     push_snippet(snippets, &item.definition);
                 }
             }
-            Component::Blockquote { body, attribution } => {
+            Component::Blockquote {
+                body, attribution, ..
+            } => {
                 push_snippet(snippets, body);
                 if let Some(attr) = attribution {
                     push_snippet(snippets, attr);
@@ -193,7 +195,7 @@ fn extract_searchable_text(
                     push_snippet(snippets, &stat.value);
                 }
             }
-            Component::Timeline { items } => {
+            Component::Timeline { items, .. } => {
                 for item in items {
                     headings.push(item.name.clone());
                 }
@@ -211,7 +213,7 @@ fn extract_searchable_text(
                     }
                 }
             }
-            Component::Resources { items } => {
+            Component::Resources { items, .. } => {
                 for item in items {
                     headings.push(item.title.clone());
                     if let Some(desc) = &item.description {
