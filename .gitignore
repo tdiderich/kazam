@@ -9,3 +9,4 @@
 .gstack/
 .claude/
 .env
+.state.yaml

@@ -10,6 +10,7 @@ mod audit;
 mod board;
 mod build;
 mod cli_reference;
+mod connect;
 mod ctx;
 mod dev;
 mod freshness;
@@ -170,6 +171,14 @@ enum Command {
     Wish {
         #[command(subcommand)]
         command: WishCommand,
+    },
+    /// Pull data from vendor APIs, transform, aggregate, and output to curata or terminal
+    Connect {
+        #[command(subcommand)]
+        command: connect::ConnectCommand,
+        /// Project directory (default: current directory)
+        #[arg(short, long, default_value = ".", global = true)]
+        dir: PathBuf,
     },
     /// Manage the work graph - tasks, dependencies, activity log.
     Track {
@@ -542,6 +551,7 @@ fn main() -> Result<()> {
             WishCommand::List { json } => wish::list(json),
             WishCommand::Init { name, dir, force } => wish::init(&name, dir, force),
         },
+        Command::Connect { command, dir } => connect::run(command, &dir),
         Command::Track { command, dir } => track::run(command, &dir),
         Command::Ctx { command, dir } => ctx::run(command, &dir),
         Command::Board { dir, port } => board::run(&dir, port),

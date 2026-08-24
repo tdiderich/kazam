@@ -29,6 +29,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 ureq = "2"
 sha2 = "0.10"
 winnow = "1"
+regex = "1"
 
 [dev-dependencies]
 tempfile = "3"
