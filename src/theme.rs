@@ -1230,12 +1230,6 @@ body.presenting .deck-viewport,
 body.shell-hub { min-height: 100vh; }
 
 .hub-masthead {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  background: rgba(var(--bg-rgb), 0.88);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid rgba(var(--text-rgb), 0.08);
 }
 

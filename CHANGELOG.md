@@ -13,6 +13,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `scale: 0.7` in YAML. CSS selector broadened from `.c-chart-scale > .c-chart`
   to `.c-chart-scale > *`.
 
+### Changed
+- Hub masthead: removed sticky positioning, background blur, and z-index.
+  The masthead now sits inline with transparent background, matching the
+  settings tab style.
+
 ## [1.22.2] - 2026-08-24
 
 ### Fixed
