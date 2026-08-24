@@ -265,7 +265,11 @@ pub fn parse(src: &str) -> Result<Expr> {
     let mut p = P { toks, pos: 0 };
     let e = p.parse_expr()?;
     if p.pos != p.toks.len() {
-        bail!("trailing tokens after derive expr '{}': {:?}", src, &p.toks[p.pos..]);
+        bail!(
+            "trailing tokens after derive expr '{}': {:?}",
+            src,
+            &p.toks[p.pos..]
+        );
     }
     Ok(e)
 }
@@ -288,20 +292,8 @@ pub fn eval(e: &Expr, ctx: &dyn ExprCtx) -> f64 {
                 '+' => a + b,
                 '-' => a - b,
                 '*' => a * b,
-                '/' => {
-                    if b != 0.0 {
-                        a / b
-                    } else {
-                        0.0
-                    }
-                }
-                '%' => {
-                    if b != 0.0 {
-                        a % b
-                    } else {
-                        0.0
-                    }
-                }
+                '/' if b != 0.0 => a / b,
+                '%' if b != 0.0 => a % b,
                 _ => 0.0,
             }
         }

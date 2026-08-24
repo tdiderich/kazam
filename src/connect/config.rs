@@ -13,6 +13,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize, Default)]
+#[allow(dead_code)]
 pub struct HostConfig {
     #[serde(default)]
     pub curata_url: Option<String>,
@@ -81,10 +82,7 @@ impl ConnectorEnv {
     /// variable can't be resolved anywhere in the chain.
     pub fn resolve(&self, template: &str, host: &HostConfig) -> Result<String> {
         let mut out = template.to_string();
-        loop {
-            let Some(start) = out.find("{{") else {
-                break;
-            };
+        while let Some(start) = out.find("{{") {
             let end = out[start..]
                 .find("}}")
                 .map(|i| start + i)

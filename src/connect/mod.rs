@@ -74,16 +74,26 @@ fn find_mapping_file(connector_dir: &Path) -> Result<PathBuf> {
             return Ok(path);
         }
     }
-    bail!("no *.map.yaml mapping file found in {}", connector_dir.display());
+    bail!(
+        "no *.map.yaml mapping file found in {}",
+        connector_dir.display()
+    );
 }
 
 fn load_mapping(path: &Path) -> Result<MappingFile> {
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read mapping file: {}", path.display()))?;
-    serde_yaml::from_str(&content).with_context(|| format!("failed to parse mapping file: {}", path.display()))
+    serde_yaml::from_str(&content)
+        .with_context(|| format!("failed to parse mapping file: {}", path.display()))
 }
 
-fn run_vendor(dir: &Path, vendor: &str, dry_run: bool, target_override: Option<String>, force: bool) -> Result<()> {
+fn run_vendor(
+    dir: &Path,
+    vendor: &str,
+    dry_run: bool,
+    target_override: Option<String>,
+    force: bool,
+) -> Result<()> {
     let connector_dir = connectors_root(dir).join(vendor);
     let mapping_path = find_mapping_file(&connector_dir)?;
     let mapping = load_mapping(&mapping_path)?;
@@ -92,7 +102,11 @@ fn run_vendor(dir: &Path, vendor: &str, dry_run: bool, target_override: Option<S
     let env = ConnectorEnv::load(&connector_dir);
     let state = State::load(&connector_dir);
 
-    println!("kazam connect: running '{}' ({})", mapping.mapping, mapping_path.display());
+    println!(
+        "kazam connect: running '{}' ({})",
+        mapping.mapping,
+        mapping_path.display()
+    );
 
     let resolved_base = env.resolve(&mapping.source.base_url, &host)?;
     let auth_desc = match &mapping.source.auth {
@@ -138,7 +152,10 @@ fn run_vendor(dir: &Path, vendor: &str, dry_run: bool, target_override: Option<S
     let mut shape_results = HashMap::new();
     for (name, shape) in &mapping.shapes {
         let Some(rows) = pull_results.get(&shape.pull) else {
-            eprintln!("  shape '{}' references unknown pull '{}' - skipping", name, shape.pull);
+            eprintln!(
+                "  shape '{}' references unknown pull '{}' - skipping",
+                name, shape.pull
+            );
             continue;
         };
         match aggregate::run_aggregate(rows.clone(), &shape.aggregate) {
@@ -150,7 +167,15 @@ fn run_vendor(dir: &Path, vendor: &str, dry_run: bool, target_override: Option<S
     }
 
     let target = target_override.unwrap_or_else(|| mapping.output.target.clone());
-    output::render(&mapping, &shape_results, &target, dry_run, force, &connector_dir, &host)?;
+    output::render(
+        &mapping,
+        &shape_results,
+        &target,
+        dry_run,
+        force,
+        &connector_dir,
+        &host,
+    )?;
 
     if !dry_run {
         let mut new_state = state;
@@ -169,14 +194,17 @@ fn status_all(dir: &Path) -> Result<()> {
         println!("no connectors/ directory found at {}", root.display());
         return Ok(());
     };
-    println!("{:<20} {:<28} {}", "CONNECTOR", "LAST SYNC", "STATE");
+    println!("{:<20} {:<28} STATE", "CONNECTOR", "LAST SYNC");
     for entry in entries.flatten() {
         if !entry.path().is_dir() {
             continue;
         }
         let name = entry.file_name().to_string_lossy().to_string();
         let state = State::load(&entry.path());
-        let last_sync = state.last_sync.clone().unwrap_or_else(|| "never".to_string());
+        let last_sync = state
+            .last_sync
+            .clone()
+            .unwrap_or_else(|| "never".to_string());
         let flag = if find_mapping_file(&entry.path()).is_ok() {
             "ok"
         } else {
@@ -195,9 +223,15 @@ fn status_one(dir: &Path, vendor: &str) -> Result<()> {
 
     println!("connector: {}", vendor);
     println!("mapping: {} (v{})", mapping.mapping, mapping.version);
-    println!("last_sync: {}", state.last_sync.as_deref().unwrap_or("never"));
+    println!(
+        "last_sync: {}",
+        state.last_sync.as_deref().unwrap_or("never")
+    );
     println!("page_created: {}", state.page_created);
-    println!("content_hash: {}", state.content_hash.as_deref().unwrap_or("-"));
+    println!(
+        "content_hash: {}",
+        state.content_hash.as_deref().unwrap_or("-")
+    );
     if state.pull_counts.is_empty() {
         println!("pull_counts: (none yet)");
     } else {

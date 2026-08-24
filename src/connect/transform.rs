@@ -99,7 +99,11 @@ fn coerce_value(v: &Value, to: &str, join: Option<&str>) -> Value {
                 .map(Value::from)
                 .or_else(|| n.as_f64().map(|f| Value::from(f as i64)))
                 .unwrap_or(Value::Null),
-            Value::String(s) => s.trim().parse::<i64>().map(Value::from).unwrap_or(Value::Null),
+            Value::String(s) => s
+                .trim()
+                .parse::<i64>()
+                .map(Value::from)
+                .unwrap_or(Value::Null),
             other => other.clone(),
         },
         "float" => match v {
@@ -164,7 +168,11 @@ pub fn apply_transform(record: &mut Value, t: &Transform) -> Result<()> {
                 }
             });
         }
-        Transform::Default { default, value, when } => {
+        Transform::Default {
+            default,
+            value,
+            when,
+        } => {
             let when = when.as_deref().unwrap_or("empty");
             apply_field(record, default, |map, key| {
                 let cur = map.get(key);
@@ -276,7 +284,9 @@ pub fn apply_transform(record: &mut Value, t: &Transform) -> Result<()> {
                 }
             });
             if let Some(val) = result {
-                let target_path = into.clone().unwrap_or_else(|| format!(".{}", target_key_default));
+                let target_path = into
+                    .clone()
+                    .unwrap_or_else(|| format!(".{}", target_key_default));
                 apply_field(record, &target_path, move |map, key| {
                     map.insert(key.to_string(), val.clone());
                 });

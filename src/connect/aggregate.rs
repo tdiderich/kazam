@@ -23,7 +23,11 @@ impl Bucket {
     /// Stable string label for this bucket's key, used to align buckets
     /// across a `bucket()` re-grouping (see `compare`) and for rendering.
     pub fn key_label(&self) -> String {
-        self.key.iter().map(value_to_label).collect::<Vec<_>>().join("|")
+        self.key
+            .iter()
+            .map(value_to_label)
+            .collect::<Vec<_>>()
+            .join("|")
     }
 }
 
@@ -101,7 +105,8 @@ fn eval_full_expr(row: &Value, expr_str: &str) -> bool {
     }
     let (path, op, raw_val) = (parts[0], parts[1], parts[2]);
     let field = get_field(row, path);
-    let target: Value = if let Some(s) = raw_val.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+    let target: Value = if let Some(s) = raw_val.strip_prefix('"').and_then(|s| s.strip_suffix('"'))
+    {
         Value::String(s.to_string())
     } else if let Ok(n) = raw_val.parse::<f64>() {
         json_num(n)
@@ -145,11 +150,15 @@ fn eval_full_expr(row: &Value, expr_str: &str) -> bool {
 fn eval_cond(row: &Value, cond: &FilterCond) -> bool {
     if let Some(list) = &cond.r#in {
         let val = get_field(row, &cond.r#where);
-        return val.map(|v| list.iter().any(|s| value_eq_str(v, s))).unwrap_or(false);
+        return val
+            .map(|v| list.iter().any(|s| value_eq_str(v, s)))
+            .unwrap_or(false);
     }
     if let Some(list) = &cond.not_in {
         let val = get_field(row, &cond.r#where);
-        return !val.map(|v| list.iter().any(|s| value_eq_str(v, s))).unwrap_or(false);
+        return !val
+            .map(|v| list.iter().any(|s| value_eq_str(v, s)))
+            .unwrap_or(false);
     }
     if cond.not_empty == Some(true) {
         return !is_empty_opt(get_field(row, &cond.r#where));
@@ -218,10 +227,7 @@ fn apply_bucket(rows: Vec<Value>, spec: &BucketSpec) -> Vec<Bucket> {
                 out.push(b);
             }
         }
-        let leftover: Vec<Bucket> = order
-            .iter()
-            .filter_map(|l| groups.remove(l))
-            .collect();
+        let leftover: Vec<Bucket> = order.iter().filter_map(|l| groups.remove(l)).collect();
         if !leftover.is_empty() {
             let mut other_rows = Vec::new();
             for b in leftover {
@@ -235,7 +241,10 @@ fn apply_bucket(rows: Vec<Value>, spec: &BucketSpec) -> Vec<Bucket> {
         }
         out
     } else {
-        order.into_iter().filter_map(|l| groups.remove(&l)).collect()
+        order
+            .into_iter()
+            .filter_map(|l| groups.remove(&l))
+            .collect()
     }
 }
 
@@ -270,7 +279,11 @@ fn apply_tally(state: &mut AggState, spec: &TallySpec) {
         for b in buckets.iter_mut() {
             let v = compute_tally(&b.rows, spec);
             b.computed.insert(name.clone(), json_num(v));
-            state.history.entry(name.clone()).or_default().insert(b.key_label(), v);
+            state
+                .history
+                .entry(name.clone())
+                .or_default()
+                .insert(b.key_label(), v);
         }
     } else {
         let v = compute_tally(&state.rows, spec);
@@ -307,7 +320,10 @@ fn eval_call(
                     .filter_map(as_f64)
                     .collect()
             } else {
-                rows.iter().filter_map(|r| get_field(r, path)).filter_map(as_f64).collect()
+                rows.iter()
+                    .filter_map(|r| get_field(r, path))
+                    .filter_map(as_f64)
+                    .collect()
             }
         }
         CallArg::Ident(name) => {
@@ -354,7 +370,10 @@ struct UnitCtx<'a> {
 
 impl ExprCtx for UnitCtx<'_> {
     fn get_ident(&self, name: &str) -> Option<f64> {
-        self.local.get(name).or_else(|| self.globals.get(name)).and_then(as_f64)
+        self.local
+            .get(name)
+            .or_else(|| self.globals.get(name))
+            .and_then(as_f64)
     }
     fn get_field(&self, path: &str) -> Option<f64> {
         self.row.and_then(|r| get_field(r, path)).and_then(as_f64)
@@ -367,33 +386,31 @@ impl ExprCtx for UnitCtx<'_> {
 fn apply_derive(state: &mut AggState, spec: &DeriveSpec) -> Result<()> {
     let ast = expr::parse(&spec.expr)?;
     if expr::has_bare_field_ref(&ast) {
-        if state.buckets.is_some() {
-            let results: Vec<f64> = {
-                let buckets = state.buckets.as_ref().unwrap();
-                buckets
-                    .iter()
-                    .map(|b| {
-                        let ctx = UnitCtx {
-                            globals: &state.globals,
-                            local: &b.computed,
-                            row: b.rows.first(),
-                            buckets: &state.buckets,
-                            rows: &state.rows,
-                        };
-                        expr::eval(&ast, &ctx)
-                    })
-                    .collect()
-            };
-            let buckets = state.buckets.as_mut().unwrap();
-            for (b, v) in buckets.iter_mut().zip(results.iter()) {
-                b.computed.insert(spec.name.clone(), json_num(*v));
-            }
-            for (b, v) in buckets.iter().zip(results.iter()) {
-                state
-                    .history
-                    .entry(spec.name.clone())
-                    .or_default()
-                    .insert(b.key_label(), *v);
+        if let Some(buckets) = state.buckets.as_ref() {
+            let results: Vec<f64> = buckets
+                .iter()
+                .map(|b| {
+                    let ctx = UnitCtx {
+                        globals: &state.globals,
+                        local: &b.computed,
+                        row: b.rows.first(),
+                        buckets: &state.buckets,
+                        rows: &state.rows,
+                    };
+                    expr::eval(&ast, &ctx)
+                })
+                .collect();
+            if let Some(buckets) = state.buckets.as_mut() {
+                for (b, v) in buckets.iter_mut().zip(results.iter()) {
+                    b.computed.insert(spec.name.clone(), json_num(*v));
+                }
+                for (b, v) in buckets.iter().zip(results.iter()) {
+                    state
+                        .history
+                        .entry(spec.name.clone())
+                        .or_default()
+                        .insert(b.key_label(), *v);
+                }
             }
             if let Some(first) = results.first() {
                 if results.iter().all(|v| (v - first).abs() < 1e-9) {
@@ -413,7 +430,7 @@ fn apply_derive(state: &mut AggState, spec: &DeriveSpec) -> Result<()> {
                 };
                 results.push(expr::eval(&ast, &ctx));
             }
-            for (row, v) in state.rows.iter_mut().zip(results.into_iter()) {
+            for (row, v) in state.rows.iter_mut().zip(results) {
                 if let Some(obj) = row.as_object_mut() {
                     obj.insert(spec.name.clone(), json_num(v));
                 }
@@ -441,20 +458,8 @@ fn apply_derive(state: &mut AggState, spec: &DeriveSpec) -> Result<()> {
 fn compare_op(op: &str, a: f64, b: f64) -> f64 {
     match op {
         "subtract" => a - b,
-        "ratio" => {
-            if b != 0.0 {
-                a / b
-            } else {
-                0.0
-            }
-        }
-        "percent_change" => {
-            if b != 0.0 {
-                (a - b) / b * 100.0
-            } else {
-                0.0
-            }
-        }
+        "ratio" if b != 0.0 => a / b,
+        "percent_change" if b != 0.0 => (a - b) / b * 100.0,
         _ => 0.0,
     }
 }
@@ -488,7 +493,12 @@ fn apply_compare(state: &mut AggState, spec: &CompareSpec) {
     }
 }
 
-fn sort_key(bucket_computed: Option<&Map<String, Value>>, row: Option<&Value>, field: &str, order: &Option<Vec<String>>) -> f64 {
+fn sort_key(
+    bucket_computed: Option<&Map<String, Value>>,
+    row: Option<&Value>,
+    field: &str,
+    order: &Option<Vec<String>>,
+) -> f64 {
     if let Some(c) = bucket_computed {
         if let Some(v) = c.get(field).and_then(as_f64) {
             return v;
@@ -517,7 +527,11 @@ fn sort_key(bucket_computed: Option<&Map<String, Value>>, row: Option<&Value>, f
 
 fn apply_rank(state: &mut AggState, spec: &RankSpec) {
     let by = spec.by.as_vec();
-    let dirs = spec.direction.as_ref().map(|d| d.as_vec()).unwrap_or_default();
+    let dirs = spec
+        .direction
+        .as_ref()
+        .map(|d| d.as_vec())
+        .unwrap_or_default();
     let dir_desc = |i: usize| -> bool { dirs.get(i).map(|d| d != "asc").unwrap_or(true) };
 
     let cmp_keys = |ka: &[f64], kb: &[f64]| -> std::cmp::Ordering {
@@ -549,7 +563,10 @@ fn apply_rank(state: &mut AggState, spec: &RankSpec) {
             .rows
             .drain(..)
             .map(|r| {
-                let keys: Vec<f64> = by.iter().map(|f| sort_key(None, Some(&r), f, &spec.order)).collect();
+                let keys: Vec<f64> = by
+                    .iter()
+                    .map(|f| sort_key(None, Some(&r), f, &spec.order))
+                    .collect();
                 (keys, r)
             })
             .collect();
@@ -660,7 +677,10 @@ mod tests {
         let state = run_aggregate(rows, &steps).unwrap();
         assert_eq!(state.globals.get("total").and_then(as_f64), Some(3.0));
         let buckets = state.buckets.unwrap();
-        assert_eq!(buckets[0].computed.get("asset_count").and_then(as_f64), Some(2.0));
+        assert_eq!(
+            buckets[0].computed.get("asset_count").and_then(as_f64),
+            Some(2.0)
+        );
     }
 
     #[test]

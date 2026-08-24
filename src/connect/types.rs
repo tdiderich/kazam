@@ -7,6 +7,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct MappingFile {
     pub mapping: String,
     pub version: String,
@@ -24,6 +25,7 @@ pub struct MappingFile {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct Source {
     pub spec: String,
     pub api_version: String,
@@ -67,6 +69,7 @@ fn default_mode() -> String {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct Persona {
     pub question: String,
 }
@@ -121,6 +124,7 @@ pub enum Collect {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "strategy", rename_all = "snake_case")]
+#[allow(dead_code)]
 pub enum RateLimit {
     RetryAfter {
         #[serde(default)]
@@ -200,6 +204,7 @@ pub enum Transform {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct Shape {
     pub pull: String,
     /// Not yet interpreted by the runtime - conditional shapes always run.
@@ -338,7 +343,11 @@ mod tests {
         assert!(!m.shapes.is_empty());
         assert!(!m.sections.is_empty());
         for (name, pull) in &m.pulls {
-            assert!(pull.rate_limit.is_some(), "pull '{}' should have rate_limit", name);
+            assert!(
+                pull.rate_limit.is_some(),
+                "pull '{}' should have rate_limit",
+                name
+            );
         }
     }
 

@@ -112,10 +112,16 @@ fn upsert_param(params: &mut Vec<(String, String)>, key: &str, value: String) {
 fn replace_last_sync(v: &Value, last_sync: &str) -> Value {
     match v {
         Value::String(s) => Value::String(s.replace("{{last_sync}}", last_sync)),
-        Value::Object(map) => {
-            Value::Object(map.iter().map(|(k, v)| (k.clone(), replace_last_sync(v, last_sync))).collect())
-        }
-        Value::Array(arr) => Value::Array(arr.iter().map(|v| replace_last_sync(v, last_sync)).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), replace_last_sync(v, last_sync)))
+                .collect(),
+        ),
+        Value::Array(arr) => Value::Array(
+            arr.iter()
+                .map(|v| replace_last_sync(v, last_sync))
+                .collect(),
+        ),
         other => other.clone(),
     }
 }
@@ -152,9 +158,10 @@ pub fn execute_pull(
         .map(|(k, v)| (k.clone(), value_to_query_string(v)))
         .collect();
     let mut body = pull.request.body.clone();
-    let last_sync = state.last_sync.clone().unwrap_or_else(|| {
-        (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339()
-    });
+    let last_sync = state
+        .last_sync
+        .clone()
+        .unwrap_or_else(|| (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339());
 
     let retries_total = pull.rate_limit.as_ref().map(retry_max).unwrap_or(0);
     let mut retries_left = retries_total;
@@ -167,7 +174,10 @@ pub fn execute_pull(
     loop {
         page_count += 1;
         if page_count > 1000 {
-            bail!("pull '{}' exceeded 1000 pages - aborting (likely infinite pagination)", name);
+            bail!(
+                "pull '{}' exceeded 1000 pages - aborting (likely infinite pagination)",
+                name
+            );
         }
 
         if let Some(RateLimit::FixedDelay { delay_ms }) = &pull.rate_limit {
@@ -184,7 +194,9 @@ pub fn execute_pull(
             "DELETE" => ureq::delete(&url),
             other => bail!("unsupported HTTP method '{}' for pull '{}'", other, name),
         };
-        req = req.set(&auth_name, &auth_value).set("User-Agent", "kazam-connect");
+        req = req
+            .set(&auth_name, &auth_value)
+            .set("User-Agent", "kazam-connect");
         for (k, v) in &params {
             req = req.query(k, v);
         }
@@ -204,7 +216,10 @@ pub fn execute_pull(
                     .header("Retry-After")
                     .and_then(|s| s.parse::<u64>().ok())
                     .unwrap_or_else(|| 10 * (1 << (retries_total - retries_left)));
-                eprintln!("    429 rate limited, waiting {}s ({} retries left)", wait_secs, retries_left);
+                eprintln!(
+                    "    429 rate limited, waiting {}s ({} retries left)",
+                    wait_secs, retries_left
+                );
                 sleep(Duration::from_secs(wait_secs));
                 retries_left -= 1;
                 continue;
@@ -235,16 +250,22 @@ pub fn execute_pull(
 
         match &pull.paginate {
             None => break,
-            Some(Paginate::Keyset { next_from, send_as }) => match get_json_path(&json, next_from).cloned() {
-                Some(Value::Null) | None => break,
-                Some(next) => upsert_param(&mut params, send_as, value_to_query_string(&next)),
-            },
+            Some(Paginate::Keyset { next_from, send_as }) => {
+                match get_json_path(&json, next_from).cloned() {
+                    Some(Value::Null) | None => break,
+                    Some(next) => upsert_param(&mut params, send_as, value_to_query_string(&next)),
+                }
+            }
             Some(Paginate::Cursor { next_from, r#while }) => {
-                let should_continue = get_json_path(&json, r#while).and_then(|v| v.as_bool()).unwrap_or(false);
+                let should_continue = get_json_path(&json, r#while)
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
                 if !should_continue {
                     break;
                 }
-                let next = get_json_path(&json, next_from).cloned().unwrap_or(Value::Null);
+                let next = get_json_path(&json, next_from)
+                    .cloned()
+                    .unwrap_or(Value::Null);
                 if let Some(Value::Object(map)) = body.as_mut() {
                     map.insert("cursor".to_string(), next);
                 } else {
@@ -261,5 +282,7 @@ pub fn execute_pull(
         }
     }
 
-    Ok(PullOutcome { records: all_records })
+    Ok(PullOutcome {
+        records: all_records,
+    })
 }
