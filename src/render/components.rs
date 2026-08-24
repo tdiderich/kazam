@@ -43,7 +43,9 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             ..
         } => before_after(items, before_label.as_deref(), after_label.as_deref()),
         Component::SplitCompare { left, right, .. } => split_compare(left, right),
-        Component::Steps { items, numbered, .. } => steps(items, *numbered),
+        Component::Steps {
+            items, numbered, ..
+        } => steps(items, *numbered),
         Component::Markdown { body, .. } => markdown(body, base),
         Component::Table {
             columns,
