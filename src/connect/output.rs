@@ -61,7 +61,10 @@ fn render_terminal(mapping: &MappingFile, shape_results: &HashMap<String, AggSta
     Ok(())
 }
 
-fn build_page(mapping: &MappingFile, shape_results: &HashMap<String, AggState>) -> serde_json::Value {
+fn build_page(
+    mapping: &MappingFile,
+    shape_results: &HashMap<String, AggState>,
+) -> serde_json::Value {
     let mut components = Vec::new();
     for (section_name, section) in &mapping.sections {
         let Some(state) = shape_results.get(&section.shape) else {
@@ -113,7 +116,10 @@ fn render_curata(
     let yaml = serde_yaml::to_string(&page)?;
 
     if dry_run {
-        println!("\n--- dry run: would upsert curata page '{}' ---\n", mapping.output.slug);
+        println!(
+            "\n--- dry run: would upsert curata page '{}' ---\n",
+            mapping.output.slug
+        );
         println!("{}", yaml);
         return Ok(());
     }

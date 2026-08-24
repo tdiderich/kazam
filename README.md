@@ -413,6 +413,32 @@ Install a wish from the registry into local wishes/
 | `--dir` |  | Install to a specific directory instead of wishes/ |
 | `--force` |  | Overwrite existing local wish |
 
+#### `kazam connect`
+
+Pull data from vendor APIs, transform, aggregate, and output to curata or terminal
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dir, -d` | `.` | Project directory (default: current directory) |
+
+##### `kazam connect run`
+
+Execute a connector's mapping: pull, transform, aggregate, output
+
+- `vendor` - Connector/vendor name (matches connectors/<vendor>/)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dry-run` |  | Pull + transform + aggregate and print results without writing |
+| `--target` |  | Override the mapping file's output target (curata|terminal|both|file) |
+| `--force` |  | Write even if content is unchanged since the last sync |
+
+##### `kazam connect status`
+
+Show connector status: last sync, pull counts, page state
+
+- `vendor` - Show detailed state for a single connector
+
 #### `kazam track`
 
 Manage the work graph - tasks, dependencies, activity log
