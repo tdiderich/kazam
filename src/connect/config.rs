@@ -124,6 +124,8 @@ pub struct State {
     pub page_created: bool,
     #[serde(default)]
     pub pull_counts: HashMap<String, usize>,
+    #[serde(default)]
+    pub confirmed_base_url: Option<String>,
 }
 
 impl State {

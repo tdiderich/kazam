@@ -94,6 +94,26 @@ fn run_vendor(dir: &Path, vendor: &str, dry_run: bool, target_override: Option<S
 
     println!("kazam connect: running '{}' ({})", mapping.mapping, mapping_path.display());
 
+    let resolved_base = env.resolve(&mapping.source.base_url, &host)?;
+    let auth_desc = match &mapping.source.auth {
+        types::Auth::Bearer { .. } => "bearer token",
+        types::Auth::ApiKey { header, .. } => header.as_str(),
+        types::Auth::Oauth2 { .. } => "oauth2 client credentials",
+    };
+    let prev_base = state.confirmed_base_url.as_deref();
+    if prev_base != Some(resolved_base.as_str()) {
+        eprintln!("  target: {}", resolved_base);
+        eprintln!("  auth: {}", auth_desc);
+        if !dry_run {
+            eprint!("  first run or base_url changed. continue? [y/N] ");
+            let mut answer = String::new();
+            std::io::stdin().read_line(&mut answer)?;
+            if !answer.trim().eq_ignore_ascii_case("y") {
+                bail!("aborted by user");
+            }
+        }
+    }
+
     let mut pull_results: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
     let mut pull_counts: HashMap<String, usize> = HashMap::new();
 
@@ -136,6 +156,7 @@ fn run_vendor(dir: &Path, vendor: &str, dry_run: bool, target_override: Option<S
         let mut new_state = state;
         new_state.last_sync = Some(chrono::Utc::now().to_rfc3339());
         new_state.pull_counts = pull_counts;
+        new_state.confirmed_base_url = Some(resolved_base);
         new_state.save(&connector_dir)?;
     }
 
