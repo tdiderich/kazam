@@ -818,11 +818,11 @@ fn generate_health_page(
         value: freshness_pct,
         label: Some("Freshness coverage".into()),
         color: if freshness_pct >= 80 {
-            SemColor::Green
+            "green".to_string()
         } else if freshness_pct >= 50 {
-            SemColor::Yellow
+            "yellow".to_string()
         } else {
-            SemColor::Red
+            "red".to_string()
         },
         detail: Some(format!(
             "{} of {} pages have freshness metadata",

@@ -783,18 +783,48 @@
       }
     },
     "OrgChartPerson": {
-      "id": { "type": "string", "required": false },
-      "name": { "type": "string", "required": true },
-      "title": { "type": "string", "required": false },
-      "color": { "type": "SemColor", "required": false },
-      "email": { "type": "string", "required": false },
-      "linkedin": { "type": "string", "required": false },
-      "tags": { "type": "OrgChartTag[]", "required": false },
-      "reports": { "type": "OrgChartPerson[]", "required": false }
+      "id": {
+        "type": "string",
+        "required": false
+      },
+      "name": {
+        "type": "string",
+        "required": true
+      },
+      "title": {
+        "type": "string",
+        "required": false
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false
+      },
+      "email": {
+        "type": "string",
+        "required": false
+      },
+      "linkedin": {
+        "type": "string",
+        "required": false
+      },
+      "tags": {
+        "type": "OrgChartTag[]",
+        "required": false
+      },
+      "reports": {
+        "type": "OrgChartPerson[]",
+        "required": false
+      }
     },
     "OrgChartTag": {
-      "label": { "type": "string", "required": true },
-      "color": { "type": "SemColor", "required": false }
+      "label": {
+        "type": "string",
+        "required": true
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false
+      }
     },
     "Voice": {
       "tone": {
@@ -1710,7 +1740,7 @@
         "required": false
       },
       "color": {
-        "type": "SemColor",
+        "type": "string",
         "required": false
       },
       "detail": {
@@ -1722,7 +1752,7 @@
         "required": false
       },
       "thresholds": {
-        "type": "Record<string, SemColor>",
+        "type": "Record<string, string>",
         "required": false
       }
     },

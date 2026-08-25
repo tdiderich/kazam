@@ -746,13 +746,13 @@ pub enum Component {
     ProgressBar {
         value: u8,
         label: Option<String>,
-        #[serde(default)]
-        color: SemColor,
+        #[serde(default = "default_color")]
+        color: String,
         detail: Option<String>,
         #[serde(default)]
         target: Option<u8>,
         #[serde(default)]
-        thresholds: HashMap<String, SemColor>,
+        thresholds: HashMap<String, String>,
         #[serde(default)]
         scale: Option<f32>,
     },
@@ -2229,6 +2229,9 @@ impl Default for SiteConfig {
 
 // ── Defaults ─────────────────────────────────────────
 
+fn default_color() -> String {
+    "default".to_string()
+}
 fn default_stat_columns() -> u32 {
     3
 }

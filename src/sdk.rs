@@ -2097,13 +2097,20 @@ function ComponentView({
       const label = comp.label as string | undefined;
       const detail = comp.detail as string | undefined;
       const target = comp.target as number | undefined;
-      const thresholds = comp.thresholds as Array<{ at: number; color: string }> | undefined;
+      const rawThresholds = comp.thresholds as Record<string, string> | undefined;
       let autoColor = (comp.color as string) || "default";
-      if (thresholds && thresholds.length > 0) {
-        const sorted = [...thresholds].sort((a, b) => b.at - a.at);
-        const matched = sorted.find(t => value >= t.at);
+      if (rawThresholds && typeof rawThresholds === "object") {
+        const entries = Object.entries(rawThresholds)
+          .map(([k, v]) => ({ at: Number(k), color: v }))
+          .filter(t => !isNaN(t.at))
+          .sort((a, b) => b.at - a.at);
+        const matched = entries.find(t => value >= t.at);
         if (matched) autoColor = matched.color;
       }
+      const isHex = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(autoColor);
+      const fillStyle: React.CSSProperties = { "--progress": `${value}%` } as React.CSSProperties;
+      if (isHex) fillStyle.background = autoColor;
+      else if (semToHex[autoColor]) fillStyle.background = semToHex[autoColor];
       const targetPct = target != null ? Math.min(100, Math.max(0, target)) : undefined;
       return (
         <div id={id} className="c-progress">
@@ -2114,7 +2121,7 @@ function ComponentView({
             </div>
           )}
           <div className="c-progress-track" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100} style={{ position: "relative" } as React.CSSProperties}>
-            <div className={`c-progress-fill c-progress-fill-${autoColor}`} style={{ "--progress": `${value}%` } as React.CSSProperties} />
+            <div className="c-progress-fill" style={fillStyle} />
             {targetPct != null && (
               <div className="c-progress-target" style={{ left: `${targetPct}%` } as React.CSSProperties} aria-label={`Target: ${targetPct}%`} />
             )}

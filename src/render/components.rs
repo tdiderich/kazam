@@ -170,7 +170,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             target,
             thresholds,
             ..
-        } => progress_bar(*value, label, *color, detail, *target, thresholds),
+        } => progress_bar(*value, label, color, detail, *target, thresholds),
         Component::EmptyState {
             title,
             body,
@@ -2574,21 +2574,33 @@ fn avatar_group(avatars: &[AvatarConfig], size: AvatarSize, max: usize) -> Rende
 
 // ── Progress Bar ─────────────────────────────────
 
+fn progress_color_style(color: &str) -> String {
+    match color {
+        "default" => "var(--teal)".to_string(),
+        "green" => "var(--green)".to_string(),
+        "yellow" => "var(--yellow)".to_string(),
+        "red" => "var(--red)".to_string(),
+        "teal" => "var(--teal)".to_string(),
+        hex if hex.starts_with('#') => hex.to_string(),
+        _ => "var(--teal)".to_string(),
+    }
+}
+
 fn progress_bar(
     value: u8,
     label: &Option<String>,
-    color: SemColor,
+    color: &str,
     detail: &Option<String>,
     target: Option<u8>,
-    thresholds: &std::collections::HashMap<String, SemColor>,
+    thresholds: &std::collections::HashMap<String, String>,
 ) -> Rendered {
     let clamped = value.min(100);
     let effective_color = if !thresholds.is_empty() {
-        resolve_threshold_color(clamped, thresholds).unwrap_or(color)
+        resolve_threshold_color(clamped, thresholds).unwrap_or_else(|| color.to_string())
     } else {
-        color
+        color.to_string()
     };
-    let color_class = sem_color_class(effective_color);
+    let bg = progress_color_style(&effective_color);
 
     let mut h = String::from(r#"<div class="c-progress">"#);
     if label.is_some() || detail.is_some() {
@@ -2608,8 +2620,8 @@ fn progress_bar(
         h.push_str("</div>");
     }
     h.push_str(&format!(
-        r#"<div class="c-progress-track" role="progressbar" aria-valuenow="{v}" aria-valuemin="0" aria-valuemax="100"><div class="c-progress-fill c-progress-fill-{color}" style="--progress: {v}%"></div>"#,
-        v = clamped, color = color_class
+        r#"<div class="c-progress-track" role="progressbar" aria-valuenow="{v}" aria-valuemin="0" aria-valuemax="100"><div class="c-progress-fill" style="--progress: {v}%; background: {bg}"></div>"#,
+        v = clamped, bg = bg
     ));
     if let Some(t) = target {
         let t_clamped = t.min(100);
@@ -2631,25 +2643,25 @@ fn progress_bar(
 
 fn resolve_threshold_color(
     value: u8,
-    thresholds: &std::collections::HashMap<String, SemColor>,
-) -> Option<SemColor> {
-    let mut best: Option<(u8, SemColor)> = None;
+    thresholds: &std::collections::HashMap<String, String>,
+) -> Option<String> {
+    let mut best: Option<(u8, &String)> = None;
     for (key, color) in thresholds {
         if let Ok(threshold) = key.parse::<u8>() {
             if value >= threshold {
                 match best {
                     Some((prev, _)) if threshold > prev => {
-                        best = Some((threshold, *color));
+                        best = Some((threshold, color));
                     }
                     None => {
-                        best = Some((threshold, *color));
+                        best = Some((threshold, color));
                     }
                     _ => {}
                 }
             }
         }
     }
-    best.map(|(_, c)| c)
+    best.map(|(_, c)| c.clone())
 }
 
 // ── Empty State ──────────────────────────────────
