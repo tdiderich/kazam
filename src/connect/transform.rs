@@ -58,6 +58,34 @@ fn last_segment(path: &str) -> String {
         .to_string()
 }
 
+fn parent_path(path: &str) -> &str {
+    let trimmed = path.trim_start_matches('.');
+    match trimmed.rsplit_once('.') {
+        Some((parent, _)) => parent,
+        None => "",
+    }
+}
+
+fn insert_at_path(record: &mut Value, path: &str, val: Value) {
+    let trimmed = path.trim_start_matches('.');
+    let segs: Vec<&str> = trimmed.split('.').collect();
+    let mut cur = record;
+    for (i, seg) in segs.iter().enumerate() {
+        if i == segs.len() - 1 {
+            if let Some(map) = cur.as_object_mut() {
+                map.insert(seg.to_string(), val);
+            }
+            return;
+        }
+        if cur.get(*seg).is_none() {
+            if let Some(map) = cur.as_object_mut() {
+                map.insert(seg.to_string(), Value::Object(Map::new()));
+            }
+        }
+        cur = cur.get_mut(*seg).unwrap();
+    }
+}
+
 fn is_empty_val(v: Option<&Value>) -> bool {
     match v {
         None => true,
@@ -187,12 +215,24 @@ pub fn apply_transform(record: &mut Value, t: &Transform) -> Result<()> {
             });
         }
         Transform::Rename { rename, to } => {
-            let to_key = last_segment(to);
-            apply_field(record, rename, move |map, key| {
-                if let Some(v) = map.remove(key) {
-                    map.insert(to_key.clone(), v);
+            let src_parent = parent_path(rename);
+            let dst_parent = parent_path(to);
+            if src_parent == dst_parent {
+                let to_key = last_segment(to);
+                apply_field(record, rename, move |map, key| {
+                    if let Some(v) = map.remove(key) {
+                        map.insert(to_key.clone(), v);
+                    }
+                });
+            } else {
+                let mut extracted = None;
+                apply_field(record, rename, |map, key| {
+                    extracted = map.remove(key);
+                });
+                if let Some(val) = extracted {
+                    insert_at_path(record, to, val);
                 }
-            });
+            }
         }
         Transform::Lowercase { lowercase } => {
             apply_field(record, lowercase, |map, key| {

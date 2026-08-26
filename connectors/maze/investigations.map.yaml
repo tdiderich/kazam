@@ -1,5 +1,5 @@
 mapping: maze-investigations
-version: 0.2.0
+version: 0.3.0
 
 source:
   spec: maze-api.json
@@ -20,6 +20,8 @@ semantics:
   - ".maze_severity is Maze's own score, not CVSS. .snapshot.cvss carries the scanner-comparable number. Never present them as the same scale."
   - ".exploitability has two values - exploitable, not_exploitable. The API folds 'cannot determine' into not_exploitable per the spec description."
   - ".investigation_steps[].proofs[].raw_output_in_markdown is evidence. Render verbatim, never re-summarize."
+  - ".snapshot_status tracks finding lifecycle: open, investigating, closed. Updated by users or automation independently of the investigation pipeline. Null when no status has been recorded; defaults to open."
+  - ".snapshot_status_reason records the reason for the most recent status transition."
 
 pulls:
   investigations:
@@ -41,6 +43,14 @@ pulls:
     transforms:
       - lowercase: .maze_severity
       - lowercase: .exploitability
+      - default: .snapshot.status
+        value: "open"
+        when: missing
+      - lowercase: .snapshot.status
+      - rename: .snapshot.status
+        to: .snapshot_status
+      - rename: .snapshot.status_reason
+        to: .snapshot_status_reason
       - strip: .related_scanner_findings[].asset_name
         before_last: "/"
       - strip: .related_scanner_findings[].asset_name
@@ -50,11 +60,11 @@ pulls:
 
 personas:
   board:
-    question: "How much noise has Maze removed? How many real issues remain?"
+    question: "How much noise has Maze removed? How many real issues remain? Are findings getting closed?"
   ciso:
-    question: "Which assets carry the most real risk? Where are we making progress?"
+    question: "Which assets carry the most real risk? Where are we making progress on remediation?"
   remediator:
-    question: "What should I fix first, and on which asset?"
+    question: "What should I fix first, and on which asset? What's already been handled?"
 
 shapes:
   exploitability_counts:
@@ -71,12 +81,102 @@ shapes:
           in: [critical, high]
           as: crit_high
       - tally:
+          where: .snapshot_status
+          in: [closed]
+          as: closed
+      - tally:
           all: true
           as: total
       - derive:
           name: noise_pct
           expr: noise / total * 100
+      - derive:
+          name: closed_pct
+          expr: closed / total * 100
     persona: board
+    decided: true
+
+  closure_crit_high:
+    pull: investigations
+    aggregate:
+      - filter:
+          where: .maze_severity
+          in: [critical, high]
+      - tally:
+          all: true
+          as: total_crit_high
+      - tally:
+          where: .snapshot_status
+          in: [closed]
+          as: closed_crit_high
+      - tally:
+          where: .snapshot_status
+          in: [open, investigating]
+          as: open_crit_high
+      - derive:
+          name: closed_pct
+          expr: closed_crit_high / total_crit_high * 100
+      - derive:
+          name: open_pct
+          expr: open_crit_high / total_crit_high * 100
+    persona: board
+    decided: true
+
+  closure_rate:
+    pull: investigations
+    aggregate:
+      - tally:
+          all: true
+          as: total
+      - tally:
+          where: .snapshot_status
+          in: [closed]
+          as: closed
+      - tally:
+          where: .snapshot_status
+          in: [investigating]
+          as: investigating
+      - tally:
+          where: .snapshot_status
+          in: [open]
+          as: open
+      - derive:
+          name: closed_pct
+          expr: closed / total * 100
+      - derive:
+          name: investigating_pct
+          expr: investigating / total * 100
+      - derive:
+          name: open_pct
+          expr: open / total * 100
+    persona: board, ciso
+    decided: true
+
+  closure_by_severity:
+    pull: investigations
+    aggregate:
+      - bucket:
+          by: [.maze_severity]
+          ordered: [critical, high, medium, low, not_exploitable]
+      - tally:
+          all: true
+          as: total
+      - tally:
+          where: .snapshot_status
+          in: [closed]
+          as: closed
+      - tally:
+          where: .snapshot_status
+          in: [open]
+          as: open
+      - tally:
+          where: .snapshot_status
+          in: [investigating]
+          as: investigating
+      - derive:
+          name: closed_pct
+          expr: closed / total * 100
+    persona: ciso
     decided: true
 
   severity_shift:
@@ -171,12 +271,72 @@ sections:
       bars:
         - label: "Noise eliminated"
           value: noise_pct
+          detail: "{{noise}} of {{total}} findings marked not exploitable"
           color: green
           thresholds: { 50: yellow, 80: green }
-        - label: "Critical + High"
-          value: 0
-          target: crit_high
+        - label: "Findings closed"
+          value: closed_pct
+          detail: "{{closed}} of {{total}} findings closed"
+          color: blue
+          thresholds: { 25: red, 50: yellow, 75: green }
+
+  exposure-crit-high-closure:
+    shape: closure_crit_high
+    component: progress_bar
+    config:
+      bars:
+        - label: "Critical + High resolution"
+          value: closed_pct
+          detail: "{{closed_crit_high}} closed / {{open_crit_high}} open of {{total_crit_high}} critical/high findings"
+          color: green
+          thresholds: { 25: red, 50: yellow, 80: green }
+
+  exposure-closure-rate:
+    shape: closure_rate
+    component: stat_grid
+    config:
+      columns: 3
+      stats:
+        - label: "Closed"
+          value: "{{closed}} ({{closed_pct}}%)"
+          color: green
+        - label: "Investigating"
+          value: "{{investigating}} ({{investigating_pct}}%)"
+          color: yellow
+        - label: "Open"
+          value: "{{open}} ({{open_pct}}%)"
           color: red
+
+  exposure-closure-by-severity:
+    shape: closure_by_severity
+    component: table
+    config:
+      filterable: true
+      columns:
+        - key: severity
+          label: Severity
+          color_map:
+            critical: red
+            high: red
+            medium: yellow
+            low: default
+            not_exploitable: green
+        - key: total
+          label: Total
+          align: right
+        - key: closed
+          label: Closed
+          align: right
+        - key: open
+          label: Open
+          align: right
+        - key: investigating
+          label: Investigating
+          align: right
+        - key: closed_pct
+          label: "% Closed"
+          align: right
+          sortable: true
 
   exposure-severity-shift:
     shape: severity_shift
@@ -243,3 +403,11 @@ sections:
             critical: red
             high: red
             medium: yellow
+        - key: snapshot_status
+          label: Status
+          color_map:
+            closed: green
+            investigating: yellow
+            open: red
+        - key: snapshot_status_reason
+          label: Reason
