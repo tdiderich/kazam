@@ -347,7 +347,7 @@ components:
     heading: Two- or three-set venn (inline SVG)
     components:
       - type: markdown
-        body: "Native inline SVG - no JS, no charting library. Two-set or three-set diagrams supported; per-set color flows through the same `color:` field as cards/badges. Optional `overlaps:` adds intersection labels at the centroid of the involved circles. Renders crisp at any size and inherits theme tokens, so a light/dark theme swap just works."
+        body: "Native inline SVG - no charting library. One to three sets; per-set color flows through the same `color:` field as cards/badges. Optional `overlaps:` adds intersection labels at the centroid of the involved circles. Labels auto-shrink (13px down to 9px) and break onto up to three lines when they would overflow their region, so `INSPECTOR (8,726)` stays inside its circle. With two or more sets a toggle in the top-right flips between the diagram and a matrix table: sets as rows and columns, totals parsed from `NAME (count)` labels on the green diagonal, pairwise overlaps in yellow, and a teal `All 3` row for the triple overlap. `default_view: table` opens on the matrix."
 
       - type: columns
         equal_heights: true
@@ -381,19 +381,40 @@ components:
                 - sets: [0, 1, 2]
                   label: Roadmap
 
+      - type: venn
+        title: "Scanner coverage (opens on the matrix)"
+        default_view: table
+        sets:
+          - label: "INSPECTOR (8,726)"
+            color: teal
+          - label: "WIZ (908)"
+            color: green
+          - label: "QUALYS (3,241)"
+            color: yellow
+        overlaps:
+          - sets: [0, 1]
+            label: "412"
+          - sets: [0, 2]
+            label: "1,893"
+          - sets: [1, 2]
+            label: "203"
+          - sets: [0, 1, 2]
+            label: "87"
+
       - type: code
         language: yaml
         code: |
           - type: venn
-            title: "Team overlap"
+            title: "Scanner coverage"
+            default_view: venn    # venn | table - toggle in the corner flips either way
             sets:
-              - label: Frontend
+              - label: "INSPECTOR (8,726)"   # "NAME (count)" feeds the matrix diagonal
                 color: teal       # default | green | yellow | red | teal
-              - label: Backend
-                color: red
+              - label: "WIZ (908)"
+                color: green
             overlaps:
               - sets: [0, 1]      # indices into sets[]
-                label: APIs
+                label: "412"
 
   # ── steps ─────────────────────────────────
   - type: section

@@ -172,6 +172,10 @@
       "quarter",
       "source"
     ],
+    "VennView": [
+      "venn",
+      "table"
+    ],
     "QueueGroup": [
       "urgency",
       "horizon",
@@ -1583,6 +1587,10 @@
       },
       "title": {
         "type": "string",
+        "required": false
+      },
+      "default_view": {
+        "type": "VennView",
         "required": false
       }
     },

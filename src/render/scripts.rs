@@ -3,6 +3,7 @@ pub fn get(name: &str) -> Option<&'static str> {
         "selectable_grid" => Some(SELECTABLE_GRID),
         "table" => Some(TABLE),
         "tabs" => Some(TABS),
+        "venn" => Some(VENN),
         "accordion" => Some(ACCORDION),
         "event_timeline" => Some(EVENT_TIMELINE),
         "tree" => Some(TREE),
@@ -403,6 +404,25 @@ document.querySelectorAll('[data-tabs]').forEach(function (root) {
     });
   });
   show(0);
+});
+"#;
+
+const VENN: &str = r#"
+document.querySelectorAll('[data-venn]').forEach(function (root) {
+  var buttons = root.querySelectorAll('button[data-venn-view]');
+  var panels = root.querySelectorAll('[data-venn-panel]');
+  if (!buttons.length) return;
+  function show(view) {
+    buttons.forEach(function (b) {
+      var on = b.getAttribute('data-venn-view') === view;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    panels.forEach(function (p) { p.hidden = p.getAttribute('data-venn-panel') !== view; });
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { show(b.getAttribute('data-venn-view')); });
+  });
 });
 "#;
 

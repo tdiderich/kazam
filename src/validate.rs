@@ -913,15 +913,39 @@ fn validate_component(
             }
         }
 
-        Component::Venn { sets, .. } => {
-            if sets.len() < 2 {
+        Component::Venn { sets, overlaps, .. } => {
+            if sets.is_empty() {
                 errors.push(ValidationError::new(
                     file,
                     format!("{}.sets", path),
                     "structural",
-                    format!("venn requires at least 2 sets, found {}", sets.len()),
-                    Some("Add at least two sets with label:.".into()),
+                    "venn requires at least 1 set",
+                    Some("Add sets with label:. A single set renders as one circle; two or three enable overlaps and the matrix view.".into()),
                 ));
+            }
+            if sets.len() > 3 {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.sets", path),
+                    "structural",
+                    format!("venn renders at most 3 sets, found {}", sets.len()),
+                    Some("Trim to 3 sets; extras are dropped from the diagram.".into()),
+                ));
+            }
+            for (i, o) in overlaps.iter().enumerate() {
+                if let Some(bad) = o.sets.iter().find(|&&idx| idx >= sets.len()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.overlaps[{}].sets", path, i),
+                        "structural",
+                        format!(
+                            "overlap references set index {} but only {} sets exist",
+                            bad,
+                            sets.len()
+                        ),
+                        Some("Overlap indices are 0-based positions into sets[].".into()),
+                    ));
+                }
             }
         }
 

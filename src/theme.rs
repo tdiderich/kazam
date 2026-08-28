@@ -2564,6 +2564,8 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   max-width: 680px;
   height: auto;
 }
+/* Toggle panels swap via the hidden attribute; beat any display rule above. */
+.c-venn [hidden] { display: none !important; }
 .c-venn-circle {
   fill-opacity: 0.18;
   stroke-width: 2;
@@ -2593,6 +2595,98 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   font-size: 13px;
   color: rgba(var(--text-rgb),0.5);
   font-style: italic;
+}
+/* Venn header row: title centered, view toggle pinned top-right */
+.c-venn-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: 100%;
+  max-width: 680px;
+  min-height: 28px;
+}
+.c-venn-head > .c-venn-title { grid-column: 2; text-align: center; }
+.c-venn-head > .c-venn-toggle { grid-column: 3; justify-self: end; }
+.c-venn-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(var(--text-rgb),0.05);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+}
+.c-venn-toggle button {
+  appearance: none;
+  background: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  color: rgba(var(--text-rgb),0.55);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.c-venn-toggle button:hover { color: var(--snow); }
+.c-venn-toggle button.active {
+  background: rgba(var(--accent-rgb),0.15);
+  color: var(--teal);
+}
+/* Venn matrix view: sets as rows and columns, totals on the diagonal */
+.c-venn-matrix-wrap {
+  width: 100%;
+  max-width: 680px;
+  overflow-x: auto;
+}
+.c-venn-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(var(--text-rgb),0.05);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.c-venn-matrix th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  padding: 10px 14px;
+  text-align: center;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--card-border);
+  background: rgba(var(--text-rgb),0.05);
+  user-select: none;
+}
+.c-venn-matrix th[scope="row"] {
+  text-align: left;
+  border-right: 1px solid var(--card-border);
+}
+.c-venn-matrix td {
+  padding: 10px 14px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--light-muted);
+  border-bottom: 1px solid rgba(var(--text-rgb),0.07);
+}
+.c-venn-matrix tr:last-child td,
+.c-venn-matrix tr:last-child th { border-bottom: none; }
+.c-venn-matrix td.c-venn-cell-total   { background: rgba(52,211,153,0.12); color: #34D399; }
+.c-venn-matrix td.c-venn-cell-overlap { background: rgba(251,191,36,0.12); color: #FBBF24; }
+.c-venn-matrix td.c-venn-cell-all     { background: rgba(60,206,206,0.12); color: #3CCECE; }
+.c-venn-matrix td.c-venn-cell-empty   { color: rgba(var(--text-rgb),0.35); font-weight: 400; }
+.c-venn-matrix th.c-venn-th-teal   { color: var(--teal); }
+.c-venn-matrix th.c-venn-th-green  { color: var(--green); }
+.c-venn-matrix th.c-venn-th-yellow { color: var(--yellow); }
+.c-venn-matrix th.c-venn-th-red    { color: var(--red); }
+@media print {
+  .c-venn-toggle { display: none; }
 }
 
 /* Image */

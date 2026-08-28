@@ -4,6 +4,33 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-08-28
+
+### Added
+- `venn`: view toggle (top-right icon pair) between the SVG diagram and a
+  matrix table - sets as rows and columns, totals parsed from `NAME (count)`
+  labels on the green diagonal, pairwise overlaps in yellow, a teal `All 3`
+  row for the triple overlap. Hidden for single-set diagrams.
+- `venn.default_view: venn | table` picks the initial view (`defaultView` is
+  accepted as an alias). Defaults to `venn`.
+- `venn` labels auto-fit: font shrinks from 13px toward 9px and breaks at
+  word boundaries into up to three lines (`INSPECTOR` over `(8,726)`) when a
+  label would overflow its crescent; overlap labels word-wrap to the
+  intersection width. Anything still too wide at 9px is squeezed with
+  `textLength` rather than escaping its region.
+
+### Fixed
+- `venn` rendered small: the SVG viewBox now hugs the circles' bounding box
+  instead of a fixed 580x410 canvas, so the diagram fills its column (capped
+  at ~1.85px per unit so a single circle doesn't balloon). Set labels sit in
+  the middle of their uncovered crescent instead of brushing the outer edge;
+  pairwise labels in a 3-set diagram sit in the middle of their lune.
+
+### Changed
+- `kazam validate`: `venn` now accepts a single set (renders one circle),
+  rejects more than 3 sets, and flags overlap indices that point past
+  `sets[]`. Previously it required at least 2 sets.
+
 ## [1.22.3] - 2026-08-24
 
 ### Added

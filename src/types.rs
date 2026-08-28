@@ -645,6 +645,10 @@ pub enum Component {
         overlaps: Vec<VennOverlap>,
         #[serde(default)]
         title: Option<String>,
+        /// Which view renders first: the SVG circles or the overlap matrix.
+        /// The in-page toggle switches between them either way.
+        #[serde(default, alias = "defaultView")]
+        default_view: VennView,
         #[serde(default)]
         scale: Option<f32>,
     },
@@ -1485,6 +1489,14 @@ pub struct VennSet {
     pub label: String,
     #[serde(default)]
     pub color: SemColor,
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum VennView {
+    #[default]
+    Venn,
+    Table,
 }
 
 #[derive(Deserialize)]

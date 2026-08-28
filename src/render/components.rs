@@ -126,8 +126,9 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             sets,
             overlaps,
             title,
+            default_view,
             ..
-        } => venn(sets, overlaps, title.as_deref()),
+        } => venn(sets, overlaps, title.as_deref(), *default_view),
         Component::Image {
             src,
             alt,
@@ -2082,88 +2083,317 @@ fn render_queue_group<F>(
 
 // ── Venn ──────────────────────────────────────────
 
-// Greedy word-wrap for overlap labels, which are often full phrases rather
-// than single words - long ones need to break across lines or they collide
-// with a neighboring pairwise label's text.
-fn wrap_venn_label(s: &str, max_chars: usize) -> Vec<String> {
-    let mut lines = Vec::new();
-    let mut cur = String::new();
-    for word in s.split_whitespace() {
-        let candidate_len = if cur.is_empty() {
-            word.len()
-        } else {
-            cur.len() + 1 + word.len()
+// Approximate glyph advance widths (em units) for the UI font. Good enough to
+// pick a font size that keeps a label inside its circle without a DOM to
+// measure against. Mirrors `vennTextWidth` in the React SDK renderer.
+fn venn_text_width(text: &str, font_size: f64, weight: f64) -> f64 {
+    let mut w = 0.0;
+    for ch in text.chars() {
+        w += match ch {
+            'A'..='Z' => 0.68,
+            '0'..='9' => 0.6,
+            'a'..='z' => 0.54,
+            ' ' | ',' | '.' | '\'' => 0.3,
+            _ => 0.5,
         };
-        if candidate_len > max_chars && !cur.is_empty() {
-            lines.push(std::mem::take(&mut cur));
-            cur.push_str(word);
-        } else {
-            if !cur.is_empty() {
-                cur.push(' ');
-            }
-            cur.push_str(word);
-        }
     }
-    if !cur.is_empty() {
-        lines.push(cur);
-    }
-    if lines.is_empty() {
-        lines.push(String::new());
-    }
-    lines
+    w * font_size * weight
 }
 
-fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rendered {
-    // Supported: 2-set or 3-set venn. Anything else degrades to a single-set
-    // diagram with a warning note, so a malformed YAML doesn't break the page.
-    let n = sets.len();
-    let mut h = String::from(r#"<div class="c-venn">"#);
-    if let Some(t) = title {
-        h.push_str(&format!(r#"<div class="c-venn-title">{}</div>"#, esc(t)));
+struct VennFit {
+    lines: Vec<String>,
+    font_size: f64,
+}
+
+// Fit a set label into `avail` px: shrink from max toward min, and if breaking
+// at word boundaries into 2 or 3 lines ("INSPECTOR" over "(8,726)", or
+// "CROWDSTRIKE" / "FALCON" / "(4,219)") keeps the text larger, use that. Ties
+// go to fewer lines.
+fn venn_fit_label(text: &str, avail: f64, max_size: f64, min_size: f64, weight: f64) -> VennFit {
+    let size_for = |lines: &[String]| -> f64 {
+        let widest = lines
+            .iter()
+            .map(|l| venn_text_width(l, 1.0, weight))
+            .fold(0.001_f64, f64::max);
+        (avail / widest).min(max_size)
+    };
+    let single = vec![text.trim().to_string()];
+    let mut best_lines = single.clone();
+    let mut best_size = size_for(&single);
+    if best_size >= max_size {
+        return VennFit {
+            lines: single,
+            font_size: max_size,
+        };
     }
 
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let mut consider = |lines: Vec<String>| {
+        let s = size_for(&lines);
+        if s > best_size + 0.01 || ((s - best_size).abs() <= 0.01 && lines.len() < best_lines.len())
+        {
+            best_lines = lines;
+            best_size = s;
+        }
+    };
+    for i in 1..words.len() {
+        consider(vec![words[..i].join(" "), words[i..].join(" ")]);
+        for j in (i + 1)..words.len() {
+            consider(vec![
+                words[..i].join(" "),
+                words[i..j].join(" "),
+                words[j..].join(" "),
+            ]);
+        }
+    }
+    VennFit {
+        lines: best_lines,
+        font_size: best_size.clamp(min_size, max_size),
+    }
+}
+
+// Word-wrap an overlap label into an `avail` x `avail_h` box. Tries the largest
+// font first and steps down until both the widest line and the stacked height
+// fit - so a phrase shrinks a little rather than towering out of a narrow lune.
+// Falls back to the minimum size (tspans squeeze any line still too wide).
+fn venn_wrap_label(
+    text: &str,
+    avail: f64,
+    avail_h: f64,
+    max_size: f64,
+    min_size: f64,
+    weight: f64,
+) -> VennFit {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let wrap_at = |size: f64| -> Vec<String> {
+        let mut lines: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        for word in &words {
+            let candidate = if cur.is_empty() {
+                (*word).to_string()
+            } else {
+                format!("{cur} {word}")
+            };
+            if !cur.is_empty() && venn_text_width(&candidate, size, weight) > avail {
+                lines.push(std::mem::take(&mut cur));
+                cur.push_str(word);
+            } else {
+                cur = candidate;
+            }
+        }
+        if !cur.is_empty() {
+            lines.push(cur);
+        }
+        if lines.is_empty() {
+            lines.push(text.to_string());
+        }
+        lines
+    };
+    let mut size = max_size;
+    while size >= min_size {
+        let lines = wrap_at(size);
+        let widest = lines
+            .iter()
+            .map(|l| venn_text_width(l, size, weight))
+            .fold(0.0_f64, f64::max);
+        if widest <= avail && lines.len() as f64 * size * 1.2 <= avail_h {
+            return VennFit {
+                lines,
+                font_size: size,
+            };
+        }
+        size -= 0.5;
+    }
+    VennFit {
+        lines: wrap_at(min_size),
+        font_size: min_size,
+    }
+}
+
+// Emit fitted lines as centered tspans. A line that still overflows at the
+// minimum size is squeezed with textLength so it never escapes its region.
+fn venn_tspans(h: &mut String, fit: &VennFit, x: f64, avail: f64, weight: f64) {
+    let line_h = fit.font_size * 1.2;
+    let start_dy = -(fit.lines.len() as f64 - 1.0) * line_h / 2.0;
+    for (i, line) in fit.lines.iter().enumerate() {
+        let dy = if i == 0 { start_dy } else { line_h };
+        let squeeze = if venn_text_width(line, fit.font_size, weight) > avail {
+            format!(r#" textLength="{avail:.1}" lengthAdjust="spacingAndGlyphs""#)
+        } else {
+            String::new()
+        };
+        h.push_str(&format!(
+            r#"<tspan x="{x:.1}" dy="{dy:.1}"{squeeze}>{}</tspan>"#,
+            esc(line),
+        ));
+    }
+}
+
+// Split "NAME (count)" into its parts for the matrix view. Labels without a
+// trailing parenthetical keep the whole label as the name and no count.
+fn venn_split_label(label: &str) -> (String, String) {
+    let t = label.trim();
+    if t.ends_with(')') {
+        if let Some(open) = t.rfind('(') {
+            let name = t[..open].trim();
+            let count = t[open + 1..t.len() - 1].trim();
+            if !name.is_empty() && !count.contains(['(', ')']) {
+                return (name.to_string(), count.to_string());
+            }
+        }
+    }
+    (t.to_string(), String::new())
+}
+
+fn venn(
+    sets: &[VennSet],
+    overlaps: &[VennOverlap],
+    title: Option<&str>,
+    default_view: VennView,
+) -> Rendered {
+    // Supported: 1-, 2- or 3-set venn. Extra sets are dropped from the diagram
+    // (validate flags them) so a malformed YAML doesn't break the page.
+    let n = sets.len();
+    let mut h = String::from(r#"<div class="c-venn" data-venn>"#);
+
     if n == 0 {
+        if let Some(t) = title {
+            h.push_str(&format!(r#"<div class="c-venn-title">{}</div>"#, esc(t)));
+        }
         h.push_str(r#"<div class="c-venn-empty">No sets provided.</div></div>"#);
         return Rendered::new(h);
     }
 
-    // Geometry constants - viewBox is sized so the 3-set bounding box leaves
-    // ~30-40px of breathing room on every side at default radius. Circles
-    // stay at r=108 regardless of layout so 2-set and 3-set look at the same
-    // visual scale. Sized ~20% bigger than a bare-minimum fit (r=90) because
-    // overlap labels are often full phrases - the extra canvas grows the gap
-    // between circles and label text without having to shrink the font.
-    let (vb_w, vb_h) = (580.0, 410.0);
+    let can_toggle = n >= 2;
+    let table_first = can_toggle && default_view == VennView::Table;
+
+    // Header row: title centered, view toggle pinned to the right.
+    if title.is_some() || can_toggle {
+        h.push_str(r#"<div class="c-venn-head">"#);
+        if let Some(t) = title {
+            h.push_str(&format!(r#"<div class="c-venn-title">{}</div>"#, esc(t)));
+        }
+        if can_toggle {
+            let (venn_active, table_active) = if table_first {
+                ("", " active")
+            } else {
+                (" active", "")
+            };
+            h.push_str(&format!(
+                concat!(
+                    r#"<div class="c-venn-toggle" role="group" aria-label="Venn view switcher">"#,
+                    r#"<button type="button" class="{va}" data-venn-view="venn" aria-pressed="{vp}" title="Venn diagram">"#,
+                    r#"<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="6" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>"#,
+                    r#"</button>"#,
+                    r#"<button type="button" class="{ta}" data-venn-view="table" aria-pressed="{tp}" title="Overlap matrix">"#,
+                    r#"<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" fill="currentColor"/><rect x="9" y="2" width="5" height="5" rx="1" fill="currentColor"/><rect x="2" y="9" width="5" height="5" rx="1" fill="currentColor"/><rect x="9" y="9" width="5" height="5" rx="1" fill="currentColor"/></svg>"#,
+                    r#"</button></div>"#,
+                ),
+                va = venn_active.trim(),
+                vp = !table_first,
+                ta = table_active.trim(),
+                tp = table_first,
+            ));
+        }
+        h.push_str("</div>");
+    }
+
+    // Geometry. Circles stay at r=108 regardless of layout so 2-set and 3-set
+    // read at the same visual scale; the viewBox hugs the circles' bounding
+    // box (plus padding) so the diagram fills its container instead of
+    // floating small inside a fixed canvas.
     let r = 108.0_f64;
-
-    h.push_str(&format!(
-        r#"<svg class="c-venn-svg" viewBox="0 0 {vb_w} {vb_h}" role="img" aria-label="{}">"#,
-        title.map(esc).unwrap_or_default()
-    ));
-
-    // Compute per-set centers based on layout.
+    let (base_w, base_h) = (580.0, 410.0);
     let centers: Vec<(f64, f64)> = match n {
-        1 => vec![(vb_w / 2.0, vb_h / 2.0)],
+        1 => vec![(base_w / 2.0, base_h / 2.0)],
         2 => vec![
-            (vb_w / 2.0 - r * 0.55, vb_h / 2.0),
-            (vb_w / 2.0 + r * 0.55, vb_h / 2.0),
+            (base_w / 2.0 - r * 0.55, base_h / 2.0),
+            (base_w / 2.0 + r * 0.55, base_h / 2.0),
         ],
         _ => {
             // 3 sets: vertices of an upward-pointing triangle, recentered.
             // Distance from centroid to each vertex = r * 0.62 for healthy overlap.
             let d = r * 0.62;
-            let cx = vb_w / 2.0;
-            let cy = vb_h / 2.0 + d * 0.3; // slight nudge so labels fit
+            let cx = base_w / 2.0;
+            let cy = base_h / 2.0 + d * 0.3;
             vec![
-                (cx, cy - d),                   // top
-                (cx - d * 0.866, cy + d * 0.5), // bottom-left
-                (cx + d * 0.866, cy + d * 0.5), // bottom-right
+                (cx, cy - d),
+                (cx - d * 0.866, cy + d * 0.5),
+                (cx + d * 0.866, cy + d * 0.5),
             ]
         }
     };
+    let pad = 14.0;
+    let min_x = centers.iter().map(|c| c.0).fold(f64::INFINITY, f64::min) - r - pad;
+    let max_x = centers
+        .iter()
+        .map(|c| c.0)
+        .fold(f64::NEG_INFINITY, f64::max)
+        + r
+        + pad;
+    let min_y = centers.iter().map(|c| c.1).fold(f64::INFINITY, f64::min) - r - pad;
+    let max_y = centers
+        .iter()
+        .map(|c| c.1)
+        .fold(f64::NEG_INFINITY, f64::max)
+        + r
+        + pad;
+    let (vb_w, vb_h) = (max_x - min_x, max_y - min_y);
 
-    // Render circles. Each set gets its theme-aware color via inline style on
-    // a CSS custom property so themes can swap accents without touching here.
+    // Where a set label sits (pushed from its circle's center away from the
+    // diagram centroid) and how much horizontal room the uncovered crescent
+    // gives it there. 2-set: the crescent runs from the circle edge (-1.0R) to
+    // the other circle's edge (+0.1R), so center at 0.45R with ~1.0R of width.
+    // 3-set: the top circle's crescent is wide open; the bottom two are hemmed
+    // in by their neighbor.
+    let set_label_push = match n {
+        1 => 0.0,
+        2 => r * 0.45,
+        _ => r * 0.55,
+    };
+    let set_label_avail = |i: usize| -> f64 {
+        match n {
+            1 => r * 1.7,
+            2 => r * 1.0,
+            _ => {
+                if i == 0 {
+                    r * 1.5
+                } else {
+                    r * 0.95
+                }
+            }
+        }
+    };
+    // Room inside an intersection region: width, and how tall a label block
+    // may stack before it pokes out of the lune.
+    let overlap_avail = |count: usize| -> f64 {
+        if n == 2 {
+            r * 0.8
+        } else if count >= 3 {
+            r * 0.75
+        } else {
+            r * 0.62
+        }
+    };
+    let overlap_avail_h = |count: usize| -> f64 {
+        if n == 2 {
+            r * 1.2
+        } else if count >= 3 {
+            r * 0.7
+        } else {
+            r * 0.45
+        }
+    };
+    // Keep on-screen scale constant across layouts: ~1.85px per viewBox unit,
+    // so a lone circle doesn't balloon to fill the whole column.
+    let svg_max_width = (vb_w * 1.85).round().min(680.0);
+
+    let svg_hidden = if table_first { " hidden" } else { "" };
+    h.push_str(&format!(
+        r#"<svg class="c-venn-svg" data-venn-panel="venn" viewBox="{min_x:.1} {min_y:.1} {vb_w:.1} {vb_h:.1}" style="max-width:{svg_max_width:.0}px" role="img" aria-label="{}"{svg_hidden}>"#,
+        title.map(esc).unwrap_or_default()
+    ));
+
     for (i, set) in sets.iter().take(centers.len()).enumerate() {
         let (cx, cy) = centers[i];
         h.push_str(&format!(
@@ -2172,23 +2402,26 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
         ));
     }
 
-    // Set labels - placed outside the central overlap so they read cleanly.
+    // Set labels - pushed away from the diagram centroid into the part of the
+    // circle nothing else covers, then shrunk / split to fit that width.
+    let centroid_x = centers.iter().map(|c| c.0).sum::<f64>() / centers.len() as f64;
+    let centroid_y = centers.iter().map(|c| c.1).sum::<f64>() / centers.len() as f64;
     for (i, set) in sets.iter().take(centers.len()).enumerate() {
         let (cx, cy) = centers[i];
-        // Offset away from the diagram centroid, then label that point.
-        let centroid_x = centers.iter().map(|c| c.0).sum::<f64>() / centers.len() as f64;
-        let centroid_y = centers.iter().map(|c| c.1).sum::<f64>() / centers.len() as f64;
         let dx = cx - centroid_x;
         let dy = cy - centroid_y;
         let mag = (dx * dx + dy * dy).sqrt().max(1.0);
-        let push = if n == 1 { 0.0 } else { r * 0.55 };
-        let lx = cx + dx / mag * push;
-        let ly = cy + dy / mag * push;
+        let lx = cx + dx / mag * set_label_push;
+        let ly = cy + dy / mag * set_label_push;
+        let avail = set_label_avail(i);
+        let fit = venn_fit_label(&set.label, avail, 13.0, 9.0, 1.05);
         h.push_str(&format!(
-            r#"<text class="c-venn-label c-venn-label-{color}" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle">{label}</text>"#,
+            r#"<text class="c-venn-label c-venn-label-{color}" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle" style="font-size:{fs:.1}px">"#,
             color = set.color.class_suffix(),
-            label = esc(&set.label),
+            fs = fit.font_size,
         ));
+        venn_tspans(&mut h, &fit, lx, avail, 1.05);
+        h.push_str("</text>");
     }
 
     // Overlap labels. For pairwise overlaps in a 3-set venn the naïve centroid
@@ -2200,8 +2433,6 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
         if ov.sets.is_empty() {
             continue;
         }
-
-        // Default: centroid of the involved circles.
         let mut sum_x = 0.0;
         let mut sum_y = 0.0;
         let mut count = 0;
@@ -2217,20 +2448,15 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
         }
         let mut lx = sum_x / count as f64;
         let mut ly = sum_y / count as f64;
-
-        // Pairwise overlap inside a 3-set venn: nudge outward from the
-        // unincluded set's center so the label sits in the pairwise lune.
-        // Pushed further than the circle radius alone would suggest (0.58 vs
-        // the ~0.45 that lands right at the lune) because overlap labels are
-        // often full phrases, not single words - the extra room keeps two
-        // adjacent pairwise labels from running into each other's text.
         if n == 3 && count == 2 {
             if let Some(third_idx) = (0..3).find(|i| !ov.sets.contains(i)) {
                 let (tx, ty) = centers[third_idx];
                 let dx = lx - tx;
                 let dy = ly - ty;
                 let mag = (dx * dx + dy * dy).sqrt().max(1.0);
-                let push = r * 0.58;
+                // 0.5R centers the label in the lune's usable span (third
+                // circle's edge at 0.38R from the centroid, lune tip at 1.15R).
+                let push = r * 0.5;
                 lx += dx / mag * push;
                 ly += dy / mag * push;
             }
@@ -2238,25 +2464,114 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
 
         let label = ov.label.as_deref().unwrap_or("");
         if !label.is_empty() {
-            let lines = wrap_venn_label(label, 18);
-            let line_h = 13.0;
-            let start_dy = -(lines.len() as f64 - 1.0) * line_h / 2.0;
+            let avail = overlap_avail(count);
+            let fit = venn_wrap_label(label, avail, overlap_avail_h(count), 12.0, 9.0, 1.0);
             h.push_str(&format!(
-                r#"<text class="c-venn-overlap-label" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle">"#,
+                r#"<text class="c-venn-overlap-label" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle" style="font-size:{fs:.1}px">"#,
+                fs = fit.font_size,
             ));
-            for (i, line) in lines.iter().enumerate() {
-                let dy = if i == 0 { start_dy } else { line_h };
-                h.push_str(&format!(
-                    r#"<tspan x="{lx:.1}" dy="{dy:.1}">{}</tspan>"#,
-                    esc(line),
-                ));
-            }
+            venn_tspans(&mut h, &fit, lx, avail, 1.0);
             h.push_str("</text>");
         }
     }
+    h.push_str("</svg>");
 
-    h.push_str("</svg></div>");
-    Rendered::new(h)
+    // Matrix view: sets as both rows and columns. Diagonal = each set's own
+    // total (parsed from a "NAME (count)" label), off-diagonal = the pairwise
+    // overlap label, plus an "All N" row for the full intersection.
+    if can_toggle {
+        let shown: Vec<&VennSet> = sets.iter().take(centers.len()).collect();
+        let parsed: Vec<(String, String, &'static str)> = shown
+            .iter()
+            .map(|s| {
+                let (name, count) = venn_split_label(&s.label);
+                (name, count, s.color.class_suffix())
+            })
+            .collect();
+        let overlap_for = |idx: &[usize]| -> String {
+            let mut key: Vec<usize> = idx.to_vec();
+            key.sort_unstable();
+            overlaps
+                .iter()
+                .find(|o| {
+                    let mut k = o.sets.clone();
+                    k.sort_unstable();
+                    k == key
+                })
+                .and_then(|o| o.label.clone())
+                .unwrap_or_default()
+        };
+        let table_hidden = if table_first { "" } else { " hidden" };
+        h.push_str(&format!(
+            r#"<div class="c-venn-matrix-wrap" data-venn-panel="table"{table_hidden}><table class="c-venn-matrix"><thead><tr><th scope="col" aria-label="Set"></th>"#
+        ));
+        for (name, _, color) in &parsed {
+            h.push_str(&format!(
+                r#"<th scope="col" class="c-venn-th-{color}">{}</th>"#,
+                esc(name)
+            ));
+        }
+        h.push_str("</tr></thead><tbody>");
+        for (i, (name, count, color)) in parsed.iter().enumerate() {
+            h.push_str(&format!(
+                r#"<tr><th scope="row" class="c-venn-th-{color}">{}</th>"#,
+                esc(name)
+            ));
+            for (j, other) in parsed.iter().enumerate() {
+                if i == j {
+                    let shown_count = if count.is_empty() {
+                        "—"
+                    } else {
+                        count.as_str()
+                    };
+                    h.push_str(&format!(
+                        r#"<td class="c-venn-cell c-venn-cell-total" title="{} total">{}</td>"#,
+                        esc(name),
+                        esc(shown_count)
+                    ));
+                } else {
+                    let v = overlap_for(&[i, j]);
+                    let cls = if v.is_empty() {
+                        "c-venn-cell-empty"
+                    } else {
+                        "c-venn-cell-overlap"
+                    };
+                    let shown_v = if v.is_empty() { "—" } else { v.as_str() };
+                    h.push_str(&format!(
+                        r#"<td class="c-venn-cell {cls}" title="{} ∩ {}">{}</td>"#,
+                        esc(name),
+                        esc(&other.0),
+                        esc(shown_v)
+                    ));
+                }
+            }
+            h.push_str("</tr>");
+        }
+        if parsed.len() >= 3 {
+            let all_idx: Vec<usize> = (0..parsed.len()).collect();
+            let v = overlap_for(&all_idx);
+            let cls = if v.is_empty() {
+                "c-venn-cell-empty"
+            } else {
+                "c-venn-cell-all"
+            };
+            let shown_v = if v.is_empty() { "—" } else { v.as_str() };
+            h.push_str(&format!(
+                r#"<tr class="c-venn-matrix-all"><th scope="row">All {}</th><td colspan="{}" class="c-venn-cell {cls}">{}</td></tr>"#,
+                parsed.len(),
+                parsed.len(),
+                esc(shown_v)
+            ));
+        }
+        h.push_str("</tbody></table></div>");
+    }
+
+    h.push_str("</div>");
+    if can_toggle {
+        Rendered::new(h).with_script("venn")
+    } else {
+        Rendered::new(h)
+    }
 }
 
 // ── Image ─────────────────────────────────────────

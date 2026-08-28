@@ -1769,6 +1769,96 @@ function AccordionView({
   );
 }
 
+// ── Venn text fitting ─────────────────────────────────
+// Approximate glyph advance widths (em units) for the UI font. Good enough to
+// pick a font size that keeps a label inside its circle without measuring DOM.
+function vennTextWidth(text: string, fontSize: number, weight = 1.0): number {
+  let w = 0;
+  for (const ch of text) {
+    if (ch >= "A" && ch <= "Z") w += 0.68;
+    else if (ch >= "0" && ch <= "9") w += 0.6;
+    else if (ch >= "a" && ch <= "z") w += 0.54;
+    else if (ch === " " || ch === "," || ch === "." || ch === "'") w += 0.3;
+    else w += 0.5;
+  }
+  return w * fontSize * weight;
+}
+
+type VennFit = { lines: string[]; fontSize: number };
+
+// Fit a set label into `avail` px: shrink from maxSize toward minSize, and if
+// breaking at word boundaries into 2 or 3 lines ("INSPECTOR" over "(8,726)",
+// or "CROWDSTRIKE" / "FALCON" / "(4,219)") keeps the text larger, use that.
+// Ties go to fewer lines.
+function vennFitLabel(text: string, avail: number, maxSize: number, minSize: number, weight: number): VennFit {
+  const sizeFor = (lines: string[]) => {
+    const widest = Math.max(...lines.map(l => vennTextWidth(l, 1, weight)), 0.001);
+    return Math.min(maxSize, avail / widest);
+  };
+  const single = [text.trim()];
+  let bestLines = single;
+  let bestSize = sizeFor(single);
+  if (bestSize >= maxSize) return { lines: single, fontSize: maxSize };
+
+  const words = text.trim().split(/\s+/);
+  const consider = (lines: string[]) => {
+    const s = sizeFor(lines);
+    if (s > bestSize + 0.01 || (Math.abs(s - bestSize) <= 0.01 && lines.length < bestLines.length)) {
+      bestLines = lines;
+      bestSize = s;
+    }
+  };
+  for (let i = 1; i < words.length; i++) {
+    consider([words.slice(0, i).join(" "), words.slice(i).join(" ")]);
+    for (let j = i + 1; j < words.length; j++) {
+      consider([words.slice(0, i).join(" "), words.slice(i, j).join(" "), words.slice(j).join(" ")]);
+    }
+  }
+  return { lines: bestLines, fontSize: Math.max(minSize, Math.min(maxSize, bestSize)) };
+}
+
+// Word-wrap an overlap label into an `avail` x `availH` box. Tries the largest
+// font first and steps down until both the widest line and the stacked height
+// fit - so a phrase shrinks a little rather than towering out of a narrow lune.
+// Falls back to the minimum size (tspans squeeze any line still too wide).
+function vennWrapLabel(text: string, avail: number, availH: number, maxSize: number, minSize: number, weight: number): VennFit {
+  const words = text.split(/\s+/).filter(Boolean);
+  const wrapAt = (size: number): string[] => {
+    const lines: string[] = [];
+    let cur = "";
+    for (const word of words) {
+      const candidate = cur ? `${cur} ${word}` : word;
+      if (cur && vennTextWidth(candidate, size, weight) > avail) {
+        lines.push(cur);
+        cur = word;
+      } else {
+        cur = candidate;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [text];
+  };
+  for (let size = maxSize; size >= minSize; size -= 0.5) {
+    const lines = wrapAt(size);
+    const widest = Math.max(...lines.map(l => vennTextWidth(l, size, weight)));
+    if (widest <= avail && lines.length * size * 1.2 <= availH) return { lines, fontSize: size };
+  }
+  return { lines: wrapAt(minSize), fontSize: minSize };
+}
+
+// Render fitted lines as centered tspans. A line that still overflows at the
+// minimum size gets squeezed with textLength so it never escapes its region.
+function vennTspans(fit: VennFit, x: number, avail: number, weight: number) {
+  const lineH = fit.fontSize * 1.2;
+  const startDy = -(fit.lines.length - 1) * lineH / 2;
+  return fit.lines.map((line, li) => {
+    const over = vennTextWidth(line, fit.fontSize, weight) > avail;
+    return (
+      <tspan key={li} x={x} dy={li === 0 ? startDy : lineH} {...(over ? { textLength: avail, lengthAdjust: "spacingAndGlyphs" as const } : {})}>{line}</tspan>
+    );
+  });
+}
+
 function ComponentView({
   comp,
   index,
@@ -2822,6 +2912,8 @@ function ComponentView({
       const sets = (comp.sets as Array<{ label: string; color?: string }>) || [];
       const overlaps = (comp.overlaps as Array<{ sets: number[]; label?: string }>) || [];
       const title = comp.title as string | undefined;
+      const rawDefault = (comp.default_view ?? comp.defaultView) as string | undefined;
+      const [view, setView] = React.useState<"venn" | "table">(rawDefault === "table" ? "table" : "venn");
       const n = sets.length;
 
       if (n === 0) {
@@ -2848,23 +2940,50 @@ function ComponentView({
             [cx + d * 0.866, cy + d * 0.5],
           ] as [number, number][];
         })();
+      const shown = sets.slice(0, centers.length);
+      // viewBox hugs the circles' bounding box (plus padding) so the diagram
+      // fills its container instead of floating small inside a fixed canvas.
+      const PAD = 14;
+      const minX = Math.min(...centers.map(c => c[0])) - R - PAD;
+      const maxX = Math.max(...centers.map(c => c[0])) + R + PAD;
+      const minY = Math.min(...centers.map(c => c[1])) - R - PAD;
+      const maxY = Math.max(...centers.map(c => c[1])) + R + PAD;
 
       const centroidX = centers.reduce((s, c) => s + c[0], 0) / centers.length;
       const centroidY = centers.reduce((s, c) => s + c[1], 0) / centers.length;
 
-      const circles = sets.slice(0, centers.length).map((s, i) => (
+      // Where a set label sits (pushed from its circle's center away from the
+      // diagram centroid) and how much horizontal room the uncovered crescent
+      // gives it there. 2-set: the crescent runs from the circle edge (-1.0R) to
+      // the other circle's edge (+0.1R), so center at 0.45R with ~1.0R of width.
+      // 3-set: the top circle's crescent is wide open; the bottom two are hemmed
+      // in by their neighbor.
+      const setLabelPush = n === 1 ? 0 : n === 2 ? R * 0.45 : R * 0.55;
+      const setLabelAvail = (i: number) => n === 1 ? R * 1.7 : n === 2 ? R * 1.0 : i === 0 ? R * 1.5 : R * 0.95;
+      // Room inside an intersection region: width, and how tall a label block
+      // may stack before it pokes out of the lune.
+      const overlapAvail = (count: number) => n === 2 ? R * 0.8 : count >= 3 ? R * 0.75 : R * 0.62;
+      const overlapAvailH = (count: number) => n === 2 ? R * 1.2 : count >= 3 ? R * 0.7 : R * 0.45;
+      // Keep on-screen scale constant across layouts: ~1.85px per viewBox unit,
+      // so a lone circle doesn't balloon to fill the whole column.
+      const svgMaxWidth = Math.min(680, Math.round((maxX - minX) * 1.85));
+
+      const circles = shown.map((s, i) => (
         <circle key={i} className={`c-venn-circle c-venn-circle-${s.color || "default"}`} cx={centers[i][0]} cy={centers[i][1]} r={R} />
       ));
 
-      const labels = sets.slice(0, centers.length).map((s, i) => {
+      const labels = shown.map((s, i) => {
         const [cx, cy] = centers[i];
         const dx = cx - centroidX, dy = cy - centroidY;
         const mag = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
-        const push = n === 1 ? 0 : R * 0.55;
-        const lx = cx + (dx / mag) * push;
-        const ly = cy + (dy / mag) * push;
+        const lx = cx + (dx / mag) * setLabelPush;
+        const ly = cy + (dy / mag) * setLabelPush;
+        const avail = setLabelAvail(i);
+        const fit = vennFitLabel(s.label, avail, 13, 9, 1.05);
         return (
-          <text key={i} className={`c-venn-label c-venn-label-${s.color || "default"}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle">{s.label}</text>
+          <text key={i} className={`c-venn-label c-venn-label-${s.color || "default"}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: fit.fontSize }}>
+            {vennTspans(fit, lx, avail, 1.05)}
+          </text>
         );
       });
 
@@ -2883,43 +3002,96 @@ function ComponentView({
             const [tx, ty] = centers[thirdIdx];
             const ddx = lx - tx, ddy = ly - ty;
             const mag = Math.max(Math.sqrt(ddx * ddx + ddy * ddy), 1);
-            const push = R * 0.58;
+            // 0.5R centers the label in the lune's usable span (third circle's
+            // edge at 0.38R from the centroid, lune tip at 1.15R).
+            const push = R * 0.5;
             lx += (ddx / mag) * push;
             ly += (ddy / mag) * push;
           }
         }
-        const words = o.label.split(/\s+/);
-        const lines: string[] = [];
-        let cur = "";
-        for (const word of words) {
-          const candidate = cur ? `${cur} ${word}` : word;
-          if (candidate.length > 18 && cur) {
-            lines.push(cur);
-            cur = word;
-          } else {
-            cur = candidate;
-          }
-        }
-        if (cur) lines.push(cur);
-        const lineH = 13;
-        const startDy = -(lines.length - 1) * lineH / 2;
+        const avail = overlapAvail(count);
+        const fit = vennWrapLabel(o.label, avail, overlapAvailH(count), 12, 9, 1.0);
         return (
-          <text key={i} className="c-venn-overlap-label" x={lx} y={ly} textAnchor="middle" dominantBaseline="middle">
-            {lines.map((line, li) => (
-              <tspan key={li} x={lx} dy={li === 0 ? startDy : lineH}>{line}</tspan>
-            ))}
+          <text key={i} className="c-venn-overlap-label" x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: fit.fontSize }}>
+            {vennTspans(fit, lx, avail, 1.0)}
           </text>
         );
       });
 
+      // ── Matrix view: sets as both rows and columns ──
+      const parsed = shown.map((s) => {
+        const m = s.label.match(/^(.*?)\s*\(([^()]*)\)\s*$/);
+        return m ? { name: m[1].trim(), count: m[2].trim(), color: s.color || "default" } : { name: s.label, count: "", color: s.color || "default" };
+      });
+      const overlapFor = (idx: number[]): string => {
+        const key = [...idx].sort((a, b) => a - b).join(",");
+        const hit = overlaps.find(o => Array.isArray(o.sets) && [...o.sets].sort((a, b) => a - b).join(",") === key);
+        return hit?.label ?? "";
+      };
+      const allLabel = n >= 3 ? overlapFor(shown.map((_, i) => i)) : "";
+      const matrix = (
+        <div className="c-venn-matrix-wrap">
+          <table className="c-venn-matrix">
+            <thead>
+              <tr>
+                <th scope="col" aria-label="Set"></th>
+                {parsed.map((p, i) => <th key={i} scope="col" className={`c-venn-th-${p.color}`}>{p.name}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {parsed.map((p, i) => (
+                <tr key={i}>
+                  <th scope="row" className={`c-venn-th-${p.color}`}>{p.name}</th>
+                  {parsed.map((_, j) => {
+                    if (i === j) {
+                      return <td key={j} className="c-venn-cell c-venn-cell-total" title={`${p.name} total`}>{p.count || "—"}</td>;
+                    }
+                    const v = overlapFor([i, j]);
+                    return (
+                      <td key={j} className={`c-venn-cell ${v ? "c-venn-cell-overlap" : "c-venn-cell-empty"}`} title={`${parsed[i].name} ∩ ${parsed[j].name}`}>{v || "—"}</td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {n >= 3 && (
+                <tr className="c-venn-matrix-all">
+                  <th scope="row">All {n}</th>
+                  <td colSpan={n} className={`c-venn-cell ${allLabel ? "c-venn-cell-all" : "c-venn-cell-empty"}`}>{allLabel || "—"}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      );
+
+      const diagram = (
+        <svg className="c-venn-svg" viewBox={`${minX.toFixed(1)} ${minY.toFixed(1)} ${(maxX - minX).toFixed(1)} ${(maxY - minY).toFixed(1)}`} style={{ maxWidth: svgMaxWidth }} role="img" aria-label={title || ""}>
+          {circles}
+          {labels}
+          {overlapLabels}
+        </svg>
+      );
+
+      const canToggle = n >= 2;
+      const showHead = !!title || canToggle;
       return (
         <div id={id} className="c-venn">
-          {title && <div className="c-venn-title">{title}</div>}
-          <svg className="c-venn-svg" viewBox={`0 0 ${VB_W} ${VB_H}`} role="img" aria-label={title || ""}>
-            {circles}
-            {labels}
-            {overlapLabels}
-          </svg>
+          {showHead && (
+            <div className="c-venn-head">
+              {title && <div className="c-venn-title">{title}</div>}
+              {canToggle && (
+                <div className="c-venn-toggle" role="group" aria-label="Venn view switcher">
+                  <button type="button" className={view === "venn" ? "active" : ""} aria-pressed={view === "venn"} title="Venn diagram" onClick={() => setView("venn")}>
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="6" cy="8" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.6" /><circle cx="10" cy="8" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
+                  </button>
+                  <button type="button" className={view === "table" ? "active" : ""} aria-pressed={view === "table"} title="Overlap matrix" onClick={() => setView("table")}>
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" fill="currentColor" /><rect x="9" y="2" width="5" height="5" rx="1" fill="currentColor" /><rect x="2" y="9" width="5" height="5" rx="1" fill="currentColor" /><rect x="9" y="9" width="5" height="5" rx="1" fill="currentColor" /></svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          {view === "table" && canToggle ? matrix : diagram}
         </div>
       );
     }
@@ -3837,6 +4009,7 @@ fn generate_editor(out: &mut String) {
         ("IconSize", vec!["xs", "sm", "md", "lg", "xl"]),
         ("AvatarSize", vec!["sm", "md", "lg", "xl"]),
         ("ChartKind", vec!["pie", "bar", "timeseries"]),
+        ("VennView", vec!["venn", "table"]),
         ("ChartOrientation", vec!["vertical", "horizontal"]),
         ("ArchDirection", vec!["left_to_right", "top_to_bottom"]),
         ("Interaction", vec!["single_select", "multi_select", "none"]),
