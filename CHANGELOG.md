@@ -4,6 +4,17 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-08-30
+
+### Added
+- `sdk emit-react`: every component root now carries `data-kz-path` and `data-kz-type`, every element that displays a content field carries `data-kz-field` (component-relative path like `stats[3].value`), markdown/code blocks carry `data-kz-block`, and list containers carry `data-kz-list`. Editors can map rendered elements back to page data without text matching. Renderers that reorder or filter (event_timeline, priority_queue, tree) keep the authored index.
+- Schema fields declare a `kind` (`text | markdown | code | number | layout | enum | id | url | bool | list | object`) in `schema/components.json`; `sdk emit-schema` emits it and `kind_of` infers it for fields that omit it.
+- `sdk emit-react` exports `KZ_SCHEMA` (authoring-ordered components, types, enums with kinds) plus `kzResolveField`, `kzEmptyItem`, `kzElemType`, `kzTitle`, and `newEditorComponent` for host editors.
+- Tests fail the build when a content field lacks a `data-kz-field` tag or a list-shaped component lacks `data-kz-list`.
+
+### Changed
+- `ComponentFieldEditor` is now schema-driven at runtime: labeled fields in authoring order, enum selects for all schema enums, typed list items as collapsible cards with schema-derived add, table rows as a grid, nested components unchanged. Field order in the schema file is preserved everywhere (typescript, agents reference, editor); it was alphabetical before.
+
 ## [1.24.0] - 2026-08-28
 
 ### Added

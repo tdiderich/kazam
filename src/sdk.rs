@@ -1,19 +1,108 @@
 use anyhow::Result;
-use serde::Deserialize;
-use std::collections::BTreeMap;
+use serde::de::{MapAccess, Visitor};
+use serde::{Deserialize, Deserializer};
+use std::fmt;
+use std::marker::PhantomData;
+
+/// Insertion-ordered map. The schema file's field order is the authoring order
+/// (title before subtitle, label before value); every emitter preserves it.
+pub(crate) struct OMap<T>(Vec<(String, T)>);
+
+impl<T> OMap<T> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&String, &T)> {
+        self.0.iter().map(|(k, v)| (k, v))
+    }
+    pub(crate) fn get(&self, key: &str) -> Option<&T> {
+        self.0.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+    }
+    pub(crate) fn contains_key(&self, key: &str) -> bool {
+        self.get(key).is_some()
+    }
+    pub(crate) fn into_iter(self) -> impl Iterator<Item = (String, T)> {
+        self.0.into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a OMap<T> {
+    type Item = (&'a String, &'a T);
+    type IntoIter = std::iter::Map<
+        std::slice::Iter<'a, (String, T)>,
+        fn(&'a (String, T)) -> (&'a String, &'a T),
+    >;
+    fn into_iter(self) -> Self::IntoIter {
+        fn split<T>(pair: &(String, T)) -> (&String, &T) {
+            (&pair.0, &pair.1)
+        }
+        self.0
+            .iter()
+            .map(split as fn(&'a (String, T)) -> (&'a String, &'a T))
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for OMap<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct V<T>(PhantomData<T>);
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for V<T> {
+            type Value = OMap<T>;
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a JSON object")
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut access: A) -> Result<OMap<T>, A::Error> {
+                let mut out = Vec::with_capacity(access.size_hint().unwrap_or(0));
+                while let Some((k, v)) = access.next_entry::<String, T>()? {
+                    out.push((k, v));
+                }
+                Ok(OMap(out))
+            }
+        }
+        deserializer.deserialize_map(V(PhantomData))
+    }
+}
 
 #[derive(Deserialize)]
 struct SchemaField {
     #[serde(rename = "type")]
     field_type: String,
     required: bool,
+    /// Editing semantics: text | markdown | code | number | layout | enum | id | url | bool | list | object.
+    /// Declared in schema/components.json; `kind_of` infers when absent.
+    #[serde(default)]
+    kind: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct Schema {
-    enums: BTreeMap<String, Vec<String>>,
-    types: BTreeMap<String, BTreeMap<String, SchemaField>>,
-    components: BTreeMap<String, BTreeMap<String, SchemaField>>,
+    enums: OMap<Vec<String>>,
+    types: OMap<OMap<SchemaField>>,
+    components: OMap<OMap<SchemaField>>,
+}
+
+/// Content kinds are the ones a human edits in place; everything else is
+/// structure, identity, or styling.
+#[allow(dead_code)]
+const CONTENT_KINDS: [&str; 4] = ["text", "markdown", "code", "number"];
+
+fn kind_of(name: &str, field: &SchemaField, schema: &Schema) -> String {
+    if let Some(k) = &field.kind {
+        return k.clone();
+    }
+    let t = field.field_type.as_str();
+    if schema.enums.contains_key(t) {
+        return "enum".into();
+    }
+    match t {
+        "boolean" => "bool".into(),
+        "number" => "number".into(),
+        "string" => match name {
+            "body" | "definition" | "summary" => "markdown".into(),
+            "code" => "code".into(),
+            "href" | "src" | "url" | "link" | "email" | "linkedin" => "url".into(),
+            "id" | "key" | "slug" => "id".into(),
+            _ => "text".into(),
+        },
+        _ if t.ends_with("[]") => "list".into(),
+        _ => "object".into(),
+    }
 }
 
 fn load_schema() -> Schema {
@@ -302,7 +391,7 @@ fn generate_schema() -> String {
     out.push_str("  },\n");
 
     // Types
-    let types: Vec<(&String, &BTreeMap<String, SchemaField>)> = schema.types.iter().collect();
+    let types: Vec<(&String, &OMap<SchemaField>)> = schema.types.iter().collect();
     out.push_str("  \"types\": {\n");
     for (i, (name, fields)) in types.iter().enumerate() {
         out.push_str("    \"");
@@ -316,7 +405,9 @@ fn generate_schema() -> String {
             out.push_str(&field.field_type);
             out.push_str("\", \"required\": ");
             out.push_str(if field.required { "true" } else { "false" });
-            out.push_str(" }");
+            out.push_str(", \"kind\": \"");
+            out.push_str(&kind_of(fname, field, &schema));
+            out.push_str("\" }");
             if j < field_list.len() - 1 {
                 out.push(',');
             }
@@ -331,8 +422,7 @@ fn generate_schema() -> String {
     out.push_str("  },\n");
 
     // Components
-    let components_map: Vec<(&String, &BTreeMap<String, SchemaField>)> =
-        schema.components.iter().collect();
+    let components_map: Vec<(&String, &OMap<SchemaField>)> = schema.components.iter().collect();
     out.push_str("  \"components\": {\n");
     for (i, (tag, fields)) in components_map.iter().enumerate() {
         out.push_str("    \"");
@@ -346,7 +436,9 @@ fn generate_schema() -> String {
             out.push_str(&field.field_type);
             out.push_str("\", \"required\": ");
             out.push_str(if field.required { "true" } else { "false" });
-            out.push_str(" }");
+            out.push_str(", \"kind\": \"");
+            out.push_str(&kind_of(fname, field, &schema));
+            out.push_str("\" }");
             if j < field_list.len() - 1 {
                 out.push(',');
             }
@@ -954,6 +1046,8 @@ const getColor = (c?: string, i?: number) => {
 function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
   const [tip, setTip] = React.useState<{ x: number; y: number; text: string } | null>(null);
   const title = comp.title as string | undefined;
+  const xLabel = comp.x_label as string | undefined;
+  const yLabel = comp.y_label as string | undefined;
   const kind = (comp.kind as string) || "bar";
   const data = (comp.data as Array<{ label: string; value: number; color?: string }>) || [];
   const series = (comp.series as Array<{ label: string; color?: string; points: Array<{ label: string; value: number }> }>) || [];
@@ -991,7 +1085,7 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
     const legend = data.map((d, i) => (
       <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: getColor(d.color, i), display: "inline-block" }} />
-        <span>{d.label}: {d.value}</span>
+        <span><span data-kz-field={`data[${i}].label`}>{d.label}</span>: <span data-kz-field={`data[${i}].value`}>{d.value}</span></span>
       </div>
     ));
     chart = (
@@ -1017,8 +1111,8 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
             const y = i * (barH + 6) + 10;
             return <React.Fragment key={i}>
               <rect x={80} y={y} width={w} height={barH} fill={getColor(d.color, i)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: 80 + w / 2, y: y - 4, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
-              <text x={74} y={y + barH / 2 + 4} textAnchor="end" fontSize={11} fill="var(--color-text-muted, #999)">{d.label}</text>
-              <text x={84 + w} y={y + barH / 2 + 4} fontSize={11} fill="var(--color-text-muted, #999)">{d.value}</text>
+              <text x={74} y={y + barH / 2 + 4} textAnchor="end" fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{d.label}</text>
+              <text x={84 + w} y={y + barH / 2 + 4} fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].value`}>{d.value}</text>
             </React.Fragment>;
           })}
           {Tip}
@@ -1034,8 +1128,8 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
             const x = padX + i * (barW + gap);
             return <React.Fragment key={i}>
               <rect x={x} y={h - barH} width={barW} height={barH} fill={getColor(d.color, i)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: x + barW / 2, y: h - barH - 4, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
-              <text x={x + barW / 2} y={h - barH - 6} textAnchor="middle" fontSize={11} fontWeight="500" fill="var(--color-text, #eee)">{d.value}</text>
-              <text x={x + barW / 2} y={h + 16} textAnchor="middle" fontSize={11} fill="var(--color-text-muted, #999)">{d.label}</text>
+              <text x={x + barW / 2} y={h - barH - 6} textAnchor="middle" fontSize={11} fontWeight="500" fill="var(--color-text, #eee)" data-kz-field={`data[${i}].value`}>{d.value}</text>
+              <text x={x + barW / 2} y={h + 16} textAnchor="middle" fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{d.label}</text>
             </React.Fragment>;
           })}
           {Tip}
@@ -1071,17 +1165,17 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
         const x = pad.l + (pi / Math.max(n - 1, 1)) * plotW;
         const y = pad.t + plotH - (p.value / maxVal) * plotH;
         const label = series.length > 1 ? `${s.label}: ${p.value}` : String(p.value);
-        return <circle key={`${si}-${pi}`} cx={x} cy={y} r={4} fill={getColor(s.color, si)} className="c-chart-dot" onMouseEnter={() => setTip({ x, y: y - 4, text: label })} onMouseLeave={() => setTip(null)} />;
+        return <circle key={`${si}-${pi}`} cx={x} cy={y} r={4} fill={getColor(s.color, si)} className="c-chart-dot" data-kz-field={`series[${si}].points[${pi}].value`} onMouseEnter={() => setTip({ x, y: y - 4, text: label })} onMouseLeave={() => setTip(null)} />;
       })
     );
     const labels = (series[0]?.points || []).map((p, pi) => {
       const x = pad.l + (pi / Math.max(n - 1, 1)) * plotW;
-      return <text key={pi} x={x} y={h - 2} textAnchor="middle" fontSize={10} fill="var(--color-text-muted, #999)">{p.label}</text>;
+      return <text key={pi} x={x} y={h - 2} textAnchor="middle" fontSize={10} fill="var(--color-text-muted, #999)" data-kz-field={`series[0].points[${pi}].label`}>{p.label}</text>;
     });
     const legend = series.length > 1 ? series.map((s, si) => (
       <div key={si} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
         <span style={{ width: 16, height: 2, background: getColor(s.color, si), display: "inline-block" }} />
-        <span>{s.label}</span>
+        <span data-kz-field={`series[${si}].label`}>{s.label}</span>
       </div>
     )) : null;
     chart = (
@@ -1094,10 +1188,20 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
     );
   }
 
+  const body = chart || <div className="c-chart-placeholder">Chart ({kind})</div>;
+  const showAxes = kind !== "pie" && (xLabel || yLabel);
   return (
     <div id={id} className="c-chart" data-kind={kind}>
-      {title && <h3 className="c-chart-title">{title}</h3>}
-      {chart || <div className="c-chart-placeholder">Chart ({kind})</div>}
+      {title && <h3 className="c-chart-title" data-kz-field="title">{title}</h3>}
+      {showAxes ? (
+        <div className="c-chart-axes">
+          {yLabel && <div className="c-chart-ylabel" data-kz-field="y_label">{yLabel}</div>}
+          <div className="c-chart-axes-main">
+            {body}
+            {xLabel && <div className="c-chart-xlabel" data-kz-field="x_label">{xLabel}</div>}
+          </div>
+        </div>
+      ) : body}
     </div>
   );
 }
@@ -1326,7 +1430,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
         const ruleY = bandCy - halfH - 18;
         const textY = ruleY - 8;
         rowLabelElems.push(
-          <text key={`rl-${ri}`} x={pad} y={textY} className="c-arch-node-detail" fontWeight={600}>{label}</text>
+          <text key={`rl-${ri}`} x={pad} y={textY} className="c-arch-node-detail" fontWeight={600} data-kz-field={`row_labels[${ri}]`}>{label}</text>
         );
         rowLabelElems.push(
           <line key={`rr-${ri}`} x1={pad} y1={ruleY} x2={vbW - pad} y2={ruleY} stroke="rgba(var(--text-rgb),0.15)" strokeWidth={1} strokeDasharray="2 3" />
@@ -1455,7 +1559,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       groupElems.push(
         <React.Fragment key={`grp-${gi}`}>
           <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={10} fill="rgba(var(--text-rgb),0.02)" stroke={stroke} strokeWidth={1} strokeDasharray="5 3" />
-          {grp.label && <text x={b.x + 8} y={b.y + 10} className="c-arch-node-detail" dominantBaseline="middle">{grp.label}</text>}
+          {grp.label && <text x={b.x + 8} y={b.y + 10} className="c-arch-node-detail" dominantBaseline="middle" data-kz-field={`groups[${groups.indexOf(grp)}].label`}>{grp.label}</text>}
         </React.Fragment>
       );
     }
@@ -1561,7 +1665,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
         const ly = labelY - 8;
         const lc = strokeColor;
         edgeElems.push(
-          <text key={`el-${ei}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill={lc} style={{ stroke: "var(--bg,#121113)", strokeWidth: 3, paintOrder: "stroke" as const }}>{e.label}</text>
+          <text key={`el-${ei}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize={10} fill={lc} style={{ stroke: "var(--bg,#121113)", strokeWidth: 3, paintOrder: "stroke" as const }} data-kz-field={`edges[${ei}].label`}>{e.label}</text>
         );
       }
     }
@@ -1620,7 +1724,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       let cursorY = pos.cy - totalTextH / 2 + LABEL_LINE_H * 0.72;
 
       nodeElems.push(
-        <text key={`nl-${n.id}`}>
+        <text key={`nl-${n.id}`} data-kz-field={`nodes[${nodes.indexOf(n)}].label`}>
           {labelLines.map((line, li) => (
             <tspan key={li} x={pos.cx} y={cursorY + li * LABEL_LINE_H} textAnchor="middle" className="c-arch-node-label">{line}</tspan>
           ))}
@@ -1630,7 +1734,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       if (detailLines) {
         cursorY += LABEL_LINE_H * 0.28 + ldGap + DETAIL_LINE_H * 0.72;
         nodeElems.push(
-          <text key={`nd-${n.id}`}>
+          <text key={`nd-${n.id}`} data-kz-field={`nodes[${nodes.indexOf(n)}].detail`}>
             {detailLines.map((line, li) => (
               <tspan key={li} x={pos.cx} y={cursorY + li * DETAIL_LINE_H} textAnchor="middle" className="c-arch-node-detail">{line}</tspan>
             ))}
@@ -1646,7 +1750,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
         else if (port.side === "top") { px = pos.cx; py = pos.cy - nh / 2 + 10; anchor = "middle" as const; }
         else { px = pos.cx; py = pos.cy + nh / 2 - 4; anchor = "middle" as const; }
         nodeElems.push(
-          <text key={`np-${n.id}-${pi}`} x={px} y={py} textAnchor={anchor} dominantBaseline="middle" className="c-arch-node-detail" fontSize={9} opacity={0.6}>{port.label}</text>
+          <text key={`np-${n.id}-${pi}`} x={px} y={py} textAnchor={anchor} dominantBaseline="middle" className="c-arch-node-detail" fontSize={9} opacity={0.6} data-kz-field={`nodes[${nodes.indexOf(n)}].ports[${pi}].label`}>{port.label}</text>
         );
       }
     }
@@ -1656,7 +1760,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
 
   return (
     <div id={id} className="c-chart" data-kind="graph">
-      {title && <h3 className="c-chart-title">{title}</h3>}
+      {title && <h3 className="c-chart-title" data-kz-field="title">{title}</h3>}
       {svgData ? (
         <svg viewBox={`0 0 ${svgData.vbW} ${svgData.h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
           <defs>
@@ -1676,7 +1780,7 @@ function GraphSVG({ id, comp }: { id?: string; comp: ComponentData }) {
   );
 }
 
-function OrgNode({ person, depth, autoDepth }: { person: any; depth: number; autoDepth: number }) {
+function OrgNode({ person, depth, autoDepth, kzField }: { person: any; depth: number; autoDepth: number; kzField: string }) {
   const reports = (person.reports || []) as any[];
   const hasReports = reports.length > 0;
   const [open, setOpen] = React.useState(depth < autoDepth);
@@ -1690,11 +1794,11 @@ function OrgNode({ person, depth, autoDepth }: { person: any; depth: number; aut
   return (
     <div className="c-org-branch">
       <div className={`c-org-node${colorClass}${hasReports ? " c-org-node--parent" : ""}${open && hasReports ? " c-org-node--open" : ""}`} onClick={() => hasReports && setOpen(!open)} style={{ cursor: hasReports ? "pointer" : "default" }}>
-        <div className="c-org-node-name">{person.name}</div>
-        {person.title && <div className="c-org-node-title">{person.title}</div>}
+        <div className="c-org-node-name" data-kz-field={`${kzField}.name`}>{person.name}</div>
+        {person.title && <div className="c-org-node-title" data-kz-field={`${kzField}.title`}>{person.title}</div>}
         {tags.length > 0 && (
           <div className="c-org-node-tags">
-            {tags.map((t, ti) => <span key={ti} className={`c-badge c-badge-${t.color || "default"}`}>{t.label}</span>)}
+            {tags.map((t, ti) => <span key={ti} className={`c-badge c-badge-${t.color || "default"}`} data-kz-field={`${kzField}.tags[${ti}].label`}>{t.label}</span>)}
           </div>
         )}
         {(email || linkedin) && (
@@ -1707,7 +1811,7 @@ function OrgNode({ person, depth, autoDepth }: { person: any; depth: number; aut
       </div>
       {open && hasReports && (
         <div className="c-org-children">
-          {reports.map((r: any, i: number) => <OrgNode key={r.id || i} person={r} depth={depth + 1} autoDepth={autoDepth} />)}
+          {reports.map((r: any, i: number) => <OrgNode key={r.id || i} person={r} depth={depth + 1} autoDepth={autoDepth} kzField={`${kzField}.reports[${i}]`} />)}
         </div>
       )}
     </div>
@@ -1738,12 +1842,14 @@ function OrgChartZoom({ children }: { children: React.ReactNode }) {
 function AccordionView({
   id,
   items,
+  kzPath,
   renderMarkdown,
   renderChart,
   renderRoleMap,
 }: {
   id: string;
   items: Array<{ title: string; components: ComponentData[] }>;
+  kzPath: string;
   renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
@@ -1754,12 +1860,12 @@ function AccordionView({
       {items.map((item, i) => (
         <div key={i} className={`c-accordion-item${openIndex === i ? " accordion-open" : ""}`}>
           <button className="accordion-head" onClick={() => setOpenIndex(openIndex === i ? null : i)}>
-            {item.title}<span className="accordion-chevron">›</span>
+            <span data-kz-field={`items[${i}].title`}>{item.title}</span><span className="accordion-chevron">›</span>
           </button>
           {openIndex === i && (
             <div className="accordion-body">
               {(item.components || []).map((c, ci) => (
-                <ComponentView key={ci} comp={c} index={ci} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kzPath}.items[${i}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           )}
@@ -1862,17 +1968,21 @@ function vennTspans(fit: VennFit, x: number, avail: number, weight: number) {
 function ComponentView({
   comp,
   index,
+  kzPath,
   renderMarkdown,
   renderChart,
   renderRoleMap,
 }: {
   comp: ComponentData;
   index: number;
+  /** Absolute data path of this component within the page, e.g. `components[2].components[0]`. */
+  kzPath?: string;
   renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
 }) {
   const id = (comp.id as string) || `c-${index}`;
+  const kz = kzPath ?? `components[${index}]`;
   const md = (s: string) =>
     renderMarkdown ? (
       <div dangerouslySetInnerHTML={{ __html: renderMarkdown(s) }} />
@@ -1888,16 +1998,16 @@ function ComponentView({
       const eyebrow = comp.eyebrow as string | undefined;
       return (
         <div id={id} className="c-header">
-          {eyebrow && <div className="c-header-eyebrow">{eyebrow}</div>}
-          <h1 className="c-header-title">{title}</h1>
-          {subtitle && <p className="c-header-subtitle">{subtitle}</p>}
+          {eyebrow && <div className="c-header-eyebrow" data-kz-field="eyebrow">{eyebrow}</div>}
+          <h1 className="c-header-title" data-kz-field="title">{title}</h1>
+          {subtitle && <p className="c-header-subtitle" data-kz-field="subtitle">{subtitle}</p>}
         </div>
       );
     }
 
     case "markdown": {
       const body = (comp.body as string) || "";
-      return <div id={id} className="c-markdown">{md(body)}</div>;
+      return <div id={id} className="c-markdown" data-kz-field="body" data-kz-block="">{md(body)}</div>;
     }
 
     case "callout": {
@@ -1907,12 +2017,12 @@ function ComponentView({
       const links = (comp.links as Array<{ label: string; href: string; variant?: string }>) || [];
       return (
         <div id={id} className={`c-callout c-callout-${variant}`}>
-          {title && <div className="c-callout-title">{renderInline(title)}</div>}
-          <div className="c-callout-body c-markdown">{md(body)}</div>
+          {title && <div className="c-callout-title" data-kz-field="title">{renderInline(title)}</div>}
+          <div className="c-callout-body c-markdown" data-kz-field="body" data-kz-block="">{md(body)}</div>
           {links.length > 0 && (
-            <div className="c-callout-links c-button-group">
+            <div className="c-callout-links c-button-group" data-kz-list="links">
               {links.map((l, i) => (
-                <a key={i} href={l.href} className={`c-button c-button-${l.variant || "secondary"}`}>{l.label}</a>
+                <a key={i} href={l.href} className={`c-button c-button-${l.variant || "secondary"}`} data-kz-field={`links[${i}].label`}>{l.label}</a>
               ))}
             </div>
           )}
@@ -1930,7 +2040,7 @@ function ComponentView({
       const connector = comp.connector as string | undefined;
       const gridClass = connector === "arrow" ? "c-card-grid c-card-grid-arrow" : "c-card-grid";
       return (
-        <div id={id} className={gridClass}>
+        <div id={id} className={gridClass} data-kz-list="cards">
           {cards.map((card, i) => {
             const Tag = card.href ? "a" : "div";
             return (
@@ -1938,14 +2048,14 @@ function ComponentView({
                 {connector === "arrow" && i > 0 && <div className="c-card-arrow">→</div>}
                 <Tag className="c-card c-card-default" {...(card.href ? { href: card.href } : {})}>
                   <div className="c-card-top">
-                    <h2 className="c-card-title">{card.title}</h2>
+                    <h2 className="c-card-title" data-kz-field={`cards[${i}].title`}>{card.title}</h2>
                     {card.badge && (
-                      <span className={`c-badge c-badge-${card.badge.color || "default"}`}>
+                      <span className={`c-badge c-badge-${card.badge.color || "default"}`} data-kz-field={`cards[${i}].badge.label`}>
                         {card.badge.label}
                       </span>
                     )}
                   </div>
-                  {card.description && <p className="c-card-desc">{renderInline(card.description)}</p>}
+                  {card.description && <p className="c-card-desc" data-kz-field={`cards[${i}].description`}>{renderInline(card.description)}</p>}
                 </Tag>
               </React.Fragment>
             );
@@ -1970,6 +2080,7 @@ function ComponentView({
           id={id}
           className="c-stat-grid"
           style={{ "--stat-cols": columns } as React.CSSProperties}
+          data-kz-list="stats"
         >
           {stats.map((s, i) => {
             const trendClass = s.trend === "up" ? "c-stat-trend-up" : s.trend === "down" ? "c-stat-trend-down" : "c-stat-trend-neutral";
@@ -1991,11 +2102,11 @@ function ComponentView({
             }
             return (
               <div key={i} className={`c-stat${s.color && s.color !== "default" ? ` c-stat-${s.color}` : ""}`}>
-                <div className="c-stat-label">{s.label}</div>
-                <div className="c-stat-value">{s.value}</div>
-                {s.detail && <div className="c-stat-detail">{renderInline(s.detail)}</div>}
+                <div className="c-stat-label" data-kz-field={`stats[${i}].label`}>{s.label}</div>
+                <div className="c-stat-value" data-kz-field={`stats[${i}].value`}>{s.value}</div>
+                {s.detail && <div className="c-stat-detail" data-kz-field={`stats[${i}].detail`}>{renderInline(s.detail)}</div>}
                 {s.trend && <span className={`c-stat-trend ${trendClass}`}>{trendArrow}</span>}
-                {s.previous && <span className="c-stat-previous">was {s.previous}</span>}
+                {s.previous && <span className="c-stat-previous">was <span data-kz-field={`stats[${i}].previous`}>{s.previous}</span></span>}
                 {sparkline}
               </div>
             );
@@ -2009,7 +2120,7 @@ function ComponentView({
       const numbered = comp.numbered !== false;
       const Tag = numbered ? "ol" : "ul";
       return (
-        <Tag id={id} className="c-steps">
+        <Tag id={id} className="c-steps" data-kz-list="items">
           {items.map((item, i) => (
             <li key={i} className="c-step">
               {numbered ? (
@@ -2018,8 +2129,8 @@ function ComponentView({
                 <div className="c-step-bullet" />
               )}
               <div>
-                <div className="c-step-title">{renderInline(item.title)}</div>
-                {item.detail && <div className="c-step-detail">{renderInline(item.detail)}</div>}
+                <div className="c-step-title" data-kz-field={`items[${i}].title`}>{renderInline(item.title)}</div>
+                {item.detail && <div className="c-step-detail" data-kz-field={`items[${i}].detail`}>{renderInline(item.detail)}</div>}
               </div>
             </li>
           ))}
@@ -2032,7 +2143,7 @@ function ComponentView({
       const language = comp.language as string | undefined;
       return (
         <pre id={id} className="c-code" {...(language ? { "data-lang": language } : {})}>
-          <code>{code}</code>
+          <code data-kz-field="code" data-kz-block="">{code}</code>
         </pre>
       );
     }
@@ -2043,8 +2154,8 @@ function ComponentView({
       const caption = comp.caption as string | undefined;
       return (
         <figure id={id} className="c-image">
-          <img src={assetSrc(src)} alt={alt} />
-          {caption && <figcaption>{caption}</figcaption>}
+          <img src={assetSrc(src)} alt={alt} data-kz-field="alt" />
+          {caption && <figcaption data-kz-field="caption">{caption}</figcaption>}
         </figure>
       );
     }
@@ -2055,7 +2166,7 @@ function ComponentView({
         return (
           <div id={id} className="c-divider c-divider-labeled">
             <span className="c-divider-line" />
-            <span className="c-divider-label">{label}</span>
+            <span className="c-divider-label" data-kz-field="label">{label}</span>
             <span className="c-divider-line" />
           </div>
         );
@@ -2076,7 +2187,7 @@ function ComponentView({
                 {summary.map((item, si) => (
                   <span key={si} className={`c-table-summary-dot c-table-summary-dot-${item.color || "default"}`}>
                     <span className="c-dot" />
-                    <span className="c-dot-label">{item.label}: {item.value}</span>
+                    <span className="c-dot-label"><span data-kz-field={`summary[${si}].label`}>{item.label}</span>: <span data-kz-field={`summary[${si}].value`}>{item.value}</span></span>
                   </span>
                 ))}
               </div>
@@ -2096,18 +2207,18 @@ function ComponentView({
             <thead>
               <tr>
                 {columns.map((col, i) => (
-                  <th key={i}>{col.label}</th>
+                  <th key={i} data-kz-field={`columns[${i}].label`}>{col.label}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody data-kz-list="rows">
               {rows.map((row, ri) => (
                 <tr key={ri}>
                   {columns.map((col, ci) => {
                     const cellVal = String(row[col.key] ?? "");
                     const mappedColor = col.color_map ? col.color_map[cellVal] : undefined;
                     return (
-                      <td key={ci} className={mappedColor ? `cell-${mappedColor}` : undefined}>{renderInline(cellVal)}</td>
+                      <td key={ci} className={mappedColor ? `cell-${mappedColor}` : undefined} data-kz-field={`rows[${ri}].${col.key}`}>{renderInline(cellVal)}</td>
                     );
                   })}
                 </tr>
@@ -2121,11 +2232,11 @@ function ComponentView({
     case "meta": {
       const fields = (comp.fields as Array<{ key: string; value: string }>) || [];
       return (
-        <div id={id} className="c-meta">
+        <div id={id} className="c-meta" data-kz-list="fields">
           {fields.map((f, i) => (
             <div key={i} className="c-meta-item">
-              <span className="c-meta-key">{f.key}</span>
-              <span className="c-meta-value">{renderInline(f.value)}</span>
+              <span className="c-meta-key" data-kz-field={`fields[${i}].key`}>{f.key}</span>
+              <span className="c-meta-value" data-kz-field={`fields[${i}].value`}>{renderInline(f.value)}</span>
             </div>
           ))}
         </div>
@@ -2141,12 +2252,12 @@ function ComponentView({
         <section id={id} className={`c-section${sectionAlign ? ` align-${sectionAlign}` : ""}`}>
           {(eyebrow || heading) && (
             <div className="c-section-header">
-              {eyebrow && <div className="c-section-eyebrow">{eyebrow}</div>}
-              {heading && <h2 className="c-section-heading">{heading}</h2>}
+              {eyebrow && <div className="c-section-eyebrow" data-kz-field="eyebrow">{eyebrow}</div>}
+              {heading && <h2 className="c-section-heading" data-kz-field="heading">{heading}</h2>}
             </div>
           )}
           {children.map((c, i) => (
-            <ComponentView key={i} comp={c} index={i} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
           ))}
         </section>
       );
@@ -2157,9 +2268,9 @@ function ComponentView({
       const attribution = comp.attribution as string | undefined;
       return (
         <figure id={id} className="c-blockquote">
-          <blockquote><p>{renderInline(body)}</p></blockquote>
+          <blockquote><p data-kz-field="body">{renderInline(body)}</p></blockquote>
           {attribution && (
-            <figcaption className="c-blockquote-attribution">- {attribution}</figcaption>
+            <figcaption className="c-blockquote-attribution">- <span data-kz-field="attribution">{attribution}</span></figcaption>
           )}
         </figure>
       );
@@ -2168,7 +2279,7 @@ function ComponentView({
     case "badge": {
       const label = (comp.label as string) || "";
       const color = (comp.color as string) || "default";
-      return <span id={id} className={`c-badge c-badge-${color}`}>{label}</span>;
+      return <span id={id} className={`c-badge c-badge-${color}`} data-kz-field="label">{label}</span>;
     }
 
     case "status": {
@@ -2177,7 +2288,7 @@ function ComponentView({
       return (
         <span id={id} className={`c-status c-status-${color}`}>
           <span className="c-status-dot" />
-          <span>{label}</span>
+          <span data-kz-field="label">{label}</span>
         </span>
       );
     }
@@ -2206,17 +2317,17 @@ function ComponentView({
         <div id={id} className="c-progress">
           {(label || true) && (
             <div className="c-progress-labels">
-              {label ? <span className="c-progress-label">{label}</span> : <span />}
-              <span className="c-progress-value">{value}%</span>
+              {label ? <span className="c-progress-label" data-kz-field="label">{label}</span> : <span />}
+              <span className="c-progress-value"><span data-kz-field="value">{value}</span>%</span>
             </div>
           )}
           <div className="c-progress-track" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100} style={{ position: "relative" } as React.CSSProperties}>
             <div className="c-progress-fill" style={fillStyle} />
             {targetPct != null && (
-              <div className="c-progress-target" style={{ left: `${targetPct}%` } as React.CSSProperties} aria-label={`Target: ${targetPct}%`} />
+              <div className="c-progress-target" style={{ left: `${targetPct}%` } as React.CSSProperties} aria-label={`Target: ${targetPct}%`} data-kz-field="target" />
             )}
           </div>
-          {detail && <div className="c-progress-detail">{detail}</div>}
+          {detail && <div className="c-progress-detail" data-kz-field="detail">{detail}</div>}
         </div>
       );
     }
@@ -2227,7 +2338,7 @@ function ComponentView({
       const aspect = (comp.aspect as string) || "16/9";
       return (
         <div id={id} className="c-embed" style={{ "--embed-ratio": aspect } as React.CSSProperties}>
-          <iframe src={src} title={title} frameBorder="0" allowFullScreen />
+          <iframe src={src} title={title} frameBorder="0" allowFullScreen data-kz-field="title" />
         </div>
       );
     }
@@ -2235,11 +2346,11 @@ function ComponentView({
     case "timeline": {
       const items = (comp.items as Array<{ name: string; status: string }>) || [];
       return (
-        <div id={id} className="c-timeline">
+        <div id={id} className="c-timeline" data-kz-list="items">
           {items.map((item, i) => (
             <div key={i} className={`c-timeline-phase ${item.status || "upcoming"}`}>
               <div className="c-timeline-dot" />
-              <div className="c-timeline-label">{item.name}</div>
+              <div className="c-timeline-label" data-kz-field={`items[${i}].name`}>{item.name}</div>
               <div className={`c-timeline-bar ${item.status || "upcoming"}`} />
             </div>
           ))}
@@ -2253,18 +2364,21 @@ function ComponentView({
       const rowSpan = 2 + Math.max(left.stats?.length || 0, right.stats?.length || 0);
       return (
         <div id={id} className="c-split-compare">
-          {[left, right].map((panel, pi) => (
-            <div key={pi} className={`c-sc-panel c-sc-${pi === 0 ? "left" : "right"}`} style={{ "--sc-span": rowSpan } as React.CSSProperties}>
-              <div className="c-sc-eyebrow">{panel.eyebrow || ""}</div>
-              <div className="c-sc-title">{panel.title}</div>
+          {[left, right].map((panel, pi) => {
+            const side = pi === 0 ? "left" : "right";
+            return (
+            <div key={pi} className={`c-sc-panel c-sc-${side}`} style={{ "--sc-span": rowSpan } as React.CSSProperties}>
+              <div className="c-sc-eyebrow" data-kz-field={`${side}.eyebrow`}>{panel.eyebrow || ""}</div>
+              <div className="c-sc-title" data-kz-field={`${side}.title`}>{panel.title}</div>
               {(panel.stats || []).map((s, si) => (
                 <div key={si} className="c-sc-stat">
-                  <span className="c-sc-label">{s.label}</span>
-                  <span className={`c-sc-value color-${s.color || "default"}`}>{s.value}</span>
+                  <span className="c-sc-label" data-kz-field={`${side}.stats[${si}].label`}>{s.label}</span>
+                  <span className={`c-sc-value color-${s.color || "default"}`} data-kz-field={`${side}.stats[${si}].value`}>{s.value}</span>
                 </div>
               ))}
             </div>
-          ))}
+            );
+          })}
         </div>
       );
     }
@@ -2274,12 +2388,12 @@ function ComponentView({
       const beforeLabel = (comp.before_label as string) || "Before";
       const afterLabel = (comp.after_label as string) || "After";
       return (
-        <div id={id} className="c-before-after">
+        <div id={id} className="c-before-after" data-kz-list="items">
           {items.map((item, i) => (
             <div key={i} className="c-ba-card">
-              <div className="c-ba-title">{item.title}</div>
-              <div className="c-ba-before">{beforeLabel}: {item.before}</div>
-              <div className="c-ba-after">{afterLabel}: <span className="c-ba-highlight">{item.after}</span>{item.after_context ? ` - ${item.after_context}` : ""}</div>
+              <div className="c-ba-title" data-kz-field={`items[${i}].title`}>{item.title}</div>
+              <div className="c-ba-before"><span data-kz-field="before_label">{beforeLabel}</span>: <span data-kz-field={`items[${i}].before`}>{item.before}</span></div>
+              <div className="c-ba-after"><span data-kz-field="after_label">{afterLabel}</span>: <span className="c-ba-highlight" data-kz-field={`items[${i}].after`}>{item.after}</span>{item.after_context ? <> - <span data-kz-field={`items[${i}].after_context`}>{item.after_context}</span></> : null}</div>
             </div>
           ))}
         </div>
@@ -2293,13 +2407,13 @@ function ComponentView({
         <div id={id} className="c-tabs">
           <div className="c-tab-buttons">
             {tabs.map((tab, ti) => (
-              <button key={ti} className={`tab-btn${ti === activeTab ? " tab-btn-active" : ""}`} onClick={() => setActiveTab(ti)}>{tab.label}</button>
+              <button key={ti} className={`tab-btn${ti === activeTab ? " tab-btn-active" : ""}`} onClick={() => setActiveTab(ti)} data-kz-field={`tabs[${ti}].label`}>{tab.label}</button>
             ))}
           </div>
           {tabs.map((tab, ti) => (
             <div key={ti} className="tab-panel" style={{ display: ti === activeTab ? "block" : "none" }}>
               {(tab.components || []).map((c, ci) => (
-                <ComponentView key={ci} comp={c} index={ci} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kz}.tabs[${ti}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           ))}
@@ -2315,7 +2429,7 @@ function ComponentView({
           {cols.map((col, ci) => (
             <div key={ci} className="c-column">
               {col.map((c, i) => (
-                <ComponentView key={i} comp={c} index={i} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.columns[${ci}][${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           ))}
@@ -2325,7 +2439,7 @@ function ComponentView({
 
     case "accordion": {
       const items = (comp.items as Array<{ title: string; components: ComponentData[] }>) || [];
-      return <AccordionView id={id} items={items} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+      return <AccordionView id={id} items={items} kzPath={kz} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
     }
 
     case "hero_banner": {
@@ -2335,13 +2449,13 @@ function ComponentView({
       const buttons = (comp.buttons as Array<{ label: string; href: string; variant?: string; external?: boolean }>) || [];
       return (
         <div id={id} className="c-hero">
-          {eyebrow && <div className="c-hero-eyebrow">{eyebrow}</div>}
-          <h1 className="c-hero-title">{title}</h1>
-          {subtitle && <p className="c-hero-subtitle">{subtitle}</p>}
+          {eyebrow && <div className="c-hero-eyebrow" data-kz-field="eyebrow">{eyebrow}</div>}
+          <h1 className="c-hero-title" data-kz-field="title">{title}</h1>
+          {subtitle && <p className="c-hero-subtitle" data-kz-field="subtitle">{subtitle}</p>}
           {buttons.length > 0 && (
-            <div className="c-hero-buttons">
+            <div className="c-hero-buttons" data-kz-list="buttons">
               {buttons.map((b, i) => (
-                <a key={i} className={`c-btn c-btn-${b.variant || "primary"}`} href={b.href}>{b.label}</a>
+                <a key={i} className={`c-btn c-btn-${b.variant || "primary"}`} href={b.href} data-kz-field={`buttons[${i}].label`}>{b.label}</a>
               ))}
             </div>
           )}
@@ -2353,7 +2467,8 @@ function ComponentView({
       const rawEvents = (comp.events as Array<{ date: string; title: string; summary?: string; severity?: string; source?: string; link?: string; tags?: string[] }>) || [];
       // Most-recent-first, regardless of authored order - a changelog/activity
       // feed, not an ordered list an author controls.
-      const events = [...rawEvents].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      // Carry the authored index so editors can map a rendered event back to events[i].
+      const events = rawEvents.map((e, idx) => ({ ...e, _kz: idx })).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
       const filterBy = comp.filter_by as string[] | undefined;
       const [activeTags, setActiveTags] = React.useState<Set<string>>(new Set());
       const handleTagFilter = (tag: string) => {
@@ -2369,7 +2484,7 @@ function ComponentView({
       });
       const visibleEvents = activeTags.size === 0 ? events : events.filter(ev => (ev.tags || []).some(t => activeTags.has(t)));
       return (
-        <div id={id} className="c-event-timeline">
+        <div id={id} className="c-event-timeline" data-kz-list="events">
           {filterBy && filterBy.length > 0 && (
             <div className="c-event-tag-filters">
               {filterBy.map((tag, ti) => (
@@ -2384,12 +2499,12 @@ function ComponentView({
               </div>
               <div className="c-event-body">
                 <div className="c-event-meta">
-                  <span className="c-event-date">{ev.date}</span>
+                  <span className="c-event-date" data-kz-field={`events[${ev._kz}].date`}>{ev.date}</span>
                   {ev.severity && <span className="c-event-severity">{ev.severity}</span>}
-                  {ev.source && <span className="c-event-source">{ev.source}</span>}
+                  {ev.source && <span className="c-event-source" data-kz-field={`events[${ev._kz}].source`}>{ev.source}</span>}
                 </div>
-                <div className="c-event-title">{ev.link ? <a href={ev.link}>{ev.title}</a> : ev.title}</div>
-                {ev.summary && <p className="c-event-summary">{renderInline(ev.summary)}</p>}
+                <div className="c-event-title" data-kz-field={`events[${ev._kz}].title`}>{ev.link ? <a href={ev.link}>{ev.title}</a> : ev.title}</div>
+                {ev.summary && <p className="c-event-summary" data-kz-field={`events[${ev._kz}].summary`}>{renderInline(ev.summary)}</p>}
                 {ev.tags && ev.tags.length > 0 && (
                   <div className="c-event-tags">
                     {ev.tags.map((tag, ti) => <span key={ti} className="c-event-tag">{tag}</span>)}
@@ -2452,7 +2567,7 @@ function ComponentView({
         return children.reduce((acc, c) => acc + 1 + countDescendants(c), 0);
       };
 
-      const renderNode = (node: Record<string, unknown>, depth: number, path: string): React.JSX.Element => {
+      const renderNode = (node: Record<string, unknown>, depth: number, path: string, fieldPath: string): React.JSX.Element => {
         const children = (node.children as Array<Record<string, unknown>>) || [];
         const status = (node.status as string) || "default";
         const hasChildren = children.length > 0;
@@ -2472,16 +2587,16 @@ function ComponentView({
             <div className="c-tree-row">
               {hasChildren && <span className="c-tree-chevron" aria-hidden="true" onClick={() => toggleCollapse(path)}>▶</span>}
               <span className="c-tree-glyph" aria-hidden="true">{statusGlyphs[status] || "·"}</span>
-              <span className="c-tree-label">{node.label as string}</span>
-              {node.owner ? <span className="c-tree-owner">{String(node.owner)}</span> : null}
+              <span className="c-tree-label" data-kz-field={`${fieldPath}.label`}>{node.label as string}</span>
+              {node.owner ? <span className="c-tree-owner" data-kz-field={`${fieldPath}.owner`}>{String(node.owner)}</span> : null}
               {hasChildren && <span className="c-tree-count">{descCount}</span>}
-              {node.note ? <span className="c-tree-note">{node.note as string}</span> : null}
+              {node.note ? <span className="c-tree-note" data-kz-field={`${fieldPath}.note`}>{node.note as string}</span> : null}
             </div>
             {hasChildren && (
               <ul className="c-tree-children">
                 {children.map((child, i) => {
                   const childPath = path ? `${path}.${i}` : String(i);
-                  return <React.Fragment key={i}>{renderNode(child, depth + 1, childPath)}</React.Fragment>;
+                  return <React.Fragment key={i}>{renderNode(child, depth + 1, childPath, `${fieldPath}.children[${i}]`)}</React.Fragment>;
                 })}
               </ul>
             )}
@@ -2498,13 +2613,14 @@ function ComponentView({
               ))}
             </div>
           )}
-          <ul className="c-tree-root">{nodes.map((n, i) => <React.Fragment key={i}>{renderNode(n, 0, String(i))}</React.Fragment>)}</ul>
+          <ul className="c-tree-root" data-kz-list="nodes">{nodes.map((n, i) => <React.Fragment key={i}>{renderNode(n, 0, String(i), `nodes[${i}]`)}</React.Fragment>)}</ul>
         </div>
       );
     }
 
     case "priority_queue": {
-      const items = (comp.items as Array<Record<string, unknown>>) || [];
+      // Items get bucketed and filtered below; keep the authored index for editors.
+      const items: Array<Record<string, unknown>> = ((comp.items as Array<Record<string, unknown>>) || []).map((it, idx) => ({ ...it, _kz: idx }));
       const groupBy = (comp.group_by as string) || "urgency";
       const showDates = (comp.show_dates as boolean) ?? true;
       const showCounts = (comp.show_counts as boolean) ?? true;
@@ -2673,21 +2789,21 @@ function ComponentView({
             <div className="c-queue-stripe"></div>
             <div className="c-queue-main">
               <div className="c-queue-label-line">
-                {href ? <a className="c-queue-label" href={href}>{label}</a> : <span className="c-queue-label">{label}</span>}
-                {owner && <span className="c-queue-owner">{owner}</span>}
+                {href ? <a className="c-queue-label" href={href} data-kz-field={`items[${item._kz as number}].label`}>{label}</a> : <span className="c-queue-label" data-kz-field={`items[${item._kz as number}].label`}>{label}</span>}
+                {owner && <span className="c-queue-owner" data-kz-field={`items[${item._kz as number}].owner`}>{owner}</span>}
               </div>
-              {detail && <div className="c-queue-detail">{detail}</div>}
+              {detail && <div className="c-queue-detail" data-kz-field={`items[${item._kz as number}].detail`}>{detail}</div>}
               {tags.length > 0 && (
                 <div className="c-queue-tags">
                   {tags.map((tag, ti) => (
-                    <span key={ti} className={`c-queue-tag color-${tag.color || "default"}${tag.emphasis ? " emphasis" : ""}`}>{tag.label}</span>
+                    <span key={ti} className={`c-queue-tag color-${tag.color || "default"}${tag.emphasis ? " emphasis" : ""}`} data-kz-field={`items[${item._kz as number}].tags[${ti}].label`}>{tag.label}</span>
                   ))}
                 </div>
               )}
             </div>
             {showDates && due && (
               <div className="c-queue-date">
-                <span className="c-queue-due">{fmtDate(due)}</span>
+                <span className="c-queue-due" data-kz-field={`items[${item._kz as number}].due`}>{fmtDate(due)}</span>
                 {renderSlip(item)}
               </div>
             )}
@@ -2707,8 +2823,8 @@ function ComponentView({
       };
 
       return (
-        <div id={id} className="c-queue">
-          {title && <div className="c-queue-title">{title}</div>}
+        <div id={id} className="c-queue" data-kz-list="items">
+          {title && <div className="c-queue-title" data-kz-field="title">{title}</div>}
           {filterable && (
             <div className="c-queue-search">
               <input
@@ -2756,15 +2872,15 @@ function ComponentView({
       const gridClass = connector === "arrow" ? "c-sel-cards c-sel-cards-arrow" : "c-sel-cards";
       return (
         <div id={id} className="c-selectable-grid">
-          <div className={gridClass} style={{ "--sel-cols": cards.length } as React.CSSProperties}>
+          <div className={gridClass} style={{ "--sel-cols": cards.length } as React.CSSProperties} data-kz-list="cards">
             {cards.map((card, i) => (
               <div key={i} className="sel-card">
-                {card.eyebrow && <div className="c-sel-eyebrow">{card.eyebrow}</div>}
-                <div className="c-sel-title">{card.title}</div>
-                {card.body && <div className="c-sel-body">{renderInline(card.body)}</div>}
+                {card.eyebrow && <div className="c-sel-eyebrow" data-kz-field={`cards[${i}].eyebrow`}>{card.eyebrow}</div>}
+                <div className="c-sel-title" data-kz-field={`cards[${i}].title`}>{card.title}</div>
+                {card.body && <div className="c-sel-body" data-kz-field={`cards[${i}].body`}>{renderInline(card.body)}</div>}
                 {card.bullets && (
                   <ul className="c-sel-bullets">
-                    {card.bullets.map((b, bi) => <li key={bi}><span className="c-sel-bullet-dot" /><span>{renderInline(b)}</span></li>)}
+                    {card.bullets.map((b, bi) => <li key={bi}><span className="c-sel-bullet-dot" /><span data-kz-field={`cards[${i}].bullets[${bi}]`}>{renderInline(b)}</span></li>)}
                   </ul>
                 )}
               </div>
@@ -2777,12 +2893,12 @@ function ComponentView({
     case "resources": {
       const items = (comp.items as Array<{ title: string; href: string; description?: string; owner?: string }>) || [];
       return (
-        <div id={id} className="c-resources">
+        <div id={id} className="c-resources" data-kz-list="items">
           {items.map((item, i) => (
             <a key={i} className="c-resource" href={item.href}>
-              <div className="c-resource-title">{item.title}</div>
-              {item.description && <div className="c-resource-desc">{renderInline(item.description)}</div>}
-              {item.owner && <div className="c-resource-owner">{item.owner}</div>}
+              <div className="c-resource-title" data-kz-field={`items[${i}].title`}>{item.title}</div>
+              {item.description && <div className="c-resource-desc" data-kz-field={`items[${i}].description`}>{renderInline(item.description)}</div>}
+              {item.owner && <div className="c-resource-owner" data-kz-field={`items[${i}].owner`}>{item.owner}</div>}
             </a>
           ))}
         </div>
@@ -2792,9 +2908,9 @@ function ComponentView({
     case "button_group": {
       const buttons = (comp.buttons as Array<{ label: string; href: string; variant?: string; external?: boolean }>) || [];
       return (
-        <div id={id} className="c-button-group">
+        <div id={id} className="c-button-group" data-kz-list="buttons">
           {buttons.map((b, i) => (
-            <a key={i} className={`c-btn c-btn-${b.variant || "primary"}`} href={b.href} {...(b.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{b.label}</a>
+            <a key={i} className={`c-btn c-btn-${b.variant || "primary"}`} href={b.href} {...(b.external ? { target: "_blank", rel: "noopener noreferrer" } : {})} data-kz-field={`buttons[${i}].label`}>{b.label}</a>
           ))}
         </div>
       );
@@ -2803,11 +2919,11 @@ function ComponentView({
     case "definition_list": {
       const items = (comp.items as Array<{ term: string; definition: string }>) || [];
       return (
-        <dl id={id} className="c-definition-list">
+        <dl id={id} className="c-definition-list" data-kz-list="items">
           {items.map((item, i) => (
             <div key={i} className="c-dl-row">
-              <dt className="c-dl-term">{item.term}</dt>
-              <dd className="c-dl-def">{renderInline(item.definition)}</dd>
+              <dt className="c-dl-term" data-kz-field={`items[${i}].term`}>{item.term}</dt>
+              <dd className="c-dl-def" data-kz-field={`items[${i}].definition`}>{renderInline(item.definition)}</dd>
             </div>
           ))}
         </dl>
@@ -2827,14 +2943,14 @@ function ComponentView({
               {src ? <img src={assetSrc(src)} alt={name} /> : <span className="c-avatar-initials">{initials}</span>}
             </div>
             <div className="c-avatar-meta">
-              <div className="c-avatar-name">{name}</div>
-              <div className="c-avatar-sub">{subtitle}</div>
+              <div className="c-avatar-name" data-kz-field="name">{name}</div>
+              <div className="c-avatar-sub" data-kz-field="subtitle">{subtitle}</div>
             </div>
           </div>
         );
       }
       return (
-        <div id={id} className={`c-avatar c-avatar-${sizeClass}`}>
+        <div id={id} className={`c-avatar c-avatar-${sizeClass}`} data-kz-field="name" title={name}>
           {src ? <img src={assetSrc(src)} alt={name} /> : <span className="c-avatar-initials">{initials}</span>}
         </div>
       );
@@ -2847,11 +2963,11 @@ function ComponentView({
       const visible = avatars.slice(0, max);
       const overflow = avatars.length - max;
       return (
-        <div id={id} className={`c-avatar-group c-avatar-group-${sizeClass}`}>
+        <div id={id} className={`c-avatar-group c-avatar-group-${sizeClass}`} data-kz-list="avatars">
           {visible.map((a, i) => {
             const initials = a.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
             return (
-              <div key={i} className={`c-avatar c-avatar-${sizeClass}`} title={a.name}>
+              <div key={i} className={`c-avatar c-avatar-${sizeClass}`} title={a.name} data-kz-field={`avatars[${i}].name`}>
                 {a.src ? <img src={assetSrc(a.src)} alt={a.name} /> : <span className="c-avatar-initials">{initials}</span>}
               </div>
             );
@@ -2864,11 +2980,11 @@ function ComponentView({
     case "breadcrumb": {
       const items = (comp.items as Array<{ label: string; href?: string }>) || [];
       return (
-        <nav id={id} className="c-breadcrumb">
+        <nav id={id} className="c-breadcrumb" data-kz-list="items">
           {items.map((item, i) => (
             <span key={i}>
               {i > 0 && <span className="c-breadcrumb-sep">/</span>}
-              {item.href ? <a href={item.href}>{item.label}</a> : <span>{item.label}</span>}
+              {item.href ? <a href={item.href} data-kz-field={`items[${i}].label`}>{item.label}</a> : <span data-kz-field={`items[${i}].label`}>{item.label}</span>}
             </span>
           ))}
         </nav>
@@ -2878,7 +2994,7 @@ function ComponentView({
     case "tag": {
       const label = (comp.label as string) || "";
       const color = (comp.color as string) || "default";
-      return <span id={id} className={`c-tag c-tag-${color}`}>{label}</span>;
+      return <span id={id} className={`c-tag c-tag-${color}`} data-kz-field="label">{label}</span>;
     }
 
     case "kbd": {
@@ -2888,7 +3004,7 @@ function ComponentView({
           {keys.map((k, i) => (
             <span key={i}>
               {i > 0 && <span className="c-kbd-sep">+</span>}
-              <kbd>{k}</kbd>
+              <kbd data-kz-field={`keys[${i}]`}>{k}</kbd>
             </span>
           ))}
         </span>
@@ -2901,9 +3017,9 @@ function ComponentView({
       const action = comp.action as { label: string; href: string } | undefined;
       return (
         <div id={id} className="c-empty-state">
-          <h3 className="c-empty-title">{title}</h3>
-          {body && <p className="c-empty-body">{renderInline(body)}</p>}
-          {action && <a className="c-btn c-btn-primary" href={action.href}>{action.label}</a>}
+          <h3 className="c-empty-title" data-kz-field="title">{title}</h3>
+          {body && <p className="c-empty-body" data-kz-field="body">{renderInline(body)}</p>}
+          {action && <a className="c-btn c-btn-primary" href={action.href} data-kz-field="action.label">{action.label}</a>}
         </div>
       );
     }
@@ -2919,7 +3035,7 @@ function ComponentView({
       if (n === 0) {
         return (
           <div id={id} className="c-venn">
-            {title && <div className="c-venn-title">{title}</div>}
+            {title && <div className="c-venn-title" data-kz-field="title">{title}</div>}
             <div className="c-venn-empty">No sets provided.</div>
           </div>
         );
@@ -2981,7 +3097,7 @@ function ComponentView({
         const avail = setLabelAvail(i);
         const fit = vennFitLabel(s.label, avail, 13, 9, 1.05);
         return (
-          <text key={i} className={`c-venn-label c-venn-label-${s.color || "default"}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: fit.fontSize }}>
+          <text key={i} className={`c-venn-label c-venn-label-${s.color || "default"}`} x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: fit.fontSize }} data-kz-field={`sets[${i}].label`}>
             {vennTspans(fit, lx, avail, 1.05)}
           </text>
         );
@@ -3012,7 +3128,7 @@ function ComponentView({
         const avail = overlapAvail(count);
         const fit = vennWrapLabel(o.label, avail, overlapAvailH(count), 12, 9, 1.0);
         return (
-          <text key={i} className="c-venn-overlap-label" x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: fit.fontSize }}>
+          <text key={i} className="c-venn-overlap-label" x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" style={{ fontSize: fit.fontSize }} data-kz-field={`overlaps[${i}].label`}>
             {vennTspans(fit, lx, avail, 1.0)}
           </text>
         );
@@ -3035,13 +3151,13 @@ function ComponentView({
             <thead>
               <tr>
                 <th scope="col" aria-label="Set"></th>
-                {parsed.map((p, i) => <th key={i} scope="col" className={`c-venn-th-${p.color}`}>{p.name}</th>)}
+                {parsed.map((p, i) => <th key={i} scope="col" className={`c-venn-th-${p.color}`} data-kz-field={`sets[${i}].label`}>{p.name}</th>)}
               </tr>
             </thead>
             <tbody>
               {parsed.map((p, i) => (
                 <tr key={i}>
-                  <th scope="row" className={`c-venn-th-${p.color}`}>{p.name}</th>
+                  <th scope="row" className={`c-venn-th-${p.color}`} data-kz-field={`sets[${i}].label`}>{p.name}</th>
                   {parsed.map((_, j) => {
                     if (i === j) {
                       return <td key={j} className="c-venn-cell c-venn-cell-total" title={`${p.name} total`}>{p.count || "—"}</td>;
@@ -3078,7 +3194,7 @@ function ComponentView({
         <div id={id} className="c-venn">
           {showHead && (
             <div className="c-venn-head">
-              {title && <div className="c-venn-title">{title}</div>}
+              {title && <div className="c-venn-title" data-kz-field="title">{title}</div>}
               {canToggle && (
                 <div className="c-venn-toggle" role="group" aria-label="Venn view switcher">
                   <button type="button" className={view === "venn" ? "active" : ""} aria-pressed={view === "venn"} title="Venn diagram" onClick={() => setView("venn")}>
@@ -3109,9 +3225,9 @@ function ComponentView({
       const children = (comp.components as ComponentData[]) || [];
       return (
         <div id={id} className="c-chart-group" style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 16 }}>
-          {title && <h3 className="c-chart-group-title" style={{ gridColumn: "1 / -1" }}>{title}</h3>}
+          {title && <h3 className="c-chart-group-title" style={{ gridColumn: "1 / -1" }} data-kz-field="title">{title}</h3>}
           {children.map((child, ci) => (
-            <ComponentView key={ci} comp={child} index={ci} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            <ComponentView key={ci} comp={child} index={ci} kzPath={`${kz}.components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
           ))}
         </div>
       );
@@ -3122,7 +3238,7 @@ function ComponentView({
       if (renderRoleMap) return <div id={id} className="c-role-map">{renderRoleMap(comp)}</div>;
       return (
         <div id={id} className="c-role-map">
-          {title && <h3 className="c-role-map-title">{title}</h3>}
+          {title && <h3 className="c-role-map-title" data-kz-field="title">{title}</h3>}
           <div className="c-role-map-placeholder">Roles configured in site settings</div>
         </div>
       );
@@ -3216,7 +3332,7 @@ function ComponentView({
         const sx = sp.x + nodeW, tx = tp.x, cpx = (sx + tx) / 2;
         const fillColor = colors[f.source] || colors[f.target] || ["default", "green", "yellow", "red", "teal"][i % 5];
         const fill = semToHex[fillColor] || semToHex.default;
-        return <path key={i} d={`M ${sx} ${sy} C ${cpx} ${sy}, ${cpx} ${ty}, ${tx} ${ty} L ${tx} ${ty + linkHT} C ${cpx} ${ty + linkHT}, ${cpx} ${sy + linkHS}, ${sx} ${sy + linkHS} Z`} fill={fill} fillOpacity={0.35} className="c-sankey-link"><title>{`${f.source} → ${f.target}: ${fmtNum(f.value)}`}</title></path>;
+        return <path key={i} d={`M ${sx} ${sy} C ${cpx} ${sy}, ${cpx} ${ty}, ${tx} ${ty} L ${tx} ${ty + linkHT} C ${cpx} ${ty + linkHT}, ${cpx} ${sy + linkHS}, ${sx} ${sy + linkHS} Z`} fill={fill} fillOpacity={0.35} className="c-sankey-link" data-kz-field={`flows[${i}].value`}><title>{`${f.source} → ${f.target}: ${fmtNum(f.value)}`}</title></path>;
       });
 
       const nodeEls = nodeNames.map((n, i) => {
@@ -3235,7 +3351,7 @@ function ComponentView({
 
       return (
         <figure id={id} className="c-chart c-chart-sankey" role="img" aria-label={title || "Sankey diagram"}>
-          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          {title && <figcaption className="c-chart-title" data-kz-field="title">{title}</figcaption>}
           <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">{flowPaths}{nodeEls}</svg>
         </figure>
       );
@@ -3272,7 +3388,7 @@ function ComponentView({
         const anchor = Math.abs(Math.cos(a)) < 0.1 ? "middle" : Math.cos(a) > 0 ? "start" : "end";
         return <React.Fragment key={i}>
           <line x1={cx} y1={cy} x2={ex} y2={ey} stroke="rgba(128,128,128,0.15)" strokeWidth={1} className="c-radar-axis" />
-          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-radar-label">{label}</text>
+          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-radar-label" data-kz-field={`axes[${i}]`}>{label}</text>
         </React.Fragment>;
       });
 
@@ -3281,7 +3397,7 @@ function ComponentView({
         const pts = curve.values.map((v, i) => pointAt(i, Math.min(v, maxVal)).join(",")).join(" ");
         const dots = curve.values.map((v, i) => {
           const [px, py] = pointAt(i, Math.min(v, maxVal));
-          return <circle key={i} cx={px} cy={py} r={3.5} fill={color} className="c-chart-dot"><title>{`${curve.label} - ${axes[i]}: ${v}`}</title></circle>;
+          return <circle key={i} cx={px} cy={py} r={3.5} fill={color} className="c-chart-dot" data-kz-field={`curves[${ci}].values[${i}]`}><title>{`${curve.label} - ${axes[i]}: ${v}`}</title></circle>;
         });
         return <React.Fragment key={ci}>
           <polygon points={pts} fill={color} fillOpacity={0.18} stroke={color} strokeWidth={2} className="c-radar-curve" />
@@ -3293,14 +3409,14 @@ function ComponentView({
         <ul className="c-chart-legend">
           {curves.map((c, i) => {
             const color = semToHex[c.color || ""] || getColor(c.color, i);
-            return <li key={i} className="c-chart-legend-item"><span className="c-chart-swatch" style={{ background: color }} /><span>{c.label}</span></li>;
+            return <li key={i} className="c-chart-legend-item"><span className="c-chart-swatch" style={{ background: color }} /><span data-kz-field={`curves[${i}].label`}>{c.label}</span></li>;
           })}
         </ul>
       ) : null;
 
       return (
         <figure id={id} className="c-chart c-chart-radar" role="img" aria-label={title || "Radar chart"}>
-          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          {title && <figcaption className="c-chart-title" data-kz-field="title">{title}</figcaption>}
           <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">{rings}{spokes}{curveSvg}</svg>
           {legend}
         </figure>
@@ -3334,25 +3450,25 @@ function ComponentView({
 
       return (
         <figure id={id} className="c-chart c-chart-quadrant" role="img" aria-label={title || "Quadrant chart"}>
-          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          {title && <figcaption className="c-chart-title" data-kz-field="title">{title}</figcaption>}
           <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
             {quadRects.map(([qx, qy, qw, qh], i) => (
               <React.Fragment key={i}>
                 <rect x={qx} y={qy} width={qw} height={qh} fill={quadColors[i]} className="c-quadrant-bg" />
-                <text x={qx + qw / 2} y={qy + qh / 2} textAnchor="middle" dominantBaseline="middle" className="c-quadrant-zone-label">{quadrants[i]}</text>
+                <text x={qx + qw / 2} y={qy + qh / 2} textAnchor="middle" dominantBaseline="middle" className="c-quadrant-zone-label" data-kz-field={`quadrants[${i}]`}>{quadrants[i]}</text>
               </React.Fragment>
             ))}
             <line x1={midX} y1={top} x2={midX} y2={top + plotH} className="c-quadrant-cross" stroke="rgba(128,128,128,0.3)" strokeWidth={1} strokeDasharray="4 4" />
             <line x1={left} y1={midY} x2={left + plotW} y2={midY} className="c-quadrant-cross" stroke="rgba(128,128,128,0.3)" strokeWidth={1} strokeDasharray="4 4" />
             {xParts.length === 2 ? (
               <>
-                <text x={left} y={top + plotH + 24} textAnchor="start" className="c-chart-axis">{xParts[0]}</text>
-                <text x={left + plotW} y={top + plotH + 24} textAnchor="end" className="c-chart-axis">{xParts[1]}</text>
+                <text x={left} y={top + plotH + 24} textAnchor="start" className="c-chart-axis" data-kz-field="x_axis">{xParts[0]}</text>
+                <text x={left + plotW} y={top + plotH + 24} textAnchor="end" className="c-chart-axis" data-kz-field="x_axis">{xParts[1]}</text>
               </>
             ) : (
-              <text x={midX} y={top + plotH + 24} textAnchor="middle" className="c-chart-axis">{xAxis}</text>
+              <text x={midX} y={top + plotH + 24} textAnchor="middle" className="c-chart-axis" data-kz-field="x_axis">{xAxis}</text>
             )}
-            <text x={left - 50} y={midY} textAnchor="middle" transform={`rotate(-90,${left - 50},${midY})`} className="c-chart-axis">{yAxis}</text>
+            <text x={left - 50} y={midY} textAnchor="middle" transform={`rotate(-90,${left - 50},${midY})`} className="c-chart-axis" data-kz-field="y_axis">{yAxis}</text>
             {points.map((pt, i) => {
               const px = left + Math.min(Math.max(pt.x, 0), 1) * plotW;
               const py = top + (1 - Math.min(Math.max(pt.y, 0), 1)) * plotH;
@@ -3362,7 +3478,7 @@ function ComponentView({
               const anchor = pt.x > 0.5 ? "end" : "start";
               return <React.Fragment key={i}>
                 <circle cx={px} cy={py} r={6} fill={color} className="c-chart-dot"><title>{`${pt.label} (${(pt.x * 100).toFixed(0)}%, ${(pt.y * 100).toFixed(0)}%)`}</title></circle>
-                <text x={lx} y={py} textAnchor={anchor} dominantBaseline="middle" className="c-quadrant-point-label">{labelText}</text>
+                <text x={lx} y={py} textAnchor={anchor} dominantBaseline="middle" className="c-quadrant-point-label" data-kz-field={`points[${i}].label`}>{labelText}</text>
               </React.Fragment>;
             })}
           </svg>
@@ -3432,7 +3548,7 @@ function ComponentView({
           : [fp.cx, fp.cy + nodeH / 2, tp.cx, tp.cy - nodeH / 2];
         return <React.Fragment key={i}>
           <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(128,128,128,0.4)" strokeWidth={1.5} markerEnd="url(#arch-arrow)" className="c-arch-edge" />
-          {c.label && <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 8} textAnchor="middle" className="c-arch-edge-label">{c.label}</text>}
+          {c.label && <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 8} textAnchor="middle" className="c-arch-edge-label" data-kz-field={`connections[${i}].label`}>{c.label}</text>}
         </React.Fragment>;
       });
 
@@ -3443,14 +3559,14 @@ function ComponentView({
         const stroke = semToHex[n.color || ""] || getColor(n.color, i);
         return <React.Fragment key={i}>
           <rect x={rx} y={ry} width={nodeW} height={nodeH} rx={8} fill="rgba(128,128,128,0.08)" stroke={stroke} strokeWidth={1.5} className="c-arch-node" />
-          <text x={pos.cx} y={n.detail ? pos.cy - 7 : pos.cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{n.label}</text>
-          {n.detail && <text x={pos.cx} y={pos.cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{n.detail}</text>}
+          <text x={pos.cx} y={n.detail ? pos.cy - 7 : pos.cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" data-kz-field={`nodes[${i}].label`}>{n.label}</text>
+          {n.detail && <text x={pos.cx} y={pos.cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" data-kz-field={`nodes[${i}].detail`}>{n.detail}</text>}
         </React.Fragment>;
       });
 
       return (
         <figure id={id} className="c-chart c-chart-arch" role="img" aria-label={title || "Architecture diagram"}>
-          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          {title && <figcaption className="c-chart-title" data-kz-field="title">{title}</figcaption>}
           <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
             <defs><marker id="arch-arrow" viewBox="0 0 10 7" refX={10} refY={3.5} markerWidth={8} markerHeight={6} orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(128,128,128,0.5)" /></marker></defs>
             {connEls}{nodeEls}
@@ -3506,7 +3622,7 @@ function ComponentView({
 
       return (
         <figure id={id} className="c-chart c-chart-pipeline" role="img" aria-label={title || "Pipeline diagram"}>
-          {title && <figcaption className="c-chart-title">{title}</figcaption>}
+          {title && <figcaption className="c-chart-title" data-kz-field="title">{title}</figcaption>}
           <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
             <defs><marker id="pipe-arrow" viewBox="0 0 10 7" refX={10} refY={3.5} markerWidth={8} markerHeight={6} orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(128,128,128,0.5)" /></marker></defs>
             {inputs.map((item, i) => {
@@ -3517,8 +3633,8 @@ function ComponentView({
               return <React.Fragment key={`in-${i}`}>
                 <g opacity={item.dim ? 0.3 : 1}>
                   <rect x={inputX} y={y} width={inputW} height={itemH} rx={8} fill="rgba(128,128,128,0.08)" stroke={stroke} strokeWidth={1.5} />
-                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{item.label}</text>
-                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{item.detail}</text>}
+                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" data-kz-field={`inputs[${i}].label`}>{item.label}</text>
+                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" data-kz-field={`inputs[${i}].detail`}>{item.detail}</text>}
                 </g>
                 <line x1={inputX + inputW} y1={cy} x2={stagesX - 4} y2={centerMidY} stroke="rgba(128,128,128,0.3)" strokeWidth={1.5} markerEnd="url(#pipe-arrow)" />
               </React.Fragment>;
@@ -3532,16 +3648,16 @@ function ComponentView({
               const capStartY = sl.y + stagePadTop;
               return <React.Fragment key={`stage-${si}`}>
                 <rect x={stagesX} y={sl.y} width={stagesW} height={sl.h} rx={12} fill="rgba(128,128,128,0.03)" stroke="rgba(128,128,128,0.25)" strokeWidth={1.5} strokeDasharray="6 3" />
-                <text x={stagesCx} y={sl.y + 16} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" fontSize={13}>{stage.label}</text>
-                {stage.detail && <text x={stagesCx} y={sl.y + 30} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" fontSize={10}>{stage.detail}</text>}
+                <text x={stagesCx} y={sl.y + 16} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" fontSize={13} data-kz-field={`stages[${si}].label`}>{stage.label}</text>
+                {stage.detail && <text x={stagesCx} y={sl.y + 30} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" fontSize={10} data-kz-field={`stages[${si}].detail`}>{stage.detail}</text>}
                 {caps.map((cap, ci) => {
                   const cy = capStartY + ci * (capRowH + capGap);
                   const tcx = capX + capW / 2;
                   const tcy = cy + capRowH / 2;
                   return <g key={ci} opacity={cap.dim ? 0.3 : 1}>
                     <rect x={capX} y={cy} width={capW} height={capRowH} rx={6} fill="rgba(128,128,128,0.05)" stroke="rgba(128,128,128,0.15)" strokeWidth={1} />
-                    <text x={tcx} y={cap.detail ? tcy - 6 : tcy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" fontSize={11}>{cap.label}</text>
-                    {cap.detail && <text x={tcx} y={tcy + 8} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" fontSize={9}>{cap.detail}</text>}
+                    <text x={tcx} y={cap.detail ? tcy - 6 : tcy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" fontSize={11} data-kz-field={`stages[${si}].capabilities[${ci}].label`}>{cap.label}</text>
+                    {cap.detail && <text x={tcx} y={tcy + 8} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" fontSize={9} data-kz-field={`stages[${si}].capabilities[${ci}].detail`}>{cap.detail}</text>}
                   </g>;
                 })}
               </React.Fragment>;
@@ -3554,8 +3670,8 @@ function ComponentView({
               return <React.Fragment key={`out-${i}`}>
                 <g opacity={item.dim ? 0.3 : 1}>
                   <rect x={outputX} y={y} width={outputW} height={itemH} rx={8} fill="rgba(128,128,128,0.08)" stroke={stroke} strokeWidth={1.5} />
-                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{item.label}</text>
-                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{item.detail}</text>}
+                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" data-kz-field={`outputs[${i}].label`}>{item.label}</text>
+                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" data-kz-field={`outputs[${i}].detail`}>{item.detail}</text>}
                 </g>
                 <line x1={stagesX + stagesW} y1={centerMidY} x2={outputX - 4} y2={cy} stroke="rgba(128,128,128,0.3)" strokeWidth={1.5} markerEnd="url(#pipe-arrow)" />
               </React.Fragment>;
@@ -3573,8 +3689,8 @@ function ComponentView({
                 const stroke = semToHex[item.color || ""] || "rgba(128,128,128,0.4)";
                 return <React.Fragment key={`ctx-${i}`}>
                   <rect x={x} y={ctxY} width={ctxItemW} height={itemH} rx={8} fill="rgba(128,128,128,0.08)" stroke={stroke} strokeWidth={1.5} />
-                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label">{item.label}</text>
-                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail">{item.detail}</text>}
+                  <text x={cx} y={item.detail ? cy - 7 : cy} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-label" data-kz-field={`context[${i}].label`}>{item.label}</text>
+                  {item.detail && <text x={cx} y={cy + 10} textAnchor="middle" dominantBaseline="middle" className="c-arch-node-detail" data-kz-field={`context[${i}].detail`}>{item.detail}</text>}
                   <line x1={cx} y1={ctxY} x2={cx} y2={targetY} stroke="rgba(128,128,128,0.2)" strokeWidth={1} strokeDasharray="4 2" markerEnd="url(#pipe-arrow)" />
                 </React.Fragment>;
               });
@@ -3597,15 +3713,15 @@ function ComponentView({
       const multiRoot = people.length > 1;
       return (
         <div id={id} className="c-org-chart">
-          {chartTitle && <div className="c-org-chart-title">{chartTitle}</div>}
+          {chartTitle && <div className="c-org-chart-title" data-kz-field="title">{chartTitle}</div>}
           <OrgChartZoom>
             <div className="c-org-root">
               {multiRoot ? (
                 <div className="c-org-children c-org-children--root">
-                  {people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} autoDepth={autoDepth} />)}
+                  {people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} autoDepth={autoDepth} kzField={`people[${i}]`} />)}
                 </div>
               ) : (
-                people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} autoDepth={autoDepth} />)
+                people.map((p: any, i: number) => <OrgNode key={p.id || i} person={p} depth={0} autoDepth={autoDepth} kzField={`people[${i}]`} />)
               )}
             </div>
           </OrgChartZoom>
@@ -3617,7 +3733,7 @@ function ComponentView({
       const body = (comp.body as string) || "";
       return (
         <div id={id} className="c-aside">
-          <div className="c-aside-body">{md(body)}</div>
+          <div className="c-aside-body" data-kz-field="body" data-kz-block="">{md(body)}</div>
         </div>
       );
     }
@@ -3625,11 +3741,11 @@ function ComponentView({
     case "rule_list": {
       const items = (comp.items as Array<{ label: string; body: string; color?: string }>) || [];
       return (
-        <div id={id} className="c-rule-list">
+        <div id={id} className="c-rule-list" data-kz-list="items">
           {items.map((item, i) => (
             <div key={i} className={`c-rule-item${item.color && item.color !== "default" ? ` c-rule-item-${item.color}` : ""}`}>
-              <div className="c-rule-label">{item.label}</div>
-              <div className="c-rule-body">{renderInline(item.body)}</div>
+              <div className="c-rule-label" data-kz-field={`items[${i}].label`}>{item.label}</div>
+              <div className="c-rule-body" data-kz-field={`items[${i}].body`}>{renderInline(item.body)}</div>
             </div>
           ))}
         </div>
@@ -3646,7 +3762,7 @@ function ComponentView({
       const fmtValue = (v: number) => (v % 1 === 0 ? String(v) : v.toFixed(1));
       return (
         <div id={id} className="c-gauge-grid" style={{ "--gauge-cols": columns } as React.CSSProperties}>
-          {title && <div className="c-gauge-title">{title}</div>}
+          {title && <div className="c-gauge-title" data-kz-field="title">{title}</div>}
           {items.map((item, i) => {
             const fraction = maxVal > 0 ? Math.min(item.value / maxVal, 1) : 0;
             const dash = fraction * circ;
@@ -3667,9 +3783,9 @@ function ComponentView({
                     strokeLinecap="round"
                     transform={`rotate(-90 ${cx} ${cy})`}
                   />
-                  <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="c-gauge-value">{fmtValue(item.value)}</text>
+                  <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="c-gauge-value" data-kz-field={`items[${i}].value`}>{fmtValue(item.value)}</text>
                 </svg>
-                <div className="c-gauge-label">{item.label}</div>
+                <div className="c-gauge-label" data-kz-field={`items[${i}].label`}>{item.label}</div>
               </div>
             );
           })}
@@ -3686,12 +3802,18 @@ function ComponentView({
   }
   })();
 
+  // Every component root carries its data path and type so editors can map
+  // rendered elements back to the page data without guessing.
+  const tagged = React.isValidElement(content) && typeof content.type === "string"
+    ? React.cloneElement(content as React.ReactElement<Record<string, unknown>>, { "data-kz-path": kz, "data-kz-type": comp.type })
+    : <div data-kz-path={kz} data-kz-type={comp.type} style={{ display: "contents" }}>{content}</div>;
+
   const scale = comp.scale as number | undefined;
   if (scale != null) {
     const s = Math.min(2, Math.max(0.1, scale));
-    return <div className="c-chart-scale" style={{ ["--kz-scale" as any]: s }}>{content}</div>;
+    return <div className="c-chart-scale" style={{ ["--kz-scale" as any]: s }}>{tagged}</div>;
   }
-  return content;
+  return tagged;
 }
 
 function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { slides: SlideData[]; renderMarkdown?: (md: string) => string; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
@@ -3809,7 +3931,7 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
                   </div>
                 ) : (!slide.hide_label && <div className="deck-label">{slide.label}</div>)}
                 {(slide.components ?? []).map((comp, ci) => (
-                  <ComponentView key={ci} comp={comp} index={ci} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
                 ))}
               </div>
             </div>
@@ -3942,7 +4064,7 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
                   </div>
                 ) : (!slide.hide_label && <div className="deck-label">{slide.label}</div>)}
                 {(slide.components ?? []).map((comp, ci) => (
-                  <ComponentView key={ci} comp={comp} index={ci} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
                 ))}
               </div>
             </div>
@@ -3957,8 +4079,10 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
     <>
       {!exportMode && <FreshnessBanner freshness={page.freshness} />}
       {components.map((comp, i) => {
-        const cv = <ComponentView comp={comp} index={i} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
-        return CW ? <CW key={i} comp={comp} index={i}>{cv}</CW> : <React.Fragment key={i}>{cv}</React.Fragment>;
+        const cv = <ComponentView comp={comp} index={i} kzPath={`components[${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+        // Key by id when present so reorders move nodes instead of re-rendering every slot.
+        const key = typeof comp.id === "string" && comp.id ? `id-${comp.id}` : `i-${i}`;
+        return CW ? <CW key={key} comp={comp} index={i}>{cv}</CW> : <React.Fragment key={key}>{cv}</React.Fragment>;
       })}
     </>
   );
@@ -3976,477 +4100,430 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
 export { ComponentView, DeckRenderer, HubMasthead, type SlideData, type PageData, type ComponentData, type PageRendererProps, type HubData };
 "####;
 
+fn json_str(v: &str) -> String {
+    serde_json::to_string(v).expect("string is always serializable")
+}
+
+/// Ordered schema as JSON for the emitted editor and for in-place binding.
+/// Fields are arrays so authoring order survives any JSON parser.
+fn schema_json(schema: &Schema) -> String {
+    let mut out = String::with_capacity(32768);
+    out.push_str("{\n  \"enums\": {");
+    let mut first = true;
+    for (name, variants) in &schema.enums {
+        if !first {
+            out.push(',');
+        }
+        first = false;
+        out.push_str("\n    ");
+        out.push_str(&json_str(name));
+        out.push_str(": [");
+        out.push_str(
+            &variants
+                .iter()
+                .map(|v| json_str(v))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        out.push(']');
+    }
+    out.push_str("\n  },");
+    for (section, map) in [("types", &schema.types), ("components", &schema.components)] {
+        out.push_str("\n  \"");
+        out.push_str(section);
+        out.push_str("\": {");
+        let mut first_owner = true;
+        for (owner, fields) in map {
+            if !first_owner {
+                out.push(',');
+            }
+            first_owner = false;
+            out.push_str("\n    ");
+            out.push_str(&json_str(owner));
+            out.push_str(": [");
+            let items: Vec<String> = fields
+                .iter()
+                .map(|(fname, field)| {
+                    format!(
+                        "{{ \"name\": {}, \"type\": {}, \"required\": {}, \"kind\": {} }}",
+                        json_str(fname),
+                        json_str(&field.field_type),
+                        if field.required { "true" } else { "false" },
+                        json_str(&kind_of(fname, field, schema))
+                    )
+                })
+                .collect();
+            out.push_str(&items.join(", "));
+            out.push(']');
+        }
+        out.push_str("\n  }");
+        if section == "types" {
+            out.push(',');
+        }
+    }
+    out.push_str("\n}");
+    out
+}
+
 fn generate_editor(out: &mut String) {
-    let components = component_defs();
+    let schema = load_schema();
+    out.push_str("\n// ── Schema (authoring order) shared by the editor and in-place binding ──\n");
+    out.push_str("export const KZ_SCHEMA: KzSchema = ");
+    out.push_str(&schema_json(&schema));
+    out.push_str(";\n");
+    out.push_str(EDITOR_RAW);
+}
 
-    let enums: Vec<(&str, Vec<&str>)> = vec![
-        ("CalloutVariant", vec!["info", "warn", "success", "danger"]),
-        (
-            "SemColor",
-            vec!["default", "green", "yellow", "red", "teal"],
-        ),
-        ("Align", vec!["left", "right", "center"]),
-        ("Connector", vec!["none", "dots_line", "arrow"]),
-        ("TimelineStatus", vec!["completed", "active", "upcoming"]),
-        ("EventSeverity", vec!["major", "minor", "info"]),
-        ("EventFilter", vec!["all", "major"]),
-        (
-            "TreeStatus",
-            vec![
-                "default",
-                "completed",
-                "active",
-                "blocked",
-                "priority",
-                "upcoming",
-            ],
-        ),
-        (
-            "TreeFilter",
-            vec!["all", "incomplete", "blocked", "priority"],
-        ),
-        ("ButtonVariant", vec!["primary", "secondary", "ghost"]),
-        ("IconSize", vec!["xs", "sm", "md", "lg", "xl"]),
-        ("AvatarSize", vec!["sm", "md", "lg", "xl"]),
-        ("ChartKind", vec!["pie", "bar", "timeseries"]),
-        ("VennView", vec!["venn", "table"]),
-        ("ChartOrientation", vec!["vertical", "horizontal"]),
-        ("ArchDirection", vec!["left_to_right", "top_to_bottom"]),
-        ("Interaction", vec!["single_select", "multi_select", "none"]),
-    ];
+const EDITOR_RAW: &str = r##"
+// ── Schema-driven editor ──────────────────────────────────────────────────
+// Every form below reads KZ_SCHEMA at runtime, so a new component or field in
+// schema/components.json shows up here with no emitter change.
 
-    type InterfaceDef<'a> = (&'a str, Vec<(&'a str, &'a str, bool)>);
-    let interfaces: Vec<InterfaceDef> = vec![
-        (
-            "MetaField",
-            vec![("key", "string", true), ("value", "string", true)],
-        ),
-        (
-            "Stat",
-            vec![
-                ("label", "string", true),
-                ("value", "string", true),
-                ("detail", "string", false),
-                ("color", "SemColor", false),
-            ],
-        ),
-        (
-            "Card",
-            vec![
-                ("title", "string", true),
-                ("description", "string", false),
-                ("href", "string", false),
-                ("color", "SemColor", false),
-            ],
-        ),
-        (
-            "BeforeAfterItem",
-            vec![
-                ("title", "string", true),
-                ("before", "string", true),
-                ("after", "string", true),
-                ("after_context", "string", false),
-            ],
-        ),
-        (
-            "Step",
-            vec![("title", "string", true), ("detail", "string", false)],
-        ),
-        (
-            "TableColumn",
-            vec![("key", "string", true), ("label", "string", true)],
-        ),
-        (
-            "EventItem",
-            vec![
-                ("date", "string", true),
-                ("title", "string", true),
-                ("summary", "string", false),
-                ("severity", "EventSeverity", false),
-                ("source", "string", false),
-            ],
-        ),
-        (
-            "BreadcrumbItem",
-            vec![("label", "string", true), ("href", "string", false)],
-        ),
-        (
-            "ButtonConfig",
-            vec![
-                ("label", "string", true),
-                ("href", "string", true),
-                ("variant", "ButtonVariant", false),
-            ],
-        ),
-        (
-            "DefinitionItem",
-            vec![("term", "string", true), ("definition", "string", true)],
-        ),
-        (
-            "AvatarConfig",
-            vec![("name", "string", true), ("src", "string", false)],
-        ),
-        (
-            "ResourceItem",
-            vec![
-                ("title", "string", true),
-                ("href", "string", true),
-                ("description", "string", false),
-                ("owner", "string", false),
-            ],
-        ),
-        (
-            "ChartPoint",
-            vec![
-                ("label", "string", true),
-                ("value", "number", true),
-                ("color", "SemColor", false),
-            ],
-        ),
-        (
-            "ChartSeries",
-            vec![("label", "string", true), ("color", "SemColor", false)],
-        ),
-        (
-            "VennSet",
-            vec![("label", "string", true), ("color", "SemColor", false)],
-        ),
-        (
-            "TimelineItem",
-            vec![("name", "string", true), ("status", "TimelineStatus", true)],
-        ),
-        (
-            "SelectableCard",
-            vec![
-                ("title", "string", true),
-                ("eyebrow", "string", false),
-                ("body", "string", false),
-                ("color", "SemColor", false),
-            ],
-        ),
-        ("Tab", vec![("label", "string", true)]),
-        ("AccordionItem", vec![("title", "string", true)]),
-        (
-            "SankeyFlow",
-            vec![
-                ("source", "string", true),
-                ("target", "string", true),
-                ("value", "number", true),
-            ],
-        ),
-        (
-            "RadarCurve",
-            vec![
-                ("label", "string", true),
-                ("values", "number[]", true),
-                ("color", "SemColor", false),
-            ],
-        ),
-        (
-            "QuadrantPoint",
-            vec![
-                ("label", "string", true),
-                ("x", "number", true),
-                ("y", "number", true),
-                ("color", "SemColor", false),
-            ],
-        ),
-        (
-            "ArchNode",
-            vec![
-                ("id", "string", true),
-                ("label", "string", true),
-                ("detail", "string", false),
-                ("icon", "string", false),
-                ("color", "SemColor", false),
-            ],
-        ),
-        (
-            "ArchConnection",
-            vec![
-                ("from", "string", true),
-                ("to", "string", true),
-                ("label", "string", false),
-            ],
-        ),
-    ];
+export type KzKind = "text" | "markdown" | "code" | "number" | "layout" | "enum" | "id" | "url" | "bool" | "list" | "object";
+export interface KzField { name: string; type: string; required: boolean; kind: KzKind }
+export interface KzSchema { enums: Record<string, string[]>; types: Record<string, KzField[]>; components: Record<string, KzField[]> }
 
-    let long_fields = ["body", "code", "summary", "definition", "description"];
+export const KZ_CONTENT_KINDS: ReadonlyArray<KzKind> = ["text", "markdown", "code", "number"];
 
-    let icons: Vec<(&str, &str)> = vec![
-        ("header", "H"),
-        ("markdown", "Aa"),
-        ("callout", "!"),
-        ("card_grid", ":::"),
-        ("stat_grid", "#"),
-        ("steps", "1."),
-        ("code", "</>"),
-        ("image", "img"),
-        ("divider", "---"),
-        ("table", "|||"),
-        ("section", "\u{00a7}"),
-        ("columns", "||"),
-        ("tabs", "\u{2291}"),
-        ("accordion", "\u{2261}"),
-        ("chart", "\u{25d4}"),
-        ("chart_group", "\u{25d4}\u{25d4}"),
-        ("sankey", "\u{21c9}"),
-        ("radar", "\u{25ce}"),
-        ("quadrant", "\u{229e}"),
-        ("architecture", "\u{2b1a}"),
-        ("pipeline", "\u{27a1}"),
-        ("org_chart", "\u{1f465}"),
-    ];
+/** `Stat[]` -> `Stat`, `Component[][]` -> `Component[]`, `(string | null)[]` -> `string`. */
+export function kzElemType(t: string): string | null {
+  if (t.endsWith("[][]")) return t.slice(0, -2);
+  if (!t.endsWith("[]")) return null;
+  const inner = t.slice(0, -2);
+  if (inner.startsWith("(") && inner.endsWith(")")) return inner.slice(1, -1).split("|")[0].trim();
+  return inner;
+}
 
-    let get_icon = |comp_type: &str| -> String {
-        for (t, icon) in &icons {
-            if *t == comp_type {
-                return (*icon).to_string();
-            }
-        }
-        // first letter uppercased
-        let first = comp_type.chars().next().unwrap_or('?');
-        first.to_uppercase().to_string()
-    };
+export function kzTitle(name: string): string {
+  return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
-    let make_label = |comp_type: &str| -> String {
-        comp_type
-            .replace('_', " ")
-            .split_whitespace()
-            .map(|w| {
-                let mut c = w.chars();
-                match c.next() {
-                    None => String::new(),
-                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    };
+export function kzEmptyValue(f: KzField): unknown {
+  switch (f.kind) {
+    case "bool": return false;
+    case "number": case "layout": return 0;
+    case "list": return [];
+    case "enum": return (KZ_SCHEMA.enums[f.type] || [""])[0];
+    case "object": return KZ_SCHEMA.types[f.type] ? kzEmptyItem(f.type) : {};
+    default: return "";
+  }
+}
 
-    // Helper closures
-    let find_enum = |type_name: &str| -> Option<&Vec<&str>> {
-        enums.iter().find(|(n, _)| *n == type_name).map(|(_, v)| v)
-    };
+/** Minimal valid item for a schema type: required fields only. */
+export function kzEmptyItem(typeName: string): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const f of KZ_SCHEMA.types[typeName] || []) if (f.required) out[f.name] = kzEmptyValue(f);
+  return out;
+}
 
-    let find_interface = |type_name: &str| -> Option<&Vec<(&str, &str, bool)>> {
-        interfaces
-            .iter()
-            .find(|(n, _)| *n == type_name)
-            .map(|(_, v)| v)
-    };
+export function newEditorComponent(type: string): ComponentData {
+  const out: Record<string, unknown> = { type };
+  for (const f of KZ_SCHEMA.components[type] || []) if (f.required) out[f.name] = kzEmptyValue(f);
+  return out as ComponentData;
+}
 
-    // ── 1. EDITOR_TYPES constant ───────────────────────────────────────────
-    out.push_str("\nconst EDITOR_TYPES: Array<{type: string; label: string; icon: string}> = [\n");
-    for (comp_type, _) in &components {
-        let label = make_label(comp_type);
-        let icon = get_icon(comp_type);
-        out.push_str(&format!(
-            "  {{ type: \"{}\", label: \"{}\", icon: \"{}\" }},\n",
-            comp_type, label, icon
-        ));
+/**
+ * Resolve a component-relative field path (`stats[3].value`, `rows[1].owner`,
+ * `axes[0]`) to its schema field. Returns a synthetic field for scalar list
+ * items and untyped rows so callers always get a kind.
+ */
+export function kzResolveField(componentType: string, relPath: string): KzField | null {
+  const tokens = relPath.match(/[^.\[\]]+|\[\d+\]/g) || [];
+  let fields: KzField[] | undefined = KZ_SCHEMA.components[componentType];
+  let current: KzField | null = null;
+  let pendingType: string | null = null;
+  for (const tok of tokens) {
+    if (tok.startsWith("[")) {
+      if (!current) return null;
+      const elem = kzElemType(pendingType ?? current.type);
+      if (elem === null) return null;
+      pendingType = elem;
+      if (KZ_SCHEMA.types[elem]) { fields = KZ_SCHEMA.types[elem]; }
+      else if (elem === "string" || elem === "number") {
+        current = { name: current.name, type: elem, required: current.required, kind: elem === "number" ? "number" : "text" };
+        fields = undefined;
+      } else { fields = undefined; }
+      continue;
     }
-    out.push_str("];\n\n");
-
-    // ── 2. newEditorComponent function ────────────────────────────────────
-    out.push_str("function newEditorComponent(type: string): ComponentData {\n");
-    out.push_str("  switch (type) {\n");
-    for (comp_type, fields) in &components {
-        out.push_str(&format!(
-            "    case \"{}\": return {{ type: \"{}\"",
-            comp_type, comp_type
-        ));
-        for (fname, ftype) in fields {
-            let is_optional = fname.ends_with('?');
-            if is_optional {
-                continue;
-            } // skip optional fields in defaults
-            let clean = fname.trim_end_matches('?');
-            let default_val = if *ftype == "string" {
-                "\"\"".to_string()
-            } else if *ftype == "number" {
-                "0".to_string()
-            } else if *ftype == "boolean" {
-                "false".to_string()
-            } else if ftype.ends_with("[]") || *ftype == "Component[]" || *ftype == "Component[][]"
-            {
-                "[]".to_string()
-            } else if find_enum(ftype).is_some() {
-                let variants = find_enum(ftype).unwrap();
-                format!("\"{}\"", variants[0])
-            } else {
-                // complex type, skip
-                continue;
-            };
-            out.push_str(&format!(", {}: {}", clean, default_val));
-        }
-        out.push_str(" };\n");
+    if (pendingType && !KZ_SCHEMA.types[pendingType] && current && kzElemType(current.type) !== null && !fields) {
+      // Untyped row (Record<string, unknown>): any key is editable text.
+      return { name: tok, type: "string", required: false, kind: "text" };
     }
-    out.push_str("    default: return { type } as ComponentData;\n");
-    out.push_str("  }\n");
-    out.push_str("}\n\n");
-
-    // ── 3. ComponentFieldEditor ────────────────────────────────────────────
-    out.push_str("function ComponentFieldEditor({ comp, onChange }: { comp: ComponentData; onChange: (c: ComponentData) => void }) {\n");
-    out.push_str("  switch (comp.type) {\n");
-
-    for (comp_type, fields) in &components {
-        out.push_str(&format!("    case \"{}\": return (<>\n", comp_type));
-        for (fname, ftype) in fields {
-            let is_optional = fname.ends_with('?');
-            let clean = fname.trim_end_matches('?');
-            let display_name = make_label(clean);
-
-            if *ftype == "string" {
-                if long_fields.contains(&clean) {
-                    // textarea
-                    out.push_str(&format!(
-                        "      <textarea className=\"pe-textarea\" placeholder=\"{}\" value={{(comp.{} as string) || \"\"}} onChange={{(e) => onChange({{...comp, {}: e.target.value}})}} />\n",
-                        display_name, clean, clean
-                    ));
-                } else {
-                    // input
-                    if is_optional {
-                        out.push_str(&format!(
-                            "      <input className=\"pe-input\" placeholder=\"{}\" value={{(comp.{} as string) || \"\"}} onChange={{(e) => onChange({{...comp, {}: e.target.value || undefined}})}} />\n",
-                            display_name, clean, clean
-                        ));
-                    } else {
-                        out.push_str(&format!(
-                            "      <input className=\"pe-input\" placeholder=\"{}\" value={{(comp.{} as string) || \"\"}} onChange={{(e) => onChange({{...comp, {}: e.target.value}})}} />\n",
-                            display_name, clean, clean
-                        ));
-                    }
-                }
-            } else if *ftype == "number" {
-                out.push_str(&format!(
-                    "      <input className=\"pe-input\" type=\"number\" placeholder=\"{}\" value={{(comp.{} as number) ?? \"\"}} onChange={{(e) => onChange({{...comp, {}: e.target.value ? Number(e.target.value) : undefined}})}} />\n",
-                    display_name, clean, clean
-                ));
-            } else if *ftype == "boolean" {
-                out.push_str(&format!(
-                    "      <label className=\"pe-checkbox-label\"><input type=\"checkbox\" checked={{(comp.{} as boolean) || false}} onChange={{(e) => onChange({{...comp, {}: e.target.checked || undefined}})}}/> {}</label>\n",
-                    clean, clean, display_name
-                ));
-            } else if let Some(variants) = find_enum(ftype) {
-                // select
-                out.push_str(&format!(
-                    "      <select className=\"pe-select\" value={{(comp.{} as string) || \"\"}} onChange={{(e) => onChange({{...comp, {}: e.target.value || undefined}})}}>\\n        <option value=\"\">-- {} --</option>\n",
-                    clean, clean, display_name
-                ));
-                for v in variants.iter() {
-                    out.push_str(&format!("        <option value=\"{}\">{}</option>\n", v, v));
-                }
-                out.push_str("      </select>\n");
-            } else if *ftype == "Component[]" {
-                out.push_str(&format!(
-                    "      <NestedComponentList components={{(comp.{} as ComponentData[]) || []}} onChange={{(comps) => onChange({{...comp, {}: comps}})}} />\n",
-                    clean, clean
-                ));
-            } else if *ftype == "Component[][]" {
-                // columns: Component[][]
-                out.push_str(&format!(
-                    "      <div className=\"pe-columns-editor\">{{((comp.{} as ComponentData[][]) || []).map((col, ci) => (<div key={{ci}} className=\"pe-column-wrap\"><div className=\"pe-column-label\">Column {{ci+1}}</div><NestedComponentList components={{col}} onChange={{(comps) => {{ const next = [...((comp.{} as ComponentData[][]) || [])]; next[ci] = comps; onChange({{...comp, {}: next}}); }}}} /></div>))}}</div>\n",
-                    clean, clean, clean
-                ));
-            } else if let Some(elem_type) = ftype.strip_suffix("[]") {
-                if elem_type == "string" {
-                    // string[] - simple tag list (e.g. keys for kbd)
-                    out.push_str(&format!(
-                        "      <textarea className=\"pe-textarea\" placeholder=\"{}\" value={{((comp.{} as string[]) || []).join(\", \")}} onChange={{(e) => onChange({{...comp, {}: e.target.value.split(\",\").map((s: string) => s.trim()).filter(Boolean)}})}} />\n",
-                        display_name, clean, clean
-                    ));
-                } else if let Some(iface_fields) = find_interface(elem_type) {
-                    // known interface - inline list editor
-                    let field_name = clean;
-                    let iface_fields_clone: Vec<(&str, &str, bool)> = iface_fields.to_vec();
-                    out.push_str(&format!(
-                        "      <div className=\"pe-list-editor\">\n        {{((comp.{} as Array<Record<string, unknown>>) || []).map((item, i) => (\n          <div key={{i}} className=\"pe-list-item pe-list-item-row\">\n",
-                        field_name
-                    ));
-                    for (ifield, itype, _ireq) in &iface_fields_clone {
-                        let ifield_display = make_label(ifield);
-                        if let Some(ivariants) = find_enum(itype) {
-                            out.push_str(&format!(
-                                "            <select className=\"pe-select\" value={{(item.{} as string) || \"\"}} onChange={{(e) => {{ const next = [...((comp.{} as Array<Record<string, unknown>>) || [])]; next[i] = {{...item, {}: e.target.value || undefined}}; onChange({{...comp, {}: next}}); }}}}>\\n              <option value=\"\">-- {} --</option>\n",
-                                ifield, field_name, ifield, field_name, ifield_display
-                            ));
-                            for iv in ivariants.iter() {
-                                out.push_str(&format!(
-                                    "              <option value=\"{}\">{}</option>\n",
-                                    iv, iv
-                                ));
-                            }
-                            out.push_str("            </select>\n");
-                        } else if *itype == "number" {
-                            out.push_str(&format!(
-                                "            <input className=\"pe-input pe-input-short\" type=\"number\" placeholder=\"{}\" value={{(item.{} as number) ?? \"\"}} onChange={{(e) => {{ const next = [...((comp.{} as Array<Record<string, unknown>>) || [])]; next[i] = {{...item, {}: e.target.value ? Number(e.target.value) : undefined}}; onChange({{...comp, {}: next}}); }}}} />\n",
-                                ifield_display, ifield, field_name, ifield, field_name
-                            ));
-                        } else {
-                            let placeholder = ifield_display.clone();
-                            out.push_str(&format!(
-                                "            <input className=\"pe-input pe-input-short\" placeholder=\"{}\" value={{(item.{} as string) || \"\"}} onChange={{(e) => {{ const next = [...((comp.{} as Array<Record<string, unknown>>) || [])]; next[i] = {{...item, {}: e.target.value}}; onChange({{...comp, {}: next}}); }}}} />\n",
-                                placeholder, ifield, field_name, ifield, field_name
-                            ));
-                        }
-                    }
-                    // required fields for default new item
-                    let required_defaults: Vec<String> = iface_fields_clone
-                        .iter()
-                        .filter(|(_, _, req)| *req)
-                        .map(|(f, t, _)| {
-                            if *t == "number" {
-                                format!("{}: 0", f)
-                            } else {
-                                format!("{}: \"\"", f)
-                            }
-                        })
-                        .collect();
-                    let default_item = format!("{{{}}}", required_defaults.join(", "));
-                    out.push_str(&format!(
-                        "            {{((comp.{} as unknown[]) || []).length > 1 && <button className=\"pe-list-remove\" onClick={{() => onChange({{...comp, {}: ((comp.{} as unknown[]) || []).filter((_: unknown, j: number) => j !== i)}})}}>×</button>}}\n",
-                        field_name, field_name, field_name
-                    ));
-                    out.push_str("          </div>\n        ))}\n");
-                    out.push_str(&format!(
-                        "        <button className=\"pe-list-add\" onClick={{() => onChange({{...comp, {}: [...((comp.{} as unknown[]) || []), {}]}})}}> + Add {}</button>\n",
-                        field_name, field_name, default_item, elem_type
-                    ));
-                    out.push_str("      </div>\n");
-                } else {
-                    // unknown array element type - YAML fallback
-                    out.push_str(&format!(
-                        "      <textarea className=\"pe-textarea\" placeholder=\"{}\" value={{yamlStringify(comp.{} ?? [])}} onChange={{(e) => {{ try {{ onChange({{...comp, {}: yamlParse(e.target.value)}}); }} catch(_) {{}} }}}} />\n",
-                        display_name, clean, clean
-                    ));
-                }
-            } else {
-                // complex / unknown - YAML fallback
-                if !is_optional {
-                    out.push_str(&format!(
-                        "      <textarea className=\"pe-textarea\" placeholder=\"{}\" value={{yamlStringify(comp.{} ?? null)}} onChange={{(e) => {{ try {{ onChange({{...comp, {}: yamlParse(e.target.value)}}); }} catch(_) {{}} }}}} />\n",
-                        display_name, clean, clean
-                    ));
-                } else {
-                    out.push_str(&format!(
-                        "      <textarea className=\"pe-textarea\" placeholder=\"{}\" value={{yamlStringify(comp.{} ?? null)}} onChange={{(e) => {{ try {{ onChange({{...comp, {}: yamlParse(e.target.value) || undefined}}); }} catch(_) {{}} }}}} />\n",
-                        display_name, clean, clean
-                    ));
-                }
-            }
-        }
-        out.push_str("    </>);\n");
+    if (!fields) {
+      if (current && current.kind === "object" && KZ_SCHEMA.types[current.type]) fields = KZ_SCHEMA.types[current.type];
+      else return null;
     }
+    const f: KzField | undefined = fields.find((x) => x.name === tok);
+    if (!f) return null;
+    current = f;
+    pendingType = null;
+    fields = f.kind === "object" && KZ_SCHEMA.types[f.type] ? KZ_SCHEMA.types[f.type] : undefined;
+  }
+  return current;
+}
 
-    out.push_str(
-        "    default: return <div className=\"pe-unknown\">Unknown component: {comp.type}</div>;\n",
+export const EDITOR_TYPES: Array<{type: string; label: string; icon: string}> = [
+  { type: "header", label: "Header", icon: "H" },
+  { type: "hero_banner", label: "Hero Banner", icon: "H" },
+  { type: "meta", label: "Meta", icon: "M" },
+  { type: "card_grid", label: "Card Grid", icon: ":::" },
+  { type: "selectable_grid", label: "Selectable Grid", icon: "S" },
+  { type: "timeline", label: "Timeline", icon: "T" },
+  { type: "stat_grid", label: "Stat Grid", icon: "#" },
+  { type: "before_after", label: "Before After", icon: "B" },
+  { type: "split_compare", label: "Split Compare", icon: "S" },
+  { type: "steps", label: "Steps", icon: "1." },
+  { type: "markdown", label: "Markdown", icon: "Aa" },
+  { type: "table", label: "Table", icon: "|||" },
+  { type: "callout", label: "Callout", icon: "!" },
+  { type: "code", label: "Code", icon: "</>" },
+  { type: "tabs", label: "Tabs", icon: "⊑" },
+  { type: "section", label: "Section", icon: "§" },
+  { type: "columns", label: "Columns", icon: "||" },
+  { type: "accordion", label: "Accordion", icon: "≡" },
+  { type: "event_timeline", label: "Event Timeline", icon: "E" },
+  { type: "tree", label: "Tree", icon: "T" },
+  { type: "org_chart", label: "Org Chart", icon: "👥" },
+  { type: "venn", label: "Venn", icon: "V" },
+  { type: "image", label: "Image", icon: "img" },
+  { type: "embed", label: "Embed", icon: "E" },
+  { type: "resources", label: "Resources", icon: "R" },
+  { type: "badge", label: "Badge", icon: "B" },
+  { type: "tag", label: "Tag", icon: "T" },
+  { type: "divider", label: "Divider", icon: "---" },
+  { type: "kbd", label: "Kbd", icon: "K" },
+  { type: "status", label: "Status", icon: "S" },
+  { type: "breadcrumb", label: "Breadcrumb", icon: "B" },
+  { type: "button_group", label: "Button Group", icon: "B" },
+  { type: "definition_list", label: "Definition List", icon: "D" },
+  { type: "blockquote", label: "Blockquote", icon: "B" },
+  { type: "avatar", label: "Avatar", icon: "A" },
+  { type: "avatar_group", label: "Avatar Group", icon: "A" },
+  { type: "progress_bar", label: "Progress Bar", icon: "P" },
+  { type: "empty_state", label: "Empty State", icon: "E" },
+  { type: "icon", label: "Icon", icon: "I" },
+  { type: "chart", label: "Chart", icon: "◔" },
+  { type: "chart_group", label: "Chart Group", icon: "◔◔" },
+  { type: "role_map", label: "Role Map", icon: "R" },
+  { type: "sankey", label: "Sankey", icon: "⇉" },
+  { type: "radar", label: "Radar", icon: "◎" },
+  { type: "quadrant", label: "Quadrant", icon: "⊞" },
+  { type: "architecture", label: "Architecture", icon: "⬚" },
+  { type: "pipeline", label: "Pipeline", icon: "➡" },
+  { type: "graph", label: "Graph", icon: "G" },
+  { type: "aside", label: "Aside", icon: "A" },
+  { type: "rule_list", label: "Rule List", icon: "R" },
+  { type: "gauge", label: "Gauge", icon: "G" },
+  { type: "priority_queue", label: "Priority Queue", icon: "P" },
+];
+
+function KzControl({ field, value, onChange }: { field: KzField; value: unknown; onChange: (v: unknown) => void }) {
+  const clear = (v: string) => (field.required ? v : v || undefined);
+  switch (field.kind) {
+    case "markdown":
+    case "code":
+      return <textarea className={`pe-textarea${field.kind === "code" ? " pe-textarea-code" : ""}`} rows={field.kind === "code" ? 8 : 4} value={(value as string) ?? ""} onChange={(e) => onChange(clear(e.target.value))} />;
+    case "number":
+    case "layout":
+      return <input className="pe-input pe-input-number" type="number" value={value === undefined || value === null ? "" : String(value)} onChange={(e) => onChange(e.target.value === "" ? (field.required ? 0 : undefined) : Number(e.target.value))} />;
+    case "bool":
+      return <input className="pe-checkbox" type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked || (field.required ? false : undefined))} />;
+    case "enum": {
+      const opts = KZ_SCHEMA.enums[field.type] || [];
+      return (
+        <select className="pe-select" value={(value as string) ?? ""} onChange={(e) => onChange(clear(e.target.value))}>
+          {!field.required && <option value="">–</option>}
+          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+      );
+    }
+    case "id":
+    case "url":
+      return <input className="pe-input pe-input-mono" value={(value as string) ?? ""} onChange={(e) => onChange(clear(e.target.value))} placeholder={field.kind === "url" ? "https://" : ""} />;
+    default:
+      return <input className="pe-input" value={(value as string) ?? ""} onChange={(e) => onChange(clear(e.target.value))} />;
+  }
+}
+
+function KzYaml({ value, onChange }: { value: unknown; onChange: (v: unknown) => void }) {
+  const [text, setText] = React.useState(value === undefined || value === null ? "" : yamlStringify(value).trimEnd());
+  const [err, setErr] = React.useState("");
+  return (
+    <div className="pe-yaml">
+      <textarea
+        className="pe-textarea pe-textarea-code"
+        rows={5}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          if (!e.target.value.trim()) { setErr(""); onChange(undefined); return; }
+          try { onChange(yamlParse(e.target.value)); setErr(""); } catch (ex) { setErr(ex instanceof Error ? ex.message : "Invalid YAML"); }
+        }}
+      />
+      {err && <div className="pe-error">{err}</div>}
+    </div>
+  );
+}
+
+function KzRowsGrid({ rows, columns, onChange }: { rows: Array<Record<string, unknown>>; columns: Array<{ key: string; label?: string }>; onChange: (rows: Array<Record<string, unknown>>) => void }) {
+  const keys = columns.length > 0 ? columns.map((c) => c.key) : Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+  if (keys.length === 0) return <div className="pe-hint">Add a column first, then rows.</div>;
+  return (
+    <div className="pe-rows">
+      <table className="pe-rows-table">
+        <thead>
+          <tr>{keys.map((k) => <th key={k}>{columns.find((c) => c.key === k)?.label || k}</th>)}<th /></tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={ri}>
+              {keys.map((k) => (
+                <td key={k}>
+                  <input className="pe-input pe-input-cell" value={row[k] === undefined || row[k] === null ? "" : String(row[k])} onChange={(e) => { const next = rows.map((r, i) => (i === ri ? { ...r, [k]: e.target.value } : r)); onChange(next); }} />
+                </td>
+              ))}
+              <td><button type="button" className="pe-list-remove" title="Delete row" onClick={() => onChange(rows.filter((_, i) => i !== ri))}>×</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button type="button" className="pe-list-add" onClick={() => onChange([...rows, Object.fromEntries(keys.map((k) => [k, ""]))])}>+ Row</button>
+    </div>
+  );
+}
+
+function KzObjectFields({ typeName, value, onChange, depth }: { typeName: string; value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void; depth: number }) {
+  const fields = KZ_SCHEMA.types[typeName] || [];
+  return (
+    <div className="pe-object">
+      {fields.map((f) => (
+        <KzFieldRow key={f.name} field={f} value={value[f.name]} siblings={value} depth={depth} onChange={(v) => { const next = { ...value }; if (v === undefined) delete next[f.name]; else next[f.name] = v; onChange(next); }} />
+      ))}
+    </div>
+  );
+}
+
+function KzListEditor({ field, items, siblings, onChange, depth }: { field: KzField; items: unknown[]; siblings: Record<string, unknown>; onChange: (items: unknown[]) => void; depth: number }) {
+  const elem = kzElemType(field.type) || "string";
+  const [open, setOpen] = React.useState<Record<number, boolean>>({});
+  if (elem === "Component") {
+    return <NestedComponentList components={(items as ComponentData[]) || []} onChange={(c) => onChange(c)} />;
+  }
+  if (elem === "Component[]") {
+    const cols = (items as ComponentData[][]) || [];
+    return (
+      <div className="pe-columns-editor">
+        {cols.map((col, ci) => (
+          <div key={ci} className="pe-column">
+            <div className="pe-column-label">Column {ci + 1}<button type="button" className="pe-list-remove" onClick={() => onChange(cols.filter((_, i) => i !== ci))}>×</button></div>
+            <NestedComponentList components={col} onChange={(c) => { const next = [...cols]; next[ci] = c; onChange(next); }} />
+          </div>
+        ))}
+        <button type="button" className="pe-list-add" onClick={() => onChange([...cols, []])}>+ Column</button>
+      </div>
     );
-    out.push_str("  }\n");
-    out.push_str("}\n\n");
+  }
+  if (elem === "string" || elem === "number") {
+    const text = (items || []).map((v) => (v === null || v === undefined ? "" : String(v))).join("\n");
+    return (
+      <textarea
+        className="pe-textarea"
+        rows={Math.min(8, Math.max(2, (items || []).length + 1))}
+        placeholder="One per line"
+        value={text}
+        onChange={(e) => {
+          const lines = e.target.value.split("\n");
+          onChange(elem === "number" ? lines.filter((l) => l.trim() !== "").map((l) => Number(l)) : lines);
+        }}
+      />
+    );
+  }
+  if (elem.startsWith("Record<")) {
+    const columns = (siblings.columns as Array<{ key: string; label?: string }>) || [];
+    return <KzRowsGrid rows={(items as Array<Record<string, unknown>>) || []} columns={columns} onChange={(r) => onChange(r)} />;
+  }
+  const typeFields = KZ_SCHEMA.types[elem];
+  if (!typeFields) return <KzYaml value={items} onChange={(v) => onChange((v as unknown[]) || [])} />;
+  const list = (items as Array<Record<string, unknown>>) || [];
+  const summaryOf = (it: Record<string, unknown>): string => {
+    for (const f of typeFields) {
+      if (KZ_CONTENT_KINDS.includes(f.kind) && typeof it[f.name] === "string" && (it[f.name] as string).trim()) return it[f.name] as string;
+    }
+    return `${kzTitle(elem)}`;
+  };
+  return (
+    <div className="pe-items">
+      {list.map((it, i) => {
+        const isOpen = open[i] ?? (depth === 0 && list.length <= 4);
+        return (
+          <div key={i} className={`pe-item${isOpen ? " pe-item-open" : ""}`}>
+            <div className="pe-item-head" onClick={() => setOpen((o) => ({ ...o, [i]: !isOpen }))}>
+              <span className="pe-item-chevron">{isOpen ? "▾" : "▸"}</span>
+              <span className="pe-item-summary">{summaryOf(it)}</span>
+              <span className="pe-item-actions" onClick={(e) => e.stopPropagation()}>
+                {i > 0 && <button type="button" className="pe-move-btn" title="Move up" onClick={() => { const n = [...list]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; onChange(n); }}>↑</button>}
+                {i < list.length - 1 && <button type="button" className="pe-move-btn" title="Move down" onClick={() => { const n = [...list]; [n[i], n[i + 1]] = [n[i + 1], n[i]]; onChange(n); }}>↓</button>}
+                <button type="button" className="pe-remove-btn" title="Remove" onClick={() => onChange(list.filter((_, j) => j !== i))}>×</button>
+              </span>
+            </div>
+            {isOpen && (
+              <div className="pe-item-body">
+                <KzObjectFields typeName={elem} value={it} depth={depth + 1} onChange={(v) => { const n = [...list]; n[i] = v; onChange(n); }} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <button type="button" className="pe-list-add" onClick={() => { onChange([...list, kzEmptyItem(elem)]); setOpen((o) => ({ ...o, [list.length]: true })); }}>+ {kzTitle(elem)}</button>
+    </div>
+  );
+}
 
-    // ── 4. NestedComponentList ─────────────────────────────────────────────
-    out.push_str(r#"function NestedComponentList({ components, onChange }: { components: ComponentData[]; onChange: (comps: ComponentData[]) => void }) {
+function KzFieldRow({ field, value, siblings, onChange, depth }: { field: KzField; value: unknown; siblings: Record<string, unknown>; onChange: (v: unknown) => void; depth: number }) {
+  const wide = field.kind === "list" || field.kind === "object" || field.kind === "markdown" || field.kind === "code";
+  let control: React.ReactNode;
+  if (field.kind === "list") {
+    control = <KzListEditor field={field} items={(value as unknown[]) || []} siblings={siblings} depth={depth} onChange={(items) => onChange(items.length === 0 && !field.required ? undefined : items)} />;
+  } else if (field.kind === "object") {
+    control = KZ_SCHEMA.types[field.type]
+      ? <KzObjectFields typeName={field.type} value={(value as Record<string, unknown>) || {}} depth={depth + 1} onChange={(v) => onChange(Object.keys(v).length === 0 && !field.required ? undefined : v)} />
+      : <KzYaml value={value} onChange={onChange} />;
+  } else {
+    control = <KzControl field={field} value={value} onChange={onChange} />;
+  }
+  return (
+    <label className={`pe-field pe-field-${field.kind}${wide ? " pe-field-wide" : ""}`}>
+      <span className="pe-label">{kzTitle(field.name)}{field.required && <span className="pe-required" title="Required">*</span>}</span>
+      <span className="pe-control">{control}</span>
+    </label>
+  );
+}
+
+export function ComponentFieldEditor({ comp, onChange }: { comp: ComponentData; onChange: (c: ComponentData) => void }) {
+  const fields = KZ_SCHEMA.components[comp.type];
+  const data = comp as unknown as Record<string, unknown>;
+  if (!fields) return <KzYaml value={comp} onChange={(v) => onChange((v as ComponentData) || comp)} />;
+  return (
+    <div className="pe-fields">
+      {fields.map((f) => (
+        <KzFieldRow
+          key={f.name}
+          field={f}
+          value={data[f.name]}
+          siblings={data}
+          depth={0}
+          onChange={(v) => {
+            const next: Record<string, unknown> = { ...data };
+            if (v === undefined) delete next[f.name]; else next[f.name] = v;
+            onChange(next as ComponentData);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function NestedComponentList({ components, onChange }: { components: ComponentData[]; onChange: (comps: ComponentData[]) => void }) {
   const [addOpen, setAddOpen] = React.useState(false);
   return (
     <div className="pe-nested">
@@ -4473,10 +4550,7 @@ fn generate_editor(out: &mut String) {
   );
 }
 
-"#);
-
-    // ── 5. KazamComponentEditor ────────────────────────────────────────────
-    out.push_str(r#"function KazamComponentEditor({ comp, index, onChange, onRemove, onMove, isFirst, isLast }: {
+function KazamComponentEditor({ comp, index, onChange, onRemove, onMove, isFirst, isLast }: {
   comp: ComponentData; index: number;
   onChange: (index: number, data: ComponentData) => void;
   onRemove: (index: number) => void;
@@ -4501,10 +4575,7 @@ fn generate_editor(out: &mut String) {
   );
 }
 
-"#);
-
-    // ── 6. PageEditor ──────────────────────────────────────────────────────
-    out.push_str(r#"export function PageEditor({ page, onChange }: { page: PageData; onChange: (page: PageData) => void }) {
+export function PageEditor({ page, onChange }: { page: PageData; onChange: (page: PageData) => void }) {
   const [addMenuOpen, setAddMenuOpen] = React.useState(false);
   const comps = page.components || [];
 
@@ -4560,9 +4631,8 @@ fn generate_editor(out: &mut String) {
   );
 }
 
-export { KazamComponentEditor, ComponentFieldEditor, NestedComponentList, EDITOR_TYPES, newEditorComponent };
-"#);
-}
+export { KazamComponentEditor, NestedComponentList };
+"##;
 
 fn emit_enum(out: &mut String, name: &str, variants: &[&str]) {
     out.push_str("export type ");
@@ -4602,6 +4672,205 @@ fn emit_interface(out: &mut String, name: &str, fields: &[(&str, &str)]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The `case "<type>": {` block for one component in the emitted renderer,
+    /// plus any helper function the case delegates to.
+    fn render_region(out: &str, comp: &str) -> String {
+        let helpers: &[(&str, &str)] = &[
+            ("org_chart", "function OrgNode("),
+            ("chart", "function ChartSVG("),
+            ("graph", "function GraphSVG("),
+            ("accordion", "function AccordionView("),
+        ];
+        let mut region = String::new();
+        let needle = format!("\n    case \"{comp}\": {{");
+        if let Some(start) = out.find(&needle) {
+            let rest = &out[start + 1..];
+            let end = rest[1..]
+                .find("\n    case \"")
+                .or_else(|| rest[1..].find("\n    default:"))
+                .map(|i| i + 1)
+                .unwrap_or(rest.len());
+            region.push_str(&rest[..end]);
+        }
+        for (c, fn_needle) in helpers {
+            if *c == comp {
+                if let Some(start) = out.find(fn_needle) {
+                    let rest = &out[start..];
+                    let end = rest[1..]
+                        .find("\nfunction ")
+                        .map(|i| i + 1)
+                        .unwrap_or(rest.len());
+                    region.push_str(&rest[..end]);
+                }
+            }
+        }
+        region
+    }
+
+    /// Types reachable from a component through its list/object fields.
+    fn reachable_types(schema: &Schema, fields: &OMap<SchemaField>, acc: &mut Vec<String>) {
+        for (_, field) in fields {
+            let t = field.field_type.trim_end_matches("[]");
+            let t = t
+                .trim_start_matches('(')
+                .split('|')
+                .next()
+                .unwrap_or("")
+                .trim();
+            if schema.types.contains_key(t) && !acc.iter().any(|x| x == t) {
+                acc.push(t.to_string());
+                if let Some(inner) = schema.types.get(t) {
+                    reachable_types(schema, inner, acc);
+                }
+            }
+        }
+    }
+
+    /// Every content field (text / markdown / code / number) of every component,
+    /// and of every item type a component renders, must be tagged with
+    /// data-kz-field in that component's render code. This is what lets curata
+    /// edit any component in place without text matching. When you add a field
+    /// or a component, tag the element that displays it or add an explicit
+    /// exemption here with the reason.
+    #[test]
+    fn react_tags_every_content_field() {
+        let schema = load_schema();
+        let out = generate_react();
+        // (component, field) pairs the renderer does not display at all.
+        let exempt: &[(&str, &str)] = &[
+            ("card_grid", "Link.label"), // card.links is not rendered by card_grid
+            ("card_grid", "Link.href"),
+            ("graph", "GraphNode.hex"), // color override, styling only
+            ("tree", "TreeNode.due"),   // dates drive class names, not text
+            ("tree", "TreeNode.original_due"),
+            ("priority_queue", "QueueItem.original_due"), // rendered as derived "was <date>" slip
+            ("event_timeline", "EventItem.link"),
+        ];
+        let mut missing: Vec<String> = Vec::new();
+        for (comp, fields) in &schema.components {
+            let region = render_region(&out, comp);
+            if region.is_empty() {
+                // Components with no render case only pass if they have no content fields.
+                let has_content = fields
+                    .iter()
+                    .any(|(n, f)| CONTENT_KINDS.contains(&kind_of(n, f, &schema).as_str()));
+                if has_content {
+                    missing.push(format!("{comp}: no render case"));
+                }
+                continue;
+            }
+            for (fname, field) in fields {
+                let kind = kind_of(fname, field, &schema);
+                if !CONTENT_KINDS.contains(&kind.as_str()) {
+                    continue;
+                }
+                if exempt.contains(&(comp.as_str(), fname.as_str())) {
+                    continue;
+                }
+                let direct = format!("data-kz-field=\"{fname}\"");
+                if !region.contains(&direct) {
+                    missing.push(format!("{comp}.{fname}"));
+                }
+            }
+            let mut types = Vec::new();
+            reachable_types(&schema, fields, &mut types);
+            for tname in types {
+                let tfields = schema.types.get(&tname).expect("reachable type exists");
+                for (fname, field) in tfields {
+                    let kind = kind_of(fname, field, &schema);
+                    if !CONTENT_KINDS.contains(&kind.as_str()) {
+                        continue;
+                    }
+                    let key = format!("{tname}.{fname}");
+                    if exempt.contains(&(comp.as_str(), key.as_str())) {
+                        continue;
+                    }
+                    let nested = format!(".{fname}`}}");
+                    let nested_quoted = format!(".{fname}\"");
+                    if !region.contains(&nested) && !region.contains(&nested_quoted) {
+                        missing.push(format!("{comp}: {key}"));
+                    }
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "content fields without data-kz-field tags:\n  {}",
+            missing.join("\n  ")
+        );
+    }
+
+    /// List-shaped components expose their item container with data-kz-list so
+    /// editors can offer "+ item" in place.
+    #[test]
+    fn react_tags_list_containers() {
+        let out = generate_react();
+        let lists: &[(&str, &str)] = &[
+            ("card_grid", "cards"),
+            ("stat_grid", "stats"),
+            ("steps", "items"),
+            ("meta", "fields"),
+            ("timeline", "items"),
+            ("resources", "items"),
+            ("button_group", "buttons"),
+            ("definition_list", "items"),
+            ("avatar_group", "avatars"),
+            ("breadcrumb", "items"),
+            ("rule_list", "items"),
+            ("selectable_grid", "cards"),
+            ("event_timeline", "events"),
+            ("table", "rows"),
+            ("before_after", "items"),
+            ("priority_queue", "items"),
+            ("tree", "nodes"),
+            ("callout", "links"),
+            ("hero_banner", "buttons"),
+        ];
+        let mut missing = Vec::new();
+        for (comp, field) in lists {
+            let region = render_region(&out, comp);
+            if !region.contains(&format!("data-kz-list=\"{field}\"")) {
+                missing.push(format!("{comp}.{field}"));
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "list fields without data-kz-list: {missing:?}"
+        );
+    }
+
+    /// Every schema field resolves to a known kind, and the ordered map keeps
+    /// the file's field order (title before subtitle on header).
+    #[test]
+    fn schema_kinds_resolve_and_order_is_preserved() {
+        let schema = load_schema();
+        let allowed = [
+            "text", "markdown", "code", "number", "layout", "enum", "id", "url", "bool", "list",
+            "object",
+        ];
+        for (owner, fields) in schema.components.iter().chain(schema.types.iter()) {
+            for (fname, field) in fields {
+                let k = kind_of(fname, field, &schema);
+                assert!(
+                    allowed.contains(&k.as_str()),
+                    "{owner}.{fname} has unknown kind {k}"
+                );
+            }
+        }
+        let header: Vec<&String> = schema
+            .components
+            .get("header")
+            .unwrap()
+            .iter()
+            .map(|(n, _)| n)
+            .collect();
+        assert_eq!(header[0], "title");
+        assert_eq!(header[1], "subtitle");
+        let json = schema_json(&schema);
+        assert!(json.contains("\"kind\": \"markdown\""));
+        assert!(generate_react().contains("export const KZ_SCHEMA: KzSchema = "));
+    }
 
     #[test]
     fn typescript_output_contains_key_types() {
@@ -4697,7 +4966,7 @@ mod tests {
         let tsx = generate_react();
         assert!(
             tsx.contains(
-                "const events = [...rawEvents].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));"
+                "const events = rawEvents.map((e, idx) => ({ ...e, _kz: idx })).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));"
             ),
             "event_timeline must sort by date descending before rendering, not render authored order verbatim"
         );

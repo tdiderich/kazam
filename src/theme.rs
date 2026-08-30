@@ -3006,6 +3006,15 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   letter-spacing: 0.2px;
   margin: 0;
 }
+.c-chart-axes { display: flex; align-items: stretch; gap: 8px; }
+.c-chart-axes-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.c-chart-xlabel, .c-chart-ylabel {
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+.c-chart-ylabel { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; white-space: nowrap; }
 .c-chart-svg {
   width: 100%;
   height: auto;
