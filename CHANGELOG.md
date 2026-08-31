@@ -4,6 +4,18 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.0] - 2026-08-31
+
+### Added
+- `sdk emit-react`: shared `fitLabel(label, budgetPx, fontSize)` helper - estimates rendered width and end-ellipsizes SVG chart labels to a pixel budget; truncated labels carry the full text in a native `<title>` tooltip.
+
+### Changed
+- `chart` (bar, horizontal): labels moved onto their own line above a full-width bar - the fixed 80px gutter is gone, so long names no longer overflow the viewBox and bars use the full width.
+- `chart` (bar, vertical): x-labels auto-tilt -30deg when the longest label is wider than its slot, end-ellipsized past ~150px.
+- `chart` (timeseries): x-labels thinned to at most ~8 (every step-th point plus the last), each ellipsized to its slot so neighbors cannot collide.
+- `sankey`: node labels ellipsized to the side-margin / column-gap budget.
+- `radar`: axis labels ellipsized to the distance-to-edge budget.
+
 ## [1.25.0] - 2026-08-30
 
 ### Added
