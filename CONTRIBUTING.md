@@ -1,13 +1,13 @@
 # Contributing to kazam
 
-Thanks for the interest. kazam is small on purpose — Rust CLI, YAML in, HTML out — and the goal is to keep it that way. This guide covers how to propose a change, what we value in a PR, and how contributors can safely use coding agents alongside their own work.
+Thanks for the interest. kazam is small on purpose - Rust CLI, YAML in, HTML out - and the goal is to keep it that way. This guide covers how to propose a change, what we value in a PR, and how contributors can safely use coding agents alongside their own work.
 
 ## What kind of contributions are valued
 
 - **Bug fixes** with a reproducer in the description.
 - **New components** that compose with existing ones. A component earns its place by unlocking a real page type; a one-off CSS trick usually doesn't.
 - **Theme tokens / print / accessibility improvements** to existing components.
-- **Docs** — the hosted site lives in `docs/`, authored in kazam itself. Adding examples is always welcome.
+- **Docs** - the hosted site lives in `docs/`, authored in kazam itself. Adding examples is always welcome.
 - **CI / dev ergonomics.**
 
 If you're unsure whether a change fits, open a small issue first and describe the use case.
@@ -23,13 +23,13 @@ cargo test --release
 ./target/release/kazam dev docs --port 3002   # live-edit the docs site
 ```
 
-The `core.hooksPath` line activates the repo's pre-commit hook (`.githooks/pre-commit`), which runs `cargo fmt --check` and `cargo clippy` before every commit. Use the latest stable Rust toolchain via [rustup](https://rustup.rs). The repo pins nothing — if stable works, we support it.
+The `core.hooksPath` line activates the repo's pre-commit hook (`.githooks/pre-commit`), which runs `cargo fmt --check` and `cargo clippy` before every commit. Use the latest stable Rust toolchain via [rustup](https://rustup.rs). The repo pins nothing - if stable works, we support it.
 
 ## Fork + PR flow
 
 1. Fork on GitHub and clone your fork.
 2. Branch off `main`: `git checkout -b feature/short-name`.
-3. Make changes. Keep the diff focused — one concern per PR is easiest to review.
+3. Make changes. Keep the diff focused - one concern per PR is easiest to review.
 4. Run the local checks before pushing:
    ```bash
    cargo test --release
@@ -46,6 +46,7 @@ The `core.hooksPath` line activates the repo's pre-commit hook (`.githooks/pre-c
 - [ ] `cargo clippy --release -- -D warnings` passes (or justify any exception in the PR)
 - [ ] If you changed the output HTML or CSS, eyeball the docs site (`kazam dev docs --port 3002`) to confirm nothing regressed.
 - [ ] If you added a component or config field, update `AGENTS.md.template` and the relevant page under `docs/components/`.
+- [ ] If you added or changed a subcommand or its args, run `kazam cli-reference --write` and commit the README diff.
 - [ ] Commit messages are in the imperative mood ("add X", not "added X").
 
 ## Code style
@@ -65,7 +66,7 @@ kazam is fine territory for LLM-assisted contributions. A couple of expectations
 - **Don't paste secrets or third-party code** into agent prompts or into the repo. See `SECURITY.md` for more.
 - **Disclose agent usage in the PR body** if a meaningful portion was agent-authored. We're not against it; we just want the review to focus on the right things.
 
-## Architecture — where things live
+## Architecture - where things live
 
 ```
 src/
@@ -99,6 +100,76 @@ tests/                    Integration tests
 ```
 
 Most component additions touch: `types.rs` (struct), `render/components.rs` (HTML), `theme.rs` (CSS), plus a `docs/components/*.yaml` example.
+
+## Agent Graph Language (`.agl`), the `~/.kazam/agl` hub
+
+`.agl` specs and their importable fragments live in one place on a machine,
+by convention rather than any hub-management subcommand:
+
+```
+~/.kazam/agl/
+  specs/      authored .agl specs, one per task
+  shared/     importable fragments (invariant and/or cache blocks)
+  cache/      <name>.jsonl per named cache block - never touched by
+              kazam agl load, so regenerating a skill can't lose data
+  templates/  <name>.md boilerplate + known-good examples, referenced
+              by name from a state's own evaluate(...) text, no grammar
+```
+
+A bare name with no `/` and no `.agl` extension, passed to `validate`,
+`export`, `flow`, or `skill`, is shorthand for `~/.kazam/agl/specs/<name>.agl`.
+An `import "some/path.agl"` line inside a spec resolves relative to the
+importing file first, then falls back to `~/.kazam/agl/shared/<path>`.
+
+Grammar beyond what's in `PRODUCT.md`/`README.md`:
+
+- `import "path.agl"`, zero or more, before the `spec` keyword. Pulls a
+  fragment's `invariant { ... }` rules into the importing spec. Fragments
+  can nest imports; cycles are a hard error.
+- `requires: Server.method, Server.other_method`, optional, inside the
+  spec block after `out:`. Declares the dotted tool names the flow depends
+  on. `kazam agl validate` cross-checks this against every `call()`/`map()`
+  in the flow (`undeclared-tool-dependency` / `unused-tool-dependency`
+  warnings) so the list stays trustworthy. `kazam agl skill` renders it as
+  a preflight instruction: confirm every tool is available before executing
+  any state, abort immediately if one is missing, rather than discovering
+  the gap mid-graph after other states already ran.
+- `cache NAME { field: type, ... }`, zero or more, after `requires:`/
+  `skill:`, in a spec and/or a fragment it imports. Two blocks landing on
+  the same name with different fields is a hard error. `kazam agl skill`
+  renders a `## Cache` section per block naming its file
+  (`~/.kazam/agl/cache/NAME.jsonl`), its schema, and the check-before-
+  resolve / append-after-resolve convention. `kazam agl cache-migrate
+  <path> [--name NAME]` backfills an existing cache file's lines with a
+  type-appropriate default for any field the schema has since gained.
+
+Templates aren't grammar at all, just files: `~/.kazam/agl/templates/NAME.md`,
+`<!--spec-->` marks the boilerplate shape, `<!--samples-->` marks known good
+examples, no marker means the whole file is the shape. A state's own
+`evaluate(...)` text names one directly, like `evaluate(draft vs
+activity-summary)`. `kazam agl skill`/`load` check every distinct word
+across a spec's `evaluate(...)` expressions against real files in that
+directory and embed each match into a `## Templates` section.
+
+- `fan(SpecName, iterable)`, one primitive for composition and bounded
+  looping. `iterable` is a bare ident (an existing collection variable) or
+  a quoted count (`fan(SpecName, "5")`, a bound with nothing to iterate
+  over). `validator::has_gate_protected_writes` treats any spec containing
+  a `fan()` as gate-protected unconditionally - it never resolves the
+  fanned spec to check whether it actually has gates, every real fan
+  target in practice already does - so a fanning spec always refuses
+  `--isolated` and always runs inline. `kazam agl load` warns (doesn't
+  fail) if `SpecName` has no matching `~/.kazam/agl/specs/<name>.agl`.
+- `watch(CONDITION)`, a distinct action from `gate()`: polls an external
+  condition (CI status, a build finishing) rather than waiting on a human.
+  If `CONDITION`'s text names a time bound and it's exceeded, the executor
+  stops and reports rather than waiting indefinitely.
+
+`kazam agl flow <spec>` prints a plain ASCII rendering of the graph, states,
+actions, transitions, branch fan-out, meant as a quick "what does this
+actually do" read for a human, separate from `kazam agl skill`'s per-target
+compiled output (which embeds the same diagram after its preflight section,
+before the resolved source).
 
 ## License
 

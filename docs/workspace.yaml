@@ -5,7 +5,7 @@ components:
   - type: header
     title: Agent Workspace
     eyebrow: Make your agent faster
-    subtitle: Codebase indexing, task tracking, and a visual board — one command to set up.
+    subtitle: Codebase indexing, task tracking, and a visual board - one command to set up.
 
   # ── Why ───────────────────────────────────
   - type: section
@@ -19,7 +19,7 @@ components:
               variant: warn
               title: Without workspace
               body: |
-                The agent runs `find`, `ls`, and `grep` to map the repo — burning
+                The agent runs `find`, `ls`, and `grep` to map the repo - burning
                 hundreds of tokens per turn. Context compaction wipes all that
                 work. The next session starts from zero. Task progress is
                 invisible: no handoff, no history, no way to know what's done.
@@ -30,7 +30,7 @@ components:
                 A two-tier anatomy index answers "what's where" in one read.
                 Structured task tracking survives sessions, compaction, and agent
                 handoffs. A visual board shows status at a glance. Git hooks fire
-                silently — no workflow changes.
+                silently - no workflow changes.
 
   # ── Quickstart ────────────────────────────
   - type: section
@@ -48,7 +48,7 @@ components:
 
           1. Scans the codebase and writes `.kazam/ctx/anatomy.tsv` (root files)
              and `.kazam/ctx/anatomy/<dir>.tsv` (per-directory detail files).
-          2. Installs git hooks — session-start, post-write, session-stop.
+          2. Installs git hooks - session-start, post-write, session-stop.
           3. Writes `.claude/rules/kazam-workspace.md` (or equivalent) so your
              agent knows the conventions automatically.
           4. Creates `.kazam/track/tasks.yaml` ready for task entries.
@@ -72,13 +72,13 @@ components:
         body: |
           Navigation is a two-step read, not a filesystem crawl.
 
-          **Step 1 — summary.** `.kazam/ctx/anatomy.tsv` lists every root file
+          **Step 1 - summary.** `.kazam/ctx/anatomy.tsv` lists every root file
           with token counts and descriptions, plus a rollup for each directory
           (file count, total tokens, one-line description). Even for repos
-          with thousands of files this summary is ~68 lines — one read, full
+          with thousands of files this summary is ~68 lines - one read, full
           orientation.
 
-          **Step 2 — detail.** `.kazam/ctx/anatomy/<dir>.tsv` lists every file
+          **Step 2 - detail.** `.kazam/ctx/anatomy/<dir>.tsv` lists every file
           in that directory with per-file metadata. Nested paths use `--` as
           separator: `frontend/src/app` → `anatomy/frontend--src--app.tsv`.
 
@@ -119,7 +119,7 @@ components:
         body: |
           Tasks live in `.kazam/track/tasks.yaml`. They survive session ends,
           context compaction, and agent handoffs. The workspace rules file
-          instructs agents to close tasks immediately after each commit — no
+          instructs agents to close tasks immediately after each commit - no
           batching, no forgetting.
 
       - type: code
@@ -162,12 +162,83 @@ components:
           - Recent activity from the post-write hook log
 
           Run it in a separate terminal while the agent works. No config needed
-          — it picks up the site theme from `kazam.yaml` if one exists.
+          - it picks up the site theme from `kazam.yaml` if one exists.
 
       - type: code
         language: bash
         code: |
-          kazam board     # opens at localhost:3000, watches .kazam/ for changes
+          kazam board     # opens at localhost:3001, watches .kazam/ for changes
+
+  # ── Reading files ─────────────────────────
+  - type: section
+    eyebrow: Handoff
+    heading: Putting a file in front of you
+    components:
+      - type: markdown
+        body: |
+          An agent can open a browser tab. It cannot find the right window in your
+          editor and scroll to the right file. `kazam open` and `kazam show` close
+          that gap.
+
+          Both take exactly one file, and only `.md`, `.yaml`, `.yml`, or `.json`.
+          Any other extension is rejected by name, so a typo fails loudly instead
+          of rendering garbage.
+
+      - type: code
+        language: bash
+        code: |
+          kazam open notes.md        # browser, live reload, editable
+          kazam show config.yaml     # terminal, syntax colored
+
+      - type: markdown
+        body: |
+          `kazam open` renders markdown as HTML and shows YAML or JSON with line
+          numbers and per-token coloring. The toolbar has View, Edit, and Copy.
+          Selecting text copies it, in the rendered view and in the editor both.
+
+          The reason it is a server and not a preview window is the API sitting
+          next to the page. You type notes in the browser and the agent reads them
+          without you saving anything:
+
+      - type: table
+        columns:
+          - key: route
+            label: Route
+          - key: does
+            label: Returns
+        rows:
+          - route: GET /api/content
+            does: Raw text. Unsaved browser edits take priority over what is on disk
+          - route: POST /api/content
+            does: Replaces the in-memory buffer. Reports whether the text still parses
+          - route: POST /api/save
+            does: Writes the buffer to disk. Refused while a conflict is unresolved
+          - route: GET /api/rendered
+            does: Rendered HTML for the current text
+          - route: GET /api/status
+            does: dirty, conflict, valid, and the parse error when there is one
+
+      - type: callout
+        variant: info
+        title: Unsaved edits survive a disk write
+        body: |
+          If the file changes on disk while your buffer is dirty, the page does not
+          reload over your work. It shows a conflict bar with Keep mine and Load
+          from disk, and leaves the choice to you. Agents should check
+          `GET /api/status` before writing a file someone has open.
+
+      - type: callout
+        variant: info
+        title: Saving is explicit
+        body: |
+          Edits sit in memory until you hit Save or press Cmd+S. Nothing autosaves,
+          because writing on every keystroke would churn the file and fire your agent
+          hooks over and over. Agents can save too, with `POST /api/save`.
+
+          The write goes to a temp file and then gets renamed, so a crash cannot leave
+          a half-written file. A save is refused while the conflict bar is up, since
+          the file moved underneath your buffer and saving would overwrite whatever
+          landed there.
 
   # ── Hooks ─────────────────────────────────
   - type: section
@@ -176,7 +247,7 @@ components:
     components:
       - type: markdown
         body: |
-          Three hooks install automatically. They fire silently — no prompts,
+          Three hooks install automatically. They fire silently - no prompts,
           no workflow changes required.
 
       - type: columns
@@ -197,8 +268,8 @@ components:
           - - type: callout
               variant: info
               title: session-stop
-              body: Rescans the anatomy on exit so the next session — human or
-                agent — opens with a fresh index. No manual `kazam workspace scan`
+              body: Rescans the anatomy on exit so the next session - human or
+                agent - opens with a fresh index. No manual `kazam workspace scan`
                 needed between sessions.
 
   # ── Benchmarks ────────────────────────────
@@ -248,7 +319,7 @@ components:
       - type: markdown
         body: |
           Tested with Sonnet 4.6, identical prompts, git worktrees. Input tokens
-          per turn dropped 81–94% across the board — the anatomy index eliminates
+          per turn dropped 81–94% across the board - the anatomy index eliminates
           exploratory file reads.
 
   # ── Corrections ──────────────────────────
@@ -258,8 +329,8 @@ components:
     components:
       - type: markdown
         body: |
-          When an agent gets something wrong — misreads a file, applies the wrong
-          pattern, makes a false assumption — record it so future sessions don't
+          When an agent gets something wrong - misreads a file, applies the wrong
+          pattern, makes a false assumption - record it so future sessions don't
           repeat the mistake.
 
       - type: code
@@ -286,7 +357,7 @@ components:
       - type: markdown
         body: |
           Over time, resolved bugs pile up and learnings duplicate. `consolidate`
-          cleans house — removes resolved bugs older than N days and deduplicates
+          cleans house - removes resolved bugs older than N days and deduplicates
           learnings.
 
       - type: code
@@ -313,7 +384,7 @@ components:
         body: |
           `kazam workspace init` writes a default rules file for your agent
           (e.g. `.claude/rules/kazam-workspace.md`). If the defaults don't fit,
-          create `.kazam/ctx/rules-override.md` — its contents are appended to
+          create `.kazam/ctx/rules-override.md` - its contents are appended to
           the generated rules on every workspace init or rescan.
 
       - type: code
@@ -324,7 +395,7 @@ components:
           ## Project-specific rules
 
           - Always run `make lint` before committing.
-          - The `legacy/` directory is frozen — never modify files there.
+          - The `legacy/` directory is frozen - never modify files there.
           - Prefer integration tests over unit tests in this repo.
           EOF
 
@@ -341,7 +412,7 @@ components:
     variant: info
     title: Next up
     body: "Get the binary and run `kazam workspace init` in any repo. Then see
-      the components reference for the static site gen side — every primitive
+      the components reference for the static site gen side - every primitive
       you can drop into a kazam page."
     links:
       - label: Quickstart guide →

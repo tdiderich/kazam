@@ -91,7 +91,7 @@ components:
             components:
               - type: markdown
                 body: |
-                  Switch tabs to reveal different content. Tabs are purely client-side —
+                  Switch tabs to reveal different content. Tabs are purely client-side -
                   no routing, no page reloads.
           - label: Code
             components:
@@ -145,7 +145,7 @@ components:
             components:
               - type: markdown
                 body: |
-                  Mostly LLMs — the format is designed to be trivial to generate.
+                  Mostly LLMs - the format is designed to be trivial to generate.
                   Humans review and edit.
 
   - type: section

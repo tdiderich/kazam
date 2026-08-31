@@ -19,7 +19,7 @@ components:
 
   - type: callout
     style: info
-    body: "Run the refresh pipeline after any meeting that changes report data. Paste notes or provide a Granola meeting ID — the agent updates the relevant pages in place."
+    body: "Run the refresh pipeline after any meeting that changes report data. Paste notes or provide a Granola meeting ID - the agent updates the relevant pages in place."
 
   - type: section
     heading: "How it works"
@@ -29,7 +29,7 @@ components:
           1. Paste meeting notes, a transcript file path, or a Granola meeting ID
           2. Tell the agent which page(s) to update (or let it search)
           3. Agent extracts data points, decisions, and corrections
-          4. Updates are made in place — reports read as current, not as changelogs
+          4. Updates are made in place - reports read as current, not as changelogs
           5. Review the diff and confirm
 
   - type: section

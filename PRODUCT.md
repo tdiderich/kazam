@@ -1,28 +1,30 @@
-# kazam + curata — Product Plan
+# kazam + curata - Product Plan
 
 ## Model
 
 **kazam** is the free, open-source engine. **curata** (curata.ai) is the paid BYOA platform built on top. ProjectDiscovery/Nuclei model: the OSS tool is the top of the funnel, the platform is the business.
 
-### kazam (OSS CLI) — free forever
+### kazam (OSS CLI) - free forever
 
-The full Rust binary. Build sites, track freshness, run audits, ingest from Notion, scaffold wishes, MCP server with annotation tools, agent workspace — everything in this repo.
+The full Rust binary. Build sites, track freshness, run audits, ingest from Notion, scaffold wishes, install AI tool packs, MCP server with annotation tools, agent workspace: everything in this repo.
+
+**AI tool packs** are the newest capability and the tightest tie to the curata story: `kazam install <curata-url>` pulls a pack page from your org's private curata instance and compiles it into a repo's CLAUDE.md / .cursorrules. Knowledge that lives inside your company - standards, voice rules, engineering playbooks - flows straight into every engineer's AI tools. Content hashes make drift from the source page detectable, so packs stay current without manual tracking. The private registry is the distribution channel: org knowledge a public scraper can't reach, installed with managed versioning no GitHub directory offers.
 
 Users install via `cargo install` or Homebrew, run locally or in CI, own everything. Every curata customer starts here.
 
-### curata (BYOA Platform) — paid
+### curata (BYOA Platform) - paid
 
 Bring Your Own Agent. Customers bring their own AI agents with company-specific skills and MCP servers. curata provides:
 
-- **Web annotation view** — rich UI for commenting on rendered pages (text selection, section-level notes, status tracking)
-- **Hosted site** — CDN-served `_site/` output with auth (SSO/magic link)
-- **Queued updates feed** — activity feed showing agent changes with rendered before/after diffs
-- **Merge pipeline** — linear queue with push/approval/queued modes per page
-- **Notifications** — Slack/email/Teams nudges for stale pages, pending approvals, audit summaries
+- **Web annotation view** - rich UI for commenting on rendered pages (text selection, section-level notes, status tracking)
+- **Hosted site** - CDN-served `_site/` output with auth (SSO/magic link)
+- **Queued updates feed** - activity feed showing agent changes with rendered before/after diffs
+- **Merge pipeline** - linear queue with push/approval/queued modes per page
+- **Notifications** - Slack/email/Teams nudges for stale pages, pending approvals, audit summaries
 
 Customers provide their own AI tool (Claude Code, Cursor, Gemini CLI) and their own API keys for integrations. curata never runs LLMs on the customer's behalf in the base product.
 
-**BYOA is the whole product, not a tier.** "Managed" (curata runs agents for you) is speculative/future — only pursue if demand proves out.
+**BYOA is the whole product, not a tier.** "Managed" (curata runs agents for you) is speculative/future - only pursue if demand proves out.
 
 ### Why this works
 
@@ -33,7 +35,7 @@ Customers provide their own AI tool (Claude Code, Cursor, Gemini CLI) and their 
 
 ---
 
-## Architecture — the annotation bridge
+## Architecture - the annotation bridge
 
 Annotations are the key primitive that connects kazam and curata. They're human context that data sources can't capture: "customer is evaluating Wiz," "timeline moved to Q3," "this section is wrong."
 
@@ -57,18 +59,18 @@ Annotations are the key primitive that connects kazam and curata. They're human 
 
 | Phase | What | Status |
 |-------|------|--------|
-| 0 | Manual validation — comment blocks on 3-5 deals | Done |
+| 0 | Manual validation - comment blocks on 3-5 deals | Done |
 | 1 | Sidecar annotation schema + CLI + MCP + build rendering | Done |
-| 2 | Annotation-aware refresh — deal-360 prompt reads annotations | Done |
-| 3 | HTTP MCP hardening — `--local`/`--remote`, bearer token auth | Done |
+| 2 | Annotation-aware refresh - deal-360 prompt reads annotations | Done |
+| 3 | HTTP MCP hardening - `--local`/`--remote`, bearer token auth | Done |
 
 ### Next (curata repo)
 
 | Phase | What | Status |
 |-------|------|--------|
-| 4 | Web annotation view — rich UI in curata repo (TypeScript/React) | Next |
+| 4 | Web annotation view - rich UI in curata repo (TypeScript/React) | Next |
 | 5 | Deploy on 5 Maze deals + extend annotations to debrief/call-prep | Open |
-| 6 | curata platform — auth/RBAC, hosted CDN, BYOA API, diff review UI | Open |
+| 6 | curata platform - auth/RBAC, hosted CDN, BYOA API, diff review UI | Open |
 
 ---
 
@@ -77,7 +79,7 @@ Annotations are the key primitive that connects kazam and curata. They're human 
 Every agent change goes through one of three modes. The page owner (or site default) picks which.
 
 ### Mode 1: Push (default)
-Changes land immediately. Conflicts block — the agent must resolve and retry.
+Changes land immediately. Conflicts block - the agent must resolve and retry.
 
 ### Mode 2: Request Approval
 Changes queue for assigned reviewers before going live.
@@ -108,8 +110,8 @@ AI-native startups (10-200 people) who:
 - Know their docs are stale but don't have a process to fix it
 - Would pay to never think about doc freshness again
 
-GTM teams are the entry point — they feel the pain most acutely (deal pages, competitive docs, customer briefs) and the annotation pattern maps directly to their workflow.
+GTM teams are the entry point - they feel the pain most acutely (deal pages, competitive docs, customer briefs) and the annotation pattern maps directly to their workflow.
 
 ## Key Insight
 
-BYOA means curata is a convergence layer, not an AI product. Customers' agents already know their business; curata provides the structured surface where those agents' outputs meet. The value isn't the AI — it's the meeting point.
+BYOA means curata is a convergence layer, not an AI product. Customers' agents already know their business; curata provides the structured surface where those agents' outputs meet. The value isn't the AI - it's the meeting point.

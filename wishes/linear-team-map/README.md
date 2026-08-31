@@ -1,10 +1,10 @@
 # Linear Team Map Wish
 
-Build a "Who Owns What" page from your Linear workspace — maps people to teams, projects, and ownership based on actual issue activity.
+Build a "Who Owns What" page from your Linear workspace - maps people to teams, projects, and ownership based on actual issue activity.
 
 ## Prerequisites
 
-- `LINEAR_API_KEY` — Linear API key with read access (Settings → API → Personal API keys)
+- `LINEAR_API_KEY` - Linear API key with read access (Settings → API → Personal API keys)
 - Python 3.8+ with `requests` (run via `uv run --with requests` if not installed)
 
 ## What to customize
@@ -40,4 +40,4 @@ The finished page has:
 
 ## How team membership is inferred
 
-Linear doesn't expose team membership directly. This script infers it from issue assignments — if someone is assigned issues on a team in the last N days, they're counted as a member. Issue count serves as a proxy for activity level and focus area.
+Linear doesn't expose team membership directly. This script infers it from issue assignments - if someone is assigned issues on a team in the last N days, they're counted as a member. Issue count serves as a proxy for activity level and focus area.

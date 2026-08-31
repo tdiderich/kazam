@@ -1,3 +1,4 @@
 path	tokens	reads	description
-demo/charts.yaml	842	0	YAML configuration/data
-demo/primitives.yaml	1248	0	YAML configuration/data
+demo/charts.yaml	840	0	YAML configuration/data
+demo/primitives.yaml	1247	0	YAML configuration/data
+demo/priority-queue.yaml	1292	0	YAML configuration/data

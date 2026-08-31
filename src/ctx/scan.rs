@@ -23,6 +23,41 @@ const BINARY_EXTS: &[&str] = &[
     "pyc", "class", "wasm",
 ];
 
+/// Drain `.kazam/ctx/reads.log` into (path -> (count, latest timestamp)).
+///
+/// The read hook appends `path\ttimestamp` lines rather than mutating
+/// anatomy.flat.yaml directly: appends are cheap and survive parallel
+/// subagents, where a read-modify-write of the whole store would lose
+/// updates. Counts are folded into the anatomy on the next scan.
+fn drain_reads_log(project: &Path) -> HashMap<String, (u32, String)> {
+    let log_path = workspace::root(project).join("ctx/reads.log");
+    let Ok(text) = std::fs::read_to_string(&log_path) else {
+        return HashMap::new();
+    };
+
+    let mut pending: HashMap<String, (u32, String)> = HashMap::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let (path, ts) = line.split_once('\t').unwrap_or((line, ""));
+        let entry = pending
+            .entry(path.to_string())
+            .or_insert((0, String::new()));
+        entry.0 += 1;
+        if ts > entry.1.as_str() {
+            entry.1 = ts.to_string();
+        }
+    }
+
+    // Truncate rather than delete so the hook's `>>` target keeps existing.
+    // A read logged between the parse above and this write is lost; that is an
+    // acceptable trade for not holding a lock on the hot path.
+    let _ = std::fs::write(&log_path, "");
+    pending
+}
+
 pub fn scan(project: &Path) -> Result<AnatomyStore> {
     // The flat store lives at anatomy.flat.yaml (used by board + check + describe).
     // anatomy.yaml is the agent-facing layered summary written by write_layered().
@@ -50,6 +85,9 @@ pub fn scan(project: &Path) -> Result<AnatomyStore> {
         .iter()
         .map(|f| (f.path.as_str(), f))
         .collect();
+
+    // Reads recorded by the hook since the last scan, folded in below.
+    let pending_reads = drain_reads_log(project);
 
     let mut files: Vec<FileEntry> = Vec::new();
     let now = chrono::Local::now().to_rfc3339();
@@ -94,13 +132,25 @@ pub fn scan(project: &Path) -> Result<AnatomyStore> {
             .and_then(|f| f.description.clone())
             .or_else(|| heuristic_description(&rel, ext));
 
-        let reads = existing_by_path
+        let carried_reads = existing_by_path
             .get(rel.as_str())
             .map(|f| f.reads)
             .unwrap_or(0);
-        let last_read = existing_by_path
+        let carried_last_read = existing_by_path
             .get(rel.as_str())
             .and_then(|f| f.last_read.clone());
+
+        let (reads, last_read) = match pending_reads.get(&rel) {
+            Some((count, ts)) => (
+                carried_reads.saturating_add(*count),
+                if ts.is_empty() {
+                    carried_last_read
+                } else {
+                    Some(ts.clone())
+                },
+            ),
+            None => (carried_reads, carried_last_read),
+        };
 
         files.push(FileEntry {
             path: rel,
@@ -186,8 +236,8 @@ fn derive_dir_description(files: &[&FileEntry]) -> Option<String> {
 
 /// Build and write the two-tier layered anatomy files (TSV format).
 /// Writes:
-///   - `ctx/anatomy.tsv`  — summary (root files + directory rollups)
-///   - `ctx/anatomy/<dir>.tsv` — per-directory file listings
+///   - `ctx/anatomy.tsv`  - summary (root files + directory rollups)
+///   - `ctx/anatomy/<dir>.tsv` - per-directory file listings
 ///   - Also removes stale `.yaml` anatomy files (except `anatomy.flat.yaml`).
 pub fn write_layered(project: &Path, store: &AnatomyStore) -> Result<()> {
     let ctx_dir = workspace::root(project).join("ctx");
@@ -328,7 +378,7 @@ pub fn check(project: &Path) -> Result<ScanDiff> {
         });
     };
 
-    // If parse fails (e.g., anatomy.yaml is now a summary not a flat store), return empty diff
+    // If parse fails (ex. anatomy.yaml is now a summary not a flat store), return empty diff
     let stored: AnatomyStore = match workspace::read_yaml(&stored_path).context("read anatomy") {
         Ok(s) => s,
         Err(_) => {

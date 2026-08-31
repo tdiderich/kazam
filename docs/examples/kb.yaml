@@ -14,7 +14,7 @@ components:
 
   - type: callout
     variant: warn
-    title: Active incident — checkout-api
+    title: Active incident - checkout-api
     body: "Investigating elevated error rates. See [incident-427](#) for live status. Incident commander: Juan R."
 
   - type: section
@@ -120,7 +120,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Other example pages — docs, decks, landing pages, meeting briefs, API references, dashboards from live data.
+    body: Other example pages - docs, decks, landing pages, meeting briefs, API references, dashboards from live data.
     links:
       - label: See all use cases
         href: ../about.html

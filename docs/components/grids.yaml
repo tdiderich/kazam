@@ -29,7 +29,7 @@ components:
             badge:
               label: Healthy
               color: green
-            description: Enterprise — AWS us-east-1
+            description: Enterprise - AWS us-east-1
             links:
               - label: View
                 href: "#"
@@ -38,7 +38,7 @@ components:
             badge:
               label: At Risk
               color: yellow
-            description: Mid-Market — Azure
+            description: Mid-Market - Azure
             links:
               - label: View
                 href: "#"
@@ -46,7 +46,7 @@ components:
           - title: Gamma Inc
             badge:
               label: TBD
-            description: Enterprise — GCP
+            description: Enterprise - GCP
             links:
               - label: View
                 href: "#"
@@ -61,7 +61,7 @@ components:
                 badge:
                   label: Healthy
                   color: green    # green | yellow | red | default
-                description: Enterprise — AWS us-east-1
+                description: Enterprise - AWS us-east-1
                 links:
                   - label: View
                     href: /acme
@@ -113,7 +113,7 @@ components:
     components:
       - type: markdown
         body: |
-          Interactive grid — clicking a card selects it and (by default) dims the others.
+          Interactive grid - clicking a card selects it and (by default) dims the others.
           Useful for phase trackers, decision trees, multi-step explainers.
 
           Options: `interaction` is `single_select` (default), `multi_select`, or `none`.
@@ -198,7 +198,7 @@ components:
     heading: Profile / person
     components:
       - type: markdown
-        body: "Circular profile image with initials fallback. Four sizes — `sm`, `md`, `lg`, `xl`. Optional `subtitle` renders inline."
+        body: "Circular profile image with initials fallback. Four sizes - `sm`, `md`, `lg`, `xl`. Optional `subtitle` renders inline."
 
       - type: columns
         columns:
@@ -236,7 +236,7 @@ components:
     components:
       - type: markdown
         body: |
-          Two panels side by side — left for the current/bad state, right for the
+          Two panels side by side - left for the current/bad state, right for the
           improved state. Each panel has an optional eyebrow, a headline, and a list
           of stat rows with colored values. Good for landing pages, before/after
           comparisons, and competitive positioning.
@@ -274,7 +274,7 @@ components:
         code: |
           - type: split_compare
             left:
-              eyebrow: BEFORE       # optional — uppercase label above title
+              eyebrow: BEFORE       # optional - uppercase label above title
               title: Manual review cycles
               stats:
                 - label: Freshness tracking
@@ -326,16 +326,16 @@ components:
     heading: Term / definition pairs
     components:
       - type: markdown
-        body: "Native `<dl>` semantics — perfect for glossaries, API parameter references, acronym explainers."
+        body: "Native `<dl>` semantics - perfect for glossaries, API parameter references, acronym explainers."
 
       - type: definition_list
         items:
           - term: ACV
-            definition: Annual contract value — total yearly revenue from a customer's signed contract.
+            definition: Annual contract value - total yearly revenue from a customer's signed contract.
           - term: SLA
-            definition: Service level agreement — contractual uptime and performance guarantees.
+            definition: Service level agreement - contractual uptime and performance guarantees.
           - term: MTTR
-            definition: Mean time to resolve — average duration from incident detection to full resolution.
+            definition: Mean time to resolve - average duration from incident detection to full resolution.
 
       - type: code
         language: yaml
@@ -357,7 +357,7 @@ components:
           Renders the `roles:` config from `kazam.yaml` as a grid of clickable cards.
           Each role becomes a card with label, description, and optional icon. Add `href`
           to each role in your site config to make the cards link to section landing pages.
-          No per-page configuration needed — it reads directly from the site config.
+          No per-page configuration needed - it reads directly from the site config.
 
       - type: code
         language: yaml
@@ -377,7 +377,7 @@ components:
               label: Engineering
               description: "Dev setup, infrastructure, workflows"
               icon: code          # optional
-              href: /engineering  # optional — makes the card clickable
+              href: /engineering  # optional - makes the card clickable
             - id: ops
               label: Ops
               description: "People ops, hiring, admin"
@@ -386,7 +386,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Indicators add small signal to any page — badges, tags, status dots, progress bars, keyboard hints.
+    body: Indicators add small signal to any page - badges, tags, status dots, progress bars, keyboard hints.
     links:
       - label: Indicators
         href: indicators.html

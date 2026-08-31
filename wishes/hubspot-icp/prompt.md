@@ -6,7 +6,7 @@ You have a CSV at `scripts/icp-data.csv` with customers, late-stage deals, and c
 
 Analyze this data and update the kazam YAML page at the path specified in the refresh block with a data-driven ICP. Structure your analysis as:
 
-### 1. Customer DNA (P0 — highest confidence)
+### 1. Customer DNA (P0 - highest confidence)
 From existing customers, identify:
 - **Company size sweet spot**: employee count range and median
 - **Industry clusters**: which industries appear most
@@ -15,13 +15,13 @@ From existing customers, identify:
 - **Revenue/funding profile**: typical company stage and size
 - What makes these companies similar? What's the archetype?
 
-### 2. Pipeline validation (P1 — late-stage deals)
+### 2. Pipeline validation (P1 - late-stage deals)
 From late-stage deals (Business Validation, Negotiation, Closed Won):
 - Do they match the customer DNA or diverge?
 - Any new segments emerging in the pipeline?
 - Deal size patterns
 
-### 3. Closed-lost patterns (P2 — lighter review)
+### 3. Closed-lost patterns (P2 - lighter review)
 From closed-lost deals:
 - Common loss reasons
 - Are there company profiles that consistently lose? (wrong size, wrong industry, wrong stage)

@@ -12,77 +12,104 @@ use types::*;
 pub enum Command {
     /// Initialize .kazam/track/ with empty stores
     Init {
+        /// Gitignore .kazam/ for shared repos
         #[arg(long)]
         skunkworks: bool,
     },
     /// Add a new task
     Add {
+        /// One-line task title
         title: String,
+        /// 0 (highest) through 9 (lowest)
         #[arg(short, long, default_value_t = 2)]
         priority: u8,
+        /// Freeform category, e.g. task, bug, epic
         #[arg(short = 't', long, default_value = "task")]
         r#type: String,
+        /// Who owns closing this: agent or human
         #[arg(long, default_value = "agent")]
         owner: String,
+        /// Parent task ID, for subtasks under an epic
         #[arg(long)]
         parent: Option<String>,
+        /// Task IDs this one blocks, comma-separated
         #[arg(long, value_delimiter = ',')]
         blocks: Vec<String>,
+        /// Assignee name, claims the task immediately
         #[arg(long)]
         assign: Option<String>,
+        /// Freeform note attached to the task
         #[arg(long)]
         note: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Show tasks with no open blockers, sorted by priority
     Ready {
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Atomically claim a task (set assignee + active)
     Claim {
+        /// Task ID
         id: String,
+        /// Claimant name (alias: --as)
         #[arg(long, alias = "as")]
         name: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Close a completed task
     Close {
+        /// Task ID
         id: String,
+        /// What was done, recorded on the task
         #[arg(long)]
         reason: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Mark a task as blocked
     Block {
+        /// Task ID
         id: String,
+        /// Why it's blocked, recorded on the task
         #[arg(long)]
         reason: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// List tasks (optionally filtered)
     List {
+        /// Filter by status: open, closed, blocked
         #[arg(long)]
         status: Option<String>,
+        /// Filter by assignee name
         #[arg(long)]
         assignee: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Show the task tree
     Tree {
+        /// all, open, or closed
         #[arg(long, default_value = "all")]
         filter: String,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Show full details for a task
     Show {
+        /// Task ID
         id: String,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
@@ -93,6 +120,7 @@ pub enum Command {
         /// Preview without creating tasks
         #[arg(long)]
         dry_run: bool,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
@@ -105,8 +133,10 @@ pub enum Command {
     Log {
         #[command(subcommand)]
         action: Option<LogAction>,
+        /// Max entries to show
         #[arg(long, default_value_t = 25)]
         limit: usize,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
@@ -116,15 +146,21 @@ pub enum Command {
 pub enum DepAction {
     /// Add a dependency: BLOCKER blocks BLOCKED
     Add {
+        /// Task ID that must close first
         blocker: String,
+        /// Task ID that's blocked
         blocked: String,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
     /// Remove a dependency
     Rm {
+        /// Task ID that must close first
         blocker: String,
+        /// Task ID that's blocked
         blocked: String,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
@@ -134,13 +170,18 @@ pub enum DepAction {
 pub enum LogAction {
     /// Add a manual log entry
     Add {
+        /// One-line entry title
         title: String,
+        /// Where this came from, freeform
         #[arg(long)]
         source: Option<String>,
+        /// info, warning, or major
         #[arg(long, default_value = "info")]
         severity: String,
+        /// Associate with an existing task ID
         #[arg(long)]
         task_id: Option<String>,
+        /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
     },
@@ -306,7 +347,7 @@ fn cmd_import(project: &Path, file: &str, dry_run: bool, json: bool) -> Result<(
                 .collect();
             json_ok(&serde_json::json!({ "dry_run": true, "tasks": items }));
         } else {
-            println!("  dry run — {} tasks found in {file}:", tasks.len());
+            println!("  dry run - {} tasks found in {file}:", tasks.len());
             for (title, parent) in &tasks {
                 if parent.is_none() {
                     println!("    ★ {title} (epic)");
@@ -440,7 +481,7 @@ fn cmd_add(
     if json {
         json_ok(&task);
     } else {
-        println!("  ✓ {id} — {title}");
+        println!("  ✓ {id} - {title}");
     }
     Ok(())
 }
@@ -717,7 +758,7 @@ fn cmd_show(project: &Path, id: &str, json: bool) -> Result<()> {
         };
         json_ok(&rt);
     } else {
-        println!("  {} — {}", task.id, task.title);
+        println!("  {} - {}", task.id, task.title);
         println!(
             "  status: {}  priority: {}  type: {}",
             task.status, task.priority, task.task_type
@@ -776,7 +817,7 @@ fn cmd_dep_add(project: &Path, blocker: &str, blocked: &str, json: bool) -> Resu
         if json {
             json_err(&format!("cycle detected involving {cycle}"));
         } else {
-            bail!("cycle detected involving {cycle} — dependency not added");
+            bail!("cycle detected involving {cycle} - dependency not added");
         }
         return Ok(());
     }
@@ -856,7 +897,7 @@ fn cmd_log_list(project: &Path, limit: usize, json: bool) -> Result<()> {
                 .as_deref()
                 .map(|s| format!(" [{s}]"))
                 .unwrap_or_default();
-            println!("  {} —{src} {}", e.date, e.title);
+            println!("  {} -{src} {}", e.date, e.title);
         }
     }
     Ok(())

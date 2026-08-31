@@ -2,35 +2,242 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 
-const SESSION_START_SH: &str = r#"#!/bin/bash
-# kazam workspace — session start hook
-# Surfaces anatomy drift and ready tasks at the start of each agent session.
-# Silent when nothing is actionable (no drift, no ready tasks).
-if ! command -v kazam &>/dev/null; then
-  echo '{"ok":false,"error":"kazam not installed — run: cargo install --git https://github.com/tdiderich/kazam"}'
+// NOTE: r####"..."#### - the script emits markdown headings ("## ", "### "),
+// so anything shorter than four hashes terminates the literal early.
+const SESSION_START_SH: &str = r####"#!/bin/bash
+# kazam workspace - session start hook
+#
+# Fires on startup / resume / clear / compact. Stdout IS injected into the
+# fresh context, which makes this the one reliable place to restore state that
+# compaction dropped.
+#
+#   startup | resume | clear -> quiet orientation: anatomy drift + ready tasks
+#   compact                  -> full recovery payload replayed from .kazam/
+#
+# The compact branch reads only from kazam's existing stores (track/log.yaml,
+# track/tasks.yaml, ctx/*). No separate session-state file, so nothing can
+# drift out of sync with the work graph.
+
+set -uo pipefail
+
+if ! command -v kazam >/dev/null 2>&1; then
+  echo '{"ok":false,"error":"kazam not installed - run: cargo install --git https://github.com/tdiderich/kazam"}'
   exit 0
 fi
+cd "$(dirname "$0")/../.." || exit 0
+
+INPUT=$(cat 2>/dev/null || echo '{}')
 DRIFT=$(kazam ctx scan --check --json 2>/dev/null)
 READY=$(kazam track ready --json 2>/dev/null)
-HAS_DRIFT=$(echo "$DRIFT" | grep -c '"new_files":\[\|"deleted_files":\[\|"changed_files":\[' 2>/dev/null || true)
-HAS_READY=$(echo "$READY" | grep -c '"data":\[{' 2>/dev/null || true)
-if [ "$HAS_DRIFT" != "0" ] || [ "$HAS_READY" != "0" ]; then
+
+# jq drives the compact-recovery payload. Without it, degrade to plain
+# orientation rather than failing the hook.
+if ! command -v jq >/dev/null 2>&1; then
+  HAS_DRIFT=$(echo "$DRIFT" | grep -c '"new_files":\[\|"deleted_files":\[\|"changed_files":\[' 2>/dev/null || true)
+  HAS_READY=$(echo "$READY" | grep -c '"data":\[{' 2>/dev/null || true)
   [ "$HAS_DRIFT" != "0" ] && echo "$DRIFT"
   [ "$HAS_READY" != "0" ] && echo "$READY"
+  exit 0
 fi
-"#;
 
-const POST_WRITE_SH: &str = r#"#!/bin/bash
-# kazam workspace — post-write hook
-# Logs file modifications to the activity feed.
-FILE="$(echo "$KAZAM_TOOL_INPUT" | grep -o '"file_path":"[^"]*"' | head -1 | cut -d'"' -f4)"
-if [ -n "$FILE" ]; then
-  kazam track log add "Modified $FILE" --source "${KAZAM_AGENT:-agent}" --severity info 2>/dev/null
+SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // ""' 2>/dev/null || echo "")
+N_DRIFT=$(printf '%s' "$DRIFT" | jq -r \
+  '[(.data.changed_files // []), (.data.new_files // []), (.data.deleted_files // [])] | add | length' 2>/dev/null)
+N_READY=$(printf '%s' "$READY" | jq -r '(.data // []) | length' 2>/dev/null)
+
+# ---------------------------------------------------------------- normal start
+if [ "$SOURCE" != "compact" ]; then
+  [ "${N_DRIFT:-0}" != "0" ] && echo "$DRIFT"
+  [ "${N_READY:-0}" != "0" ] && echo "$READY"
+  exit 0
 fi
-"#;
+
+# ----------------------------------------------------- post-compaction recovery
+echo "## kazam state (post-compaction)"
+echo
+echo "Replayed from .kazam/ stores. Where this disagrees with the summary above,"
+echo "this is correct - the summary is lossy, these files are not."
+echo
+
+ACTIVE=$(kazam track list --status active --json 2>/dev/null \
+  | jq -r '(.data // [])[] | "- \(.id) [p\(.priority)] \(.title)\(if .note then "\n    note: " + (.note | .[0:220]) else "" end)"' 2>/dev/null)
+if [ -n "$ACTIVE" ]; then
+  echo "### Claimed / in flight"
+  echo "$ACTIVE"
+  echo
+  echo "Resume these before starting anything new. Close with:"
+  echo '  kazam track close <ID> --reason "what you did"'
+else
+  echo "### Claimed / in flight"
+  echo "- none claimed. Claim before working: kazam track claim <ID> --name <your-name>"
+fi
+echo
+
+if [ "${N_READY:-0}" != "0" ]; then
+  echo "### Ready (top 5 by priority)"
+  printf '%s' "$READY" | jq -r '(.data // [])[0:5][] | "- \(.id) [p\(.priority)] \(.title | .[0:150])"' 2>/dev/null
+  echo
+fi
+
+# Activity belonging to the transcript that was just summarized: everything
+# logged between the newest compact boundary and the one before it. File
+# modifications are split out and deduped so they cannot drown the task events.
+SLICE=$(kazam track log --limit 300 --json 2>/dev/null | jq -c '
+  (.data // []) as $e
+  | [ $e | to_entries[] | select(.value.title | startswith("compact boundary")) | .key ] as $b
+  | (if ($b | length) >= 2 then $e[($b[0] + 1):$b[1]]
+     elif ($b | length) == 1 then $e[($b[0] + 1):($b[0] + 61)]
+     else $e[0:60] end)
+' 2>/dev/null)
+
+ACTIVITY=$(printf '%s' "$SLICE" | jq -r '
+  .[]
+  | select(.title | startswith("Modified ") | not)
+  | "- [\(.severity)] \(.title | .[0:160])\(if .detail then "\n    " + (.detail | .[0:240]) else "" end)"
+' 2>/dev/null | head -30)
+if [ -n "$ACTIVITY" ]; then
+  echo "### Work logged in the compacted stretch"
+  echo "$ACTIVITY"
+  echo
+fi
+
+TOUCHED=$(printf '%s' "$SLICE" | jq -r '
+  [ .[] | select(.title | startswith("Modified ")) | .title[9:] ] | unique | .[]
+' 2>/dev/null)
+if [ -n "$TOUCHED" ]; then
+  N_TOUCHED=$(printf '%s\n' "$TOUCHED" | wc -l | tr -d ' ')
+  echo "### Files edited in the compacted stretch (${N_TOUCHED})"
+  printf '%s\n' "$TOUCHED" | head -30 | sed 's/^/- /'
+  echo
+fi
+
+if [ "${N_DRIFT:-0}" != "0" ]; then
+  echo "### Uncommitted file drift (${N_DRIFT} files)"
+  printf '%s' "$DRIFT" | jq -r '
+    [(.data.new_files // [] | map("new     " + .)),
+     (.data.changed_files // [] | map("changed " + .)),
+     (.data.deleted_files // [] | map("deleted " + .))] | add | .[0:25][] | "- " + .' 2>/dev/null
+  echo
+fi
+
+CORR=$(kazam ctx corrections --json 2>/dev/null \
+  | jq -r '(.data // [])[0:5][] | "- \(.file_path // "general"): \(.mistake | .[0:130]) -> \(.correction | .[0:200])"' 2>/dev/null)
+if [ -n "$CORR" ]; then
+  echo "### Standing corrections (do not repeat these)"
+  echo "$CORR"
+  echo
+fi
+
+LEARN=$(kazam ctx learnings --json 2>/dev/null \
+  | jq -r '(.data // [])[0:5][] | "- [\(.category // "note")] \(.lesson // .text // .title // "" | .[0:200])"' 2>/dev/null \
+  | grep -v '^- \[.*\] $' || true)
+if [ -n "$LEARN" ]; then
+  echo "### Recent learnings"
+  echo "$LEARN"
+  echo
+fi
+
+echo "### Reminders"
+echo "- Navigate via .kazam/ctx/anatomy.tsv then .kazam/ctx/anatomy/<dir>.tsv. Do not grep for structure."
+echo "- Dispatch kazam-scout for multi-file exploration so file dumps stay out of this context."
+echo "- Before fixing any error: kazam ctx bugs --file <path>"
+echo "- Close tasks per commit, do not batch."
+
+exit 0
+"####;
+
+const PRE_COMPACT_SH: &str = r##"#!/bin/bash
+# kazam workspace - pre-compact hook
+#
+# Fires immediately before /compact (manual) and before auto-compaction.
+# PreCompact stdout is not reliably injected into the compacted context, so
+# this hook deliberately prints nothing. Its job is to persist state into
+# kazam's stores, where session-start.sh replays it after the transcript has
+# been summarized away:
+#
+#   1. kazam ctx scan       -> anatomy reflects reality, not session start
+#   2. kazam track log add  -> durable "compact boundary" marker in log.yaml
+#
+# The boundary marker is what lets the post-compact hook replay only the
+# activity belonging to the transcript that was discarded. No jq dependency.
+
+set -uo pipefail
+
+command -v kazam >/dev/null 2>&1 || exit 0
+cd "$(dirname "$0")/../.." || exit 0
+
+INPUT=$(cat 2>/dev/null || echo '{}')
+TRIGGER=$(printf '%s' "$INPUT" | sed -n 's/.*"trigger"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+[ -z "$TRIGGER" ] && TRIGGER="unknown"
+
+kazam ctx scan >/dev/null 2>&1
+
+ACTIVE=$(kazam track list --status active --json 2>/dev/null \
+  | grep -o '"id":"[^"]*"' | cut -d'"' -f4 | paste -sd, - | tr -d '[:space:]')
+[ -z "$ACTIVE" ] && ACTIVE="none"
+
+TOUCHED=$(kazam ctx scan --check --json 2>/dev/null \
+  | grep -oE '"(changed|new)_files":\[[^]]*\]' | grep -o '"[^"]*\.[^"]*"' | wc -l | tr -d ' ')
+
+kazam track log add \
+  "compact boundary ($TRIGGER) | active: $ACTIVE | touched: ${TOUCHED:-0} files" \
+  --source compact --severity info >/dev/null 2>&1
+
+exit 0
+"##;
+
+const POST_TOOL_SH: &str = r##"#!/bin/bash
+# kazam workspace - post-tool hook
+#
+# Runs after Read / Write / Edit. Claude Code delivers the tool payload as JSON
+# on STDIN. An earlier version of this hook read a $KAZAM_TOOL_INPUT env var
+# that nothing ever sets, so it was a silent no-op in every workspace.
+#
+#   Write | Edit -> log the modification to the activity feed
+#   Read         -> append to ctx/reads.log, folded into anatomy on next scan
+#
+# Reads are appended rather than counted in place: appends are cheap on the hot
+# path and survive parallel subagents, where a read-modify-write of
+# anatomy.flat.yaml would silently lose updates.
+
+set -uo pipefail
+
+command -v kazam >/dev/null 2>&1 || exit 0
+cd "$(dirname "$0")/../.." || exit 0
+
+INPUT=$(cat 2>/dev/null || echo '{}')
+
+if command -v jq >/dev/null 2>&1; then
+  TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // ""' 2>/dev/null)
+  FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""' 2>/dev/null)
+else
+  TOOL=$(printf '%s' "$INPUT" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  FILE=$(printf '%s' "$INPUT" | grep -o '"file_path":"[^"]*"' | head -1 | cut -d'"' -f4)
+fi
+
+[ -n "$FILE" ] || exit 0
+
+# Normalize to a project-relative path so it matches anatomy entries.
+ROOT=$(pwd -P)
+case "$FILE" in "$ROOT"/*) FILE="${FILE#"$ROOT"/}" ;; esac
+# Still absolute means the file lives outside the project - not our business.
+case "$FILE" in /*) exit 0 ;; esac
+
+case "$TOOL" in
+  Read)
+    printf '%s\t%s\n' "$FILE" "$(date +%Y-%m-%dT%H:%M:%S)" >> .kazam/ctx/reads.log
+    ;;
+  Write|Edit|NotebookEdit)
+    kazam track log add "Modified $FILE" \
+      --source "${KAZAM_AGENT:-claude-code}" --severity info >/dev/null 2>&1
+    ;;
+esac
+
+exit 0
+"##;
 
 const STOP_SH: &str = r#"#!/bin/bash
-# kazam workspace — session stop hook
+# kazam workspace - session stop hook
 # Rescans anatomy, then summarizes session activity and suggests enrichment.
 kazam ctx scan 2>/dev/null
 DIFF=$(kazam ctx scan --check --json 2>/dev/null)
@@ -47,27 +254,27 @@ fi
 const WORKSPACE_RULES: &str = r#"# Kazam Workspace
 
 This project uses **kazam** for task tracking and context intelligence.
-Use kazam for ALL task tracking — do NOT use the built-in TaskCreate/TaskUpdate tools.
+Use kazam for ALL task tracking - do NOT use the built-in TaskCreate/TaskUpdate tools.
 State lives in `.kazam/` as YAML files.
 
 ## Prerequisites
 - kazam must be installed: `cargo install --git https://github.com/tdiderich/kazam`
 - If `kazam` is not on PATH, install it before using any workspace commands.
 
-## Navigating the codebase — MANDATORY
+## Navigating the codebase - MANDATORY
 **Before you `grep`, `find`, `ls`, or spawn a subagent to explore, read the
 anatomy index.** This is not optional. The index exists so you don't waste
 tokens scanning the filesystem.
 
-**Step 1 — Read the summary:**
-`.kazam/ctx/anatomy.tsv` — compact index with root files and directory rollups
+**Step 1 - Read the summary:**
+`.kazam/ctx/anatomy.tsv` - compact index with root files and directory rollups
 (file count, total tokens, description). ~68 lines even for huge repos.
 
-**Step 2 — Drill into a directory:**
-`.kazam/ctx/anatomy/<dir>.tsv` — individual files in that directory.
+**Step 2 - Drill into a directory:**
+`.kazam/ctx/anatomy/<dir>.tsv` - individual files in that directory.
 Nested paths use `--` as separator: `frontend/src/app` → `anatomy/frontend--src--app.tsv`.
 
-**Step 3 — Read the source file you need.**
+**Step 3 - Read the source file you need.**
 
 Summary → detail → source. Three reads, zero exploration.
 
@@ -79,7 +286,7 @@ citations, keeping file dumps out of the main conversation.
 **When delegating to subagents:** subagents don't see these rules, so you
 must brief them. Include in every subagent prompt:
 1. **Anatomy:** "Read `.kazam/ctx/anatomy.tsv` for project layout, then
-   `.kazam/ctx/anatomy/<dir>.tsv` for the directory you need — don't
+   `.kazam/ctx/anatomy/<dir>.tsv` for the directory you need - don't
    grep or find for structure."
 2. **Task context:** "You are working on task `<ID>`: <title>. When done,
    run `kazam track close <ID> --reason '<what you did>'`."
@@ -87,15 +294,27 @@ must brief them. Include in every subagent prompt:
    `kazam ctx describe <path> '<description>'`."
 
 ## On session start or context recovery
-Run `kazam track ready --json` to orient — see unblocked tasks sorted by priority.
-If resuming from a compacted context, this is how you re-establish what needs doing.
+The `SessionStart` hook already prints anatomy drift and ready tasks, so you
+normally start oriented. Re-run `kazam track ready --json` any time you need it
+again.
+
+**After a `/compact` or auto-compaction** the same hook prints a fuller recovery
+payload: claimed tasks with their notes, the activity logged during the stretch
+that was summarized away, uncommitted file drift, standing corrections, and
+recent learnings. Treat that payload as authoritative. The compaction summary is
+lossy; `.kazam/` is not. Where they disagree, `.kazam/` wins.
+
+This works because the `PreCompact` hook writes a `compact boundary` entry to
+`track/log.yaml` on the way out, which is what lets the recovery payload replay
+exactly the work belonging to the discarded transcript. Nothing is stored
+outside kazam's normal stores, so there is no second source of truth to drift.
 
 ## Before starting work
 - Claim a task: `kazam track claim <ID> --name <your-name>`.
 - **MANDATORY: before fixing any error**, run `kazam ctx bugs --file <path>`
   to check if it was solved before. Do not skip this step.
 
-## During work — close tasks as you go, don't batch
+## During work - close tasks as you go, don't batch
 - **After each commit**, check if it completes an open task. If so, close it
   immediately: `kazam track close <ID> --reason "what you did"`.
 - Tasks with `--owner human` are not yours to close. If one blocks your work,
@@ -135,11 +354,11 @@ model: sonnet
 ---
 
 You are kazam-scout, a repository exploration subagent. Your job is to find
-code and return citations — never to fix, refactor, or judge it.
+code and return citations - never to fix, refactor, or judge it.
 
 ## Protocol
 
-1. Check for `.kazam/ctx/anatomy.tsv`. If it exists, read it first — root
+1. Check for `.kazam/ctx/anatomy.tsv`. If it exists, read it first - root
    files and directory rollups. If it does not exist, skip to the fallback
    protocol below.
 2. Drill into `.kazam/ctx/anatomy/<dir>.tsv` for the directories that matter.
@@ -160,8 +379,8 @@ error out just because kazam isn't set up.
 Return ONLY this format:
 
 FINDINGS
-- path/to/file.rs:42-58 — router definition, handles the auth redirect
-- path/to/other.ts:101-119 — the only caller
+- path/to/file.rs:42-58 - router definition, handles the auth redirect
+- path/to/other.ts:101-119 - the only caller
 
 NOT FOUND (only if applicable)
 - searched: <patterns and directories covered>
@@ -178,18 +397,127 @@ After reading a file whose anatomy description is empty or generic, run:
 `kazam ctx describe <path> "<one line on what it actually does>"`
 "#;
 
+/// Marker line kazam stamps into the second line of every generated hook
+/// script (right after the shebang). Lets `workspace status` tell a script
+/// that was generated by an older kazam binary apart from the current
+/// templates, without diffing file contents against the compiled-in source.
+const SCAFFOLD_VERSION_PREFIX: &str = "# kazam-scaffold-version:";
+
+/// The crate version stamped into freshly generated hook scripts.
+fn current_scaffold_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+/// Insert the scaffold version marker as the second line of a hook script
+/// template (after the `#!/bin/bash` shebang).
+fn stamp_scaffold_version(script: &str) -> String {
+    let marker = format!("{SCAFFOLD_VERSION_PREFIX} {}", current_scaffold_version());
+    match script.split_once('\n') {
+        Some((shebang, rest)) => format!("{shebang}\n{marker}\n{rest}"),
+        None => format!("{script}\n{marker}\n"),
+    }
+}
+
+/// Read the scaffold version stamped into an installed hook script, if any.
+/// `None` means the script predates version stamping.
+fn read_scaffold_version(script: &str) -> Option<&str> {
+    script.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix(SCAFFOLD_VERSION_PREFIX)
+            .map(|v| v.trim())
+    })
+}
+
+/// True if a hooks-array entry (either the current nested shape or the
+/// legacy flat shape) is one kazam registered, identified by its
+/// `kazam-workspace:` description prefix.
+fn is_kazam_hook_entry(item: &serde_json::Value) -> bool {
+    let nested = item
+        .pointer("/hooks/0/description")
+        .and_then(|d| d.as_str());
+    let flat = item.pointer("/description").and_then(|d| d.as_str());
+    nested.is_some_and(|d| d.starts_with("kazam-workspace:"))
+        || flat.is_some_and(|d| d.starts_with("kazam-workspace:"))
+}
+
+/// Remove kazam-owned hook entries from a settings file that is *not* the
+/// current install target. Without this, re-running `workspace init` with a
+/// different skunkworks setting (or a config.yaml default that differs from
+/// the CLI flag) leaves a stale registration behind in the other file, and
+/// Claude Code merges both - every hook then fires twice.
+fn strip_kazam_hooks_from_settings(settings_path: &Path) -> Result<()> {
+    if !settings_path.exists() {
+        return Ok(());
+    }
+    let text = fs::read_to_string(settings_path)
+        .with_context(|| format!("read {}", settings_path.display()))?;
+    let Ok(mut settings) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Ok(());
+    };
+
+    let mut changed = false;
+    if let Some(obj) = settings.as_object_mut() {
+        if let Some(hooks_obj) = obj.get_mut("hooks").and_then(|h| h.as_object_mut()) {
+            for event in ["SessionStart", "PreCompact", "PostToolUse", "Stop"] {
+                if let Some(arr) = hooks_obj.get_mut(event).and_then(|v| v.as_array_mut()) {
+                    let before = arr.len();
+                    arr.retain(|item| !is_kazam_hook_entry(item));
+                    if arr.len() != before {
+                        changed = true;
+                    }
+                }
+            }
+            if changed {
+                hooks_obj.retain(|_, v| !v.as_array().is_some_and(|a| a.is_empty()));
+                if hooks_obj.is_empty() {
+                    obj.remove("hooks");
+                }
+            }
+        }
+    }
+
+    if changed {
+        let json = serde_json::to_string_pretty(&settings)?;
+        fs::write(settings_path, json)
+            .with_context(|| format!("write {}", settings_path.display()))?;
+    }
+    Ok(())
+}
+
 pub fn install(project: &Path, agent: &str, skunkworks: bool) -> Result<()> {
     let hooks_dir = crate::workspace::root(project).join("hooks");
     fs::create_dir_all(&hooks_dir).context("create hooks dir")?;
 
-    fs::write(hooks_dir.join("session-start.sh"), SESSION_START_SH)?;
-    fs::write(hooks_dir.join("post-write.sh"), POST_WRITE_SH)?;
-    fs::write(hooks_dir.join("stop.sh"), STOP_SH)?;
+    fs::write(
+        hooks_dir.join("session-start.sh"),
+        stamp_scaffold_version(SESSION_START_SH),
+    )?;
+    fs::write(
+        hooks_dir.join("pre-compact.sh"),
+        stamp_scaffold_version(PRE_COMPACT_SH),
+    )?;
+    fs::write(
+        hooks_dir.join("post-tool.sh"),
+        stamp_scaffold_version(POST_TOOL_SH),
+    )?;
+    fs::write(hooks_dir.join("stop.sh"), stamp_scaffold_version(STOP_SH))?;
+
+    // post-write.sh was the broken $KAZAM_TOOL_INPUT version, superseded by
+    // post-tool.sh. Remove it so stale copies stop shadowing the fix.
+    let legacy = hooks_dir.join("post-write.sh");
+    if legacy.exists() {
+        let _ = fs::remove_file(&legacy);
+    }
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        for name in ["session-start.sh", "post-write.sh", "stop.sh"] {
+        for name in [
+            "session-start.sh",
+            "pre-compact.sh",
+            "post-tool.sh",
+            "stop.sh",
+        ] {
             let p = hooks_dir.join(name);
             fs::set_permissions(&p, fs::Permissions::from_mode(0o755))?;
         }
@@ -263,19 +591,11 @@ pub fn uninstall(project: &Path) -> Result<()> {
             if let Some(obj) = settings.as_object_mut() {
                 if let Some(hooks) = obj.get_mut("hooks") {
                     if let Some(hooks_obj) = hooks.as_object_mut() {
-                        for event in ["SessionStart", "PostToolUse", "Stop"] {
+                        for event in ["SessionStart", "PreCompact", "PostToolUse", "Stop"] {
                             if let Some(arr) =
                                 hooks_obj.get_mut(event).and_then(|v| v.as_array_mut())
                             {
-                                arr.retain(|item| {
-                                    let nested = item
-                                        .pointer("/hooks/0/description")
-                                        .and_then(|d| d.as_str());
-                                    let flat =
-                                        item.pointer("/description").and_then(|d| d.as_str());
-                                    !nested.is_some_and(|d| d.starts_with("kazam-workspace:"))
-                                        && !flat.is_some_and(|d| d.starts_with("kazam-workspace:"))
-                                });
+                                arr.retain(|item| !is_kazam_hook_entry(item));
                                 if arr.is_empty() {
                                     hooks_obj.remove(event);
                                 }
@@ -293,9 +613,56 @@ pub fn uninstall(project: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Installed hook scripts whose scaffold version marker doesn't match the
+/// currently-running binary (or is missing entirely, for scripts generated
+/// before version stamping existed). Returned as `(script name, installed
+/// version)` pairs, in scripts-array order.
+fn stale_hook_scripts(project: &Path) -> Vec<(&'static str, Option<String>)> {
+    let hooks_dir = crate::workspace::root(project).join("hooks");
+    let scripts = [
+        "session-start.sh",
+        "pre-compact.sh",
+        "post-tool.sh",
+        "stop.sh",
+    ];
+    let current = current_scaffold_version();
+
+    scripts
+        .iter()
+        .filter_map(|name| {
+            let content = fs::read_to_string(hooks_dir.join(name)).ok()?;
+            match read_scaffold_version(&content) {
+                Some(v) if v == current => None,
+                Some(v) => Some((*name, Some(v.to_string()))),
+                None => Some((*name, None)),
+            }
+        })
+        .collect()
+}
+
+/// The `re-run kazam workspace init` warning line for one stale/unversioned
+/// hook script, shared between `workspace status` and the SessionStart hook's
+/// drift report so both surfaces phrase it identically.
+fn stale_hook_warning(name: &str, installed_version: Option<&str>) -> String {
+    let current = current_scaffold_version();
+    match installed_version {
+        Some(v) => {
+            format!("{name} stale (v{v}, current v{current}) - re-run kazam workspace init")
+        }
+        None => {
+            format!("{name} stale (no version marker, current v{current}) - re-run kazam workspace init")
+        }
+    }
+}
+
 pub fn status(project: &Path) -> Result<()> {
     let hooks_dir = crate::workspace::root(project).join("hooks");
-    let scripts = ["session-start.sh", "post-write.sh", "stop.sh"];
+    let scripts = [
+        "session-start.sh",
+        "pre-compact.sh",
+        "post-tool.sh",
+        "stop.sh",
+    ];
 
     let mut installed = 0;
     for name in &scripts {
@@ -315,6 +682,9 @@ pub fn status(project: &Path) -> Result<()> {
     let rules_exist = project.join(".claude/rules/kazam-workspace.md").exists();
 
     println!("  hook scripts: {installed}/{} installed", scripts.len());
+    for (name, version) in stale_hook_scripts(project) {
+        println!("  ⚠ {}", stale_hook_warning(name, version.as_deref()));
+    }
     println!(
         "  claude hooks: {}",
         if claude_registered {
@@ -339,6 +709,17 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
     let settings_path = project.join(".claude").join(settings_file);
     fs::create_dir_all(project.join(".claude")).context("create .claude")?;
 
+    // Whichever file we are NOT writing to this run may still be carrying a
+    // registration from a previous init (e.g. the CLI flag was absent this
+    // time but config.yaml's skunkworks default differed, or skunkworks was
+    // toggled). Strip it so the two settings files never both claim the hooks.
+    let other_settings_file = if skunkworks {
+        "settings.json"
+    } else {
+        "settings.local.json"
+    };
+    strip_kazam_hooks_from_settings(&project.join(".claude").join(other_settings_file))?;
+
     let mut settings: serde_json::Value = if settings_path.exists() {
         let text = fs::read_to_string(&settings_path)?;
         serde_json::from_str(&text).unwrap_or(serde_json::json!({}))
@@ -346,12 +727,16 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
         serde_json::json!({})
     };
 
-    let hooks_dir = crate::workspace::root(project).join("hooks");
-    let hooks_abs = hooks_dir
-        .canonicalize()
-        .unwrap_or(hooks_dir.clone())
-        .to_string_lossy()
-        .to_string();
+    // Reference the hook scripts through $CLAUDE_PROJECT_DIR rather than a
+    // canonicalized absolute path. .claude/settings.json is committed in plenty
+    // of repos, and an absolute path pins those hooks to whichever machine ran
+    // `workspace init` - every teammate then gets commands pointing at a
+    // directory that does not exist for them. Falls back to the working
+    // directory if the variable is ever absent.
+    let hooks_abs = format!(
+        "\"${{CLAUDE_PROJECT_DIR:-.}}\"/{}/hooks",
+        crate::workspace::DIR
+    );
 
     let obj = settings.as_object_mut().unwrap();
     let hooks = obj
@@ -373,13 +758,26 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
             }),
         ),
         (
-            "PostToolUse",
+            "PreCompact",
             serde_json::json!({
-                "matcher": "Write|Edit",
+                "matcher": "",
                 "hooks": [{
                     "type": "command",
-                    "command": format!("bash {hooks_abs}/post-write.sh"),
-                    "description": "kazam-workspace: log file modifications"
+                    "command": format!("bash {hooks_abs}/pre-compact.sh"),
+                    "description": "kazam-workspace: flush state and mark compaction boundary",
+                    "timeout": 20
+                }]
+            }),
+        ),
+        (
+            "PostToolUse",
+            serde_json::json!({
+                "matcher": "Read|Write|Edit|NotebookEdit",
+                "hooks": [{
+                    "type": "command",
+                    "command": format!("bash {hooks_abs}/post-tool.sh"),
+                    "description": "kazam-workspace: log file modifications and reads",
+                    "timeout": 10
                 }]
             }),
         ),
@@ -404,15 +802,7 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
             .unwrap();
 
         // Remove any existing kazam entries (by description prefix) to avoid duplicates.
-        // Check both nested format (/hooks/0/description) and legacy flat format (/description).
-        arr.retain(|item| {
-            let nested = item
-                .pointer("/hooks/0/description")
-                .and_then(|d| d.as_str());
-            let flat = item.pointer("/description").and_then(|d| d.as_str());
-            !nested.is_some_and(|d| d.starts_with("kazam-workspace:"))
-                && !flat.is_some_and(|d| d.starts_with("kazam-workspace:"))
-        });
+        arr.retain(|item| !is_kazam_hook_entry(item));
 
         arr.push(entry);
     }
@@ -420,4 +810,110 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
     let json = serde_json::to_string_pretty(&settings)?;
     fs::write(&settings_path, json).with_context(|| format!("write .claude/{settings_file}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn install_switches_skunkworks_without_duplicating_registration() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+        crate::workspace::ensure(project).unwrap();
+
+        install(project, "claude", true).unwrap();
+        let local_path = project.join(".claude/settings.local.json");
+        let main_path = project.join(".claude/settings.json");
+        assert!(local_path.exists());
+        assert!(!main_path.exists());
+
+        // Switching skunkworks off must move the registration to
+        // settings.json and strip it out of settings.local.json, not leave
+        // both files carrying it (which is what made every hook fire twice).
+        install(project, "claude", false).unwrap();
+        assert!(main_path.exists());
+
+        let main: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&main_path).unwrap()).unwrap();
+        for event in ["SessionStart", "PreCompact", "PostToolUse", "Stop"] {
+            assert_eq!(
+                main["hooks"][event].as_array().unwrap().len(),
+                1,
+                "expected exactly one {event} registration"
+            );
+        }
+
+        if local_path.exists() {
+            let local_text = fs::read_to_string(&local_path).unwrap();
+            assert!(!local_text.contains("kazam-workspace"));
+        }
+    }
+
+    #[test]
+    fn stamp_and_read_scaffold_version_round_trip() {
+        let stamped = stamp_scaffold_version("#!/bin/bash\necho hi\n");
+        assert!(stamped.starts_with(&format!(
+            "#!/bin/bash\n{SCAFFOLD_VERSION_PREFIX} {}\n",
+            current_scaffold_version()
+        )));
+        assert_eq!(
+            read_scaffold_version(&stamped),
+            Some(current_scaffold_version())
+        );
+    }
+
+    #[test]
+    fn fresh_install_reports_no_stale_scripts() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+        crate::workspace::ensure(project).unwrap();
+
+        install(project, "claude", false).unwrap();
+
+        assert!(stale_hook_scripts(project).is_empty());
+    }
+
+    #[test]
+    fn doctored_old_version_marker_is_reported_stale() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+        crate::workspace::ensure(project).unwrap();
+        install(project, "claude", false).unwrap();
+
+        let script_path = crate::workspace::root(project).join("hooks/session-start.sh");
+        let content = fs::read_to_string(&script_path).unwrap();
+        let doctored = content.replacen(
+            &format!("{SCAFFOLD_VERSION_PREFIX} {}", current_scaffold_version()),
+            &format!("{SCAFFOLD_VERSION_PREFIX} 0.0.1"),
+            1,
+        );
+        fs::write(&script_path, doctored).unwrap();
+
+        let stale = stale_hook_scripts(project);
+        assert_eq!(stale.len(), 1);
+        assert_eq!(stale[0].0, "session-start.sh");
+        assert_eq!(stale[0].1.as_deref(), Some("0.0.1"));
+        assert!(stale_hook_warning(stale[0].0, stale[0].1.as_deref())
+            .contains("stale (v0.0.1, current v"));
+    }
+
+    #[test]
+    fn missing_version_marker_is_reported_stale() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+        crate::workspace::ensure(project).unwrap();
+        install(project, "claude", false).unwrap();
+
+        // Pre-versioning scripts never had a marker line at all.
+        let script_path = crate::workspace::root(project).join("hooks/post-tool.sh");
+        fs::write(&script_path, "#!/bin/bash\necho legacy\n").unwrap();
+
+        let stale = stale_hook_scripts(project);
+        assert_eq!(stale.len(), 1);
+        assert_eq!(stale[0].0, "post-tool.sh");
+        assert_eq!(stale[0].1, None);
+        assert!(stale_hook_warning(stale[0].0, stale[0].1.as_deref())
+            .contains("stale (no version marker, current v"));
+    }
 }

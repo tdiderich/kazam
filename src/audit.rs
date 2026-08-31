@@ -1,4 +1,4 @@
-//! `kazam audit` — merged freshness + structural quality report.
+//! `kazam audit` - merged freshness + structural quality report.
 //!
 //! Walks the site directory (same filters as `freshness show`), evaluates
 //! every page against freshness cadence AND structural quality rules, and
@@ -250,7 +250,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                         owner: effective_owner.map(str::to_string),
                         issue: "no_sources_of_truth",
                         detail:
-                            "No sources_of_truth entries — drift detection won't cover this page"
+                            "No sources_of_truth entries - drift detection won't cover this page"
                                 .to_string(),
                         sources_of_truth: vec![],
                     });
@@ -279,7 +279,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                     .and_then(|f| f.owner.clone())
                     .or_else(|| page.owner.clone()),
                 issue: "empty_content",
-                detail: "Page has no components — content is empty".to_string(),
+                detail: "Page has no components - content is empty".to_string(),
                 sources_of_truth: page_sources.clone(),
             });
         }
@@ -297,7 +297,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
     let health_score = (clean_pages * 100).checked_div(total).unwrap_or(100) as u64;
 
     if pretty {
-        println!("Site audit — {}", today);
+        println!("Site audit - {}", today);
         println!(
             "  Health score: {}% ({}/{} pages clean)",
             health_score, clean_pages, total
@@ -331,7 +331,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
                     .owner
                     .as_deref()
                     .map(|o| format!("owner: {:<16}", o))
-                    .unwrap_or_else(|| "owner: —                ".to_string());
+                    .unwrap_or_else(|| "owner: -                ".to_string());
                 // Truncate path for display
                 let path_display = if issue.path.len() > 34 {
                     format!("...{}", &issue.path[issue.path.len() - 31..])
@@ -347,7 +347,7 @@ pub fn run(dir: &Path, pretty: bool) -> anyhow::Result<()> {
             }
         }
     } else {
-        // JSON output — hand-rolled to avoid a serde dep on the audit module
+        // JSON output - hand-rolled to avoid a serde dep on the audit module
         let issues_json: Vec<String> = issues
             .iter()
             .map(|e| {

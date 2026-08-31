@@ -4,10 +4,13 @@ use std::path::PathBuf;
 
 mod actions;
 mod agents;
+mod agl;
 mod annotations;
 mod audit;
 mod board;
 mod build;
+mod cli_reference;
+mod connect;
 mod ctx;
 mod dev;
 mod freshness;
@@ -15,15 +18,20 @@ mod icons;
 mod id;
 mod ingest;
 mod init;
+mod install;
 mod links;
 mod llms;
 mod manifest;
 mod mcp;
 mod minify;
+mod open;
+mod packhook;
 mod prompts;
 mod render;
 mod sdk;
 mod search;
+mod server;
+mod show;
 mod theme;
 mod track;
 mod types;
@@ -33,8 +41,12 @@ mod wish;
 mod workspace;
 
 #[derive(Parser)]
-#[command(name = "kazam", about = "Beautiful sites from simple YAML", version)]
-struct Cli {
+#[command(
+    name = "kazam",
+    about = "Local infrastructure for coding agents: context, visibility, durable execution",
+    version
+)]
+pub struct Cli {
     #[command(subcommand)]
     command: Command,
 }
@@ -43,8 +55,10 @@ struct Cli {
 enum Command {
     /// Build a site from a directory of .yaml files
     Build {
+        /// Directory of .yaml source files
         #[arg(default_value = ".")]
         dir: PathBuf,
+        /// Output directory for the built site
         #[arg(short, long, default_value = "_site")]
         out: PathBuf,
         /// Minify HTML, CSS, and JS in the output
@@ -69,23 +83,104 @@ enum Command {
     },
     /// Watch source, rebuild on change, serve at localhost:PORT
     Dev {
+        /// Directory of .yaml source files
         #[arg(default_value = ".")]
         dir: PathBuf,
+        /// Output directory for the built site
         #[arg(short, long, default_value = "_site")]
         out: PathBuf,
+        /// Port to serve the live-reloading site on
         #[arg(short, long, default_value_t = 3000)]
         port: u16,
     },
     /// Scaffold a new kazam site in <NAME>/
-    Init { name: String },
+    Init {
+        /// Directory to create, also used as the site name
+        name: String,
+    },
     /// Print the LLM authoring guide (full AGENTS.md to stdout)
     Agents,
-    /// Grant a wish — install a recipe for self-refreshing docs
+    /// Install an AI tool pack from a curata instance (writes CLAUDE.md + .cursorrules)
+    Install {
+        /// Pack URL: https://<instance>/pages/<slug>, /p/<org>/<slug>, <instance>/<slug>,
+        /// or a bare pack name (resolved against KAZAM_CURATA_URL)
+        url: String,
+        /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
+        #[arg(long)]
+        api_key: Option<String>,
+        /// Directory to write config files into (implies --repo if not "."; repo scope)
+        #[arg(short, long, default_value = ".")]
+        dir: PathBuf,
+        /// Install even if the page has no pack: (or skill:, with --as-skill) marker
+        #[arg(long)]
+        force: bool,
+        /// Override the pack's declared targets. Repeatable or comma-separated.
+        /// Supported: claude, cursor, agents, windsurf, copilot, gemini, aider
+        #[arg(long, value_delimiter = ',')]
+        cli: Vec<String>,
+        /// Also install the pack's declarative hooks (writes hook config +
+        /// registers the kazam runner in .claude/settings.json). Off by default.
+        #[arg(long)]
+        allow_hooks: bool,
+        /// Install for the current user (~/.claude), shared across every
+        /// project. This is the default when no scope flag is given.
+        #[arg(long)]
+        user: bool,
+        /// Install into this repo only (writes at --dir). Mutually exclusive
+        /// with --user.
+        #[arg(long)]
+        repo: bool,
+        /// Install a skill:-marked page as a Claude Code skill
+        /// (.claude/skills/<slug>/SKILL.md) instead of into rules targets.
+        /// Mutually exclusive with --cli.
+        #[arg(long)]
+        as_skill: bool,
+    },
+    /// Check installed packs for drift against their curata source pages
+    Check {
+        /// Directory to scan for installed packs
+        #[arg(short, long, default_value = ".")]
+        dir: PathBuf,
+        /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
+        #[arg(long)]
+        api_key: Option<String>,
+    },
+    /// Manage AI tool packs on the configured curata instance
+    Packs {
+        #[command(subcommand)]
+        command: PacksCommand,
+    },
+    /// Internal: run a declarative pack hook (registered in settings by install)
+    PackHook {
+        /// Pack slug whose hook config to load
+        #[arg(long)]
+        pack: String,
+        /// Index of the hook within the pack's config
+        #[arg(long)]
+        index: usize,
+        /// Absolute path to the hook config, set automatically by install.
+        /// When absent (pre-1.8.0 installs), falls back to walking up from
+        /// `dir` for the old `.kazam/packs/` location.
+        #[arg(long)]
+        config: Option<PathBuf>,
+        /// Project directory (default: current directory)
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
+    /// Grant a wish - install a recipe for self-refreshing docs
     Wish {
         #[command(subcommand)]
         command: WishCommand,
     },
-    /// Manage the work graph — tasks, dependencies, activity log.
+    /// Pull data from vendor APIs, transform, aggregate, and output to curata or terminal
+    Connect {
+        #[command(subcommand)]
+        command: connect::ConnectCommand,
+        /// Project directory (default: current directory)
+        #[arg(short, long, default_value = ".", global = true)]
+        dir: PathBuf,
+    },
+    /// Manage the work graph - tasks, dependencies, activity log.
     Track {
         #[command(subcommand)]
         command: track::Command,
@@ -93,7 +188,7 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
-    /// Manage context intelligence — file anatomy, learnings, bugs.
+    /// Manage context intelligence - file anatomy, learnings, bugs.
     Ctx {
         #[command(subcommand)]
         command: ctx::Command,
@@ -101,13 +196,27 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
-    /// Live dashboard — renders .kazam/ state as a visual board.
+    /// Live dashboard - renders .kazam/ state as a visual board.
     Board {
         /// Project directory (default: current directory)
         #[arg(default_value = ".")]
         dir: PathBuf,
+        /// Port to serve the board on
         #[arg(short, long, default_value_t = 3001)]
         port: u16,
+    },
+    /// Open a file (.md, .yaml, .json) in the browser with live reload and inline editing.
+    Open {
+        /// Path to the file to open
+        path: PathBuf,
+        /// Port to serve the file view on
+        #[arg(short, long, default_value_t = 3002)]
+        port: u16,
+    },
+    /// Pretty-print a file (.md, .yaml, .json) in the terminal.
+    Show {
+        /// Path to the file to show
+        path: PathBuf,
     },
     /// Initialize the full agent workspace (track + ctx + hooks) in one shot.
     Workspace {
@@ -186,7 +295,7 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
-    /// Audit site health — freshness, structural quality, and completeness
+    /// Audit site health - freshness, structural quality, and completeness
     Audit {
         /// Site directory
         #[arg(default_value = ".")]
@@ -217,6 +326,20 @@ enum Command {
     Theme {
         #[command(subcommand)]
         command: ThemeCommand,
+    },
+    /// Parse, validate, and compile Agent Graph Language (.agl) specs
+    Agl {
+        #[command(subcommand)]
+        command: agl::Command,
+    },
+    /// Generate the CLI command reference from --help metadata
+    CliReference {
+        /// Write the generated reference into README.md between the markers
+        #[arg(long)]
+        write: bool,
+        /// Exit 1 if README.md's block doesn't match freshly generated output (for CI)
+        #[arg(long)]
+        check: bool,
     },
 }
 
@@ -294,6 +417,62 @@ enum WishCommand {
     },
 }
 
+#[derive(Subcommand)]
+enum PacksCommand {
+    /// List installable pack pages from the configured curata instance
+    List {
+        /// Curata instance base URL (falls back to KAZAM_CURATA_URL)
+        #[arg(long)]
+        url: Option<String>,
+        /// API key for the curata instance (falls back to KAZAM_CURATA_API_KEY)
+        #[arg(long)]
+        api_key: Option<String>,
+    },
+}
+
+/// Resolve `kazam install`'s scope from CLI flags, prompting interactively
+/// when the scope is ambiguous. Kept deterministic input-wise (no hidden
+/// state beyond argv/stdin) so the CLI stays scriptable: an explicit `--dir`
+/// implies `--repo`, protecting scripted installs from a surprise prompt.
+fn resolve_install_scope(user: bool, repo: bool, dir: PathBuf) -> Result<install::InstallScope> {
+    use std::io::IsTerminal;
+
+    if user && repo {
+        anyhow::bail!("--user and --repo are mutually exclusive: pick one");
+    }
+    if repo {
+        return Ok(install::InstallScope::Repo(dir));
+    }
+    if user {
+        return Ok(install::InstallScope::User);
+    }
+
+    let dir_explicit = dir.as_path() != std::path::Path::new(".");
+    if dir_explicit {
+        return Ok(install::InstallScope::Repo(dir));
+    }
+
+    if std::io::stdin().is_terminal() {
+        use std::io::Write;
+        print!(
+            "Install for all your projects (user) or just this repo? [user/repo] (default: user): "
+        );
+        std::io::stdout().flush().ok();
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).ok();
+        let choice = line.trim().to_lowercase();
+        return if choice == "repo" || choice == "r" {
+            println!("Installing into this repo ({}).", dir.display());
+            Ok(install::InstallScope::Repo(dir))
+        } else {
+            println!("Installing for all your projects (user scope, ~/.claude).");
+            Ok(install::InstallScope::User)
+        };
+    }
+
+    Ok(install::InstallScope::User)
+}
+
 fn parse_mode(s: &str) -> types::Mode {
     match s {
         "light" => types::Mode::Light,
@@ -344,13 +523,40 @@ fn main() -> Result<()> {
         Command::Dev { dir, out, port } => dev::run(&dir, &out, port),
         Command::Init { name } => init::run(&name),
         Command::Agents => agents::run(),
+        Command::Install {
+            url,
+            api_key,
+            dir,
+            force,
+            cli,
+            allow_hooks,
+            user,
+            repo,
+            as_skill,
+        } => {
+            let scope = resolve_install_scope(user, repo, dir)?;
+            install::run(&url, api_key, scope, force, &cli, allow_hooks, as_skill)
+        }
+        Command::Check { dir, api_key } => install::check(&dir, api_key),
+        Command::Packs { command } => match command {
+            PacksCommand::List { url, api_key } => install::list_packs(url, api_key),
+        },
+        Command::PackHook {
+            pack,
+            index,
+            config,
+            dir,
+        } => packhook::run(&pack, index, config, &dir),
         Command::Wish { command } => match command {
             WishCommand::List { json } => wish::list(json),
             WishCommand::Init { name, dir, force } => wish::init(&name, dir, force),
         },
+        Command::Connect { command, dir } => connect::run(command, &dir),
         Command::Track { command, dir } => track::run(command, &dir),
         Command::Ctx { command, dir } => ctx::run(command, &dir),
         Command::Board { dir, port } => board::run(&dir, port),
+        Command::Open { path, port } => open::run(&path, port),
+        Command::Show { path } => show::run(&path),
         Command::Workspace { command, dir } => workspace::run_command(command, &dir),
         Command::Validate { dir, file, pretty } => {
             let errors = if let Some(file_path) = file {
@@ -511,7 +717,13 @@ fn main() -> Result<()> {
                 switchable,
             } => {
                 if switchable {
-                    let t = theme::dark();
+                    let m = parse_mode(&mode);
+                    let base_theme = if theme_name == "dark" {
+                        "violet"
+                    } else {
+                        &theme_name
+                    };
+                    let t = theme::Theme::named(base_theme, m);
                     print!("{}", theme::render_switchable_css(&t));
                 } else {
                     let m = parse_mode(&mode);
@@ -541,6 +753,8 @@ fn main() -> Result<()> {
                 Ok(())
             }
         },
+        Command::Agl { command } => agl::run(command),
+        Command::CliReference { write, check } => cli_reference::write_or_check(write, check),
         Command::Ingest { command } => match command {
             IngestCommand::Notion {
                 database,
@@ -565,8 +779,10 @@ fn main() -> Result<()> {
 pub enum FreshnessCommand {
     /// Show freshness status for all pages (default)
     Show {
+        /// Human-readable table output (default is JSON)
         #[arg(long)]
         pretty: bool,
+        /// Days since last update before a page counts as stale
         #[arg(long)]
         threshold: Option<u64>,
     },
@@ -641,10 +857,10 @@ pub enum IngestCommand {
     ///   DB URL:    notion.so/abc123?v=...         → --database abc123...
     ///   The 32-char hex string in the URL is the ID (add dashes for UUID format)
     Notion {
-        /// Notion database ID — each row becomes a page
+        /// Notion database ID - each row becomes a page
         #[arg(long)]
         database: Option<String>,
-        /// Notion page ID — import a single page and its children
+        /// Notion page ID - import a single page and its children
         #[arg(long)]
         page: Option<String>,
         /// Notion API token (default: .env NOTION_TOKEN or env var)

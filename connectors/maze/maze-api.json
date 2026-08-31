@@ -1,0 +1,1847 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Maze API",
+    "description": "The Maze API lets you pull vulnerability investigation data out of Maze into your own systems. Authenticate with an API key in the `X-API-Key` header.",
+    "version": "0.7.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.mazehq.com"
+    }
+  ],
+  "paths": {
+    "/v1/investigations/search": {
+      "post": {
+        "tags": [
+          "Investigations"
+        ],
+        "summary": "Search investigations",
+        "description": "Returns investigations for your organization, ordered by `updated_at` ascending.",
+        "operationId": "search_investigations",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestigationSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationSearchResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                },
+                "example": {
+                  "error": "too_many_requests",
+                  "detail": "Rate limit exceeded. Try again later."
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/investigations/exports/daily": {
+      "get": {
+        "tags": [
+          "Investigations"
+        ],
+        "summary": "List daily investigation exports",
+        "description": "Returns the most recent daily investigation export files for your organization, newest first, up to 14 entries.\n\nEach export is a delta: all investigations whose `updated_at` timestamp falls within that calendar day (UTC). Apply deltas in order to keep your own data store in sync. If an investigation appears in multiple deltas it was updated on multiple days — use the latest record.\n\nExport files are generated daily. When `format` is `jsonl.gz`, the file is JSONL gzip: each line is one investigation object with the same schema as items returned by `POST /v1/investigations/search`.",
+        "operationId": "list_daily_investigation_exports",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportListResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                },
+                "example": {
+                  "error": "too_many_requests",
+                  "detail": "Rate limit exceeded. Try again later."
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/investigations/exports/daily/{export_id}": {
+      "get": {
+        "tags": [
+          "Investigations"
+        ],
+        "summary": "Get daily investigation export",
+        "description": "Returns details and a time-limited signed download URL (1-minute TTL) for a specific daily investigation export file.\n\nWhen `format` is `jsonl.gz`, the file is JSONL gzip: each line is one investigation object with the same schema as items returned by `POST /v1/investigations/search`.\n\nNo `download_url` is returned when `status` is `empty` or `unavailable`.",
+        "operationId": "get_daily_investigation_export",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Export Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDownloadResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                },
+                "example": {
+                  "error": "too_many_requests",
+                  "detail": "Rate limit exceeded. Try again later."
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reports/fedramp/exports": {
+      "get": {
+        "tags": [
+          "FedRAMP (Beta)"
+        ],
+        "summary": "List FedRAMP deviation exports",
+        "description": "**Beta.** Returns your organization's most recent FedRAMP deviation exports, newest first, up to 20 entries.\n\nMetadata only. Read one export to get its download URLs.",
+        "operationId": "list_fedramp_exports",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FedrampExportListResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                },
+                "example": {
+                  "error": "too_many_requests",
+                  "detail": "Rate limit exceeded. Try again later."
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "x-maze-lifecycle": "beta"
+      },
+      "post": {
+        "tags": [
+          "FedRAMP (Beta)"
+        ],
+        "summary": "Create a FedRAMP deviation export",
+        "description": "**Beta.** Starts a FedRAMP deviation export for one calendar day and returns the export to poll.\n\nReturns `202` while the export is being produced, and `200` when an export for that day has already finished. Either way the `export_id` is the same for a given day: asking twice joins the export already running rather than starting a second one, and never renumbers a deviation request.\n\nDownload URLs are not returned here. Poll `GET /v1/reports/fedramp/exports/{export_id}` until `status` is `available`, then read `artifacts`.\n\nOne export runs at a time per organization: while one is `pending`, creating an export for a different day returns `409`. A day that has already finished is still returned, since that starts no work. A run that failed can be created again to retry it.",
+        "operationId": "create_fedramp_export",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/FedrampExportRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An export for this day has already finished.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FedrampExportSummary"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FedrampExportSummary"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                },
+                "example": {
+                  "error": "too_many_requests",
+                  "detail": "Rate limit exceeded. Try again later."
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "x-maze-lifecycle": "beta"
+      }
+    },
+    "/v1/reports/fedramp/exports/{export_id}": {
+      "get": {
+        "tags": [
+          "FedRAMP (Beta)"
+        ],
+        "summary": "Get a FedRAMP deviation export",
+        "description": "**Beta.** Returns one export and, once `status` is `available`, a time-limited signed download URL per file (1-minute TTL).\n\nBoth files hold the same records: `jsonl` is one deviation record per line, `jsonl.gz` is that file gzipped. Each carries a `sha256` to verify the download.\n\nEvery record names its kind in `deviation_type`. Read that field rather than assuming an export holds a single kind.\n\n`artifacts` is empty while the export is `pending`, when it is `empty`, and when it is `unavailable`.",
+        "operationId": "get_fedramp_export",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Export Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FedrampExportResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                },
+                "example": {
+                  "error": "too_many_requests",
+                  "detail": "Rate limit exceeded. Try again later."
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error",
+                    "detail"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Machine-readable error type."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-maze-lifecycle": "beta"
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CveDetailsResponse": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Short description of the CVE."
+          },
+          "potential_impact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Potential Impact",
+            "description": "Description of the potential damage if this CVE is exploited."
+          }
+        },
+        "type": "object",
+        "title": "CveDetailsResponse",
+        "description": "CVE text fields for the investigation snapshot."
+      },
+      "CvssResponse": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "CVSS version.",
+            "examples": [
+              "3.1",
+              "2.0",
+              "4.0"
+            ]
+          },
+          "base_score": {
+            "type": "number",
+            "title": "Base Score",
+            "description": "CVSS base score (0.0 – 10.0).",
+            "examples": [
+              5.5,
+              9.8
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "Qualitative severity label derived from the base score.",
+            "examples": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          },
+          "vector_string": {
+            "type": "string",
+            "title": "Vector String",
+            "description": "Full CVSS vector string.",
+            "examples": [
+              "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "Authority that assigned this score.",
+            "examples": [
+              "nvd@nist.gov (NIST)"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "base_score",
+          "severity",
+          "vector_string",
+          "source"
+        ],
+        "title": "CvssResponse"
+      },
+      "ExportDownloadResponse": {
+        "properties": {
+          "export_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Export Id",
+            "description": "Unique identifier for this export."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date",
+            "description": "Calendar day this export covers (UTC)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable",
+              "empty"
+            ],
+            "title": "Status",
+            "description": "`available` — file ready to download. `empty` — no investigations were updated that day. `unavailable` — export is not available for this date."
+          },
+          "record_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Count",
+            "description": "Number of investigations in the file. `null` if unavailable; `0` if empty."
+          },
+          "file_size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size Bytes",
+            "description": "Size of the export file in bytes. `null` if unavailable or empty."
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "jsonl.gz"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format",
+            "description": "File format. `null` if unavailable or empty."
+          },
+          "download_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Download Url",
+            "description": "Presigned S3 URL for downloading the file. Non-null only when `status` is `available`."
+          },
+          "download_url_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Download Url Expires At",
+            "description": "Expiration time of the download URL (UTC). Non-null only when `status` is `available`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "export_id",
+          "date",
+          "status",
+          "record_count",
+          "file_size_bytes",
+          "format",
+          "download_url",
+          "download_url_expires_at"
+        ],
+        "title": "ExportDownloadResponse"
+      },
+      "ExportFileResponse": {
+        "properties": {
+          "export_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Export Id",
+            "description": "Unique identifier for this export."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date",
+            "description": "Calendar day this export covers (UTC)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable",
+              "empty"
+            ],
+            "title": "Status",
+            "description": "`available` — file ready to download. `empty` — no investigations were updated that day. `unavailable` — export is not available for this date."
+          },
+          "record_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Count",
+            "description": "Number of investigations in the file. `null` if unavailable; `0` if empty."
+          },
+          "file_size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Size Bytes",
+            "description": "Size of the export file in bytes. `null` if unavailable or empty."
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "jsonl.gz"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format",
+            "description": "File format. `null` if unavailable or empty."
+          }
+        },
+        "type": "object",
+        "required": [
+          "export_id",
+          "date",
+          "status",
+          "record_count",
+          "file_size_bytes",
+          "format"
+        ],
+        "title": "ExportFileResponse"
+      },
+      "ExportListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ExportFileResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ExportListResponse"
+      },
+      "FedrampExportArtifact": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "jsonl",
+              "jsonl.gz"
+            ],
+            "title": "Format",
+            "description": "File format. Both hold the same records: `jsonl` is one JSON object per line, `jsonl.gz` is that file gzipped."
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes",
+            "description": "Size of the file in bytes."
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256",
+            "description": "SHA-256 of the file, to verify a completed download."
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url",
+            "description": "Time-limited signed URL for downloading the file."
+          },
+          "download_url_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Download Url Expires At",
+            "description": "Expiration time of the download URL (UTC)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "format",
+          "size_bytes",
+          "sha256",
+          "download_url",
+          "download_url_expires_at"
+        ],
+        "title": "FedrampExportArtifact"
+      },
+      "FedrampExportListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FedrampExportSummary"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "FedrampExportListResponse"
+      },
+      "FedrampExportRequest": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of",
+            "description": "Calendar day (UTC) the export covers, as `YYYY-MM-DD`. Defaults to today. Must not be in the future. A timestamp is rejected unless its time is exactly midnight, so no request is ever silently truncated to a different day.",
+            "examples": [
+              "2026-07-29"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "FedrampExportRequest"
+      },
+      "FedrampExportResponse": {
+        "properties": {
+          "export_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Export Id",
+            "description": "Unique identifier for this export."
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "Calendar day (UTC) the export covers."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "available",
+              "empty",
+              "unavailable"
+            ],
+            "title": "Status",
+            "description": "`pending` — the export is still being produced. Poll until it changes. `available` — the files are ready to download. `empty` — the export finished with no deviations to report. `unavailable` — the export failed. Create it again to retry."
+          },
+          "record_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Count",
+            "description": "Number of deviation records in the export. `null` while pending or when the export failed; `0` when empty."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "When the export was first requested (UTC)."
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At",
+            "description": "When the export finished (UTC). `null` while pending."
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/FedrampExportArtifact"
+            },
+            "type": "array",
+            "title": "Artifacts",
+            "description": "Downloadable files, each with its own signed URL. Empty unless `status` is `available`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "export_id",
+          "as_of",
+          "status",
+          "record_count",
+          "created_at",
+          "completed_at",
+          "artifacts"
+        ],
+        "title": "FedrampExportResponse"
+      },
+      "FedrampExportSummary": {
+        "properties": {
+          "export_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Export Id",
+            "description": "Unique identifier for this export."
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "Calendar day (UTC) the export covers."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "available",
+              "empty",
+              "unavailable"
+            ],
+            "title": "Status",
+            "description": "`pending` — the export is still being produced. Poll until it changes. `available` — the files are ready to download. `empty` — the export finished with no deviations to report. `unavailable` — the export failed. Create it again to retry."
+          },
+          "record_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Record Count",
+            "description": "Number of deviation records in the export. `null` while pending or when the export failed; `0` when empty."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "When the export was first requested (UTC)."
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At",
+            "description": "When the export finished (UTC). `null` while pending."
+          }
+        },
+        "type": "object",
+        "required": [
+          "export_id",
+          "as_of",
+          "status",
+          "record_count",
+          "created_at",
+          "completed_at"
+        ],
+        "title": "FedrampExportSummary"
+      },
+      "ImpactScore": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "title": "ImpactScore"
+      },
+      "InvestigationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "Unique identifier for this investigation."
+          },
+          "cve_id": {
+            "type": "string",
+            "title": "Cve Id",
+            "description": "CVE identifier this investigation was run against.",
+            "examples": [
+              "CVE-2021-44228"
+            ]
+          },
+          "scanner_finding_hash": {
+            "type": "string",
+            "title": "Scanner Finding Hash",
+            "description": "Maze's deduplication hash for this finding, computed from the scanner finding hash combined with orchestration context."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Timestamp of the most recent pipeline output change (always UTC). Advances when exploitability, likelihood, impact, severity, root cause analysis, or remediation outputs change. CVE metadata (see `snapshot`) can change without advancing this field."
+          },
+          "exploitability": {
+            "type": "string",
+            "enum": [
+              "exploitable",
+              "not_exploitable"
+            ],
+            "title": "Exploitability",
+            "description": "Exploitability verdict for this asset/CVE pair. 'exploitable': the CVE is actively exploitable on this asset. 'not_exploitable': the CVE cannot be triggered on this asset (includes cases where exploitability could not be conclusively determined)."
+          },
+          "exploitability_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exploitability Reason",
+            "description": "Short explanation for the exploitability verdict, drawn from the LLM analysis output."
+          },
+          "likelihood": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LikelihoodScore"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Likelihood score: estimated probability that this vulnerability leads to a security incident on this asset. Null when the assessment was skipped or inconclusive."
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImpactScore"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Impact score: estimated severity of damage if this vulnerability is successfully exploited. Null when the assessment was skipped or inconclusive."
+          },
+          "likelihood_assessment": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Likelihood Assessment",
+            "description": "Full structured output from the likelihood assessment agent, including reasoning, evidence, and intermediate conclusions. Null when no likelihood assessment has been produced."
+          },
+          "impact_assessment": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact Assessment",
+            "description": "Full structured output from the impact assessment agent, including reasoning, evidence, and intermediate conclusions. Null when no impact assessment has been produced."
+          },
+          "maze_severity": {
+            "$ref": "#/components/schemas/MazeScore",
+            "description": "Overall Maze risk score combining exploitability, likelihood, and impact. 'NOT_EXPLOITABLE' when the CVE cannot be exploited on this asset."
+          },
+          "vulnerability_root_cause_analysis": {
+            "items": {
+              "$ref": "#/components/schemas/RootCauseAnalysisItemResponse"
+            },
+            "type": "array",
+            "title": "Vulnerability Root Cause Analysis",
+            "description": "Structured root cause analysis identifying the conditions that make this asset vulnerable. Each item describes one root cause factor."
+          },
+          "investigation_steps": {
+            "items": {
+              "$ref": "#/components/schemas/InvestigationStepResponse"
+            },
+            "type": "array",
+            "title": "Investigation Steps",
+            "description": "Ordered steps the AI investigator took to reach its exploitability verdict."
+          },
+          "severity_details": {
+            "$ref": "#/components/schemas/SeverityDetailsResponse",
+            "description": "Human-readable explanation for the severity assessment, including the reasoning narrative and the specific factors that drove the score."
+          },
+          "remediation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RemediationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Remediation guidance for this vulnerability."
+          },
+          "related_scanner_findings": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedScannerFindingResponse"
+            },
+            "type": "array",
+            "title": "Related Scanner Findings",
+            "description": "Scanner findings covered by this investigation. A single investigation may cover multiple findings when the same CVE affects the same asset across different scanners or orchestration contexts."
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/InvestigationSnapshotResponse",
+            "description": "CVE context snapshot. May be silently updated when NVD refreshes CVSS scores or Maze re-generates CVE summaries, without advancing `updated_at`."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "cve_id",
+          "scanner_finding_hash",
+          "updated_at",
+          "exploitability",
+          "exploitability_reason",
+          "likelihood",
+          "impact",
+          "likelihood_assessment",
+          "impact_assessment",
+          "maze_severity",
+          "vulnerability_root_cause_analysis",
+          "investigation_steps",
+          "severity_details",
+          "remediation",
+          "related_scanner_findings",
+          "snapshot"
+        ],
+        "title": "InvestigationResponse"
+      },
+      "InvestigationSearchRequest": {
+        "properties": {
+          "updated_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated From",
+            "description": "Return investigations with `updated_at` at or after this time (ISO 8601). Timezone-naive values are treated as UTC."
+          },
+          "updated_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated To",
+            "description": "Return investigations with `updated_at` before this time (ISO 8601). Timezone-naive values are treated as UTC."
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor",
+            "description": "Pagination cursor from a previous response."
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 1000,
+            "minimum": 1,
+            "title": "Limit",
+            "description": "Maximum number of results to return.",
+            "default": 100
+          }
+        },
+        "type": "object",
+        "title": "InvestigationSearchRequest"
+      },
+      "InvestigationSearchResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/InvestigationResponse"
+            },
+            "type": "array",
+            "title": "Data",
+            "description": "Investigation results for this page."
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Pass this value as `cursor` to retrieve the next page. Null when there are no more results."
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "description": "Whether more results exist beyond this page."
+          }
+        },
+        "type": "object",
+        "required": [
+          "data",
+          "has_more"
+        ],
+        "title": "InvestigationSearchResponse"
+      },
+      "InvestigationSnapshotResponse": {
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "investigating",
+                  "closed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Current finding status. Updated by users or automation independently of the investigation pipeline."
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason",
+            "description": "Reason recorded with the most recent status transition."
+          },
+          "cve": {
+            "$ref": "#/components/schemas/CveDetailsResponse",
+            "description": "CVE text fields for this investigation."
+          },
+          "cvss": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CvssResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "CVSS metrics for the CVE."
+          }
+        },
+        "type": "object",
+        "required": [
+          "cve"
+        ],
+        "title": "InvestigationSnapshotResponse",
+        "description": "Fields that may change without advancing `updated_at`.\n\nThese reflect current state from sources outside the investigation pipeline:\nCVE data from NVD, and finding status from user/automation actions. If you\nare syncing by `updated_at`, treat this object as a best-effort current view\nrather than a point-in-time pipeline output."
+      },
+      "InvestigationStepProof": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Category of evidence collected.",
+            "examples": [
+              "OS Information",
+              "Code Analysis",
+              "Network Scan"
+            ]
+          },
+          "query_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProofQueryContext"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The query or command that produced this proof."
+          },
+          "summary_statement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Statement",
+            "description": "One-sentence summary of this proof's finding."
+          },
+          "interpretation_guide": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interpretation Guide",
+            "description": "Guidance on how to read and interpret the raw output."
+          },
+          "raw_output_in_markdown": {
+            "type": "string",
+            "title": "Raw Output In Markdown",
+            "description": "Raw tool output formatted as Markdown."
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "raw_output_in_markdown"
+        ],
+        "title": "InvestigationStepProof"
+      },
+      "InvestigationStepResponse": {
+        "properties": {
+          "step_number": {
+            "type": "integer",
+            "title": "Step Number",
+            "description": "Ordinal position of this step in the investigation sequence.",
+            "examples": [
+              1,
+              2
+            ]
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "What this step checked or attempted.",
+            "examples": [
+              "Check the installed version of the GNU C Library (glibc)."
+            ]
+          },
+          "findings": {
+            "type": "string",
+            "title": "Findings",
+            "description": "Summary of what was found in this step."
+          },
+          "proofs": {
+            "items": {
+              "$ref": "#/components/schemas/InvestigationStepProof"
+            },
+            "type": "array",
+            "title": "Proofs",
+            "description": "Evidence collected during this step."
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_number",
+          "description",
+          "findings",
+          "proofs"
+        ],
+        "title": "InvestigationStepResponse"
+      },
+      "LikelihoodScore": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "title": "LikelihoodScore"
+      },
+      "MazeScore": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL",
+          "NOT_EXPLOITABLE"
+        ],
+        "title": "MazeScore"
+      },
+      "ProofQueryContext": {
+        "properties": {
+          "raw_query": {
+            "type": "string",
+            "title": "Raw Query",
+            "description": "The raw query or command that was executed.",
+            "examples": [
+              "ldd --version"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Human-readable description of what was queried.",
+            "examples": [
+              "Executed ldd --version to identify the glibc version."
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "raw_query",
+          "description"
+        ],
+        "title": "ProofQueryContext"
+      },
+      "RelatedScannerFindingResponse": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "The scanner's own finding identifier."
+          },
+          "scanner": {
+            "type": "string",
+            "title": "Scanner",
+            "description": "Scanner that reported this finding."
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "Unified severity level."
+          },
+          "asset_id": {
+            "type": "string",
+            "title": "Asset Id",
+            "description": "Asset identifier as reported by the scanner."
+          },
+          "asset_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset Name",
+            "description": "Human-readable asset name."
+          },
+          "asset_type": {
+            "type": "string",
+            "title": "Asset Type",
+            "description": "Generic asset category."
+          },
+          "cloud_platform": {
+            "type": "string",
+            "title": "Cloud Platform",
+            "description": "Cloud platform."
+          },
+          "account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id",
+            "description": "Cloud account or project identifier."
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region",
+            "description": "Cloud region or location."
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags",
+            "description": "Tags associated with the asset, as provided by the scanner. Either a JSON object (key/value pairs) or a JSON array, depending on the scanner. Null when no tags are present."
+          },
+          "projects": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projects",
+            "description": "Project labels associated with the finding."
+          }
+        },
+        "type": "object",
+        "required": [
+          "scanner",
+          "severity",
+          "asset_id",
+          "asset_type",
+          "cloud_platform"
+        ],
+        "title": "RelatedScannerFindingResponse"
+      },
+      "RemediationRecommendationResponse": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Short title for this remediation step."
+          },
+          "instructions": {
+            "type": "string",
+            "title": "Instructions",
+            "description": "Detailed step-by-step instructions for applying this remediation."
+          },
+          "risks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Risks",
+            "description": "Known risks or trade-offs of applying this remediation step."
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "instructions",
+          "risks"
+        ],
+        "title": "RemediationRecommendationResponse"
+      },
+      "RemediationResponse": {
+        "properties": {
+          "short_description": {
+            "type": "string",
+            "title": "Short Description",
+            "description": "Brief summary of the recommended remediation approach."
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/RemediationRecommendationResponse"
+            },
+            "type": "array",
+            "title": "Recommendations",
+            "description": "Ordered list of specific remediation steps."
+          },
+          "additional_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Notes",
+            "description": "Optional supplementary context or caveats for remediation."
+          }
+        },
+        "type": "object",
+        "required": [
+          "short_description",
+          "recommendations"
+        ],
+        "title": "RemediationResponse"
+      },
+      "RootCauseAnalysisItemResponse": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Name of the root cause factor being assessed.",
+            "examples": [
+              "Vulnerable GNU C Library (glibc) Version"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "EXPLOITABLE",
+              "NOT_EXPLOITABLE",
+              "CANNOT_DETERMINE"
+            ],
+            "title": "Status",
+            "description": "Assessment result for this factor."
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning",
+            "description": "Explanation of why this factor is or is not present on the asset."
+          },
+          "actual_value": {
+            "type": "string",
+            "title": "Actual Value",
+            "description": "Observed value for this factor on the affected asset.",
+            "examples": [
+              "glibc version is 2.23"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "status",
+          "reasoning",
+          "actual_value"
+        ],
+        "title": "RootCauseAnalysisItemResponse"
+      },
+      "SeverityDetailsResponse": {
+        "properties": {
+          "reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning",
+            "description": "Narrative explanation for the severity assessment."
+          },
+          "severity_drivers": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Severity Drivers",
+            "description": "Structured factors that drove the severity score."
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity_drivers"
+        ],
+        "title": "SeverityDetailsResponse"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Investigations",
+      "description": "Query and export investigation data.\n\n**Search** — filter and paginate investigations in real time. Use `updated_from` for incremental sync.\n\n**Daily exports** — download JSONL.gz delta files, one per UTC day. Apply in order; keep the latest version of each investigation."
+    },
+    {
+      "name": "FedRAMP (Beta)",
+      "description": "Produce and download FedRAMP deviation exports.\n\nCreate an export for a calendar day, poll it, then download the JSONL and JSONL.gz files through signed URLs.\n\nAn export carries the deviation requests Maze has determined for your organization, each record naming its kind in `deviation_type`. Maze adds kinds over time, so treat that set as open and filter on the field rather than on the export.\n\n**Beta** — available to organizations with FedRAMP reporting enabled. The shape of these endpoints may still change."
+    }
+  ]
+}

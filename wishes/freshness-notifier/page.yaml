@@ -15,7 +15,7 @@ freshness:
 components:
   - type: header
     title: Freshness Notifications
-    subtitle: "Stale page digest — grouped by owner, delivered via Slack or Teams DM"
+    subtitle: "Stale page digest - grouped by owner, delivered via Slack or Teams DM"
 
   - type: callout
     style: info

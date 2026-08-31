@@ -22,7 +22,7 @@ freshness:
 components:
   - type: header
     title: Deal 360
-    subtitle: "Active pipeline — CRM data enriched with call intelligence and Slack activity"
+    subtitle: "Active pipeline - CRM data enriched with call intelligence and Slack activity"
 
   - type: callout
     style: info
@@ -35,7 +35,7 @@ components:
         body: |
           Below is an example of a populated deal dossier:
 
-          ### Acme Corp — Series B expansion
+          ### Acme Corp - Series B expansion
           **Stage:** Negotiation &nbsp; **Amount:** $85,000 &nbsp; **Close date:** 2025-03-15
 
           | Signal | Source | Detail |

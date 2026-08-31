@@ -10,9 +10,9 @@ Uses Linear's GraphQL API to:
 
 Env vars: LINEAR_API_KEY
 Output:
-  scripts/team-map-data.json   — full structured data
-  scripts/team-map-data.csv    — flat CSV for agent review
-  scripts/team-map-prompt.md   — analysis prompt for the agent
+  scripts/team-map-data.json   - full structured data
+  scripts/team-map-data.csv    - flat CSV for agent review
+  scripts/team-map-prompt.md   - analysis prompt for the agent
 """
 
 # ── Customization block ──────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 LINEAR_KEY = os.environ.get("LINEAR_API_KEY", "")
 if not LINEAR_KEY:
-    sys.exit("LINEAR_API_KEY not set — add it to .env")
+    sys.exit("LINEAR_API_KEY not set - add it to .env")
 
 LINEAR_URL = "https://api.linear.app/graphql"
 HEADERS = {"Authorization": LINEAR_KEY, "Content-Type": "application/json"}

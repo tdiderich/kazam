@@ -18,19 +18,19 @@ components:
           it's current. Nobody wants to be the one to fix it without knowing if it's even their
           responsibility.
 
-          This is the bystander effect in docs — diffuse ownership means effective ownership of zero.
+          This is the bystander effect in docs - diffuse ownership means effective ownership of zero.
 
           kazam makes freshness opt-in per page. When you add it, you get deterministic tracking:
 
-          - `owner:` — free-form field, email, Slack handle, team name
-          - `review_every:` — 30d, 90d, quarterly, yearly — whatever makes sense for the content
-          - `updated:` — the ISO date of the last substantive change
+          - `owner:` - free-form field, email, Slack handle, team name
+          - `review_every:` - 30d, 90d, quarterly, yearly - whatever makes sense for the content
+          - `updated:` - the ISO date of the last substantive change
 
           At build time, kazam computes status. Yellow banner if a review is due within 7 days.
           Red banner if it's already overdue. `_site/stale.md` written on every build that finds
-          anything stale — one file you can hand an agent and say "fix these."
+          anything stale - one file you can hand an agent and say "fix these."
 
-          No owner? No `review_every`? The page is always Fresh — there's nothing to compare
+          No owner? No `review_every`? The page is always Fresh - there's nothing to compare
           against. You get as much rigor as you opt into, nothing more.
 
   - type: section
@@ -41,14 +41,14 @@ components:
         body: |
           The context-switch problem is real. If updating docs means leaving the IDE, logging
           into a browser, navigating a wiki UI, finding the right page, and remembering what
-          the old content said — it won't happen. Engineers are not lazy; they are busy, and
+          the old content said - it won't happen. Engineers are not lazy; they are busy, and
           the friction is too high.
 
           kazam lives in the repo. YAML files sit next to the code they document. The CLI builds
           locally. The same PR that changes behavior can update the doc in one commit.
 
           One deliberate decision: the build does not fail on stale content. It flags it. The
-          right amount of nudge is a banner and a build report — not a broken CI pipeline that
+          right amount of nudge is a banner and a build report - not a broken CI pipeline that
           blocks a deploy because someone forgot to update a date field. Blocking deploys on
           doc staleness would teach engineers to remove the freshness metadata, which is the
           opposite of what you want.
@@ -79,7 +79,7 @@ components:
           | `list_annotations` | List all annotations on a page |
           | `update_annotation` | Change annotation status (incorporated, ignored) |
 
-          Agents query structured YAML directly — the same source that builds the site. No
+          Agents query structured YAML directly - the same source that builds the site. No
           HTML parsing. No export pipeline. The schema is the file.
 
           The MCP server runs over stdio (for local agents) or HTTP with bearer token auth
@@ -95,7 +95,7 @@ components:
         body: |
           Someone mentions a competitive threat on a customer call. It lives in the call
           transcript, maybe a Slack thread, maybe someone's personal notes. It never makes
-          it into the doc that matters — the customer page, the competitive brief, the
+          it into the doc that matters - the customer page, the competitive brief, the
           deal tracker.
 
           kazam's sidecar annotations capture this context at the moment it happens:
@@ -108,12 +108,12 @@ components:
 
       - type: markdown
         body: |
-          Annotations live as individual YAML files in `.kazam/annotations/` — not embedded
+          Annotations live as individual YAML files in `.kazam/annotations/` - not embedded
           in the page, so there are no write collisions or round-trip serialization issues.
           They render inline at build time with age indicators and status badges.
 
           The real power is the refresh loop. When an agent refreshes a page, it reads
-          pending annotations first — as the highest-priority source. Human context overrides
+          pending annotations first - as the highest-priority source. Human context overrides
           stale CRM data. After incorporating an annotation, the agent marks it `incorporated`.
           A 14-day decay window ensures nothing sits unreviewed forever.
 
@@ -146,7 +146,7 @@ components:
 
       - type: markdown
         body: |
-          The output is plain HTML and CSS — no runtime JavaScript. Host it anywhere: S3,
+          The output is plain HTML and CSS - no runtime JavaScript. Host it anywhere: S3,
           GitHub Pages, Firebase Hosting, any web server that can serve static files. The
           binary builds; your host serves. Nothing else in the chain.
 
@@ -172,7 +172,7 @@ components:
           in these docs is what exists.
 
           **The honest framing:** keep using Notion for brainstorming, project management, and
-          freeform collaboration. kazam is for technical truth — the docs that must be right for
+          freeform collaboration. kazam is for technical truth - the docs that must be right for
           the system to work. Architecture decision records, runbooks, API references, onboarding
           guides. The things that go stale and stay stale.
 
@@ -182,7 +182,7 @@ components:
     components:
       - type: markdown
         body: |
-          This is a partial picture — all tools have strengths outside this table.
+          This is a partial picture - all tools have strengths outside this table.
           The purpose is to show where kazam is differentiated, not to score every dimension.
 
       - type: table
@@ -199,17 +199,17 @@ components:
             label: GitBook
         rows:
           - feature: Freshness tracking
-            kazam: Native — owner, cadence, build-time banners
+            kazam: Native - owner, cadence, build-time banners
             notion: None
             confluence: None
             gitbook: Analytics only (page views, not content staleness)
           - feature: Agent access
-            kazam: MCP server — 8 tools (read, write, search, annotate)
+            kazam: MCP server - 8 tools (read, write, search, annotate)
             notion: None native (unofficial integrations exist)
             confluence: None
             gitbook: None
           - feature: Annotations
-            kazam: Sidecar YAML — CLI + MCP + build rendering
+            kazam: Sidecar YAML - CLI + MCP + build rendering
             notion: Comments (not agent-accessible)
             confluence: Comments (not agent-accessible)
             gitbook: None
@@ -229,12 +229,12 @@ components:
             confluence: Manual
             gitbook: Manual
           - feature: UI polish
-            kazam: CLI only — no admin UI
+            kazam: CLI only - no admin UI
             notion: Excellent
             confluence: Adequate
             gitbook: Excellent
           - feature: Real-time collab
-            kazam: None — use Git branches and PRs
+            kazam: None - use Git branches and PRs
             notion: Yes
             confluence: Yes
             gitbook: Limited

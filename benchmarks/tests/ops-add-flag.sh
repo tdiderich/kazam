@@ -1,4 +1,4 @@
-# DESC: Mid-size Python repo (8k files) — add a CLI flag to an existing tool
+# DESC: Mid-size Python repo (8k files) - add a CLI flag to an existing tool
 # Tests navigating a sprawling internal tools repo to find and modify the right file.
 
 REPO="$HOME/maze-repos/Ops---Internal-Tooling"

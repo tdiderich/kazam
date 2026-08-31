@@ -37,7 +37,7 @@ components:
         badge:
           label: new
           color: teal
-        description: "pie, bar (vertical/horizontal), timeseries — inline SVG, themed, stackable"
+        description: "pie, bar (vertical/horizontal), timeseries - inline SVG, themed, stackable"
         links:
           - label: Open →
             href: charts.html
@@ -53,9 +53,9 @@ components:
 
       - title: Layout
         badge:
-          label: "10"
+          label: "11"
           color: default
-        description: "section, columns, divider, timeline, event_timeline, tree, venn, steps, progress_bar, empty_state"
+        description: "section, columns, divider, timeline, event_timeline, tree, priority_queue, venn, steps, progress_bar, empty_state"
         links:
           - label: Open →
             href: layout.html
@@ -86,7 +86,7 @@ components:
         body: |
           Every component in a page's `components:` list has a `type:` field (snake_case name)
           and its own property fields. Nothing else. Consistent shape makes LLM generation
-          trivial — the model just picks the type and fills the props.
+          trivial - the model just picks the type and fills the props.
 
       - type: code
         language: yaml
@@ -107,7 +107,7 @@ components:
   - type: callout
     variant: info
     title: Next up
-    body: Start with content primitives — headers, markdown, code blocks, callouts, images. The building blocks every page uses.
+    body: Start with content primitives - headers, markdown, code blocks, callouts, images. The building blocks every page uses.
     links:
       - label: Content components
         href: content.html

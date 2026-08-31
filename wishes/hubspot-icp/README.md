@@ -4,18 +4,18 @@ Build a data-driven Ideal Customer Profile page from your HubSpot CRM deals and 
 
 ## Prerequisites
 
-- `HUBSPOT_API_TOKEN` — HubSpot private app token with CRM read access (deals, companies, pipelines)
-- `APOLLO_API_KEY` — Apollo.io API key (uses the paid `/organizations/enrich` endpoint, ~1 credit per company)
+- `HUBSPOT_API_TOKEN` - HubSpot private app token with CRM read access (deals, companies, pipelines)
+- `APOLLO_API_KEY` - Apollo.io API key (uses the paid `/organizations/enrich` endpoint, ~1 credit per company)
 - Python 3.8+ with `requests` (run via `uv run --with requests` if not installed)
 
 ## What to customize
 
 ### script.py
 
-- **`LATE_STAGE_PREFIXES`** (line ~15): These prefixes match your HubSpot deal stage labels for late-stage deals. The script prints all stage labels on first run — check the output and update these to match your pipeline.
+- **`LATE_STAGE_PREFIXES`** (line ~15): These prefixes match your HubSpot deal stage labels for late-stage deals. The script prints all stage labels on first run - check the output and update these to match your pipeline.
 - **`CLOSED_LOST_PREFIXES`** (line ~16): Same idea for closed-lost stages. The default uses `hs_is_closed_won=false` which works across all pipelines, so you may not need to change this.
 - **`COMPANY_PROPS` / `DEAL_PROPS`**: Add any custom HubSpot properties you want in the CSV output.
-- **Apollo enrichment**: If you don't have an Apollo key, the script still works — you just get HubSpot data only (no tech stacks, keywords, or funding data).
+- **Apollo enrichment**: If you don't have an Apollo key, the script still works - you just get HubSpot data only (no tech stacks, keywords, or funding data).
 
 ### page.yaml
 

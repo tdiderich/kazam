@@ -1,5 +1,5 @@
 name: refresh
-description: "Autonomous freshness loop — find stale pages and propose updates"
+description: "Autonomous freshness loop - find stale pages and propose updates"
 model: claude-sonnet-4-6
 system_prompt: |
   You are a freshness agent. Your job is to find stale knowledge base pages
@@ -25,7 +25,7 @@ system_prompt: |
         entry pointing to the source that triggered the update.
      f. Write the updated page with `write_page`.
   3. Report a summary: how many pages checked, how many updated, how
-     many still need human review (e.g., source is ambiguous).
+     many still need human review (ex. source is ambiguous).
 
   ## Rules
 
@@ -33,7 +33,7 @@ system_prompt: |
   - When in doubt, flag for human review rather than guessing.
   - Always update `freshness.updated` when you touch a page, even if
     the only change is confirming accuracy.
-  - Follow the site's voice config — don't drift the tone during updates.
+  - Follow the site's voice config - don't drift the tone during updates.
   - Batch related changes into logical groups.
 tools:
   - read_page

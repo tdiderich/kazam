@@ -31,7 +31,7 @@ impl Shell {
 /// detected from the page being rendered.
 #[derive(Deserialize, Clone)]
 pub struct HubConfig {
-    /// Hub identity shown in the masthead — usually the customer name.
+    /// Hub identity shown in the masthead - usually the customer name.
     pub name: String,
     /// Small label above the name, e.g. "CUSTOMER" or the segment.
     #[serde(default)]
@@ -50,6 +50,108 @@ pub struct HubConfig {
 pub struct HubLink {
     pub label: String,
     pub href: String,
+}
+
+/// `skill:` block on a page - marks it as an agent skill whose procedure
+/// content (markdown steps and/or ```agl fences) `kazam validate` checks.
+#[derive(Deserialize)]
+// trigger/requires are schema contract for the skill compile path
+// (kazam install -> .claude/skills); validation only checks presence today.
+#[allow(dead_code)]
+pub struct SkillMeta {
+    /// Phrases that should route an agent to this skill.
+    #[serde(default)]
+    pub trigger: Option<String>,
+    /// Tools/servers the skill needs at run time (informational).
+    #[serde(default)]
+    pub requires: Vec<String>,
+}
+
+/// `pack:` block on a page - marks it as an AI tool pack.
+#[derive(Deserialize)]
+pub struct PackMeta {
+    /// Which tool config files to write. Empty = all supported targets.
+    /// Valid values: claude, cursor, agents, windsurf, copilot, gemini, aider.
+    #[serde(default)]
+    pub targets: Vec<String>,
+    /// Declarative guardrail hooks. Packs never ship executable code; each hook
+    /// is data the trusted kazam runner interprets. Deny/inject/review only.
+    #[serde(default)]
+    pub hooks: Vec<PackHook>,
+}
+
+/// Which tool call a PreToolUse/PostToolUse hook applies to. `tool` is a
+/// matcher pattern passed through verbatim to the harness, so any matcher the
+/// harness understands works: a single tool ("Write"), a pipe alternation
+/// ("Write|Edit"), or an MCP tool name / prefix
+/// ("mcp__claude_ai_Slack__slack_send_message", "mcp__.*").
+#[derive(Deserialize, Serialize, Clone)]
+pub struct HookMatch {
+    pub tool: String,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum MatchMode {
+    #[default]
+    Substring,
+    /// Substring match constrained to word boundaries: the pattern only matches
+    /// when the characters on either side are non-word (not alphanumeric or
+    /// `_`). Blocks "delve" but not "fostering" for a "foster" pattern.
+    Word,
+    Regex,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum InjectEvent {
+    SessionStart,
+    UserPromptSubmit,
+}
+
+/// A declarative guardrail primitive. Tagged by `kind`. None of these can read
+/// arbitrary files, make network calls, or write data anywhere: the runner that
+/// executes them has no egress capability, so a hostile pack can at worst block
+/// the user's own tool calls or inject visible text.
+#[derive(Deserialize, Serialize, Clone)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PackHook {
+    /// Block a tool call if the content matches any pattern.
+    BlockOnMatch {
+        on: HookMatch,
+        #[serde(default)]
+        mode: MatchMode,
+        /// Which `tool_input` field to scan. Unset = scan the whole serialized
+        /// `tool_input` (fine for Write/Edit `content`). Set it to target one
+        /// field on an MCP tool, e.g. `text` for a Slack message body, so the
+        /// scan doesn't false-positive on other args or field names.
+        #[serde(default)]
+        field: Option<String>,
+        patterns: Vec<String>,
+        message: String,
+    },
+    /// Block a tool call unless the content matches a required pattern.
+    BlockUnlessMatch {
+        on: HookMatch,
+        require: String,
+        message: String,
+    },
+    /// Block unless a named tool_input field is in an allowed set.
+    Allowlist {
+        on: HookMatch,
+        field: String,
+        allow: Vec<String>,
+        message: String,
+    },
+    /// Add static or templated text to context (supports {{date}}).
+    Inject { event: InjectEvent, text: String },
+    /// Run an LLM review with a supplied prompt (harness runs the model).
+    ReviewPrompt {
+        on: HookMatch,
+        prompt: String,
+        #[serde(default)]
+        model_tier: Option<String>,
+    },
 }
 
 // ── Page ─────────────────────────────────────────────
@@ -76,7 +178,7 @@ pub struct Page {
     pub glow: Option<Glow>,
     /// How `shell: deck` pages export to PDF. `slides` (default): one slide per
     /// landscape page, Keynote-style. `continuous`: all slides flow on a single
-    /// scrolling document with a thin separator between them — nicer for
+    /// scrolling document with a thin separator between them - nicer for
     /// sharing as a readable artifact rather than a presentation. `square`:
     /// one slide per square page, sized for LinkedIn-style document carousels
     /// where the viewport is near-square and landscape PDFs letterbox badly.
@@ -94,16 +196,27 @@ pub struct Page {
     /// and sources of truth the agent / reader can consult to refresh the
     /// page. When the page is past its review window, a banner is injected
     /// at the top of the rendered output and the build reports the page as
-    /// stale. Zero runtime JS — staleness is computed at `kazam build` time.
+    /// stale. Zero runtime JS - staleness is computed at `kazam build` time.
     /// Set to `"never"` to explicitly opt out of freshness checks with no
     /// warning emitted.
     #[serde(default)]
     pub freshness: Option<FreshnessValue>,
-    /// Who is responsible for this page. Free-form string — email, Slack
+    /// Who is responsible for this page. Free-form string - email, Slack
     /// handle, or team name. Serves as a fallback for `freshness.owner` in
     /// the stale-page report when no freshness block is present.
     #[serde(default)]
     pub owner: Option<String>,
+    /// AI tool pack marker. Present = this page is installable via
+    /// `kazam install` - its markdown components compile into local AI
+    /// config files. Validation requires at least one non-empty markdown
+    /// component (top-level or inside a section) when this is set.
+    #[serde(default)]
+    pub pack: Option<PackMeta>,
+    /// Marks this page as an agent skill. Skill pages carry procedure
+    /// content (markdown steps and/or ```agl fences); `kazam validate` runs
+    /// the AGL static analyzer on every fence so a broken graph never saves.
+    #[serde(default)]
+    pub skill: Option<SkillMeta>,
     /// Links to sources of truth that inform this page's content.
     /// Each entry has a URL and an optional note explaining what it references.
     #[serde(default)]
@@ -149,12 +262,12 @@ impl Page {
     }
 }
 
-/// Freshness value: either the bare string `"never"` (explicit opt-out —
+/// Freshness value: either the bare string `"never"` (explicit opt-out -
 /// no decay checks, no warning) or a full metadata struct.
 #[derive(Deserialize, Clone)]
 #[serde(untagged)]
 pub enum FreshnessValue {
-    /// Bare string `"never"` — page explicitly opts out of freshness checks.
+    /// Bare string `"never"` - page explicitly opts out of freshness checks.
     Never(FreshnessNever),
     /// Full freshness metadata struct.
     Full(Freshness),
@@ -193,7 +306,7 @@ pub struct Reference {
     pub note: Option<String>,
 }
 
-/// Freshness metadata for a page — when was it last updated, who owns it,
+/// Freshness metadata for a page - when was it last updated, who owns it,
 /// how often should it be reviewed, and where are the sources of truth.
 #[derive(Deserialize, Clone)]
 pub struct Freshness {
@@ -204,7 +317,7 @@ pub struct Freshness {
     /// string shortcuts `weekly`, `monthly`, `quarterly`, `yearly`,
     /// `annually`.
     pub review_every: Option<String>,
-    /// Who should be contacted before changes land. Free-form — email,
+    /// Who should be contacted before changes land. Free-form - email,
     /// Slack handle, or team name.
     pub owner: Option<String>,
     /// Pointers the agent / reader should consult to refresh the content.
@@ -213,12 +326,12 @@ pub struct Freshness {
     #[serde(default)]
     pub sources_of_truth: Option<Vec<SourceOfTruth>>,
     /// Hard expiration date (ISO YYYY-MM-DD). Pages past this date are
-    /// treated as expired — excluded from nav/search, rendered with an
+    /// treated as expired - excluded from nav/search, rendered with an
     /// "expired" banner. For time-bound content like event materials or
     /// campaign pages.
     #[serde(default)]
     pub expires: Option<String>,
-    /// How this page gets refreshed — bare string (prompt shorthand) or
+    /// How this page gets refreshed - bare string (prompt shorthand) or
     /// full config with mode + steps. Not used by the build.
     #[serde(default)]
     pub refresh: Option<RefreshValue>,
@@ -252,7 +365,7 @@ impl SourceOfTruth {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum RefreshValue {
-    /// Bare string shorthand — assisted mode with a single prompt step.
+    /// Bare string shorthand - assisted mode with a single prompt step.
     Prompt(String),
     /// Full refresh configuration with mode and steps.
     Full(RefreshConfig),
@@ -347,15 +460,21 @@ pub enum Component {
         /// bookmarks. Collisions on the same page suffix `-2`, `-3`, etc.
         #[serde(default)]
         id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     HeroBanner {
         title: String,
         eyebrow: Option<String>,
         subtitle: Option<String>,
         buttons: Option<Vec<ButtonConfig>>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Meta {
         fields: Vec<MetaField>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     CardGrid {
         cards: Vec<Card>,
@@ -363,6 +482,8 @@ pub enum Component {
         min_width: Option<u32>,
         #[serde(default)]
         connector: Connector,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     SelectableGrid {
         cards: Vec<SelectableCard>,
@@ -370,14 +491,20 @@ pub enum Component {
         interaction: Interaction,
         #[serde(default)]
         connector: Connector,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Timeline {
         items: Vec<TimelineItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     StatGrid {
         stats: Vec<Stat>,
         #[serde(default = "default_stat_columns")]
         columns: u32,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     BeforeAfter {
         items: Vec<BeforeAfterItem>,
@@ -385,18 +512,26 @@ pub enum Component {
         before_label: Option<String>,
         #[serde(default)]
         after_label: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     SplitCompare {
         left: ComparePanel,
         right: ComparePanel,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Steps {
         items: Vec<Step>,
         #[serde(default = "default_true")]
         numbered: bool,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Markdown {
         body: String,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Table {
         columns: Vec<TableColumn>,
@@ -405,6 +540,8 @@ pub enum Component {
         filterable: bool,
         #[serde(default)]
         summary: Option<TableSummary>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Callout {
         #[serde(default)]
@@ -412,13 +549,19 @@ pub enum Component {
         title: Option<String>,
         body: String,
         links: Option<Vec<ButtonConfig>>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Code {
         language: Option<String>,
         code: String,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Tabs {
         tabs: Vec<Tab>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Section {
         heading: Option<String>,
@@ -432,14 +575,20 @@ pub enum Component {
         /// No heading and no explicit id → no id attribute emitted.
         #[serde(default)]
         id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Columns {
         columns: Vec<Vec<Component>>,
         #[serde(default)]
         equal_heights: bool,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Accordion {
         items: Vec<AccordionItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     EventTimeline {
         events: Vec<EventItem>,
@@ -453,6 +602,8 @@ pub enum Component {
         filter_by: Vec<String>,
         #[serde(default)]
         group_by: Option<EventGroupBy>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Tree {
         nodes: Vec<TreeNode>,
@@ -470,6 +621,23 @@ pub enum Component {
         show_summary: bool,
         #[serde(default)]
         default_view: TreeDefaultView,
+        #[serde(default)]
+        scale: Option<f32>,
+    },
+    PriorityQueue {
+        items: Vec<QueueItem>,
+        #[serde(default)]
+        group_by: QueueGroup,
+        #[serde(default = "default_true")]
+        show_dates: bool,
+        #[serde(default = "default_true")]
+        show_counts: bool,
+        #[serde(default)]
+        filterable: bool,
+        #[serde(default)]
+        title: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Venn {
         sets: Vec<VennSet>,
@@ -477,6 +645,12 @@ pub enum Component {
         overlaps: Vec<VennOverlap>,
         #[serde(default)]
         title: Option<String>,
+        /// Which view renders first: the SVG circles or the overlap matrix.
+        /// The in-page toggle switches between them either way.
+        #[serde(default, alias = "defaultView")]
+        default_view: VennView,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Image {
         src: String,
@@ -485,51 +659,75 @@ pub enum Component {
         max_width: Option<u32>,
         #[serde(default)]
         align: Align,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     /// Responsive iframe embed for Loom, YouTube, Vimeo, etc.
     Embed {
         src: String,
         title: Option<String>,
         aspect: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     /// Structured link collection with per-item metadata. Consolidates
     /// the "page that's just a few links" pattern into a reviewable list.
     Resources {
         items: Vec<ResourceItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Badge {
         label: String,
         #[serde(default)]
         color: SemColor,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Tag {
         label: String,
         #[serde(default)]
         color: SemColor,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Divider {
         label: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Kbd {
         keys: Vec<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Status {
         label: String,
         #[serde(default)]
         color: SemColor,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Breadcrumb {
         items: Vec<BreadcrumbItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     ButtonGroup {
         buttons: Vec<ButtonConfig>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     DefinitionList {
         items: Vec<DefinitionItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Blockquote {
         body: String,
         attribution: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Avatar {
         name: String,
@@ -537,6 +735,8 @@ pub enum Component {
         #[serde(default)]
         size: AvatarSize,
         subtitle: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     AvatarGroup {
         avatars: Vec<AvatarConfig>,
@@ -544,17 +744,21 @@ pub enum Component {
         size: AvatarSize,
         #[serde(default = "default_avatar_max")]
         max: usize,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     ProgressBar {
         value: u8,
         label: Option<String>,
-        #[serde(default)]
-        color: SemColor,
+        #[serde(default = "default_color")]
+        color: String,
         detail: Option<String>,
         #[serde(default)]
         target: Option<u8>,
         #[serde(default)]
-        thresholds: HashMap<String, SemColor>,
+        thresholds: HashMap<String, String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     EmptyState {
         title: String,
@@ -562,6 +766,8 @@ pub enum Component {
         action: Option<EmptyStateAction>,
         #[serde(default)]
         icon: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Icon {
         name: String,
@@ -569,12 +775,14 @@ pub enum Component {
         size: IconSize,
         #[serde(default)]
         color: SemColor,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Chart {
         kind: ChartKind,
         title: Option<String>,
         /// Pixel height of the chart area. Width is fluid (SVG scales to the
-        /// container). Defaults depend on `kind` — see the renderer.
+        /// container). Defaults depend on `kind` - see the renderer.
         #[serde(default)]
         height: Option<u32>,
         /// Axis labels. Ignored by `pie`.
@@ -593,12 +801,20 @@ pub enum Component {
         /// For timeseries → multi-line. Ignored by pie.
         #[serde(default)]
         series: Option<Vec<ChartSeries>>,
+        /// Shrinks the rendered chart to this fraction of the container
+        /// width (height follows, since the SVG keeps its aspect ratio),
+        /// centered. Clamped to 0.1–2.0. Use when a chart is too tall to
+        /// fit on screen at full width.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     /// Grid of role cards read from the site's `roles:` config in kazam.yaml.
     /// Each card links to `?role=<id>` to activate persona filtering.
     RoleMap {
         #[serde(default)]
         title: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Sankey {
         title: Option<String>,
@@ -607,6 +823,9 @@ pub enum Component {
         flows: Vec<SankeyFlow>,
         #[serde(default)]
         colors: HashMap<String, SemColor>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Radar {
         title: Option<String>,
@@ -616,6 +835,9 @@ pub enum Component {
         curves: Vec<RadarCurve>,
         #[serde(default)]
         max: Option<f64>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Quadrant {
         title: Option<String>,
@@ -625,6 +847,9 @@ pub enum Component {
         y_axis: String,
         quadrants: Vec<String>,
         points: Vec<QuadrantPoint>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Architecture {
         title: Option<String>,
@@ -634,6 +859,9 @@ pub enum Component {
         direction: ArchDirection,
         nodes: Vec<ArchNode>,
         connections: Vec<ArchConnection>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Pipeline {
         title: Option<String>,
@@ -644,6 +872,9 @@ pub enum Component {
         outputs: Vec<PipelineItem>,
         #[serde(default)]
         context: Vec<PipelineItem>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Graph {
         title: Option<String>,
@@ -656,18 +887,33 @@ pub enum Component {
         edges: Vec<GraphEdge>,
         #[serde(default)]
         groups: Vec<GraphGroup>,
+        /// Optional label per row, index-aligned to each node's `row`. A tiered
+        /// diagram (phases / gates / stall states, one row per tier) reads
+        /// this to draw a small heading + dashed rule above each row. Rows
+        /// without a matching entry (or a `null`) render with no label.
+        #[serde(default)]
+        row_labels: Vec<Option<String>>,
+        /// See `Chart.scale`.
+        #[serde(default)]
+        scale: Option<f32>,
     },
     OrgChart {
         title: Option<String>,
         people: Vec<OrgPerson>,
         #[serde(default)]
         default_open_depth: Option<u32>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Aside {
         body: String,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     RuleList {
         items: Vec<RuleItem>,
+        #[serde(default)]
+        scale: Option<f32>,
     },
     Gauge {
         items: Vec<GaugeItem>,
@@ -677,7 +923,67 @@ pub enum Component {
         columns: u32,
         #[serde(default = "default_gauge_max")]
         max: f64,
+        #[serde(default)]
+        scale: Option<f32>,
     },
+}
+
+impl Component {
+    pub(crate) fn scale(&self) -> Option<f32> {
+        match self {
+            Component::Header { scale, .. }
+            | Component::HeroBanner { scale, .. }
+            | Component::Meta { scale, .. }
+            | Component::CardGrid { scale, .. }
+            | Component::SelectableGrid { scale, .. }
+            | Component::Timeline { scale, .. }
+            | Component::StatGrid { scale, .. }
+            | Component::BeforeAfter { scale, .. }
+            | Component::SplitCompare { scale, .. }
+            | Component::Steps { scale, .. }
+            | Component::Markdown { scale, .. }
+            | Component::Table { scale, .. }
+            | Component::Callout { scale, .. }
+            | Component::Code { scale, .. }
+            | Component::Tabs { scale, .. }
+            | Component::Section { scale, .. }
+            | Component::Columns { scale, .. }
+            | Component::Accordion { scale, .. }
+            | Component::EventTimeline { scale, .. }
+            | Component::Tree { scale, .. }
+            | Component::PriorityQueue { scale, .. }
+            | Component::Venn { scale, .. }
+            | Component::Image { scale, .. }
+            | Component::Embed { scale, .. }
+            | Component::Resources { scale, .. }
+            | Component::Badge { scale, .. }
+            | Component::Tag { scale, .. }
+            | Component::Divider { scale, .. }
+            | Component::Kbd { scale, .. }
+            | Component::Status { scale, .. }
+            | Component::Breadcrumb { scale, .. }
+            | Component::ButtonGroup { scale, .. }
+            | Component::DefinitionList { scale, .. }
+            | Component::Blockquote { scale, .. }
+            | Component::Avatar { scale, .. }
+            | Component::AvatarGroup { scale, .. }
+            | Component::ProgressBar { scale, .. }
+            | Component::EmptyState { scale, .. }
+            | Component::Icon { scale, .. }
+            | Component::Chart { scale, .. }
+            | Component::RoleMap { scale, .. }
+            | Component::Sankey { scale, .. }
+            | Component::Radar { scale, .. }
+            | Component::Quadrant { scale, .. }
+            | Component::Architecture { scale, .. }
+            | Component::Pipeline { scale, .. }
+            | Component::Graph { scale, .. }
+            | Component::OrgChart { scale, .. }
+            | Component::Aside { scale, .. }
+            | Component::RuleList { scale, .. }
+            | Component::Gauge { scale, .. } => *scale,
+        }
+    }
 }
 
 // ── Supporting types ─────────────────────────────────
@@ -781,11 +1087,12 @@ pub struct TimelineItem {
     pub status: TimelineStatus,
 }
 
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Deserialize, Default, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum TimelineStatus {
     Completed,
     Active,
+    #[default]
     Upcoming,
 }
 
@@ -1011,6 +1318,10 @@ pub struct TreeNode {
     pub children: Vec<TreeNode>,
     #[serde(default)]
     pub owner: Option<String>,
+    #[serde(default)]
+    pub due: Option<String>,
+    #[serde(default)]
+    pub original_due: Option<String>,
 }
 
 #[derive(Deserialize, Default, Clone, Copy)]
@@ -1033,6 +1344,7 @@ pub enum TreeFilter {
     Incomplete,
     Blocked,
     Priority,
+    Overdue,
 }
 
 #[derive(Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
@@ -1043,6 +1355,55 @@ pub enum TreeDefaultView {
     Summary,
 }
 
+#[derive(Deserialize, Default, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum QueueGroup {
+    #[default]
+    Urgency,
+    Horizon,
+    Owner,
+    Status,
+    None,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum QueueHorizon {
+    Now,
+    Next,
+    Later,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct QueueTag {
+    pub label: String,
+    #[serde(default)]
+    pub color: SemColor,
+    #[serde(default)]
+    pub emphasis: bool,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct QueueItem {
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub due: Option<String>,
+    #[serde(default)]
+    pub original_due: Option<String>,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub status: TreeStatus,
+    #[serde(default)]
+    pub tags: Vec<QueueTag>,
+    #[serde(default)]
+    pub href: Option<String>,
+    #[serde(default)]
+    pub horizon: Option<QueueHorizon>,
+}
+
 impl TreeFilter {
     pub fn class(&self) -> &'static str {
         match self {
@@ -1050,6 +1411,7 @@ impl TreeFilter {
             TreeFilter::Incomplete => "filter-incomplete",
             TreeFilter::Blocked => "filter-blocked",
             TreeFilter::Priority => "filter-priority",
+            TreeFilter::Overdue => "filter-overdue",
         }
     }
 
@@ -1059,6 +1421,7 @@ impl TreeFilter {
             TreeFilter::Incomplete => "incomplete",
             TreeFilter::Blocked => "blocked",
             TreeFilter::Priority => "priority",
+            TreeFilter::Overdue => "overdue",
         }
     }
 }
@@ -1126,6 +1489,14 @@ pub struct VennSet {
     pub label: String,
     #[serde(default)]
     pub color: SemColor,
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum VennView {
+    #[default]
+    Venn,
+    Table,
 }
 
 #[derive(Deserialize)]
@@ -1248,7 +1619,7 @@ pub enum ChartOrientation {
 pub struct ChartPoint {
     pub label: String,
     pub value: f64,
-    /// Optional slice/bar tint. Only meaningful for single-series charts —
+    /// Optional slice/bar tint. Only meaningful for single-series charts -
     /// multi-series charts color by series instead.
     #[serde(default)]
     pub color: Option<SemColor>,
@@ -1377,6 +1748,7 @@ pub enum GraphEdgeStyle {
 #[derive(Deserialize, Clone)]
 pub struct OrgPerson {
     #[serde(default)]
+    #[allow(dead_code)]
     pub id: Option<String>,
     pub name: String,
     #[serde(default)]
@@ -1408,6 +1780,18 @@ pub struct GraphNode {
     pub detail: Option<String>,
     #[serde(default)]
     pub color: SemColor,
+    /// Exact brand color, e.g. `#2DD4BF`. Wins over `color` when set and
+    /// valid (`#RGB`, `#RRGGBB`, or `#RRGGBBAA`); an invalid value silently
+    /// falls back to `color` rather than breaking the render.
+    #[serde(default)]
+    pub hex: Option<String>,
+    /// Progress on this node: `completed` or `active` render a small badge
+    /// in the box's top-right corner, `upcoming` (the default) renders no
+    /// badge at all. Deliberately independent of `color`/`hex` so a node's
+    /// role (what kind of thing it is) and its progress stay two separate
+    /// signals instead of overloading one.
+    #[serde(default)]
+    pub status: TimelineStatus,
     #[serde(default)]
     pub shape: GraphShape,
     #[serde(default)]
@@ -1418,6 +1802,19 @@ pub struct GraphNode {
     pub height: Option<u32>,
     #[serde(default)]
     pub ports: Vec<PortLabel>,
+    /// Pins this node to an explicit row instead of letting the topological
+    /// layout compute one from edges. Setting `row` on any node in the graph
+    /// switches the whole diagram into tiered/grid mode: every row's nodes
+    /// line up on a shared column grid instead of being centered per-row, so
+    /// a node in row 1 sits directly above its counterpart in row 2.
+    #[serde(default)]
+    pub row: Option<u32>,
+    /// Explicit column within a row, used only in tiered/grid mode (see
+    /// `row`). Nodes sharing a column across rows align vertically, which is
+    /// what makes a dashed edge between them read as a straight drop instead
+    /// of a diagonal.
+    #[serde(default)]
+    pub column: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -1517,7 +1914,7 @@ pub enum NavLayout {
 /// `violet`), which pick up the accent color on top of either a dark or
 /// light neutral base. `theme: dark` and `theme: light` are self-contained
 /// and ignore this field.
-#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Mode {
     #[default]
@@ -1556,12 +1953,12 @@ pub struct SiteConfig {
     /// Nav layout for `shell: standard` pages. Defaults to `top`.
     #[serde(default)]
     pub nav_layout: NavLayout,
-    /// Base tone for rainbow themes — dark (default) or light. Ignored when
+    /// Base tone for rainbow themes - dark (default) or light. Ignored when
     /// `theme:` is already `dark` or `light`.
     #[serde(default)]
     pub mode: Mode,
     /// Fallback `<meta name="description">` and `og:description` used when a
-    /// page has no subtitle of its own. Keep it short — one sentence is ideal.
+    /// page has no subtitle of its own. Keep it short - one sentence is ideal.
     #[serde(default)]
     pub description: Option<String>,
     /// Canonical base URL for the site, e.g. `https://tdiderich.github.io/kazam`.
@@ -1591,8 +1988,8 @@ pub struct SiteConfig {
     pub drift: Option<DriftConfig>,
 }
 
-/// Brand voice configuration — tone, reading level, and terminology preferences.
-/// All fields are optional; add what you want. This is config only — kazam does
+/// Brand voice configuration - tone, reading level, and terminology preferences.
+/// All fields are optional; add what you want. This is config only - kazam does
 /// not enforce these rules at build time.
 #[derive(Deserialize, Clone, Default)]
 pub struct Voice {
@@ -1664,7 +2061,7 @@ pub struct ResourceItem {
 }
 
 /// Site-wide background pattern. All variants are subtle by design.
-#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Texture {
     #[default]
@@ -1682,7 +2079,7 @@ pub enum Texture {
 }
 
 /// Soft accent-tinted radial gradient. Sits above the texture, below content.
-#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum Glow {
     #[default]
@@ -1695,7 +2092,7 @@ pub enum Glow {
 
 /// Logo image for the site-bar brand slot. Accepts either a shorthand
 /// string (a path to the image) or an object with `src`, optional
-/// `height` (px — upper bound on rendered height; defaults to the
+/// `height` (px - upper bound on rendered height; defaults to the
 /// site-bar content height), and optional `alt` (defaults to the site
 /// `name`).
 #[derive(Deserialize)]
@@ -1844,6 +2241,9 @@ impl Default for SiteConfig {
 
 // ── Defaults ─────────────────────────────────────────
 
+fn default_color() -> String {
+    "default".to_string()
+}
 fn default_stat_columns() -> u32 {
     3
 }

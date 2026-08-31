@@ -22,7 +22,7 @@ freshness:
 components:
   - type: header
     title: Who Owns What
-    subtitle: "Team capabilities and project ownership — derived from Linear activity"
+    subtitle: "Team capabilities and project ownership - derived from Linear activity"
 
   - type: callout
     style: info

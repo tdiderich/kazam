@@ -8,8 +8,8 @@ agent enriches with Attention call intelligence and Slack channel activity.
 
 Env vars: HUBSPOT_API_TOKEN
 Output:
-  scripts/deal-360-data.json  — structured deal data
-  scripts/deal-360-prompt.md  — analysis prompt for the agent
+  scripts/deal-360-data.json  - structured deal data
+  scripts/deal-360-prompt.md  - analysis prompt for the agent
 """
 
 # ── Customization block ──────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 HUBSPOT_KEY = os.environ.get("HUBSPOT_API_TOKEN", "") or os.environ.get("HUBSPOT_API_KEY", "")
 if not HUBSPOT_KEY:
-    sys.exit("HUBSPOT_API_TOKEN not set — add it to .env")
+    sys.exit("HUBSPOT_API_TOKEN not set - add it to .env")
 
 HS_BASE = "https://api.hubapi.com"
 HS_HEADERS = {"Authorization": f"Bearer {HUBSPOT_KEY}", "Content-Type": "application/json"}
@@ -131,7 +131,7 @@ def search_open_deals(label_to_id, id_to_label):
                 stage_ids.append(sid)
 
     if not stage_ids:
-        print("  No matching stages found — check STAGES_TO_INCLUDE config")
+        print("  No matching stages found - check STAGES_TO_INCLUDE config")
         return []
 
     print(f"  Searching {len(stage_ids)} open stages...")
@@ -318,7 +318,7 @@ Each deal has: stage, amount, owner, close date, company info (industry, size, h
 For each deal, search Attention for calls mentioning the company name or deal name:
 - Use `search_calls` with the company name as transcript search
 - For deals with 1+ calls, use `ask_attention` (up to 25 call IDs) asking:
-  "For this deal, summarize: (1) primary pain points and buying motivation, (2) competitive landscape — what else are they evaluating, (3) objections raised and how they were handled, (4) next steps and commitments, (5) risk signals (budget freeze, missing authority, timeline slip)"
+  "For this deal, summarize: (1) primary pain points and buying motivation, (2) competitive landscape - what else are they evaluating, (3) objections raised and how they were handled, (4) next steps and commitments, (5) risk signals (budget freeze, missing authority, timeline slip)"
 - If no calls found, note "No call data available"
 
 ### Step 3: Enrich with Slack channel activity
@@ -350,7 +350,7 @@ Update the kazam YAML page with one section per deal, ordered by stage (latest s
         - field: Close Date
           value: "YYYY-MM-DD"
         - field: Company
-          value: "name — industry, N employees, country"
+          value: "name - industry, N employees, country"
         - field: Champion
           value: "name, title"
         - field: Health

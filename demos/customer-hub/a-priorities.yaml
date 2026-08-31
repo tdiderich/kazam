@@ -1,4 +1,4 @@
-title: "Acme Corp — Priorities (A)"
+title: "Acme Corp - Priorities (A)"
 shell: standard
 components:
   - type: header
@@ -15,7 +15,7 @@ components:
       - { label: Notes, href: a-notes.html }
   - type: callout
     variant: info
-    body: Fully deployed on EKS + EC2 with 86% noise reduction. Auto-closing enabled June 5 — verification is this week's follow-up.
+    body: Fully deployed on EKS + EC2 with 86% noise reduction. Auto-closing enabled June 5 - verification is this week's follow-up.
 
   - type: table
     columns:

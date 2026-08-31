@@ -1,4 +1,4 @@
-# Wishes as Recipes — Implementation Plan
+# Wishes as Recipes - Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -57,14 +57,14 @@ pub fn init(_name: &str, _dir: Option<std::path::PathBuf>, _force: bool) -> Resu
 }
 ```
 
-- [ ] **Step 3: Update main.rs — replace the old Wish command with new subcommands**
+- [ ] **Step 3: Update main.rs - replace the old Wish command with new subcommands**
 
-Change the `mod wish;` declaration (it already works — Rust will find `wish.rs` instead of `wish/mod.rs`).
+Change the `mod wish;` declaration (it already works - Rust will find `wish.rs` instead of `wish/mod.rs`).
 
 Replace the `Wish` variant in the `Command` enum (lines 79-93) with:
 
 ```rust
-    /// Grant a wish — install a recipe for self-refreshing docs
+    /// Grant a wish - install a recipe for self-refreshing docs
     Wish {
         #[command(subcommand)]
         command: WishCommand,
@@ -135,7 +135,7 @@ recipe library. Placeholder implementations for now."
 
 **Files:**
 - Modify: `Cargo.toml`
-- Create: `src/wish/registry.yaml` (but since we now use `wish.rs` not `wish/`, embed it differently — see below)
+- Create: `src/wish/registry.yaml` (but since we now use `wish.rs` not `wish/`, embed it differently - see below)
 
 Note: since `src/wish.rs` is a single file (not a directory module), we'll embed the registry YAML as a const string in `wish.rs` rather than `include_str!` from a separate file. This keeps it simple. When the registry grows large, it can be extracted.
 
@@ -304,7 +304,7 @@ Supports --json for machine-readable output."
 
 ---
 
-### Task 3: Implement `wish init` — GitHub fetch
+### Task 3: Implement `wish init` - GitHub fetch
 
 **Files:**
 - Modify: `src/wish.rs`
@@ -374,7 +374,7 @@ fn fetch_directory(repo_path: &str) -> Result<Vec<(String, String)>> {
         .set("User-Agent", "kazam")
         .set("Accept", "application/vnd.github.v3+json")
         .call()
-        .context("GitHub API request failed — check your internet connection")?;
+        .context("GitHub API request failed - check your internet connection")?;
 
     let entries: Vec<GitHubContent> = resp.into_json().context("parsing GitHub API response")?;
 
@@ -438,7 +438,7 @@ install location."
 - Create: `wishes/hubspot-icp/page.yaml`
 - Create: `wishes/hubspot-icp/README.md`
 
-The script.py is adapted from `/Users/tyler/maze-repos/maze-brain/scripts/generate-icp-data.py` — the proven recipe. Remove maze-specific hardcoded values and add comments marking customization points.
+The script.py is adapted from `/Users/tyler/maze-repos/maze-brain/scripts/generate-icp-data.py` - the proven recipe. Remove maze-specific hardcoded values and add comments marking customization points.
 
 - [ ] **Step 1: Create `wishes/hubspot-icp/wish.yaml`**
 
@@ -463,7 +463,7 @@ The script should be functional out of the box for any HubSpot + Apollo user who
 
 - [ ] **Step 3: Create `wishes/hubspot-icp/prompt.md`**
 
-Copy from `/Users/tyler/maze-repos/maze-brain/scripts/icp-prompt.md` and generalize — remove the hardcoded counts (the script prints those), replace with template language the agent fills in after running.
+Copy from `/Users/tyler/maze-repos/maze-brain/scripts/icp-prompt.md` and generalize - remove the hardcoded counts (the script prints those), replace with template language the agent fills in after running.
 
 ```markdown
 # ICP Analysis Prompt
@@ -474,7 +474,7 @@ You have a CSV at `scripts/icp-data.csv` with customers, late-stage deals, and c
 
 Analyze this data and update the kazam YAML page at the path specified in the refresh block with a data-driven ICP. Structure your analysis as:
 
-### 1. Customer DNA (P0 — highest confidence)
+### 1. Customer DNA (P0 - highest confidence)
 From existing customers, identify:
 - **Company size sweet spot**: employee count range and median
 - **Industry clusters**: which industries appear most
@@ -483,13 +483,13 @@ From existing customers, identify:
 - **Revenue/funding profile**: typical company stage and size
 - What makes these companies similar? What's the archetype?
 
-### 2. Pipeline validation (P1 — late-stage deals)
+### 2. Pipeline validation (P1 - late-stage deals)
 From late-stage deals (Business Validation, Negotiation, Closed Won):
 - Do they match the customer DNA or diverge?
 - Any new segments emerging in the pipeline?
 - Deal size patterns
 
-### 3. Closed-lost patterns (P2 — lighter review)
+### 3. Closed-lost patterns (P2 - lighter review)
 From closed-lost deals:
 - Common loss reasons
 - Are there company profiles that consistently lose? (wrong size, wrong industry, wrong stage)
@@ -541,18 +541,18 @@ Build a data-driven Ideal Customer Profile page from your HubSpot CRM deals and 
 
 ## Prerequisites
 
-- `HUBSPOT_API_TOKEN` — HubSpot private app token with CRM read access (deals, companies, pipelines)
-- `APOLLO_API_KEY` — Apollo.io API key (uses the paid `/organizations/enrich` endpoint, ~1 credit per company)
+- `HUBSPOT_API_TOKEN` - HubSpot private app token with CRM read access (deals, companies, pipelines)
+- `APOLLO_API_KEY` - Apollo.io API key (uses the paid `/organizations/enrich` endpoint, ~1 credit per company)
 - Python 3.8+ with `requests` (run via `uv run --with requests` if not installed)
 
 ## What to customize
 
 ### script.py
 
-- **`LATE_STAGE_PREFIXES`** (line ~15): These prefixes match your HubSpot deal stage labels for late-stage deals. The script prints all stage labels on first run — check the output and update these to match your pipeline.
+- **`LATE_STAGE_PREFIXES`** (line ~15): These prefixes match your HubSpot deal stage labels for late-stage deals. The script prints all stage labels on first run - check the output and update these to match your pipeline.
 - **`CLOSED_LOST_PREFIXES`** (line ~16): Same idea for closed-lost stages. The default uses `hs_is_closed_won=false` which works across all pipelines, so you may not need to change this.
 - **`COMPANY_PROPS` / `DEAL_PROPS`**: Add any custom HubSpot properties you want in the CSV output.
-- **Apollo enrichment**: If you don't have an Apollo key, the script still works — you just get HubSpot data only (no tech stacks, keywords, or funding data).
+- **Apollo enrichment**: If you don't have an Apollo key, the script still works - you just get HubSpot data only (no tech stacks, keywords, or funding data).
 
 ### page.yaml
 
@@ -585,7 +585,7 @@ The finished page has:
 
 ```bash
 git add wishes/hubspot-icp/
-git commit -m "feat: add hubspot-icp wish — first recipe in the library
+git commit -m "feat: add hubspot-icp wish - first recipe in the library
 
 Proven recipe from maze-brain: Python script pulls HubSpot deals +
 Apollo enrichment, dumps CSV, prompt tells agent how to synthesize

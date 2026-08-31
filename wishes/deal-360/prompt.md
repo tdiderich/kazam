@@ -6,17 +6,17 @@ You have HubSpot deal data at `scripts/deal-360-data.json` with open deals acros
 
 Build a Deal 360 page by combining four data sources per deal:
 
-### 1. Owner annotations (highest priority — read via MCP)
-For each deal, use the `list_annotations` MCP tool with the deal's page path to read sidecar annotations from `.kazam/annotations/`. These are notes from the deal owner — things they know from calls, relationships, and conversations that don't appear in any data source.
+### 1. Owner annotations (highest priority - read via MCP)
+For each deal, use the `list_annotations` MCP tool with the deal's page path to read sidecar annotations from `.kazam/annotations/`. These are notes from the deal owner - things they know from calls, relationships, and conversations that don't appear in any data source.
 
-**Conflict resolution rule:** When an annotation directly contradicts a data source (e.g., HubSpot says close date is June, an annotation says "push to Q3"), prefer the annotation. The deal owner has context the CRM doesn't capture.
+**Conflict resolution rule:** When an annotation directly contradicts a data source (ex. HubSpot says close date is June, an annotation says "push to Q3"), prefer the annotation. The deal owner has context the CRM doesn't capture.
 
 After incorporating an annotation, note it in the output: "[Incorporated: annotation from {author}, {date}]" so the deal owner can see which notes were used.
 
 After building the page, update each annotation's status using the `annotate_page` MCP tool:
-- `incorporated` — the annotation was used in the page content
-- `ignored` — the annotation was not relevant to this refresh
-- Leave `pending` — if unsure whether the annotation is still relevant
+- `incorporated` - the annotation was used in the page content
+- `ignored` - the annotation was not relevant to this refresh
+- Leave `pending` - if unsure whether the annotation is still relevant
 
 ### 2. HubSpot data (already in JSON)
 Each deal has: stage, amount, owner, close date, company (industry, size, health), contacts (names, titles), and a guessed Slack channel name.

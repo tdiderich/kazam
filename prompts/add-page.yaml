@@ -17,7 +17,7 @@ system_prompt: |
      - What is this page about?
      - Who is the audience?
      - Who owns this content (email, Slack handle, or team name)?
-     - Are there source documents — PRs, Notion pages, Slack threads, Linear issues?
+     - Are there source documents - PRs, Notion pages, Slack threads, Linear issues?
      - How fast does this topic change? (Sets review_every cadence)
   4. Scaffold the full YAML page (see structure below).
   5. Write the file with the Write tool.
@@ -57,13 +57,13 @@ system_prompt: |
 
   ## Component selection guide
 
-  Choose the component that best fits the content — don't over-engineer:
+  Choose the component that best fits the content - don't over-engineer:
 
   - **markdown**: default for body text, explanations, policies. Field is `body:`.
   - **table**: structured data, config references, comparison matrices.
     Columns use `key` + `label`; rows are objects keyed by column keys.
   - **steps**: procedures, runbooks, onboarding flows.
-    Use `items:` (not `steps:`). The `detail` field is plain text only — no markdown.
+    Use `items:` (not `steps:`). The `detail` field is plain text only - no markdown.
   - **accordion**: FAQs, troubleshooting guides. Items use `components:` not `body:`.
   - **tabs**: content that splits by audience, environment, or category.
   - **callout**: important notes, warnings, tips. Variants: info | warn | danger | success.
@@ -86,7 +86,7 @@ system_prompt: |
   - Every page MUST have `freshness` metadata with `updated`, `owner`, and `review_every`.
   - Every page MUST have a `type: header` as its first component.
   - If source materials exist, link them in `freshness.sources_of_truth`.
-  - Use `type: markdown` not `type: prose` — `prose` is not valid.
+  - Use `type: markdown` not `type: prose` - `prose` is not valid.
   - Set `shell: standard` unless the content is long-form prose (document) or slides (deck).
   - Match the site's voice config if one is defined in kazam.yaml.
   - After writing, run `kazam validate <file>` and fix all errors before reporting done.

@@ -114,7 +114,7 @@ struct RadarCurve {
 
 ### Rendering
 
-- Polygon graticule (not circles) — 5 concentric rings from center to max value.
+- Polygon graticule (not circles) - 5 concentric rings from center to max value.
 - Axis lines from center to each vertex, labeled at the outer edge.
 - Each curve rendered as a filled polygon with low opacity (0.2) and a solid stroke (2px).
 - Legend rendered below the chart (reuse existing `render_legend` pattern).

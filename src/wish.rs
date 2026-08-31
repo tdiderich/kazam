@@ -121,7 +121,7 @@ pub fn list(json: bool) -> Result<()> {
         println!("LOCAL");
         for w in &local {
             let tags = w.tags.join(", ");
-            println!("  {} — {} [{}]", w.name, w.description, tags);
+            println!("  {} - {} [{}]", w.name, w.description, tags);
         }
     }
 
@@ -129,7 +129,7 @@ pub fn list(json: bool) -> Result<()> {
         println!("REGISTRY");
         for e in registry_new {
             let tags = e.tags.join(", ");
-            println!("  {} — {} [{}]", e.name, e.description, tags);
+            println!("  {} - {} [{}]", e.name, e.description, tags);
         }
     }
 

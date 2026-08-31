@@ -3,6 +3,7 @@ pub fn get(name: &str) -> Option<&'static str> {
         "selectable_grid" => Some(SELECTABLE_GRID),
         "table" => Some(TABLE),
         "tabs" => Some(TABS),
+        "venn" => Some(VENN),
         "accordion" => Some(ACCORDION),
         "event_timeline" => Some(EVENT_TIMELINE),
         "tree" => Some(TREE),
@@ -12,6 +13,8 @@ pub fn get(name: &str) -> Option<&'static str> {
         "reload" => Some(RELOAD),
         "source_edit" => Some(SOURCE_EDIT),
         "source_pill" => Some(SOURCE_PILL),
+        "queue_collapse" => Some(QUEUE_COLLAPSE),
+        "queue_filter" => Some(QUEUE_FILTER),
         _ => None,
     }
 }
@@ -145,7 +148,7 @@ const SEARCH: &str = r#"
   function render(hits) {
     selected = -1;
     if (loadFailed) {
-      results.innerHTML = '<div class="site-search-empty">Search is unavailable — the index failed to load. Reload the page to retry.</div>';
+      results.innerHTML = '<div class="site-search-empty">Search is unavailable - the index failed to load. Reload the page to retry.</div>';
       announce('Search unavailable');
       return;
     }
@@ -401,6 +404,25 @@ document.querySelectorAll('[data-tabs]').forEach(function (root) {
     });
   });
   show(0);
+});
+"#;
+
+const VENN: &str = r#"
+document.querySelectorAll('[data-venn]').forEach(function (root) {
+  var buttons = root.querySelectorAll('button[data-venn-view]');
+  var panels = root.querySelectorAll('[data-venn-panel]');
+  if (!buttons.length) return;
+  function show(view) {
+    buttons.forEach(function (b) {
+      var on = b.getAttribute('data-venn-view') === view;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    panels.forEach(function (p) { p.hidden = p.getAttribute('data-venn-panel') !== view; });
+  }
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { show(b.getAttribute('data-venn-view')); });
+  });
 });
 "#;
 
@@ -703,13 +725,13 @@ const SOURCE_EDIT: &str = r#"
       if (r.ok) { setStatus('Saved', 'ok'); }
       else {
         r.text().then(function (t) {
-          setStatus('Save failed: ' + t + ' — fix the YAML and press Save (or ⌘S) to retry.', 'error');
+          setStatus('Save failed: ' + t + ' - fix the YAML and press Save (or ⌘S) to retry.', 'error');
         });
       }
       saveBtn.disabled = false;
     })
     .catch(function (e) {
-      setStatus('Save failed: ' + e.message + ' — is the dev server still running? Retry with Save (or ⌘S).', 'error');
+      setStatus('Save failed: ' + e.message + ' - is the dev server still running? Retry with Save (or ⌘S).', 'error');
       saveBtn.disabled = false;
     });
   }
@@ -809,4 +831,35 @@ const SOURCE_PILL: &str = r#"
     });
   });
 })();
+"#;
+
+const QUEUE_COLLAPSE: &str = r#"
+document.querySelectorAll('.c-queue-group-header').forEach(function (header) {
+  header.addEventListener('click', function () {
+    header.parentElement.classList.toggle('collapsed');
+  });
+});
+"#;
+
+const QUEUE_FILTER: &str = r#"
+document.querySelectorAll('[data-queue-search]').forEach(function (input) {
+  var queue = input.closest('.c-queue');
+  if (!queue) return;
+  var rows = queue.querySelectorAll('.c-queue-row');
+  var groups = queue.querySelectorAll('.c-queue-group');
+  input.addEventListener('input', function () {
+    var q = input.value.toLowerCase().trim();
+    groups.forEach(function (g) { g.classList.remove('collapsed'); });
+    rows.forEach(function (row) {
+      var text = row.textContent.toLowerCase();
+      row.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+    });
+    groups.forEach(function (group) {
+      var visible = group.querySelectorAll('.c-queue-row:not([style*="display: none"])');
+      group.style.display = visible.length ? '' : 'none';
+      var count = group.querySelector('.c-queue-group-count');
+      if (count) count.textContent = visible.length;
+    });
+  });
+});
 "#;

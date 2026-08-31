@@ -1,5 +1,5 @@
 //! `kazam init <name>` scaffolds a new site directory with a minimal,
-//! well-commented starter — kazam.yaml, index.yaml, AGENTS.md, .gitignore.
+//! well-commented starter - kazam.yaml, index.yaml, AGENTS.md, .gitignore.
 
 use anyhow::{bail, Context, Result};
 use std::fs;
@@ -9,7 +9,7 @@ pub fn run(path: &str) -> Result<()> {
     let dir = Path::new(path);
     if dir.exists() {
         bail!(
-            "'{}' already exists — choose another name or remove it first",
+            "'{}' already exists - choose another name or remove it first",
             path
         );
     }
@@ -53,7 +53,7 @@ pub fn run(path: &str) -> Result<()> {
 }
 
 const KAZAM_YAML: &str = r##"# Site configuration. Shared across every page.
-# Every available field is listed below — uncomment the ones you want.
+# Every available field is listed below - uncomment the ones you want.
 
 name: {{SITE_NAME}}
 
@@ -120,14 +120,14 @@ theme: dark
 # Off by default. Options: none | accent | corner
 # glow: accent
 
-# Nav layout: "top" (default — sticky top bar, dropdowns for nested
+# Nav layout: "top" (default - sticky top bar, dropdowns for nested
 # entries) or "sidebar" (fixed left-side sidebar, nested entries become
 # labeled sections). Only applies to shell: standard pages.
 # nav_layout: sidebar
 
 # Nav appears in the sticky header of every `shell: standard` page.
 # Lead each in-site href with `/` so the renderer treats it as a
-# site-root path and prepends the depth base on nested pages — that's
+# site-root path and prepends the depth base on nested pages - that's
 # what keeps the nav working from any subdirectory. Bare names are
 # page-relative; `http(s)://` passes through.
 nav:
@@ -161,8 +161,8 @@ components:
     components:
       - type: markdown
         body: |
-          1. Edit this file (`index.yaml`) — every page is a list of components.
-          2. Add new pages — any `.yaml` file in this directory becomes a page.
+          1. Edit this file (`index.yaml`) - every page is a list of components.
+          2. Add new pages - any `.yaml` file in this directory becomes a page.
           3. Read `AGENTS.md` for the full component reference.
 
       - type: button_group

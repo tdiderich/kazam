@@ -1,4 +1,4 @@
-//! Emits `_site/search.json` — a compact search index over every built page.
+//! Emits `_site/search.json` - a compact search index over every built page.
 //! Consumed by the MCP server's `search` tool and any client-side JS widget.
 
 use std::path::Path;
@@ -39,7 +39,7 @@ pub fn entry_for(path: &str, page: &Page, freshness_status: Option<&str>) -> Sea
         extract_searchable_text(comps, &mut headings, &mut snippets);
     }
 
-    // Deck pages — walk every slide's components.
+    // Deck pages - walk every slide's components.
     if let Some(slides) = &page.slides {
         for slide in slides {
             extract_searchable_text(&slide.components, &mut headings, &mut snippets);
@@ -74,7 +74,7 @@ fn extract_searchable_text(
                     push_snippet(snippets, sub);
                 }
             }
-            Component::Markdown { body } => {
+            Component::Markdown { body, .. } => {
                 push_snippet(snippets, &strip_markdown(body));
             }
             Component::Callout { title, body, .. } => {
@@ -104,10 +104,10 @@ fn extract_searchable_text(
                     headings.push(col.label.clone());
                 }
             }
-            Component::Aside { body } => {
+            Component::Aside { body, .. } => {
                 push_snippet(snippets, body);
             }
-            Component::RuleList { items } => {
+            Component::RuleList { items, .. } => {
                 for item in items {
                     headings.push(item.label.clone());
                     push_snippet(snippets, &item.body);
@@ -121,7 +121,7 @@ fn extract_searchable_text(
                     headings.push(item.label.clone());
                 }
             }
-            Component::Accordion { items } => {
+            Component::Accordion { items, .. } => {
                 for item in items {
                     headings.push(item.title.clone());
                     extract_searchable_text(&item.components, headings, snippets);
@@ -137,7 +137,7 @@ fn extract_searchable_text(
                 }
                 extract_searchable_text(components, headings, snippets);
             }
-            Component::Tabs { tabs } => {
+            Component::Tabs { tabs, .. } => {
                 for tab in tabs {
                     headings.push(tab.label.clone());
                     extract_searchable_text(&tab.components, headings, snippets);
@@ -156,13 +156,15 @@ fn extract_searchable_text(
                     }
                 }
             }
-            Component::DefinitionList { items } => {
+            Component::DefinitionList { items, .. } => {
                 for item in items {
                     headings.push(item.term.clone());
                     push_snippet(snippets, &item.definition);
                 }
             }
-            Component::Blockquote { body, attribution } => {
+            Component::Blockquote {
+                body, attribution, ..
+            } => {
                 push_snippet(snippets, body);
                 if let Some(attr) = attribution {
                     push_snippet(snippets, attr);
@@ -193,7 +195,7 @@ fn extract_searchable_text(
                     push_snippet(snippets, &stat.value);
                 }
             }
-            Component::Timeline { items } => {
+            Component::Timeline { items, .. } => {
                 for item in items {
                     headings.push(item.name.clone());
                 }
@@ -211,7 +213,7 @@ fn extract_searchable_text(
                     }
                 }
             }
-            Component::Resources { items } => {
+            Component::Resources { items, .. } => {
                 for item in items {
                     headings.push(item.title.clone());
                     if let Some(desc) = &item.description {
@@ -219,9 +221,9 @@ fn extract_searchable_text(
                     }
                 }
             }
-            // Code blocks skipped — not useful as search content.
+            // Code blocks skipped - not useful as search content.
             Component::Code { .. } => {}
-            // Purely decorative / non-textual — skip.
+            // Purely decorative / non-textual - skip.
             Component::Meta { .. }
             | Component::Divider { .. }
             | Component::Kbd { .. }
@@ -237,6 +239,7 @@ fn extract_searchable_text(
             | Component::ProgressBar { .. }
             | Component::Icon { .. }
             | Component::Tree { .. }
+            | Component::PriorityQueue { .. }
             | Component::HeroBanner { .. }
             | Component::RoleMap { .. }
             | Component::SplitCompare { .. }
@@ -276,7 +279,7 @@ fn push_snippet(snippets: &mut Vec<String>, text: &str) {
 }
 
 /// Very rough markdown stripping: remove common syntax characters.
-/// We don't need a full parser — just make the text readable for search.
+/// We don't need a full parser - just make the text readable for search.
 fn strip_markdown(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
@@ -366,6 +369,8 @@ mod tests {
             draft: false,
             nav_layout: None,
             nav: None,
+            pack: None,
+            skill: None,
         }
     }
 
@@ -377,6 +382,7 @@ mod tests {
             eyebrow: None,
             align: Default::default(),
             id: None,
+            scale: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Hello World".to_string()));
@@ -390,6 +396,7 @@ mod tests {
     fn extract_markdown_strips_syntax() {
         let page = make_page(vec![Component::Markdown {
             body: "# Heading\n**bold** text with [link](http://example.com)".to_string(),
+            scale: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(!entry.content_snippets.is_empty());
@@ -415,6 +422,7 @@ mod tests {
                 },
             ],
             numbered: true,
+            scale: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Step one".to_string()));
@@ -434,7 +442,9 @@ mod tests {
             id: None,
             components: vec![Component::Markdown {
                 body: "Inner content here".to_string(),
+                scale: None,
             }],
+            scale: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Section Heading".to_string()));
@@ -455,7 +465,10 @@ mod tests {
     #[test]
     fn content_snippets_truncated() {
         let long_text = "a".repeat(300);
-        let page = make_page(vec![Component::Markdown { body: long_text }]);
+        let page = make_page(vec![Component::Markdown {
+            body: long_text,
+            scale: None,
+        }]);
         let entry = entry_for("index.html", &page, None);
         for snippet in &entry.content_snippets {
             assert!(snippet.len() <= 200, "snippet too long: {}", snippet.len());
@@ -467,6 +480,7 @@ mod tests {
         let page = make_page(vec![Component::Code {
             language: Some("rust".to_string()),
             code: "fn main() { println!(\"secret\"); }".to_string(),
+            scale: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.content_snippets.is_empty());
@@ -481,8 +495,10 @@ mod tests {
                 label: "Tab A".to_string(),
                 components: vec![Component::Markdown {
                     body: "Tab A content".to_string(),
+                    scale: None,
                 }],
             }],
+            scale: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Tab A".to_string()));
@@ -498,12 +514,15 @@ mod tests {
             columns: vec![
                 vec![Component::Markdown {
                     body: "Left column".to_string(),
+                    scale: None,
                 }],
                 vec![Component::Markdown {
                     body: "Right column".to_string(),
+                    scale: None,
                 }],
             ],
             equal_heights: false,
+            scale: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry

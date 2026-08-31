@@ -18,7 +18,7 @@ use crate::types::{Component, Page, Shell, SiteConfig, Slide};
 
 // ── Error type ────────────────────────────────────────
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug)]
 pub struct ValidationError {
     /// Source file that contains the error.
     pub file: String,
@@ -76,7 +76,199 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
             validate_freshness(file, "freshness", freshness, &mut errors);
         }
     }
+    validate_pack(file, page, &mut errors);
+    validate_skill(file, page, &mut errors);
     errors
+}
+
+/// Skill pages (`skill:` present) carry agent procedures. Every ```agl fence
+/// in their markdown runs through the AGL static analyzer - parse, then
+/// reachability / terminal completeness / branch integrity / invariant
+/// soundness - so a broken graph never saves. Fences must be self-contained:
+/// imports resolve against a local specs hub that servers don't have.
+/// Analyzer warnings don't block saves; agents can run `kazam agl validate`
+/// for the full report.
+fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
+    if page.skill.is_none() {
+        return;
+    }
+
+    fn collect_markdown<'a>(components: &'a [Component], out: &mut Vec<&'a str>) {
+        for c in components {
+            match c {
+                Component::Markdown { body, .. } => out.push(body),
+                Component::Section { components, .. } => collect_markdown(components, out),
+                _ => {}
+            }
+        }
+    }
+    let mut bodies: Vec<&str> = Vec::new();
+    if let Some(components) = &page.components {
+        collect_markdown(components, &mut bodies);
+    }
+
+    if bodies.iter().all(|b| b.trim().is_empty()) {
+        errors.push(ValidationError::new(
+            file,
+            "skill",
+            "skill",
+            "skill pages need at least one non-empty markdown component - that's the procedure agents follow",
+            Some("Add a markdown component with the skill's steps (or an ```agl fence), or remove the skill: block.".into()),
+        ));
+        return;
+    }
+
+    let mut fence_idx = 0;
+    for body in bodies {
+        for fence in extract_agl_fences(body) {
+            fence_idx += 1;
+            let path = format!("skill.flow[{}]", fence_idx);
+            let parsed = match crate::agl::parser::parse(&fence) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    errors.push(ValidationError::new(
+                        file,
+                        path,
+                        "skill",
+                        format!("agl parse error (fence line {}): {}", e.line, e.message),
+                        Some("Fix the AGL syntax - run `kazam agl validate` on the fence for the full report.".into()),
+                    ));
+                    continue;
+                }
+            };
+            if !parsed.imports.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    path,
+                    "skill",
+                    "agl fences in skill pages must be self-contained - imports resolve against a local specs hub the server doesn't have",
+                    Some("Inline the imported invariants into the fence.".into()),
+                ));
+                continue;
+            }
+            for d in crate::agl::validator::validate(&parsed.spec, &parsed.state_lines) {
+                if d.severity == crate::agl::validator::Severity::Error {
+                    errors.push(ValidationError::new(
+                        file,
+                        path.clone(),
+                        "skill",
+                        format!("agl {}: {} ({})", d.code, d.message, d.location),
+                        Some("Fix the flow graph - run `kazam agl validate` for the full report including warnings.".into()),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Pulls the contents of every ```agl fenced block out of a markdown body.
+fn extract_agl_fences(body: &str) -> Vec<String> {
+    let mut fences = Vec::new();
+    let mut current: Option<String> = None;
+    for line in body.lines() {
+        let trimmed = line.trim();
+        match &mut current {
+            None => {
+                if trimmed == "```agl" {
+                    current = Some(String::new());
+                }
+            }
+            Some(buf) => {
+                if trimmed == "```" {
+                    fences.push(std::mem::take(buf));
+                    current = None;
+                } else {
+                    buf.push_str(line);
+                    buf.push('\n');
+                }
+            }
+        }
+    }
+    fences
+}
+
+/// Pack pages (`pack:` present) must actually be installable: at least one
+/// non-empty markdown component reachable the way `kazam install` collects
+/// them (top level or nested in sections), and only known target names.
+fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
+    let Some(pack) = &page.pack else { return };
+
+    const VALID_TARGETS: [&str; 7] = [
+        "claude", "cursor", "agents", "windsurf", "copilot", "gemini", "aider",
+    ];
+    for (i, target) in pack.targets.iter().enumerate() {
+        if !VALID_TARGETS.contains(&target.as_str()) {
+            errors.push(ValidationError::new(
+                file,
+                format!("pack.targets[{}]", i),
+                "invalid_value",
+                format!("unknown pack target \"{}\"", target),
+                Some(format!(
+                    "Valid targets: {}. Omit targets: to write all.",
+                    VALID_TARGETS.join(", ")
+                )),
+            ));
+        }
+    }
+
+    fn has_installable_markdown(components: &[Component]) -> bool {
+        components.iter().any(|c| match c {
+            Component::Markdown { body, .. } => !body.trim().is_empty(),
+            Component::Section { components, .. } => has_installable_markdown(components),
+            _ => false,
+        })
+    }
+
+    let ok = page
+        .components
+        .as_deref()
+        .is_some_and(has_installable_markdown);
+    if !ok {
+        errors.push(ValidationError::new(
+            file,
+            "pack",
+            "structural",
+            "pack pages need at least one non-empty markdown component - that's what `kazam install` compiles into tool config files",
+            Some("Add a markdown component (top level or inside a section) with the pack's rules, or remove the pack: block.".into()),
+        ));
+    }
+
+    use crate::types::{MatchMode, PackHook};
+    for (i, hook) in pack.hooks.iter().enumerate() {
+        let path = format!("pack.hooks[{}]", i);
+        match hook {
+            PackHook::BlockOnMatch { patterns, mode, .. } => {
+                if patterns.is_empty() {
+                    errors.push(ValidationError::new(
+                        file,
+                        &path,
+                        "structural",
+                        "block_on_match needs at least one pattern",
+                        None,
+                    ));
+                }
+                if *mode == MatchMode::Regex {
+                    errors.push(ValidationError::new(
+                        file,
+                        &path,
+                        "invalid_value",
+                        "regex match mode is not supported yet; use substring or word patterns",
+                        None,
+                    ));
+                }
+            }
+            PackHook::Allowlist { allow, .. } if allow.is_empty() => {
+                errors.push(ValidationError::new(
+                    file,
+                    &path,
+                    "structural",
+                    "allowlist needs at least one allowed value",
+                    None,
+                ));
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Validate a single YAML file. Parses it as a [`Page`] and runs semantic
@@ -397,6 +589,7 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::Gauge { items, .. } => 2 + items.len() as u32,
         Component::RuleList { items, .. } => 1 + items.len() as u32,
         Component::Tree { .. } => 4,
+        Component::PriorityQueue { items, .. } => 2 + items.len() as u32,
         _ => 1,
     }
 }
@@ -521,13 +714,13 @@ fn validate_component(
                     file,
                     path,
                     "structural",
-                    "chart cannot have both data: and series: — pick one",
+                    "chart cannot have both data: and series: - pick one",
                     Some("Use data: for single-series charts, series: for multi-series.".into()),
                 ));
             }
         }
 
-        Component::Timeline { items } => {
+        Component::Timeline { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -575,7 +768,7 @@ fn validate_component(
             }
         }
 
-        Component::Tabs { tabs } => {
+        Component::Tabs { tabs, .. } => {
             if tabs.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -606,7 +799,7 @@ fn validate_component(
         }
 
         Component::Section { components, .. } => {
-            // A section can be a pure heading/anchor with no nested components — valid.
+            // A section can be a pure heading/anchor with no nested components - valid.
             if !components.is_empty() {
                 validate_components(file, &format!("{}.components", path), components, errors);
             }
@@ -642,7 +835,7 @@ fn validate_component(
             }
         }
 
-        Component::Accordion { items } => {
+        Component::Accordion { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -689,10 +882,22 @@ fn validate_component(
                         file,
                         format!("{}.events[{}].date", path, ei),
                         "format",
-                        format!("invalid date {:?} — must be YYYY-MM-DD", event.date),
+                        format!("invalid date {:?} - must be YYYY-MM-DD", event.date),
                         Some("Use ISO date format: 2026-01-15".into()),
                     ));
                 }
+            }
+        }
+
+        Component::PriorityQueue { items, .. } => {
+            if items.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.items", path),
+                    "missing_field",
+                    "priority_queue requires at least one item",
+                    Some("Add items with label: and optional due:.".into()),
+                ));
             }
         }
 
@@ -708,19 +913,43 @@ fn validate_component(
             }
         }
 
-        Component::Venn { sets, .. } => {
-            if sets.len() < 2 {
+        Component::Venn { sets, overlaps, .. } => {
+            if sets.is_empty() {
                 errors.push(ValidationError::new(
                     file,
                     format!("{}.sets", path),
                     "structural",
-                    format!("venn requires at least 2 sets, found {}", sets.len()),
-                    Some("Add at least two sets with label:.".into()),
+                    "venn requires at least 1 set",
+                    Some("Add sets with label:. A single set renders as one circle; two or three enable overlaps and the matrix view.".into()),
                 ));
+            }
+            if sets.len() > 3 {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.sets", path),
+                    "structural",
+                    format!("venn renders at most 3 sets, found {}", sets.len()),
+                    Some("Trim to 3 sets; extras are dropped from the diagram.".into()),
+                ));
+            }
+            for (i, o) in overlaps.iter().enumerate() {
+                if let Some(bad) = o.sets.iter().find(|&&idx| idx >= sets.len()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.overlaps[{}].sets", path, i),
+                        "structural",
+                        format!(
+                            "overlap references set index {} but only {} sets exist",
+                            bad,
+                            sets.len()
+                        ),
+                        Some("Overlap indices are 0-based positions into sets[].".into()),
+                    ));
+                }
             }
         }
 
-        Component::Kbd { keys } => {
+        Component::Kbd { keys, .. } => {
             if keys.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -732,7 +961,7 @@ fn validate_component(
             }
         }
 
-        Component::Breadcrumb { items } => {
+        Component::Breadcrumb { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -745,10 +974,10 @@ fn validate_component(
         }
 
         Component::ButtonGroup { .. } => {
-            // An empty button_group is valid — buttons may be conditionally populated.
+            // An empty button_group is valid - buttons may be conditionally populated.
         }
 
-        Component::DefinitionList { items } => {
+        Component::DefinitionList { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -772,7 +1001,7 @@ fn validate_component(
             }
         }
 
-        Component::Meta { fields } => {
+        Component::Meta { fields, .. } => {
             if fields.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -1041,7 +1270,7 @@ fn validate_component(
             }
         }
 
-        Component::Aside { body } => {
+        Component::Aside { body, .. } => {
             if body.trim().is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -1053,7 +1282,7 @@ fn validate_component(
             }
         }
 
-        Component::RuleList { items } => {
+        Component::RuleList { items, .. } => {
             if items.is_empty() {
                 errors.push(ValidationError::new(
                     file,
@@ -1122,7 +1351,7 @@ fn validate_freshness(
                 file,
                 format!("{}.updated", path),
                 "format",
-                format!("invalid date {:?} — must be YYYY-MM-DD", updated),
+                format!("invalid date {:?} - must be YYYY-MM-DD", updated),
                 Some("Use ISO date format: 2026-01-15".into()),
             ));
         }
@@ -1134,7 +1363,7 @@ fn validate_freshness(
                 format!("{}.review_every", path),
                 "format",
                 format!(
-                    "invalid duration {:?} — accepts Nd/Nw/Nm/Ny or weekly/monthly/quarterly/yearly",
+                    "invalid duration {:?} - accepts Nd/Nw/Nm/Ny or weekly/monthly/quarterly/yearly",
                     review_every
                 ),
                 Some("Examples: 30d, 4w, 3m, 1y, weekly, monthly, quarterly, yearly".into()),
@@ -1266,7 +1495,91 @@ mod tests {
             draft: false,
             nav_layout: None,
             nav: None,
+            pack: None,
+            skill: None,
         }
+    }
+
+    fn pack_meta(targets: &[&str]) -> crate::types::PackMeta {
+        crate::types::PackMeta {
+            targets: targets.iter().map(|s| s.to_string()).collect(),
+            hooks: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn pack_with_markdown_passes() {
+        let mut page = make_page(
+            Shell::Standard,
+            Some(vec![Component::Markdown {
+                body: "rules".into(),
+                scale: None,
+            }]),
+        );
+        page.pack = Some(pack_meta(&[]));
+        assert!(validate_page("p.yaml", &page).is_empty());
+    }
+
+    #[test]
+    fn pack_with_markdown_in_section_passes() {
+        let mut page = make_page(
+            Shell::Standard,
+            Some(vec![Component::Section {
+                heading: Some("Rules".into()),
+                eyebrow: None,
+                components: vec![Component::Markdown {
+                    body: "rules".into(),
+                    scale: None,
+                }],
+                align: Default::default(),
+                id: None,
+                scale: None,
+            }]),
+        );
+        page.pack = Some(pack_meta(&["claude", "cursor"]));
+        assert!(validate_page("p.yaml", &page).is_empty());
+    }
+
+    #[test]
+    fn pack_without_markdown_fails_structural() {
+        let mut page = make_page(Shell::Standard, Some(vec![header_component()]));
+        page.pack = Some(pack_meta(&[]));
+        let errors = validate_page("p.yaml", &page);
+        assert!(errors
+            .iter()
+            .any(|e| e.error_type == "structural" && e.path == "pack"));
+    }
+
+    #[test]
+    fn pack_with_empty_markdown_fails_structural() {
+        let mut page = make_page(
+            Shell::Standard,
+            Some(vec![Component::Markdown {
+                body: "   ".into(),
+                scale: None,
+            }]),
+        );
+        page.pack = Some(pack_meta(&[]));
+        let errors = validate_page("p.yaml", &page);
+        assert!(errors
+            .iter()
+            .any(|e| e.error_type == "structural" && e.path == "pack"));
+    }
+
+    #[test]
+    fn pack_with_unknown_target_fails() {
+        let mut page = make_page(
+            Shell::Standard,
+            Some(vec![Component::Markdown {
+                body: "rules".into(),
+                scale: None,
+            }]),
+        );
+        page.pack = Some(pack_meta(&["claude", "notatool"]));
+        let errors = validate_page("p.yaml", &page);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].path, "pack.targets[1]");
+        assert_eq!(errors[0].error_type, "invalid_value");
     }
 
     fn header_component() -> Component {
@@ -1276,6 +1589,7 @@ mod tests {
             eyebrow: None,
             align: Default::default(),
             id: None,
+            scale: None,
         }
     }
 
@@ -1326,6 +1640,8 @@ mod tests {
             draft: false,
             nav_layout: None,
             nav: None,
+            pack: None,
+            skill: None,
         };
         let errors = validate_page("deck.yaml", &page);
         assert!(
@@ -1370,6 +1686,7 @@ mod tests {
                 cards: vec![],
                 min_width: None,
                 connector: Connector::None,
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1390,6 +1707,7 @@ mod tests {
                 rows: vec![],
                 filterable: false,
                 summary: None,
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1413,6 +1731,7 @@ mod tests {
                 orientation: Default::default(),
                 data: None,
                 series: None,
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1448,6 +1767,7 @@ mod tests {
                         color: None,
                     }],
                 }]),
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1468,6 +1788,7 @@ mod tests {
                 detail: None,
                 target: None,
                 thresholds: std::collections::HashMap::new(),
+                scale: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1575,5 +1896,84 @@ mod tests {
         assert_eq!(normalize_href("foo/bar.yaml"), "foo/bar.html");
         assert_eq!(normalize_href(""), "index.html");
         assert_eq!(normalize_href("/"), "index.html");
+    }
+
+    // ── skill page validation ────────────────────────────
+
+    const GOOD_AGL: &str = "```agl\nspec Demo {\n  in: none: str\n  out: done: bool\n  description: \"demo\"\n\n  flow {\n    state START -> call(Bash, \"echo hi\") -> next\n    state FINISH -> evaluate(result vs expectation) -> TERMINATE(\"done\")\n  }\n}\n```";
+
+    fn skill_page(body: &str) -> Page {
+        let mut page = make_page(
+            Shell::Document,
+            Some(vec![Component::Markdown {
+                body: body.into(),
+                scale: None,
+            }]),
+        );
+        page.skill = Some(crate::types::SkillMeta {
+            trigger: Some("demo".into()),
+            requires: Vec::new(),
+        });
+        page
+    }
+
+    #[test]
+    fn skill_page_with_valid_agl_fence_passes() {
+        let page = skill_page(&format!("Steps first.\n\n{GOOD_AGL}"));
+        let errors = validate_page("skill.yaml", &page);
+        assert!(errors.is_empty(), "unexpected: {errors:?}");
+    }
+
+    #[test]
+    fn skill_page_without_markdown_errors() {
+        let mut page = make_page(Shell::Document, Some(vec![]));
+        page.skill = Some(crate::types::SkillMeta {
+            trigger: None,
+            requires: Vec::new(),
+        });
+        let errors = validate_page("skill.yaml", &page);
+        assert!(errors
+            .iter()
+            .any(|e| e.error_type == "skill" && e.message.contains("markdown")));
+    }
+
+    #[test]
+    fn skill_page_with_broken_agl_graph_errors() {
+        // ORPHAN is unreachable - the analyzer must block the save.
+        let body = "```agl\nspec Demo {\n  in: none: str\n  out: done: bool\n  description: \"demo\"\n\n  flow {\n    state START -> call(Bash, \"echo hi\") -> TERMINATE(\"done\")\n    state ORPHAN -> call(Bash, \"echo lost\") -> TERMINATE(\"lost\")\n  }\n}\n```";
+        let page = skill_page(body);
+        let errors = validate_page("skill.yaml", &page);
+        assert!(
+            errors.iter().any(|e| e.error_type == "skill"),
+            "expected analyzer error: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn skill_page_with_parse_error_errors() {
+        let page = skill_page("```agl\nthis is not agl\n```");
+        let errors = validate_page("skill.yaml", &page);
+        assert!(errors.iter().any(|e| e.message.contains("parse error")));
+    }
+
+    #[test]
+    fn skill_page_with_imports_errors() {
+        let body = "```agl\nimport \"shared\"\nspec Demo {\n  in: none: str\n  out: done: bool\n  description: \"demo\"\n\n  flow {\n    state START -> call(Bash, \"echo hi\") -> TERMINATE(\"done\")\n  }\n}\n```";
+        let page = skill_page(body);
+        let errors = validate_page("skill.yaml", &page);
+        assert!(errors.iter().any(|e| e.message.contains("self-contained")));
+    }
+
+    #[test]
+    fn non_skill_page_ignores_agl_fences() {
+        let page = make_page(
+            Shell::Document,
+            Some(vec![Component::Markdown {
+                body: "```agl\nbroken\n```".into(),
+                scale: None,
+            }]),
+        );
+        let errors = validate_page("plain.yaml", &page);
+        assert!(errors.is_empty(), "unexpected: {errors:?}");
     }
 }

@@ -106,7 +106,7 @@ Guidelines:
 - Match the existing voice and structure of the docs
 - If a new CLI flag, component, or feature was added, document it
 - If behavior changed, update the relevant section
-- Don't rewrite pages unnecessarily — surgical edits only
+- Don't rewrite pages unnecessarily - surgical edits only
 - Use mcp_list_pages to see what exists, mcp_read_page to read, mcp_write_page to update
 - When writing a page, include the FULL page content (it overwrites the file)
 - If no doc changes are needed, say so and stop

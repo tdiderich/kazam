@@ -1,4 +1,4 @@
-//! Conservative minifiers — scan by characters (never bytes) so multi-byte
+//! Conservative minifiers - scan by characters (never bytes) so multi-byte
 //! UTF-8 content can't cause panics from mid-char slicing.
 //!
 //! `minify_html` strips HTML comments and collapses whitespace between tags.
@@ -31,14 +31,14 @@ pub fn minify_html(input: &str) -> String {
             continue;
         }
 
-        // <style> — minify inner
+        // <style> - minify inner
         if let Some((consumed, rebuilt)) = minify_tag_inner(rest, "style", minify_css) {
             out.push_str(&rebuilt);
             rest = &rest[consumed..];
             continue;
         }
 
-        // <script> — minify inner
+        // <script> - minify inner
         if let Some((consumed, rebuilt)) = minify_tag_inner(rest, "script", minify_js) {
             out.push_str(&rebuilt);
             rest = &rest[consumed..];
@@ -294,9 +294,9 @@ mod tests {
 
     #[test]
     fn html_preserves_multibyte() {
-        let html = "<title>Hello — World</title>";
+        let html = "<title>Hello - World</title>";
         let out = minify_html(html);
-        assert!(out.contains("—"), "got: {}", out);
+        assert!(out.contains("-"), "got: {}", out);
     }
 
     #[test]

@@ -7,7 +7,7 @@
 //!    non-ASCII chars are dropped without collapsing the surrounding words
 //!    (so "⚡ Move at Machine Speed" → "move-at-machine-speed").
 //!
-//! 2. [`Tracker`] dedupes within one page — the second instance of a slug
+//! 2. [`Tracker`] dedupes within one page - the second instance of a slug
 //!    becomes `slug-2`, the third `slug-3`, etc. The tracker is reset at
 //!    the start of each page render via [`reset`], keyed on a thread-local
 //!    so the rendering call chain doesn't need to plumb state through
@@ -28,7 +28,7 @@ pub fn slugify(text: &str) -> String {
             last_was_dash = true;
         }
         // Everything else (punctuation, emoji, non-ASCII letters) is
-        // dropped — but without emitting a dash, so "Q3/Q4" collapses to
+        // dropped - but without emitting a dash, so "Q3/Q4" collapses to
         // "q3q4" rather than "q3-q4". Adjust if a real case surfaces.
     }
     // Strip a trailing dash if the input ended on punctuation/whitespace.

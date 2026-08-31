@@ -35,13 +35,13 @@ fn bind_next_available(start: u16) -> Result<(Server, u16)> {
         .saturating_add(PORT_FALLBACK_ATTEMPTS)
         .saturating_sub(1);
     anyhow::bail!(
-        "no free port in range {start}..={tail} — last error: {}",
+        "no free port in range {start}..={tail} - last error: {}",
         last_err.unwrap_or_else(|| "unknown".to_string())
     );
 }
 
 pub fn run(dir: &Path, out: &Path, port: u16) -> Result<()> {
-    // Dev builds silence the orphan check — work-in-progress pages show up
+    // Dev builds silence the orphan check - work-in-progress pages show up
     // as orphans until you wire them into nav, and that'd be noisy.
     build::run(dir, out, false, true, false, false, false, false)?;
 
@@ -56,11 +56,11 @@ pub fn run(dir: &Path, out: &Path, port: u16) -> Result<()> {
     // ── HTTP server ───────────────────────────────
     // Try the requested port first; if it's in use, walk forward up to
     // PORT_FALLBACK_ATTEMPTS before giving up. Matches Vite / Next.js /
-    // Parcel UX — a port being busy shouldn't kill the dev loop.
+    // Parcel UX - a port being busy shouldn't kill the dev loop.
     let (server, actual_port) = bind_next_available(port)?;
 
     if actual_port != port {
-        println!("\n  ⚠ port {port} is in use — serving on {actual_port} instead");
+        println!("\n  ⚠ port {port} is in use - serving on {actual_port} instead");
     }
     println!("\n  ➜ http://localhost:{actual_port}");
     println!("  watching {}\n", dir.display());
@@ -110,7 +110,7 @@ fn watch_loop(dir: PathBuf, out: PathBuf, version: Arc<AtomicU64>) {
     for event in rx {
         let Ok(event) = event else { continue };
         let relevant = event.paths.iter().any(|p| {
-            // Ignore anything inside the output directory — both the
+            // Ignore anything inside the output directory - both the
             // configured `out` and any nested `_site` (e.g. a previously
             // built sub-site). Otherwise every rebuild retriggers itself.
             if p.starts_with(&out_abs) || p.components().any(|c| c.as_os_str() == "_site") {
@@ -204,13 +204,13 @@ fn handle(
                         req.respond(resp).context("respond")
                     }
                     Err(_) => {
-                        let body = format!("404 — not found: {rel}");
+                        let body = format!("404 - not found: {rel}");
                         let resp = Response::from_string(body).with_status_code(404);
                         req.respond(resp).context("respond")
                     }
                 }
             } else {
-                let body = format!("404 — not found: {rel}");
+                let body = format!("404 - not found: {rel}");
                 let resp = Response::from_string(body).with_status_code(404);
                 req.respond(resp).context("respond")
             }
@@ -295,7 +295,7 @@ mod tests {
             taken.saturating_add(PORT_FALLBACK_ATTEMPTS)
         );
 
-        // Tidy up — drop the server and the squatter explicitly so the
+        // Tidy up - drop the server and the squatter explicitly so the
         // sockets close before the test exits.
         drop(server);
         drop(squatter);
@@ -303,7 +303,7 @@ mod tests {
 
     #[test]
     fn bind_next_available_succeeds_when_port_free() {
-        // High ephemeral-range start — very unlikely to be taken.
+        // High ephemeral-range start - very unlikely to be taken.
         let start = 49_999;
         let (server, got) = bind_next_available(start).expect("bind free port");
         assert_eq!(got, start);

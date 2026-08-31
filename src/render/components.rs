@@ -5,61 +5,71 @@ use crate::icons;
 use crate::types::*;
 
 pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
-    match c {
+    let rendered = match c {
         Component::Header {
             title,
             subtitle,
             eyebrow,
             align,
             id,
+            ..
         } => header(title, subtitle, eyebrow, *align, id.as_deref()),
         Component::HeroBanner {
             title,
             eyebrow,
             subtitle,
             buttons,
+            ..
         } => hero_banner(title, eyebrow, subtitle, buttons.as_deref(), base),
-        Component::Meta { fields } => meta(fields),
+        Component::Meta { fields, .. } => meta(fields),
         Component::CardGrid {
             cards,
             min_width,
             connector,
+            ..
         } => card_grid(cards, *min_width, *connector, base),
         Component::SelectableGrid {
             cards,
             interaction,
             connector,
+            ..
         } => selectable_grid(cards, *interaction, *connector, base),
-        Component::Timeline { items } => timeline(items),
-        Component::StatGrid { stats, columns } => stat_grid(stats, *columns),
+        Component::Timeline { items, .. } => timeline(items),
+        Component::StatGrid { stats, columns, .. } => stat_grid(stats, *columns),
         Component::BeforeAfter {
             items,
             before_label,
             after_label,
+            ..
         } => before_after(items, before_label.as_deref(), after_label.as_deref()),
-        Component::SplitCompare { left, right } => split_compare(left, right),
-        Component::Steps { items, numbered } => steps(items, *numbered),
-        Component::Markdown { body } => markdown(body, base),
+        Component::SplitCompare { left, right, .. } => split_compare(left, right),
+        Component::Steps {
+            items, numbered, ..
+        } => steps(items, *numbered),
+        Component::Markdown { body, .. } => markdown(body, base),
         Component::Table {
             columns,
             rows,
             filterable,
             summary,
+            ..
         } => table(columns, rows, *filterable, summary.as_ref()),
         Component::Callout {
             variant,
             title,
             body,
             links,
+            ..
         } => callout(*variant, title, body, links.as_deref(), base),
-        Component::Code { language, code } => code_block(language, code),
-        Component::Tabs { tabs } => tabs_component(tabs, base, config),
+        Component::Code { language, code, .. } => code_block(language, code),
+        Component::Tabs { tabs, .. } => tabs_component(tabs, base, config),
         Component::Section {
             heading,
             eyebrow,
             components,
             align,
             id,
+            ..
         } => section(
             heading,
             eyebrow,
@@ -72,8 +82,9 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
         Component::Columns {
             columns,
             equal_heights,
+            ..
         } => columns_component(columns, *equal_heights, base, config),
-        Component::Accordion { items } => accordion(items, base, config),
+        Component::Accordion { items, .. } => accordion(items, base, config),
         Component::EventTimeline {
             events,
             default_filter,
@@ -81,6 +92,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             limit,
             filter_by,
             group_by,
+            ..
         } => event_timeline(
             events,
             *default_filter,
@@ -99,6 +111,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             show_counts,
             show_summary,
             default_view,
+            ..
         } => tree(
             nodes,
             *default_filter,
@@ -113,33 +126,43 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             sets,
             overlaps,
             title,
-        } => venn(sets, overlaps, title.as_deref()),
+            default_view,
+            ..
+        } => venn(sets, overlaps, title.as_deref(), *default_view),
         Component::Image {
             src,
             alt,
             caption,
             max_width,
             align,
+            ..
         } => image(src, alt, caption, *max_width, *align, base),
-        Component::Embed { src, title, aspect } => embed(src, title, aspect),
-        Component::Resources { items } => resources(items),
+        Component::Embed {
+            src, title, aspect, ..
+        } => embed(src, title, aspect),
+        Component::Resources { items, .. } => resources(items),
         // Phase 1 additions
-        Component::Badge { label, color } => badge(label, *color),
-        Component::Tag { label, color } => tag(label, *color),
-        Component::Divider { label } => divider(label),
-        Component::Kbd { keys } => kbd(keys),
-        Component::Status { label, color } => status(label, *color),
-        Component::Breadcrumb { items } => breadcrumb(items, base),
-        Component::ButtonGroup { buttons } => button_group(buttons, base),
-        Component::DefinitionList { items } => definition_list(items),
-        Component::Blockquote { body, attribution } => blockquote(body, attribution),
+        Component::Badge { label, color, .. } => badge(label, *color),
+        Component::Tag { label, color, .. } => tag(label, *color),
+        Component::Divider { label, .. } => divider(label),
+        Component::Kbd { keys, .. } => kbd(keys),
+        Component::Status { label, color, .. } => status(label, *color),
+        Component::Breadcrumb { items, .. } => breadcrumb(items, base),
+        Component::ButtonGroup { buttons, .. } => button_group(buttons, base),
+        Component::DefinitionList { items, .. } => definition_list(items),
+        Component::Blockquote {
+            body, attribution, ..
+        } => blockquote(body, attribution),
         Component::Avatar {
             name,
             src,
             size,
             subtitle,
+            ..
         } => avatar(name, src, *size, subtitle),
-        Component::AvatarGroup { avatars, size, max } => avatar_group(avatars, *size, *max),
+        Component::AvatarGroup {
+            avatars, size, max, ..
+        } => avatar_group(avatars, *size, *max),
         Component::ProgressBar {
             value,
             label,
@@ -147,14 +170,18 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             detail,
             target,
             thresholds,
-        } => progress_bar(*value, label, *color, detail, *target, thresholds),
+            ..
+        } => progress_bar(*value, label, color, detail, *target, thresholds),
         Component::EmptyState {
             title,
             body,
             action,
             icon,
+            ..
         } => empty_state(title, body, action, icon, base),
-        Component::Icon { name, size, color } => icon_component(name, *size, *color),
+        Component::Icon {
+            name, size, color, ..
+        } => icon_component(name, *size, *color),
         Component::Chart {
             kind,
             title,
@@ -164,6 +191,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             orientation,
             data,
             series,
+            ..
         } => charts::render(charts::ChartSpec {
             kind: *kind,
             title,
@@ -174,12 +202,13 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             data,
             series,
         }),
-        Component::RoleMap { title } => role_map(title.as_deref(), config, base),
+        Component::RoleMap { title, .. } => role_map(title.as_deref(), config, base),
         Component::Sankey {
             title,
             height,
             flows,
             colors,
+            ..
         } => charts::render_sankey(title, *height, flows, colors),
         Component::Radar {
             title,
@@ -187,6 +216,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             axes,
             curves,
             max,
+            ..
         } => charts::render_radar(title, *height, axes, curves, *max),
         Component::Quadrant {
             title,
@@ -195,6 +225,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             y_axis,
             quadrants,
             points,
+            ..
         } => charts::render_quadrant(title, *height, x_axis, y_axis, quadrants, points),
         Component::Architecture {
             title,
@@ -202,6 +233,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             direction,
             nodes,
             connections,
+            ..
         } => charts::render_architecture(title, *height, *direction, nodes, connections),
         Component::Pipeline {
             title,
@@ -210,6 +242,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             stages,
             outputs,
             context,
+            ..
         } => charts::render_pipeline(title, *height, inputs, stages, outputs, context),
         Component::Graph {
             title,
@@ -218,25 +251,62 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             nodes,
             edges,
             groups,
-        } => charts::render_graph(title, *height, *direction, nodes, edges, groups),
+            row_labels,
+            ..
+        } => charts::render_graph(title, *height, *direction, nodes, edges, groups, row_labels),
         Component::OrgChart {
             title,
             people,
             default_open_depth,
+            ..
         } => render_org_chart(title, people, *default_open_depth),
-        Component::Aside { body } => aside(body, base),
-        Component::RuleList { items } => rule_list(items),
+        Component::Aside { body, .. } => aside(body, base),
+        Component::RuleList { items, .. } => rule_list(items),
         Component::Gauge {
             items,
             title,
             columns,
             max,
+            ..
         } => gauge(items, title.as_deref(), *columns, *max),
-    }
+        Component::PriorityQueue {
+            items,
+            group_by,
+            show_dates,
+            show_counts,
+            filterable,
+            title,
+            ..
+        } => priority_queue(
+            items,
+            *group_by,
+            *show_dates,
+            *show_counts,
+            *filterable,
+            title.as_deref(),
+        ),
+    };
+    apply_scale(rendered, c.scale())
 }
 
 pub(super) fn sem_color_class(c: SemColor) -> &'static str {
     c.class_suffix()
+}
+
+/// Wraps a chart/diagram's rendered HTML in a centered container sized to
+/// `scale` (fraction of the container width; height follows since the SVG
+/// keeps its aspect ratio). A no-op when `scale` is unset. Clamped to
+/// 0.1–2.0 so a bad value can't collapse or blow out the layout.
+fn apply_scale(mut r: Rendered, scale: Option<f32>) -> Rendered {
+    if let Some(s) = scale {
+        let s = s.clamp(0.1, 2.0);
+        r.html = format!(
+            r#"<div class="c-chart-scale" style="--kz-scale: {s}">{html}</div>"#,
+            s = s,
+            html = r.html,
+        );
+    }
+    r
 }
 
 // ── Header ────────────────────────────────────────
@@ -665,6 +735,7 @@ pub(super) fn parse_markdown(md: &str, base: &str) -> String {
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
+    opts.insert(Options::ENABLE_TASKLISTS);
     let parser = MdParser::new_ext(md, opts);
     // Rewrite link destinations through resolve_href so relative links get
     // the depth-aware base prefix and absolute/protocol hrefs pass through.
@@ -709,7 +780,7 @@ pub(super) fn parse_markdown_inline(md: &str) -> String {
 /// Render a table cell: HTML-escape the raw value, then linkify any
 /// `[text](url)` spans. Only `http(s)://`, `mailto:`, and path-like relative
 /// URLs are accepted; anything else (e.g. `javascript:`) stays as literal
-/// escaped text. Intentionally narrow — cells only grow links, not bold /
+/// escaped text. Intentionally narrow - cells only grow links, not bold /
 /// italic / code.
 fn render_cell(v: &str) -> String {
     let escaped = esc(v);
@@ -1033,9 +1104,9 @@ fn event_timeline(
     events: &[EventItem],
     default_filter: EventFilter,
     show_filter_toggle: bool,
-    limit: Option<u32>,
+    _limit: Option<u32>,
     filter_by: &[String],
-    group_by: Option<EventGroupBy>,
+    _group_by: Option<EventGroupBy>,
     base: &str,
 ) -> Rendered {
     let mut r = Rendered::default();
@@ -1044,12 +1115,19 @@ fn event_timeline(
     // filter at build time (instead of rendering all and CSS-hiding some).
     // When the toggle is shown, all events must be in the DOM so JS can
     // switch between filters.
+    // Most-recent-first, regardless of the order the author wrote them in -
+    // an event timeline is a changelog/activity feed, not an ordered list an
+    // author controls. Stable sort so same-date entries keep their authored
+    // relative order.
+    let mut sorted: Vec<&EventItem> = events.iter().collect();
+    sorted.sort_by(|a, b| b.date.cmp(&a.date));
+
     let render_all = show_filter_toggle || matches!(default_filter, EventFilter::All);
     let filtered: Vec<&EventItem> = if render_all {
-        events.iter().collect()
+        sorted
     } else {
-        events
-            .iter()
+        sorted
+            .into_iter()
             .filter(|ev| matches!(ev.severity, EventSeverity::Major))
             .collect()
     };
@@ -1103,7 +1181,7 @@ fn event_timeline(
     }
 
     r.html.push_str(r#"<ol class="c-event-list">"#);
-    for (i, ev) in filtered.iter().enumerate() {
+    for ev in &filtered {
         let has_summary = ev
             .summary
             .as_deref()
@@ -1191,6 +1269,7 @@ fn event_timeline(
 
 // ── Tree ──────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn tree(
     nodes: &[TreeNode],
     default_filter: TreeFilter,
@@ -1245,10 +1324,8 @@ fn tree(
         }
         if show_filter_toggle {
             for f in &[TreeFilter::All, TreeFilter::Incomplete] {
-                let active = !show_summary && *f == default_filter
-                    || show_summary
-                        && default_view == TreeDefaultView::Tree
-                        && *f == default_filter;
+                let active = *f == default_filter
+                    && (!show_summary || default_view == TreeDefaultView::Tree);
                 let label = match f {
                     TreeFilter::All => "All",
                     TreeFilter::Incomplete => "Incomplete",
@@ -1292,22 +1369,6 @@ fn tree(
         r.scripts.push("tree");
     }
     r
-}
-
-fn collect_tree_stats(
-    nodes: &[TreeNode],
-    owners: &mut std::collections::HashMap<String, (usize, usize)>,
-) {
-    for node in nodes {
-        let key = node.owner.as_deref().unwrap_or("Unassigned").to_string();
-        let entry = owners.entry(key).or_insert((0, 0));
-        if matches!(node.status, TreeStatus::Completed) {
-            entry.1 += 1;
-        } else {
-            entry.0 += 1;
-        }
-        collect_tree_stats(&node.children, owners);
-    }
 }
 
 fn count_phase_progress(nodes: &[TreeNode]) -> (usize, usize) {
@@ -1417,6 +1478,8 @@ fn prune_tree_node(node: &TreeNode, filter: TreeFilter) -> Option<TreeNode> {
         note: node.note.clone(),
         children: pruned_children,
         owner: node.owner.clone(),
+        due: node.due.clone(),
+        original_due: node.original_due.clone(),
     })
 }
 
@@ -1426,13 +1489,8 @@ fn node_matches_filter(node: &TreeNode, filter: TreeFilter) -> bool {
         TreeFilter::Incomplete => !matches!(node.status, TreeStatus::Completed),
         TreeFilter::Blocked => matches!(node.status, TreeStatus::Blocked),
         TreeFilter::Priority => matches!(node.status, TreeStatus::Priority),
+        TreeFilter::Overdue => false,
     }
-}
-
-fn count_tree_descendants(nodes: &[TreeNode]) -> usize {
-    nodes
-        .iter()
-        .fold(0, |acc, n| acc + 1 + count_tree_descendants(&n.children))
 }
 
 fn render_tree_level(nodes: &[TreeNode], h: &mut String, list_class: &str) {
@@ -1506,57 +1564,836 @@ fn render_tree_level(nodes: &[TreeNode], h: &mut String, list_class: &str) {
     h.push_str("</ul>");
 }
 
-// ── Venn ──────────────────────────────────────────
+// ── Priority Queue ────────────────────────────────
 
-fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rendered {
-    // Supported: 2-set or 3-set venn. Anything else degrades to a single-set
-    // diagram with a warning note, so a malformed YAML doesn't break the page.
-    let n = sets.len();
-    let mut h = String::from(r#"<div class="c-venn">"#);
-    if let Some(t) = title {
-        h.push_str(&format!(r#"<div class="c-venn-title">{}</div>"#, esc(t)));
+/// Urgency bucket derived from an item's `due` date relative to "today" plus
+/// the two group boundaries (`week_end`, `two_week_end`). Drives both the
+/// `Urgency`/`Horizon` group headers and the per-row stripe color.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum QueueBucket {
+    Overdue,
+    TwoWeeks,
+    TwoToEight,
+    Later,
+    NoDate,
+}
+
+impl QueueBucket {
+    fn urgency_label(&self) -> &'static str {
+        match self {
+            QueueBucket::Overdue => "Overdue",
+            QueueBucket::TwoWeeks => "Next two weeks",
+            QueueBucket::TwoToEight => "2-8 weeks",
+            QueueBucket::Later => "Later",
+            QueueBucket::NoDate => "No date",
+        }
     }
 
+    fn horizon_label(&self) -> &'static str {
+        match self {
+            QueueBucket::Overdue | QueueBucket::TwoWeeks => "Now",
+            QueueBucket::TwoToEight => "Next",
+            QueueBucket::Later => "Later",
+            QueueBucket::NoDate => "No date",
+        }
+    }
+
+    fn urgency_rank(&self) -> u8 {
+        match self {
+            QueueBucket::Overdue => 0,
+            QueueBucket::TwoWeeks => 1,
+            QueueBucket::TwoToEight => 2,
+            QueueBucket::Later => 3,
+            QueueBucket::NoDate => 4,
+        }
+    }
+}
+
+/// `TreeStatus` doesn't derive `PartialEq` (it's defined in types.rs, which
+/// this module doesn't own), so grouping by status needs a manual compare.
+fn tree_status_eq(a: TreeStatus, b: TreeStatus) -> bool {
+    matches!(
+        (a, b),
+        (TreeStatus::Default, TreeStatus::Default)
+            | (TreeStatus::Completed, TreeStatus::Completed)
+            | (TreeStatus::Active, TreeStatus::Active)
+            | (TreeStatus::Blocked, TreeStatus::Blocked)
+            | (TreeStatus::Priority, TreeStatus::Priority)
+            | (TreeStatus::Upcoming, TreeStatus::Upcoming)
+    )
+}
+
+fn queue_bucket_from_date(
+    item: &QueueItem,
+    today: &str,
+    two_week_end: &str,
+    eight_week_end: &str,
+) -> QueueBucket {
+    match item.due.as_deref() {
+        None => QueueBucket::NoDate,
+        Some(due) => {
+            let completed = matches!(item.status, TreeStatus::Completed);
+            if due < today {
+                if completed {
+                    QueueBucket::TwoWeeks
+                } else {
+                    QueueBucket::Overdue
+                }
+            } else if due <= two_week_end {
+                QueueBucket::TwoWeeks
+            } else if due <= eight_week_end {
+                QueueBucket::TwoToEight
+            } else {
+                QueueBucket::Later
+            }
+        }
+    }
+}
+
+fn horizon_to_bucket(h: QueueHorizon) -> QueueBucket {
+    match h {
+        QueueHorizon::Now => QueueBucket::TwoWeeks,
+        QueueHorizon::Next => QueueBucket::TwoToEight,
+        QueueHorizon::Later => QueueBucket::Later,
+    }
+}
+
+fn queue_bucket(
+    item: &QueueItem,
+    today: &str,
+    two_week_end: &str,
+    eight_week_end: &str,
+) -> QueueBucket {
+    match item.horizon {
+        Some(h) => horizon_to_bucket(h),
+        None => queue_bucket_from_date(item, today, two_week_end, eight_week_end),
+    }
+}
+
+fn queue_has_drift(
+    item: &QueueItem,
+    today: &str,
+    two_week_end: &str,
+    eight_week_end: &str,
+) -> bool {
+    let explicit = match item.horizon {
+        Some(h) => h,
+        None => return false,
+    };
+    if item.due.is_none() {
+        return false;
+    }
+    let date_bucket = queue_bucket_from_date(item, today, two_week_end, eight_week_end);
+    let horizon_bucket = horizon_to_bucket(explicit);
+    date_bucket.urgency_rank() < horizon_bucket.urgency_rank()
+}
+
+/// CSS stripe class for a row. Blocked items always render as blocked
+/// regardless of date, overriding whatever bucket their due date implies.
+fn queue_urgency_class(item: &QueueItem, bucket: QueueBucket) -> &'static str {
+    if matches!(item.status, TreeStatus::Blocked) {
+        return "urgency-blocked";
+    }
+    match bucket {
+        QueueBucket::Overdue => "urgency-overdue",
+        QueueBucket::TwoWeeks => "urgency-soon",
+        QueueBucket::TwoToEight | QueueBucket::Later => "urgency-track",
+        QueueBucket::NoDate => "urgency-none",
+    }
+}
+
+/// Gregorian (y, m, d) → Julian day number.
+fn queue_julian_day(y: i32, m: i32, d: i32) -> i32 {
+    let a = (14 - m) / 12;
+    let y2 = y + 4800 - a;
+    let m2 = m + 12 * a - 3;
+    d + (153 * m2 + 2) / 5 + 365 * y2 + y2 / 4 - y2 / 100 + y2 / 400 - 32045
+}
+
+/// Julian day number → Gregorian (y, m, d). Inverse of `queue_julian_day`.
+fn queue_from_julian_day(jdn: i32) -> (i32, i32, i32) {
+    let a = jdn + 32044;
+    let b = (4 * a + 3) / 146097;
+    let c = a - (146097 * b) / 4;
+    let d = (4 * c + 3) / 1461;
+    let e = c - (1461 * d) / 4;
+    let m = (5 * e + 2) / 153;
+    let day = e - (153 * m + 2) / 5 + 1;
+    let month = m + 3 - 12 * (m / 10);
+    let year = 100 * b + d - 4800 + m / 10;
+    (year, month, day)
+}
+
+/// Add (or subtract) `days` from a `YYYY-MM-DD` string. Malformed input is
+/// returned unchanged so a bad date never panics the build.
+fn add_days_to_date(date: &str, days: i32) -> String {
+    let parts: Vec<&str> = date.split('-').collect();
+    if parts.len() != 3 {
+        return date.to_string();
+    }
+    let (y, m, d) = match (
+        parts[0].parse::<i32>(),
+        parts[1].parse::<i32>(),
+        parts[2].parse::<i32>(),
+    ) {
+        (Ok(y), Ok(m), Ok(d)) => (y, m, d),
+        _ => return date.to_string(),
+    };
+    let jdn = queue_julian_day(y, m, d) + days;
+    let (ny, nm, nd) = queue_from_julian_day(jdn);
+    format!("{:04}-{:02}-{:02}", ny, nm, nd)
+}
+
+/// Format a `YYYY-MM-DD` string as "Mon D" (e.g. "Jun 20"). Falls back to
+/// the raw string on malformed input.
+fn format_queue_date(date: &str) -> String {
+    let parts: Vec<&str> = date.split('-').collect();
+    if parts.len() != 3 {
+        return date.to_string();
+    }
+    let month = match parts[1] {
+        "01" => "Jan",
+        "02" => "Feb",
+        "03" => "Mar",
+        "04" => "Apr",
+        "05" => "May",
+        "06" => "Jun",
+        "07" => "Jul",
+        "08" => "Aug",
+        "09" => "Sep",
+        "10" => "Oct",
+        "11" => "Nov",
+        "12" => "Dec",
+        _ => return date.to_string(),
+    };
+    let day: u32 = match parts[2].parse() {
+        Ok(d) => d,
+        Err(_) => return date.to_string(),
+    };
+    format!("{} {}", month, day)
+}
+
+/// Render the optional "was {date}" / "pulled in" slip indicator, comparing
+/// `due` against `original_due` as `YYYY-MM-DD` strings (zero-padded, so
+/// lexicographic comparison is equivalent to chronological comparison).
+fn render_queue_slip(due: Option<&str>, original_due: Option<&str>) -> String {
+    let (due, original) = match (due, original_due) {
+        (Some(d), Some(o)) => (d, o),
+        _ => return String::new(),
+    };
+    if due == original {
+        return String::new();
+    }
+    if due > original {
+        format!(
+            r#"<span class="c-queue-slip">was {}</span>"#,
+            esc(&format_queue_date(original))
+        )
+    } else {
+        r#"<span class="c-queue-slip pulled">pulled in</span>"#.to_string()
+    }
+}
+
+fn render_queue_row(
+    item: &QueueItem,
+    bucket: QueueBucket,
+    show_dates: bool,
+    drift: bool,
+    h: &mut String,
+) {
+    let urgency_class = queue_urgency_class(item, bucket);
+    let completed_class = if matches!(item.status, TreeStatus::Completed) {
+        " completed"
+    } else {
+        ""
+    };
+    let drift_class = if drift { " drift" } else { "" };
+    let tag = if item.href.is_some() { "a" } else { "div" };
+    let href_attr = item
+        .href
+        .as_deref()
+        .map(|href| format!(r#" href="{}""#, esc(href)))
+        .unwrap_or_default();
+
+    h.push_str(&format!(
+        r#"<{tag} class="c-queue-row {status} {urgency}{completed}{drift}" data-status="{status_label}"{href}>"#,
+        tag = tag,
+        status = item.status.class(),
+        urgency = urgency_class,
+        completed = completed_class,
+        drift = drift_class,
+        status_label = item.status.label(),
+        href = href_attr,
+    ));
+    h.push_str(r#"<div class="c-queue-stripe"></div>"#);
+    h.push_str(r#"<div class="c-queue-main">"#);
+    h.push_str(r#"<div class="c-queue-label-line">"#);
+    h.push_str(&format!(
+        r#"<span class="c-queue-label">{}</span>"#,
+        esc(&item.label)
+    ));
+    if let Some(owner) = &item.owner {
+        if !owner.trim().is_empty() {
+            h.push_str(&format!(
+                r#"<span class="c-queue-owner">{}</span>"#,
+                esc(owner)
+            ));
+        }
+    }
+    h.push_str("</div>");
+    if let Some(detail) = &item.detail {
+        if !detail.trim().is_empty() {
+            h.push_str(&format!(
+                r#"<div class="c-queue-detail">{}</div>"#,
+                esc(detail)
+            ));
+        }
+    }
+    if !item.tags.is_empty() {
+        h.push_str(r#"<div class="c-queue-tags">"#);
+        for t in &item.tags {
+            let emphasis_class = if t.emphasis { " emphasis" } else { "" };
+            h.push_str(&format!(
+                r#"<span class="c-queue-tag color-{color}{emphasis}">{label}</span>"#,
+                color = t.color.class_suffix(),
+                emphasis = emphasis_class,
+                label = esc(&t.label),
+            ));
+        }
+        h.push_str("</div>");
+    }
+    h.push_str("</div>");
+    if show_dates {
+        if let Some(due) = &item.due {
+            h.push_str(r#"<div class="c-queue-date">"#);
+            h.push_str(&format!(
+                r#"<span class="c-queue-due">{}</span>"#,
+                esc(&format_queue_date(due))
+            ));
+            h.push_str(&render_queue_slip(
+                Some(due.as_str()),
+                item.original_due.as_deref(),
+            ));
+            h.push_str("</div>");
+        }
+    }
+    h.push_str(&format!("</{tag}>"));
+}
+
+fn priority_queue(
+    items: &[QueueItem],
+    group_by: QueueGroup,
+    show_dates: bool,
+    show_counts: bool,
+    filterable: bool,
+    title: Option<&str>,
+) -> Rendered {
+    let mut h = String::from(r#"<div class="c-queue">"#);
+    if let Some(t) = title {
+        h.push_str(&format!(r#"<div class="c-queue-title">{}</div>"#, esc(t)));
+    }
+    if filterable {
+        h.push_str(r#"<div class="c-queue-search"><input type="text" class="c-queue-search-input" placeholder="Filter items…" data-queue-search></div>"#);
+    }
+
+    let today = crate::freshness::today_iso();
+    let two_week_end = add_days_to_date(&today, 13);
+    let eight_week_end = add_days_to_date(&today, 55);
+
+    let bucket_of = |item: &QueueItem| queue_bucket(item, &today, &two_week_end, &eight_week_end);
+    let drift_of = |item: &QueueItem| queue_has_drift(item, &today, &two_week_end, &eight_week_end);
+    match group_by {
+        QueueGroup::None => {
+            for item in items {
+                let bucket = bucket_of(item);
+                render_queue_row(item, bucket, show_dates, drift_of(item), &mut h);
+            }
+        }
+        QueueGroup::Urgency => {
+            let order = [
+                QueueBucket::Overdue,
+                QueueBucket::TwoWeeks,
+                QueueBucket::TwoToEight,
+                QueueBucket::Later,
+                QueueBucket::NoDate,
+            ];
+            for bucket in order {
+                let group_items: Vec<&QueueItem> =
+                    items.iter().filter(|it| bucket_of(it) == bucket).collect();
+                if group_items.is_empty() {
+                    continue;
+                }
+                let collapse = !matches!(bucket, QueueBucket::Overdue | QueueBucket::TwoWeeks);
+                render_queue_group(
+                    bucket.urgency_label(),
+                    &group_items,
+                    show_counts,
+                    collapse,
+                    |it, h| {
+                        render_queue_row(it, bucket, show_dates, drift_of(it), h);
+                    },
+                    &mut h,
+                );
+            }
+        }
+        QueueGroup::Horizon => {
+            let order = ["Now", "Next", "Later", "No date"];
+            for label in order {
+                let group_items: Vec<&QueueItem> = items
+                    .iter()
+                    .filter(|it| bucket_of(it).horizon_label() == label)
+                    .collect();
+                if group_items.is_empty() {
+                    continue;
+                }
+                render_queue_group(
+                    label,
+                    &group_items,
+                    show_counts,
+                    label != "Now",
+                    |it, h| {
+                        let bucket = bucket_of(it);
+                        render_queue_row(it, bucket, show_dates, drift_of(it), h);
+                    },
+                    &mut h,
+                );
+            }
+        }
+        QueueGroup::Owner => {
+            let mut owners: Vec<String> = Vec::new();
+            for item in items {
+                let owner = item
+                    .owner
+                    .as_deref()
+                    .filter(|o| !o.trim().is_empty())
+                    .unwrap_or("Unassigned")
+                    .to_string();
+                if !owners.contains(&owner) {
+                    owners.push(owner);
+                }
+            }
+            for owner in &owners {
+                let group_items: Vec<&QueueItem> = items
+                    .iter()
+                    .filter(|it| {
+                        let o = it
+                            .owner
+                            .as_deref()
+                            .filter(|o| !o.trim().is_empty())
+                            .unwrap_or("Unassigned");
+                        o == owner
+                    })
+                    .collect();
+                if group_items.is_empty() {
+                    continue;
+                }
+                render_queue_group(
+                    owner,
+                    &group_items,
+                    show_counts,
+                    owner != &owners[0],
+                    |it, h| {
+                        let bucket = bucket_of(it);
+                        render_queue_row(it, bucket, show_dates, drift_of(it), h);
+                    },
+                    &mut h,
+                );
+            }
+        }
+        QueueGroup::Status => {
+            let order = [
+                TreeStatus::Priority,
+                TreeStatus::Blocked,
+                TreeStatus::Active,
+                TreeStatus::Upcoming,
+                TreeStatus::Default,
+                TreeStatus::Completed,
+            ];
+            let mut first_rendered = false;
+            for status in order {
+                let group_items: Vec<&QueueItem> = items
+                    .iter()
+                    .filter(|it| tree_status_eq(it.status, status))
+                    .collect();
+                if group_items.is_empty() {
+                    continue;
+                }
+                let collapse = first_rendered;
+                first_rendered = true;
+                render_queue_group(
+                    status.label(),
+                    &group_items,
+                    show_counts,
+                    collapse,
+                    |it, h| {
+                        let bucket = bucket_of(it);
+                        render_queue_row(it, bucket, show_dates, drift_of(it), h);
+                    },
+                    &mut h,
+                );
+            }
+        }
+    }
+
+    h.push_str("</div>");
+    let mut r = Rendered::new(h);
+    if !matches!(group_by, QueueGroup::None) {
+        r = r.with_script("queue_collapse");
+    }
+    if filterable {
+        r = r.with_script("queue_filter");
+    }
+    r
+}
+
+/// Render one `c-queue-group` with a header (label + optional count) and a
+/// caller-provided closure for rendering each item's row.
+fn render_queue_group<F>(
+    label: &str,
+    items: &[&QueueItem],
+    show_counts: bool,
+    collapsed: bool,
+    mut render_row: F,
+    h: &mut String,
+) where
+    F: FnMut(&QueueItem, &mut String),
+{
+    if collapsed {
+        h.push_str(r#"<div class="c-queue-group collapsed">"#);
+    } else {
+        h.push_str(r#"<div class="c-queue-group">"#);
+    }
+    h.push_str(r#"<div class="c-queue-group-header">"#);
+    h.push_str(&format!(
+        r#"<span class="c-queue-group-label">{}</span>"#,
+        esc(&label.to_uppercase())
+    ));
+    if show_counts {
+        h.push_str(&format!(
+            r#"<span class="c-queue-group-count">{}</span>"#,
+            items.len()
+        ));
+    }
+    h.push_str("</div>");
+    for item in items {
+        render_row(item, h);
+    }
+    h.push_str("</div>");
+}
+
+// ── Venn ──────────────────────────────────────────
+
+// Approximate glyph advance widths (em units) for the UI font. Good enough to
+// pick a font size that keeps a label inside its circle without a DOM to
+// measure against. Mirrors `vennTextWidth` in the React SDK renderer.
+fn venn_text_width(text: &str, font_size: f64, weight: f64) -> f64 {
+    let mut w = 0.0;
+    for ch in text.chars() {
+        w += match ch {
+            'A'..='Z' => 0.68,
+            '0'..='9' => 0.6,
+            'a'..='z' => 0.54,
+            ' ' | ',' | '.' | '\'' => 0.3,
+            _ => 0.5,
+        };
+    }
+    w * font_size * weight
+}
+
+struct VennFit {
+    lines: Vec<String>,
+    font_size: f64,
+}
+
+// Fit a set label into `avail` px: shrink from max toward min, and if breaking
+// at word boundaries into 2 or 3 lines ("INSPECTOR" over "(8,726)", or
+// "CROWDSTRIKE" / "FALCON" / "(4,219)") keeps the text larger, use that. Ties
+// go to fewer lines.
+fn venn_fit_label(text: &str, avail: f64, max_size: f64, min_size: f64, weight: f64) -> VennFit {
+    let size_for = |lines: &[String]| -> f64 {
+        let widest = lines
+            .iter()
+            .map(|l| venn_text_width(l, 1.0, weight))
+            .fold(0.001_f64, f64::max);
+        (avail / widest).min(max_size)
+    };
+    let single = vec![text.trim().to_string()];
+    let mut best_lines = single.clone();
+    let mut best_size = size_for(&single);
+    if best_size >= max_size {
+        return VennFit {
+            lines: single,
+            font_size: max_size,
+        };
+    }
+
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let mut consider = |lines: Vec<String>| {
+        let s = size_for(&lines);
+        if s > best_size + 0.01 || ((s - best_size).abs() <= 0.01 && lines.len() < best_lines.len())
+        {
+            best_lines = lines;
+            best_size = s;
+        }
+    };
+    for i in 1..words.len() {
+        consider(vec![words[..i].join(" "), words[i..].join(" ")]);
+        for j in (i + 1)..words.len() {
+            consider(vec![
+                words[..i].join(" "),
+                words[i..j].join(" "),
+                words[j..].join(" "),
+            ]);
+        }
+    }
+    VennFit {
+        lines: best_lines,
+        font_size: best_size.clamp(min_size, max_size),
+    }
+}
+
+// Word-wrap an overlap label into an `avail` x `avail_h` box. Tries the largest
+// font first and steps down until both the widest line and the stacked height
+// fit - so a phrase shrinks a little rather than towering out of a narrow lune.
+// Falls back to the minimum size (tspans squeeze any line still too wide).
+fn venn_wrap_label(
+    text: &str,
+    avail: f64,
+    avail_h: f64,
+    max_size: f64,
+    min_size: f64,
+    weight: f64,
+) -> VennFit {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let wrap_at = |size: f64| -> Vec<String> {
+        let mut lines: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        for word in &words {
+            let candidate = if cur.is_empty() {
+                (*word).to_string()
+            } else {
+                format!("{cur} {word}")
+            };
+            if !cur.is_empty() && venn_text_width(&candidate, size, weight) > avail {
+                lines.push(std::mem::take(&mut cur));
+                cur.push_str(word);
+            } else {
+                cur = candidate;
+            }
+        }
+        if !cur.is_empty() {
+            lines.push(cur);
+        }
+        if lines.is_empty() {
+            lines.push(text.to_string());
+        }
+        lines
+    };
+    let mut size = max_size;
+    while size >= min_size {
+        let lines = wrap_at(size);
+        let widest = lines
+            .iter()
+            .map(|l| venn_text_width(l, size, weight))
+            .fold(0.0_f64, f64::max);
+        if widest <= avail && lines.len() as f64 * size * 1.2 <= avail_h {
+            return VennFit {
+                lines,
+                font_size: size,
+            };
+        }
+        size -= 0.5;
+    }
+    VennFit {
+        lines: wrap_at(min_size),
+        font_size: min_size,
+    }
+}
+
+// Emit fitted lines as centered tspans. A line that still overflows at the
+// minimum size is squeezed with textLength so it never escapes its region.
+fn venn_tspans(h: &mut String, fit: &VennFit, x: f64, avail: f64, weight: f64) {
+    let line_h = fit.font_size * 1.2;
+    let start_dy = -(fit.lines.len() as f64 - 1.0) * line_h / 2.0;
+    for (i, line) in fit.lines.iter().enumerate() {
+        let dy = if i == 0 { start_dy } else { line_h };
+        let squeeze = if venn_text_width(line, fit.font_size, weight) > avail {
+            format!(r#" textLength="{avail:.1}" lengthAdjust="spacingAndGlyphs""#)
+        } else {
+            String::new()
+        };
+        h.push_str(&format!(
+            r#"<tspan x="{x:.1}" dy="{dy:.1}"{squeeze}>{}</tspan>"#,
+            esc(line),
+        ));
+    }
+}
+
+// Split "NAME (count)" into its parts for the matrix view. Labels without a
+// trailing parenthetical keep the whole label as the name and no count.
+fn venn_split_label(label: &str) -> (String, String) {
+    let t = label.trim();
+    if t.ends_with(')') {
+        if let Some(open) = t.rfind('(') {
+            let name = t[..open].trim();
+            let count = t[open + 1..t.len() - 1].trim();
+            if !name.is_empty() && !count.contains(['(', ')']) {
+                return (name.to_string(), count.to_string());
+            }
+        }
+    }
+    (t.to_string(), String::new())
+}
+
+fn venn(
+    sets: &[VennSet],
+    overlaps: &[VennOverlap],
+    title: Option<&str>,
+    default_view: VennView,
+) -> Rendered {
+    // Supported: 1-, 2- or 3-set venn. Extra sets are dropped from the diagram
+    // (validate flags them) so a malformed YAML doesn't break the page.
+    let n = sets.len();
+    let mut h = String::from(r#"<div class="c-venn" data-venn>"#);
+
     if n == 0 {
+        if let Some(t) = title {
+            h.push_str(&format!(r#"<div class="c-venn-title">{}</div>"#, esc(t)));
+        }
         h.push_str(r#"<div class="c-venn-empty">No sets provided.</div></div>"#);
         return Rendered::new(h);
     }
 
-    // Geometry constants — viewBox is sized so the 3-set bounding box leaves
-    // ~30-40px of breathing room on every side at default radius. Circles
-    // stay at r=90 regardless of layout so 2-set and 3-set look at the same
-    // visual scale.
-    let (vb_w, vb_h) = (480.0, 340.0);
-    let r = 90.0_f64;
+    let can_toggle = n >= 2;
+    let table_first = can_toggle && default_view == VennView::Table;
 
-    h.push_str(&format!(
-        r#"<svg class="c-venn-svg" viewBox="0 0 {vb_w} {vb_h}" role="img" aria-label="{}">"#,
-        title.map(esc).unwrap_or_default()
-    ));
+    // Header row: title centered, view toggle pinned to the right.
+    if title.is_some() || can_toggle {
+        h.push_str(r#"<div class="c-venn-head">"#);
+        if let Some(t) = title {
+            h.push_str(&format!(r#"<div class="c-venn-title">{}</div>"#, esc(t)));
+        }
+        if can_toggle {
+            let (venn_active, table_active) = if table_first {
+                ("", " active")
+            } else {
+                (" active", "")
+            };
+            h.push_str(&format!(
+                concat!(
+                    r#"<div class="c-venn-toggle" role="group" aria-label="Venn view switcher">"#,
+                    r#"<button type="button" class="{va}" data-venn-view="venn" aria-pressed="{vp}" title="Venn diagram">"#,
+                    r#"<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="6" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="10" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>"#,
+                    r#"</button>"#,
+                    r#"<button type="button" class="{ta}" data-venn-view="table" aria-pressed="{tp}" title="Overlap matrix">"#,
+                    r#"<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1" fill="currentColor"/><rect x="9" y="2" width="5" height="5" rx="1" fill="currentColor"/><rect x="2" y="9" width="5" height="5" rx="1" fill="currentColor"/><rect x="9" y="9" width="5" height="5" rx="1" fill="currentColor"/></svg>"#,
+                    r#"</button></div>"#,
+                ),
+                va = venn_active.trim(),
+                vp = !table_first,
+                ta = table_active.trim(),
+                tp = table_first,
+            ));
+        }
+        h.push_str("</div>");
+    }
 
-    // Compute per-set centers based on layout.
+    // Geometry. Circles stay at r=108 regardless of layout so 2-set and 3-set
+    // read at the same visual scale; the viewBox hugs the circles' bounding
+    // box (plus padding) so the diagram fills its container instead of
+    // floating small inside a fixed canvas.
+    let r = 108.0_f64;
+    let (base_w, base_h) = (580.0, 410.0);
     let centers: Vec<(f64, f64)> = match n {
-        1 => vec![(vb_w / 2.0, vb_h / 2.0)],
+        1 => vec![(base_w / 2.0, base_h / 2.0)],
         2 => vec![
-            (vb_w / 2.0 - r * 0.55, vb_h / 2.0),
-            (vb_w / 2.0 + r * 0.55, vb_h / 2.0),
+            (base_w / 2.0 - r * 0.55, base_h / 2.0),
+            (base_w / 2.0 + r * 0.55, base_h / 2.0),
         ],
         _ => {
             // 3 sets: vertices of an upward-pointing triangle, recentered.
             // Distance from centroid to each vertex = r * 0.62 for healthy overlap.
             let d = r * 0.62;
-            let cx = vb_w / 2.0;
-            let cy = vb_h / 2.0 + d * 0.3; // slight nudge so labels fit
+            let cx = base_w / 2.0;
+            let cy = base_h / 2.0 + d * 0.3;
             vec![
-                (cx, cy - d),                   // top
-                (cx - d * 0.866, cy + d * 0.5), // bottom-left
-                (cx + d * 0.866, cy + d * 0.5), // bottom-right
+                (cx, cy - d),
+                (cx - d * 0.866, cy + d * 0.5),
+                (cx + d * 0.866, cy + d * 0.5),
             ]
         }
     };
+    let pad = 14.0;
+    let min_x = centers.iter().map(|c| c.0).fold(f64::INFINITY, f64::min) - r - pad;
+    let max_x = centers
+        .iter()
+        .map(|c| c.0)
+        .fold(f64::NEG_INFINITY, f64::max)
+        + r
+        + pad;
+    let min_y = centers.iter().map(|c| c.1).fold(f64::INFINITY, f64::min) - r - pad;
+    let max_y = centers
+        .iter()
+        .map(|c| c.1)
+        .fold(f64::NEG_INFINITY, f64::max)
+        + r
+        + pad;
+    let (vb_w, vb_h) = (max_x - min_x, max_y - min_y);
 
-    // Render circles. Each set gets its theme-aware color via inline style on
-    // a CSS custom property so themes can swap accents without touching here.
+    // Where a set label sits (pushed from its circle's center away from the
+    // diagram centroid) and how much horizontal room the uncovered crescent
+    // gives it there. 2-set: the crescent runs from the circle edge (-1.0R) to
+    // the other circle's edge (+0.1R), so center at 0.45R with ~1.0R of width.
+    // 3-set: the top circle's crescent is wide open; the bottom two are hemmed
+    // in by their neighbor.
+    let set_label_push = match n {
+        1 => 0.0,
+        2 => r * 0.45,
+        _ => r * 0.55,
+    };
+    let set_label_avail = |i: usize| -> f64 {
+        match n {
+            1 => r * 1.7,
+            2 => r * 1.0,
+            _ => {
+                if i == 0 {
+                    r * 1.5
+                } else {
+                    r * 0.95
+                }
+            }
+        }
+    };
+    // Room inside an intersection region: width, and how tall a label block
+    // may stack before it pokes out of the lune.
+    let overlap_avail = |count: usize| -> f64 {
+        if n == 2 {
+            r * 0.8
+        } else if count >= 3 {
+            r * 0.75
+        } else {
+            r * 0.62
+        }
+    };
+    let overlap_avail_h = |count: usize| -> f64 {
+        if n == 2 {
+            r * 1.2
+        } else if count >= 3 {
+            r * 0.7
+        } else {
+            r * 0.45
+        }
+    };
+    // Keep on-screen scale constant across layouts: ~1.85px per viewBox unit,
+    // so a lone circle doesn't balloon to fill the whole column.
+    let svg_max_width = (vb_w * 1.85).round().min(680.0);
+
+    let svg_hidden = if table_first { " hidden" } else { "" };
+    h.push_str(&format!(
+        r#"<svg class="c-venn-svg" data-venn-panel="venn" viewBox="{min_x:.1} {min_y:.1} {vb_w:.1} {vb_h:.1}" style="max-width:{svg_max_width:.0}px" role="img" aria-label="{}"{svg_hidden}>"#,
+        title.map(esc).unwrap_or_default()
+    ));
+
     for (i, set) in sets.iter().take(centers.len()).enumerate() {
         let (cx, cy) = centers[i];
         h.push_str(&format!(
@@ -1565,27 +2402,30 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
         ));
     }
 
-    // Set labels — placed outside the central overlap so they read cleanly.
+    // Set labels - pushed away from the diagram centroid into the part of the
+    // circle nothing else covers, then shrunk / split to fit that width.
+    let centroid_x = centers.iter().map(|c| c.0).sum::<f64>() / centers.len() as f64;
+    let centroid_y = centers.iter().map(|c| c.1).sum::<f64>() / centers.len() as f64;
     for (i, set) in sets.iter().take(centers.len()).enumerate() {
         let (cx, cy) = centers[i];
-        // Offset away from the diagram centroid, then label that point.
-        let centroid_x = centers.iter().map(|c| c.0).sum::<f64>() / centers.len() as f64;
-        let centroid_y = centers.iter().map(|c| c.1).sum::<f64>() / centers.len() as f64;
         let dx = cx - centroid_x;
         let dy = cy - centroid_y;
         let mag = (dx * dx + dy * dy).sqrt().max(1.0);
-        let push = if n == 1 { 0.0 } else { r * 0.55 };
-        let lx = cx + dx / mag * push;
-        let ly = cy + dy / mag * push;
+        let lx = cx + dx / mag * set_label_push;
+        let ly = cy + dy / mag * set_label_push;
+        let avail = set_label_avail(i);
+        let fit = venn_fit_label(&set.label, avail, 13.0, 9.0, 1.05);
         h.push_str(&format!(
-            r#"<text class="c-venn-label c-venn-label-{color}" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle">{label}</text>"#,
+            r#"<text class="c-venn-label c-venn-label-{color}" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle" style="font-size:{fs:.1}px">"#,
             color = set.color.class_suffix(),
-            label = esc(&set.label),
+            fs = fit.font_size,
         ));
+        venn_tspans(&mut h, &fit, lx, avail, 1.05);
+        h.push_str("</text>");
     }
 
     // Overlap labels. For pairwise overlaps in a 3-set venn the naïve centroid
-    // of the two circles lands too close to the triangle centroid — every
+    // of the two circles lands too close to the triangle centroid - every
     // pairwise label collides with the 3-way overlap label in the middle. Push
     // pairwise labels outward from the un-included set's center so they land
     // in the actual lune (the part of the overlap that excludes the third set).
@@ -1593,8 +2433,6 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
         if ov.sets.is_empty() {
             continue;
         }
-
-        // Default: centroid of the involved circles.
         let mut sum_x = 0.0;
         let mut sum_y = 0.0;
         let mut count = 0;
@@ -1610,16 +2448,15 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
         }
         let mut lx = sum_x / count as f64;
         let mut ly = sum_y / count as f64;
-
-        // Pairwise overlap inside a 3-set venn: nudge outward from the
-        // unincluded set's center so the label sits in the pairwise lune.
         if n == 3 && count == 2 {
             if let Some(third_idx) = (0..3).find(|i| !ov.sets.contains(i)) {
                 let (tx, ty) = centers[third_idx];
                 let dx = lx - tx;
                 let dy = ly - ty;
                 let mag = (dx * dx + dy * dy).sqrt().max(1.0);
-                let push = r * 0.45;
+                // 0.5R centers the label in the lune's usable span (third
+                // circle's edge at 0.38R from the centroid, lune tip at 1.15R).
+                let push = r * 0.5;
                 lx += dx / mag * push;
                 ly += dy / mag * push;
             }
@@ -1627,15 +2464,114 @@ fn venn(sets: &[VennSet], overlaps: &[VennOverlap], title: Option<&str>) -> Rend
 
         let label = ov.label.as_deref().unwrap_or("");
         if !label.is_empty() {
+            let avail = overlap_avail(count);
+            let fit = venn_wrap_label(label, avail, overlap_avail_h(count), 12.0, 9.0, 1.0);
             h.push_str(&format!(
-                r#"<text class="c-venn-overlap-label" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle">{label}</text>"#,
-                label = esc(label),
+                r#"<text class="c-venn-overlap-label" x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle" style="font-size:{fs:.1}px">"#,
+                fs = fit.font_size,
             ));
+            venn_tspans(&mut h, &fit, lx, avail, 1.0);
+            h.push_str("</text>");
         }
     }
+    h.push_str("</svg>");
 
-    h.push_str("</svg></div>");
-    Rendered::new(h)
+    // Matrix view: sets as both rows and columns. Diagonal = each set's own
+    // total (parsed from a "NAME (count)" label), off-diagonal = the pairwise
+    // overlap label, plus an "All N" row for the full intersection.
+    if can_toggle {
+        let shown: Vec<&VennSet> = sets.iter().take(centers.len()).collect();
+        let parsed: Vec<(String, String, &'static str)> = shown
+            .iter()
+            .map(|s| {
+                let (name, count) = venn_split_label(&s.label);
+                (name, count, s.color.class_suffix())
+            })
+            .collect();
+        let overlap_for = |idx: &[usize]| -> String {
+            let mut key: Vec<usize> = idx.to_vec();
+            key.sort_unstable();
+            overlaps
+                .iter()
+                .find(|o| {
+                    let mut k = o.sets.clone();
+                    k.sort_unstable();
+                    k == key
+                })
+                .and_then(|o| o.label.clone())
+                .unwrap_or_default()
+        };
+        let table_hidden = if table_first { "" } else { " hidden" };
+        h.push_str(&format!(
+            r#"<div class="c-venn-matrix-wrap" data-venn-panel="table"{table_hidden}><table class="c-venn-matrix"><thead><tr><th scope="col" aria-label="Set"></th>"#
+        ));
+        for (name, _, color) in &parsed {
+            h.push_str(&format!(
+                r#"<th scope="col" class="c-venn-th-{color}">{}</th>"#,
+                esc(name)
+            ));
+        }
+        h.push_str("</tr></thead><tbody>");
+        for (i, (name, count, color)) in parsed.iter().enumerate() {
+            h.push_str(&format!(
+                r#"<tr><th scope="row" class="c-venn-th-{color}">{}</th>"#,
+                esc(name)
+            ));
+            for (j, other) in parsed.iter().enumerate() {
+                if i == j {
+                    let shown_count = if count.is_empty() {
+                        "—"
+                    } else {
+                        count.as_str()
+                    };
+                    h.push_str(&format!(
+                        r#"<td class="c-venn-cell c-venn-cell-total" title="{} total">{}</td>"#,
+                        esc(name),
+                        esc(shown_count)
+                    ));
+                } else {
+                    let v = overlap_for(&[i, j]);
+                    let cls = if v.is_empty() {
+                        "c-venn-cell-empty"
+                    } else {
+                        "c-venn-cell-overlap"
+                    };
+                    let shown_v = if v.is_empty() { "—" } else { v.as_str() };
+                    h.push_str(&format!(
+                        r#"<td class="c-venn-cell {cls}" title="{} ∩ {}">{}</td>"#,
+                        esc(name),
+                        esc(&other.0),
+                        esc(shown_v)
+                    ));
+                }
+            }
+            h.push_str("</tr>");
+        }
+        if parsed.len() >= 3 {
+            let all_idx: Vec<usize> = (0..parsed.len()).collect();
+            let v = overlap_for(&all_idx);
+            let cls = if v.is_empty() {
+                "c-venn-cell-empty"
+            } else {
+                "c-venn-cell-all"
+            };
+            let shown_v = if v.is_empty() { "—" } else { v.as_str() };
+            h.push_str(&format!(
+                r#"<tr class="c-venn-matrix-all"><th scope="row">All {}</th><td colspan="{}" class="c-venn-cell {cls}">{}</td></tr>"#,
+                parsed.len(),
+                parsed.len(),
+                esc(shown_v)
+            ));
+        }
+        h.push_str("</tbody></table></div>");
+    }
+
+    h.push_str("</div>");
+    if can_toggle {
+        Rendered::new(h).with_script("venn")
+    } else {
+        Rendered::new(h)
+    }
 }
 
 // ── Image ─────────────────────────────────────────
@@ -1868,7 +2804,7 @@ fn blockquote(body: &str, attribution: &Option<String>) -> Rendered {
     );
     if let Some(a) = attribution {
         h.push_str(&format!(
-            r#"<figcaption class="c-blockquote-attribution">— {}</figcaption>"#,
+            r#"<figcaption class="c-blockquote-attribution">- {}</figcaption>"#,
             esc(a)
         ));
     }
@@ -1953,21 +2889,33 @@ fn avatar_group(avatars: &[AvatarConfig], size: AvatarSize, max: usize) -> Rende
 
 // ── Progress Bar ─────────────────────────────────
 
+fn progress_color_style(color: &str) -> String {
+    match color {
+        "default" => "var(--teal)".to_string(),
+        "green" => "var(--green)".to_string(),
+        "yellow" => "var(--yellow)".to_string(),
+        "red" => "var(--red)".to_string(),
+        "teal" => "var(--teal)".to_string(),
+        hex if hex.starts_with('#') => hex.to_string(),
+        _ => "var(--teal)".to_string(),
+    }
+}
+
 fn progress_bar(
     value: u8,
     label: &Option<String>,
-    color: SemColor,
+    color: &str,
     detail: &Option<String>,
     target: Option<u8>,
-    thresholds: &std::collections::HashMap<String, SemColor>,
+    thresholds: &std::collections::HashMap<String, String>,
 ) -> Rendered {
     let clamped = value.min(100);
     let effective_color = if !thresholds.is_empty() {
-        resolve_threshold_color(clamped, thresholds).unwrap_or(color)
+        resolve_threshold_color(clamped, thresholds).unwrap_or_else(|| color.to_string())
     } else {
-        color
+        color.to_string()
     };
-    let color_class = sem_color_class(effective_color);
+    let bg = progress_color_style(&effective_color);
 
     let mut h = String::from(r#"<div class="c-progress">"#);
     if label.is_some() || detail.is_some() {
@@ -1987,8 +2935,8 @@ fn progress_bar(
         h.push_str("</div>");
     }
     h.push_str(&format!(
-        r#"<div class="c-progress-track" role="progressbar" aria-valuenow="{v}" aria-valuemin="0" aria-valuemax="100"><div class="c-progress-fill c-progress-fill-{color}" style="--progress: {v}%"></div>"#,
-        v = clamped, color = color_class
+        r#"<div class="c-progress-track" role="progressbar" aria-valuenow="{v}" aria-valuemin="0" aria-valuemax="100"><div class="c-progress-fill" style="--progress: {v}%; background: {bg}"></div>"#,
+        v = clamped, bg = bg
     ));
     if let Some(t) = target {
         let t_clamped = t.min(100);
@@ -2010,25 +2958,25 @@ fn progress_bar(
 
 fn resolve_threshold_color(
     value: u8,
-    thresholds: &std::collections::HashMap<String, SemColor>,
-) -> Option<SemColor> {
-    let mut best: Option<(u8, SemColor)> = None;
+    thresholds: &std::collections::HashMap<String, String>,
+) -> Option<String> {
+    let mut best: Option<(u8, &String)> = None;
     for (key, color) in thresholds {
         if let Ok(threshold) = key.parse::<u8>() {
             if value >= threshold {
                 match best {
                     Some((prev, _)) if threshold > prev => {
-                        best = Some((threshold, *color));
+                        best = Some((threshold, color));
                     }
                     None => {
-                        best = Some((threshold, *color));
+                        best = Some((threshold, color));
                     }
                     _ => {}
                 }
             }
         }
     }
-    best.map(|(_, c)| c)
+    best.map(|(_, c)| c.clone())
 }
 
 // ── Empty State ──────────────────────────────────
@@ -2340,6 +3288,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn apply_scale_noop_when_unset() {
+        let r = apply_scale(
+            Rendered::new("<figure class=\"c-chart\"></figure>".into()),
+            None,
+        );
+        assert_eq!(r.html, "<figure class=\"c-chart\"></figure>");
+    }
+
+    #[test]
+    fn apply_scale_wraps_and_clamps() {
+        let r = apply_scale(
+            Rendered::new("<figure class=\"c-chart\"></figure>".into()),
+            Some(0.5),
+        );
+        assert_eq!(
+            r.html,
+            "<div class=\"c-chart-scale\" style=\"--kz-scale: 0.5\"><figure class=\"c-chart\"></figure></div>"
+        );
+
+        let too_small = apply_scale(Rendered::new("<x></x>".into()), Some(0.0));
+        assert!(too_small.html.contains("--kz-scale: 0.1"));
+
+        let too_big = apply_scale(Rendered::new("<x></x>".into()), Some(10.0));
+        assert!(too_big.html.contains("--kz-scale: 2"));
+    }
+
+    #[test]
     fn render_cell_plain_text_is_escaped() {
         assert_eq!(render_cell("Acme Corp"), "Acme Corp");
         assert_eq!(render_cell("<script>"), "&lt;script&gt;");
@@ -2393,7 +3368,7 @@ mod tests {
     #[test]
     fn render_cell_preserves_multibyte_text() {
         // Em dash (3 bytes in UTF-8) must survive unchanged.
-        assert_eq!(render_cell("One — two"), "One — two");
+        assert_eq!(render_cell("One - two"), "One - two");
         assert_eq!(
             render_cell("[résumé](https://example.com/cv)"),
             r#"<a href="https://example.com/cv">résumé</a>"#
@@ -2404,5 +3379,180 @@ mod tests {
     fn render_cell_leaves_unmatched_brackets_alone() {
         assert_eq!(render_cell("[not a link"), "[not a link");
         assert_eq!(render_cell("[text](no scheme)"), "[text](no scheme)");
+    }
+
+    #[test]
+    fn add_days_to_date_crosses_month_and_year_boundaries() {
+        assert_eq!(add_days_to_date("2026-07-28", 6), "2026-08-03");
+        assert_eq!(add_days_to_date("2026-12-30", 5), "2027-01-04");
+        assert_eq!(add_days_to_date("2026-02-27", 2), "2026-03-01");
+    }
+
+    #[test]
+    fn format_queue_date_drops_leading_zero_on_day() {
+        assert_eq!(format_queue_date("2026-06-20"), "Jun 20");
+        assert_eq!(format_queue_date("2026-07-09"), "Jul 9");
+    }
+
+    fn item(due: Option<&str>, original_due: Option<&str>, status: TreeStatus) -> QueueItem {
+        QueueItem {
+            label: "Item".to_string(),
+            detail: None,
+            due: due.map(|s| s.to_string()),
+            original_due: original_due.map(|s| s.to_string()),
+            owner: None,
+            status,
+            tags: Vec::new(),
+            href: None,
+            horizon: None,
+        }
+    }
+
+    #[test]
+    fn queue_bucket_classifies_relative_to_today() {
+        let today = "2026-07-28";
+        let two_week_end = add_days_to_date(today, 13); // 2026-08-10
+        let eight_week_end = add_days_to_date(today, 55); // 2026-09-21
+
+        let overdue = item(Some("2026-07-20"), None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&overdue, today, &two_week_end, &eight_week_end),
+            QueueBucket::Overdue
+        ));
+
+        let due_today = item(Some(today), None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&due_today, today, &two_week_end, &eight_week_end),
+            QueueBucket::TwoWeeks
+        ));
+
+        let two_to_eight = item(Some("2026-08-20"), None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&two_to_eight, today, &two_week_end, &eight_week_end),
+            QueueBucket::TwoToEight
+        ));
+
+        let later = item(Some("2026-10-01"), None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&later, today, &two_week_end, &eight_week_end),
+            QueueBucket::Later
+        ));
+
+        let no_date = item(None, None, TreeStatus::Active);
+        assert!(matches!(
+            queue_bucket(&no_date, today, &two_week_end, &eight_week_end),
+            QueueBucket::NoDate
+        ));
+
+        let completed_overdue = item(Some("2026-07-01"), None, TreeStatus::Completed);
+        assert!(matches!(
+            queue_bucket(&completed_overdue, today, &two_week_end, &eight_week_end),
+            QueueBucket::TwoWeeks
+        ));
+    }
+
+    #[test]
+    fn queue_urgency_class_blocked_overrides_bucket() {
+        let blocked = item(Some("2026-09-01"), None, TreeStatus::Blocked);
+        assert_eq!(
+            queue_urgency_class(&blocked, QueueBucket::Later),
+            "urgency-blocked"
+        );
+        let active = item(Some("2026-09-01"), None, TreeStatus::Active);
+        assert_eq!(
+            queue_urgency_class(&active, QueueBucket::Later),
+            "urgency-track"
+        );
+    }
+
+    #[test]
+    fn render_queue_slip_detects_pull_and_push() {
+        assert_eq!(
+            render_queue_slip(Some("2026-07-09"), Some("2026-06-20")),
+            r#"<span class="c-queue-slip">was Jun 20</span>"#
+        );
+        assert_eq!(
+            render_queue_slip(Some("2026-06-01"), Some("2026-06-20")),
+            r#"<span class="c-queue-slip pulled">pulled in</span>"#
+        );
+        assert_eq!(
+            render_queue_slip(Some("2026-06-20"), Some("2026-06-20")),
+            ""
+        );
+        assert_eq!(render_queue_slip(None, Some("2026-06-20")), "");
+    }
+
+    #[test]
+    fn priority_queue_groups_by_urgency_with_counts() {
+        std::env::set_var("KAZAM_TODAY", "2026-07-28");
+        let items = vec![
+            item(Some("2026-07-20"), None, TreeStatus::Active),
+            item(None, None, TreeStatus::Active),
+        ];
+        let r = priority_queue(
+            &items,
+            QueueGroup::Urgency,
+            true,
+            true,
+            false,
+            Some("Tracker"),
+        );
+        std::env::remove_var("KAZAM_TODAY");
+        assert!(r.html.contains("c-queue-title\">Tracker"));
+        assert!(r.html.contains("OVERDUE"));
+        assert!(r.html.contains("NO DATE"));
+        assert!(r.html.contains("urgency-overdue"));
+        assert!(r.html.contains("urgency-none"));
+        assert!(r
+            .html
+            .contains(r#"<span class="c-queue-group-count">1</span>"#));
+    }
+
+    #[test]
+    fn priority_queue_none_grouping_has_no_group_headers() {
+        std::env::set_var("KAZAM_TODAY", "2026-07-28");
+        let items = vec![item(Some("2026-07-20"), None, TreeStatus::Active)];
+        let r = priority_queue(&items, QueueGroup::None, true, true, false, None);
+        std::env::remove_var("KAZAM_TODAY");
+        assert!(!r.html.contains("c-queue-group-header"));
+        assert!(r.html.contains("c-queue-row"));
+    }
+
+    #[test]
+    fn horizon_field_deserializes_from_yaml() {
+        let yaml = "label: Test\nhorizon: later\n";
+        let item: QueueItem = serde_yaml::from_str(yaml).unwrap();
+        assert!(item.horizon.is_some(), "horizon should deserialize");
+        assert!(matches!(item.horizon.unwrap(), QueueHorizon::Later));
+    }
+
+    #[test]
+    fn horizon_in_component_deserializes() {
+        let yaml = "type: priority_queue\nitems:\n  - label: Test\n    due: \"2026-07-30\"\n    horizon: later\n  - label: Dateless\n    horizon: next\n";
+        let comp: Component = serde_yaml::from_str(yaml).unwrap();
+        if let Component::PriorityQueue { items, .. } = &comp {
+            assert!(items[0].horizon.is_some(), "item 0 horizon should be Some");
+            assert!(items[1].horizon.is_some(), "item 1 horizon should be Some");
+        } else {
+            panic!("Expected PriorityQueue");
+        }
+    }
+
+    #[test]
+    fn explicit_horizon_overrides_date_bucket() {
+        let today = "2026-07-28";
+        let two_week_end = add_days_to_date(today, 13);
+        let eight_week_end = add_days_to_date(today, 55);
+        let mut it = item(Some("2026-07-30"), None, TreeStatus::Active);
+        it.horizon = Some(QueueHorizon::Later);
+        let bucket = queue_bucket(&it, today, &two_week_end, &eight_week_end);
+        assert!(
+            matches!(bucket, QueueBucket::Later),
+            "explicit horizon should override date"
+        );
+        assert!(
+            queue_has_drift(&it, today, &two_week_end, &eight_week_end),
+            "should detect drift"
+        );
     }
 }

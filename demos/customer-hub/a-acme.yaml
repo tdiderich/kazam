@@ -1,4 +1,4 @@
-title: "Acme Corp — Overview (A)"
+title: "Acme Corp - Overview (A)"
 shell: standard
 components:
   - type: header
@@ -42,6 +42,6 @@ components:
     limit: 4
     events:
       - { date: 2026-06-08, title: EKS connector enabled in prod, severity: major }
-      - { date: 2026-06-05, title: Weekly sync — auto-closing verification pending, severity: minor }
-      - { date: 2026-05-28, title: QBR — expansion to platform team discussed, severity: major }
+      - { date: 2026-06-05, title: Weekly sync - auto-closing verification pending, severity: minor }
+      - { date: 2026-05-28, title: QBR - expansion to platform team discussed, severity: major }
       - { date: 2026-05-21, title: Phase 2 kickoff, severity: minor }

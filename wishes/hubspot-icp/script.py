@@ -3,18 +3,18 @@
 Pull ICP data from HubSpot + Apollo and write CSV + analysis prompt.
 
 Sources:
-  1. HubSpot customers (lifecycle_stage = customer) — P0
-  2. HubSpot late-stage deals (by stage label prefix) — P1
-  3. HubSpot closed-lost deals — P2
-  4. Apollo org search — enrichment for each company
+  1. HubSpot customers (lifecycle_stage = customer) - P0
+  2. HubSpot late-stage deals (by stage label prefix) - P1
+  3. HubSpot closed-lost deals - P2
+  4. Apollo org search - enrichment for each company
 
 Uses deal stage LABELS (not IDs) because closed-lost stage IDs can be reused.
 
 Env vars: HUBSPOT_API_TOKEN, APOLLO_API_KEY
 Output:
-  scripts/icp-data.json   — full structured data
-  scripts/icp-data.csv    — flat CSV for agent review
-  scripts/icp-prompt.md   — analysis prompt for the agent
+  scripts/icp-data.json   - full structured data
+  scripts/icp-data.csv    - flat CSV for agent review
+  scripts/icp-prompt.md   - analysis prompt for the agent
 """
 
 # ── Customization block ──────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ Output:
 # Check that output and update the prefixes below to match your deal stages.
 #
 # LATE_STAGE_PREFIXES: lowercase prefix(es) that identify deals you'd consider
-#   "in advanced evaluation" — e.g. business validation, negotiation, verbal commit.
+#   "in advanced evaluation" - e.g. business validation, negotiation, verbal commit.
 #   The script matches any stage label that starts with one of these prefixes.
 #
 # CLOSED_LOST_PREFIXES: lowercase prefix(es) for closed-lost stage labels.
@@ -65,7 +65,7 @@ HUBSPOT_KEY = os.environ.get("HUBSPOT_API_TOKEN", "") or os.environ.get("HUBSPOT
 APOLLO_KEY = os.environ.get("APOLLO_API_KEY", "") or os.environ.get("APOLLO_API_TOKEN", "")
 
 if not HUBSPOT_KEY:
-    sys.exit("HUBSPOT_API_TOKEN not set — add it to .env")
+    sys.exit("HUBSPOT_API_TOKEN not set - add it to .env")
 
 HS_BASE = "https://api.hubapi.com"
 HS_HEADERS = {"Authorization": f"Bearer {HUBSPOT_KEY}", "Content-Type": "application/json"}
@@ -486,7 +486,7 @@ You have a CSV at `scripts/icp-data.csv` with {len(customers)} customers, {len(l
 
 Analyze this data and update the kazam YAML page at the path specified in the refresh block with a data-driven ICP. Structure your analysis as:
 
-### 1. Customer DNA (P0 — highest confidence)
+### 1. Customer DNA (P0 - highest confidence)
 From the {len(customers)} existing customers, identify:
 - **Company size sweet spot**: employee count range and median
 - **Industry clusters**: which industries appear most
@@ -495,13 +495,13 @@ From the {len(customers)} existing customers, identify:
 - **Revenue/funding profile**: typical company stage and size
 - What makes these companies similar? What's the archetype?
 
-### 2. Pipeline validation (P1 — late-stage deals)
+### 2. Pipeline validation (P1 - late-stage deals)
 From the {len(late_stage_deals)} late-stage deals (Business Validation, Negotiation, Closed Won):
 - Do they match the customer DNA or diverge?
 - Any new segments emerging in the pipeline?
 - Deal size patterns
 
-### 3. Closed-lost patterns (P2 — lighter review)
+### 3. Closed-lost patterns (P2 - lighter review)
 From the {len(closed_lost_deals)} closed-lost deals:
 - Common loss reasons
 - Are there company profiles that consistently lose? (wrong size, wrong industry, wrong stage)

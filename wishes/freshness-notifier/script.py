@@ -57,7 +57,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 SLACK_TOKEN = os.environ.get("SLACK_BOT_TOKEN", "")
 if not SLACK_TOKEN:
-    sys.exit("SLACK_BOT_TOKEN not set — add it to .env")
+    sys.exit("SLACK_BOT_TOKEN not set - add it to .env")
 
 SLACK_HEADERS = {
     "Authorization": f"Bearer {SLACK_TOKEN}",
@@ -140,7 +140,7 @@ def main():
         data = json.loads(Path(args.file).read_text())
     else:
         if sys.stdin.isatty():
-            print("Reading from stdin — pipe kazam freshness notify --json", file=sys.stderr)
+            print("Reading from stdin - pipe kazam freshness notify --json", file=sys.stderr)
         data = json.load(sys.stdin)
 
     owners = data.get("owners", [])
@@ -176,20 +176,20 @@ def main():
         if args.channel:
             slack_post("chat.postMessage", {
                 "channel": args.channel,
-                "text": f"*{owner}* — {len(pages)} page(s) need review:\n{message}",
+                "text": f"*{owner}* - {len(pages)} page(s) need review:\n{message}",
             })
             sent += 1
             time.sleep(0.5)
         else:
             user_id = resolve_email(owner)
             if not user_id:
-                print(f"  Could not find Slack user for {owner} — skipping", file=sys.stderr)
+                print(f"  Could not find Slack user for {owner} - skipping", file=sys.stderr)
                 skipped += 1
                 continue
 
             dm = slack_post("conversations.open", {"users": user_id})
             if not dm.get("ok"):
-                print(f"  Could not open DM with {owner} — skipping", file=sys.stderr)
+                print(f"  Could not open DM with {owner} - skipping", file=sys.stderr)
                 skipped += 1
                 continue
 

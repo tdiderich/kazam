@@ -1,1 +1,23 @@
-bugs: []
+bugs:
+- id: kz-8195
+  symptom: id::tests::ids_are_unique_across_rapid_calls flakes in full-suite runs (timing-based) but passes in isolation and on retry. Pre-existing, unrelated to packs. Retry the suite rather than debugging pack code.
+  file_path: src/id.rs
+  created: 2026-07-22T16:13:03.032972-05:00
+- id: kz-4545
+  symptom: docs/workspace.yaml says 'kazam board' opens at localhost:3000, but the default port is 3001 (main.rs Board default_value_t). Pre-existing doc error, unrelated to the open/show work.
+  file_path: docs/workspace.yaml
+  created: 2026-07-28T14:06:01.100476-05:00
+- id: kz-c537
+  symptom: 'gh CLI in curata-app resolves to tdiderich/curata instead of tdiderich/curata-app (gh repo view returns the wrong repo despite origin being correct). Any gh command run there without --repo hits the wrong repository, including pr merge. Fix: gh repo set-default tdiderich/curata-app'
+  file_path: curata-app
+  resolution: 'Root cause was not misconfiguration: curata-app has two remotes (origin=curata-app, upstream=curata) and gh prefers upstream over origin by design for fork workflows. curata-app is an overlay with unrelated history, not a fork, so the default resolved to the OSS repo. Fixed with ''gh repo set-default tdiderich/curata-app'', which writes remote.origin.gh-resolved=base to local git config. Verified gh run list now returns curata-app runs. curata, kazam, and maze-apps each have a single remote and are unaffected.'
+  created: 2026-07-28T14:22:00.897946-05:00
+  resolved: 2026-07-28T15:33:04.674250-05:00
+- id: kz-2a29
+  symptom: event_timeline renders authored order instead of most-recent-first, no ordering enforcement anywhere in the pipeline
+  file_path: src/render/components.rs
+  created: 2026-08-07T10:13:05.032025-05:00
+- id: kz-e0a3
+  symptom: kz-XXXX ID generator only had 65,536 possible values (4 hex digits), real collision risk not just test flakiness
+  file_path: src/id.rs
+  created: 2026-08-07T10:20:44.786903-05:00

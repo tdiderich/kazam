@@ -1,4 +1,4 @@
-title: Beta Corp — Deployment Guide
+title: Beta Corp - Deployment Guide
 shell: standard
 
 components:
@@ -10,7 +10,7 @@ components:
       - label: Beta Corp
 
   - type: header
-    title: Beta Corp — Deployment Guide
+    title: Beta Corp - Deployment Guide
 
   - type: meta
     fields:
@@ -36,7 +36,7 @@ components:
     body: |
       ## Overview
 
-      Beta Corp deployed Maze in February 2026. Adoption has been slower than expected —
+      Beta Corp deployed Maze in February 2026. Adoption has been slower than expected -
       primary contact changed in March.
 
       ## Architecture
@@ -57,5 +57,5 @@ components:
       ## Open Items
 
       1. Schedule re-onboarding call with new champion (Marcus T.)
-      2. Review scan coverage gaps — Azure subscriptions not yet connected
+      2. Review scan coverage gaps - Azure subscriptions not yet connected
       3. Confirm renewal timeline (contract expires July 2026)

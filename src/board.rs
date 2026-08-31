@@ -5,9 +5,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use notify::{RecursiveMode, Watcher};
-use tiny_http::{Header, Method, Response, Server};
 
 use crate::ctx::types::{AnatomyStore, BugStore, LearningStore};
 use crate::render;
@@ -31,15 +30,17 @@ pub fn run(project: &Path, port: u16) -> Result<()> {
     let html_clone = html_arc.clone();
     thread::spawn(move || watch_loop(project_clone, config_clone, ver_clone, html_clone));
 
+    crate::server::install_shutdown_handler();
+
     // HTTP server
-    let (server, actual_port) = bind_next_available(port)?;
+    let (server, actual_port) = crate::server::bind_next_available(port)?;
     if actual_port != port {
-        println!("\n  ⚠ port {port} is in use — serving on {actual_port} instead");
+        println!("\n  ⚠ port {port} is in use - serving on {actual_port} instead");
     }
     let url = format!("http://localhost:{actual_port}");
     println!("\n  ➜ {url}");
     println!("  watching .kazam/\n");
-    open_browser(&url);
+    crate::server::open_browser(&url);
 
     for req in server.incoming_requests() {
         let ver = version.clone();
@@ -156,6 +157,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             },
         ],
         columns: 4,
+        scale: None,
     };
 
     // Human blocker callout
@@ -173,7 +175,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
     if !human_blockers.is_empty() {
         let names: Vec<String> = human_blockers
             .iter()
-            .map(|t| format!("{} — {}", t.id, t.title))
+            .map(|t| format!("{} - {}", t.id, t.title))
             .collect();
         let n = human_blockers.len();
         let title = match sass {
@@ -182,7 +184,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 s = if n == 1 { "" } else { "s" }
             ),
             workspace::SassLevel::Some => format!(
-                "Hey — {n} task{s} need{v} your attention",
+                "Hey - {n} task{s} need{v} your attention",
                 s = if n == 1 { "" } else { "s" },
                 v = if n == 1 { "s" } else { "" }
             ),
@@ -201,6 +203,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             title: Some(title),
             body: names.join("\n"),
             links: None,
+            scale: None,
         });
     }
 
@@ -217,6 +220,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             show_counts: false,
             show_summary: false,
             default_view: TreeDefaultView::Tree,
+            scale: None,
         }],
     };
 
@@ -249,6 +253,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                         },
                     ],
                     columns: 2,
+                    scale: None,
                 },
                 Component::Tree {
                     nodes: anat_nodes,
@@ -259,6 +264,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                     show_counts: false,
                     show_summary: false,
                     default_view: TreeDefaultView::Tree,
+                    scale: None,
                 },
             ],
         }
@@ -270,6 +276,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 title: None,
                 body: "Run kazam ctx scan to populate anatomy.".into(),
                 links: None,
+                scale: None,
             }],
         }
     };
@@ -285,6 +292,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             limit: Some(25),
             filter_by: vec![],
             group_by: None,
+            scale: None,
         });
     }
     if !learnings.learnings.is_empty() {
@@ -332,9 +340,11 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 rows: learn_rows,
                 filterable: false,
                 summary: None,
+                scale: None,
             }],
             align: Align::Left,
             id: None,
+            scale: None,
         });
     }
     if !bugs.bugs.is_empty() {
@@ -360,11 +370,11 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 );
                 row.insert(
                     "file".into(),
-                    serde_yaml::Value::String(b.file_path.clone().unwrap_or_else(|| "—".into())),
+                    serde_yaml::Value::String(b.file_path.clone().unwrap_or_else(|| "-".into())),
                 );
                 row.insert(
                     "fix".into(),
-                    serde_yaml::Value::String(b.resolution.clone().unwrap_or_else(|| "—".into())),
+                    serde_yaml::Value::String(b.resolution.clone().unwrap_or_else(|| "-".into())),
                 );
                 row
             })
@@ -406,9 +416,11 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 rows: bug_rows,
                 filterable: false,
                 summary: None,
+                scale: None,
             }],
             align: Align::Left,
             id: None,
+            scale: None,
         });
     }
     if activity_components.is_empty() {
@@ -417,6 +429,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             title: None,
             body: "No activity yet.".into(),
             links: None,
+            scale: None,
         });
     }
     let activity_tab = Tab {
@@ -426,10 +439,11 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
 
     components.push(Component::Tabs {
         tabs: vec![task_tab, anatomy_tab, activity_tab],
+        scale: None,
     });
 
     Ok(Page {
-        title: format!("{} — Board", config.name),
+        title: format!("{} - Board", config.name),
         shell: Shell::Standard,
         eyebrow: Some("Agent Workspace".into()),
         subtitle: None,
@@ -449,6 +463,8 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
         draft: false,
         nav_layout: None,
         nav: None,
+        pack: None,
+        skill: None,
     })
 }
 
@@ -476,7 +492,7 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
         meta_parts.push(t.task_type.label().to_string());
         let meta = meta_parts.join(" · ");
         let note = match &t.note {
-            Some(n) => Some(format!("{meta} — {n}")),
+            Some(n) => Some(format!("{meta} - {n}")),
             None => Some(meta),
         };
         TreeNode {
@@ -485,6 +501,8 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
             note,
             children: build_level(Some(&t.id), children_map),
             owner: None,
+            due: None,
+            original_due: None,
         }
     }
 
@@ -533,6 +551,8 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
                 note: t.note.clone(),
                 children: vec![],
                 owner: None,
+                due: None,
+                original_due: None,
             }
         })
         .collect();
@@ -548,6 +568,8 @@ fn tasks_to_tree_nodes(tasks: &[crate::track::types::Task]) -> Vec<TreeNode> {
             )),
             children: incomplete_human,
             owner: None,
+            due: None,
+            original_due: None,
         });
     }
 
@@ -623,12 +645,14 @@ fn anatomy_to_tree_nodes(files: &[crate::ctx::types::FileEntry]) -> Vec<TreeNode
                 )),
                 children: build(dir),
                 owner: None,
+                due: None,
+                original_due: None,
             });
         }
         for (name, tokens, desc) in &node.files {
             let note = match desc {
                 Some(d) if !d.is_empty() => {
-                    format!("~{} tokens — {d}", format_token_count(*tokens))
+                    format!("~{} tokens - {d}", format_token_count(*tokens))
                 }
                 _ => format!("~{} tokens", format_token_count(*tokens)),
             };
@@ -638,6 +662,8 @@ fn anatomy_to_tree_nodes(files: &[crate::ctx::types::FileEntry]) -> Vec<TreeNode
                 note: Some(note),
                 children: vec![],
                 owner: None,
+                due: None,
+                original_due: None,
             });
         }
         out
@@ -732,80 +758,27 @@ impl Clone for SiteConfig {
 
 // ── Server ───────────────────────────────────────
 
-const PORT_FALLBACK_ATTEMPTS: u16 = 10;
-
-fn bind_next_available(start: u16) -> Result<(Server, u16)> {
-    use std::net::TcpListener;
-    let mut last_err: Option<String> = None;
-    for p in start..start.saturating_add(PORT_FALLBACK_ATTEMPTS) {
-        let addr = format!("0.0.0.0:{p}");
-        if TcpListener::bind(&addr).is_err() {
-            last_err = Some(format!("port {p} already in use"));
-            continue;
-        }
-        match Server::http(&addr) {
-            Ok(s) => return Ok((s, p)),
-            Err(e) => last_err = Some(e.to_string()),
-        }
-    }
-    let tail = start
-        .saturating_add(PORT_FALLBACK_ATTEMPTS)
-        .saturating_sub(1);
-    anyhow::bail!(
-        "no free port in range {start}..={tail} — last error: {}",
-        last_err.unwrap_or_else(|| "unknown".to_string())
-    );
-}
-
 fn handle(
     req: tiny_http::Request,
     version: &AtomicU64,
     html: &std::sync::RwLock<String>,
 ) -> Result<()> {
-    if req.method() != &Method::Get {
-        return req
-            .respond(Response::from_string("method not allowed").with_status_code(405))
-            .context("respond");
+    if !crate::server::is_get(&req) {
+        return crate::server::respond_405(req);
     }
 
     let url = req.url().split('?').next().unwrap_or("/");
 
     if url == "/__kazam_version__" {
-        let v = version.load(Ordering::SeqCst).to_string();
-        let resp = Response::from_string(v)
-            .with_header(hdr("Content-Type", "text/plain"))
-            .with_header(hdr("Cache-Control", "no-store"));
-        return req.respond(resp).context("respond");
+        return crate::server::respond_version(req, version);
     }
 
     if url == "/" || url == "/index.html" {
         let content = html.read().unwrap().clone();
-        let resp = Response::from_string(content)
-            .with_header(hdr("Content-Type", "text/html; charset=utf-8"))
-            .with_header(hdr("Cache-Control", "no-store"));
-        return req.respond(resp).context("respond");
+        return crate::server::respond_html(req, &content);
     }
 
-    req.respond(Response::from_string("404").with_status_code(404))
-        .context("respond")
-}
-
-fn hdr(name: &str, value: &str) -> Header {
-    Header::from_bytes(name.as_bytes(), value.as_bytes()).unwrap()
-}
-
-fn open_browser(url: &str) {
-    #[cfg(target_os = "macos")]
-    let cmd = "open";
-    #[cfg(target_os = "linux")]
-    let cmd = "xdg-open";
-    #[cfg(target_os = "windows")]
-    let cmd = "explorer";
-    let _ = std::process::Command::new(cmd)
-        .arg(url)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn();
+    crate::server::respond_404(req)
 }
 
 fn watch_loop(

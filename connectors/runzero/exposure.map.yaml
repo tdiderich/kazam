@@ -1,0 +1,499 @@
+mapping: runzero-exposure
+version: 0.2.0
+
+source:
+  spec: runzero-api.yml
+  api_version: 1.0.5
+  base_url: "{{RUNZERO_BASE_URL}}"
+  auth:
+    type: bearer
+    value: "{{RZ_EXPORT_TOKEN}}"
+
+output:
+  target: curata
+  slug: runzero-exposure
+  mode: upsert
+  folder: connectors
+
+semantics:
+  - "vulnerability_severity is CVSS-derived. vulnerability_risk is runZero-adjusted. On small datasets these may match exactly. On enterprise data they diverge by design. Use severity for cross-vendor comparison, surface risk only in runZero-native views."
+  - "risk_rank is an integer scale (-1=none, 0=info, 1=low, 2=medium, 3=high, 4=critical). risk is the string label. Use risk_rank for computation, risk for display."
+  - "software_cpe23 is present only for fingerprinted software. Expect gaps on consumer/IoT devices. CPE coverage drives Maze join quality."
+  - "service_protocol can be a string or a list. Always normalize to list before aggregating."
+  - "Denormalized exports - Service, Software, and Vulnerability responses embed full Asset fields. No client-side join needed after pull."
+  - "All timestamps are int64 unix epoch seconds (not milliseconds)."
+
+pulls:
+  assets:
+    request:
+      method: GET
+      path: /export/org/assets.json
+      params:
+        fields: id,alive,type,os,os_version,hw,addresses,names,service_count,service_protocols,service_products,risk_rank,risk,vulnerability_count,finding_count,last_seen,first_seen,eol_os,eol_os_ext,site_name,sources,tags
+        page_size: 1000
+    paginate:
+      style: keyset
+      next_from: .next_key
+      send_as: start_key
+    collect:
+      paged: .assets[]
+      bare: .[]
+    rate_limit:
+      strategy: retry_after
+      max_retries: 3
+      backoff: exponential
+    transforms:
+      - lowercase: .risk
+      - lowercase: .type
+      - default: .type
+        value: "unknown"
+        when: empty
+      - default: .os
+        value: ""
+        when: missing
+      - epoch: .last_seen
+        to: age_days
+        into: .days_since_seen
+      - epoch: .eol_os
+        to: iso8601
+        zero_means: null
+
+  services:
+    request:
+      method: GET
+      path: /export/org/services.json
+      params:
+        fields: service_id,service_asset_id,service_address,service_transport,service_port,service_protocol,service_summary,service_link
+        page_size: 1000
+    paginate:
+      style: keyset
+      next_from: .next_key
+      send_as: start_key
+    collect:
+      paged: .services[]
+      bare: .[]
+    rate_limit:
+      strategy: retry_after
+      max_retries: 3
+      backoff: exponential
+    transforms:
+      - coerce: .service_protocol
+        to: list
+      - coerce: .service_port
+        to: string
+
+  software:
+    request:
+      method: GET
+      path: /export/org/software.json
+      params:
+        fields: software_id,software_asset_id,software_vendor,software_product,software_version,software_cpe23
+        page_size: 1000
+    paginate:
+      style: keyset
+      next_from: .next_key
+      send_as: start_key
+    collect:
+      paged: .software[]
+      bare: .[]
+    rate_limit:
+      strategy: retry_after
+      max_retries: 3
+      backoff: exponential
+    transforms:
+      - default: .software_vendor
+        value: "Unknown"
+        when: empty
+      - default: .software_cpe23
+        value: ""
+        when: missing
+
+  vulnerabilities:
+    request:
+      method: GET
+      path: /export/org/vulnerabilities.json
+      params:
+        fields: vulnerability_id,vulnerability_asset_id,vulnerability_cve,vulnerability_name,vulnerability_severity,vulnerability_severity_score,vulnerability_risk,vulnerability_risk_score,vulnerability_cvss3_base_score,vulnerability_category,vulnerability_solution,vulnerability_first_detected_at,vulnerability_last_detected_at
+        page_size: 1000
+    paginate:
+      style: keyset
+      next_from: .next_key
+      send_as: start_key
+    collect:
+      paged: .vulnerabilities[]
+      bare: .[]
+    rate_limit:
+      strategy: retry_after
+      max_retries: 3
+      backoff: exponential
+    transforms:
+      - lowercase: .vulnerability_severity
+      - lowercase: .vulnerability_risk
+      - rename: .vulnerability_cvss3_base_score
+        to: .cvss
+      - rename: .vulnerability_asset_id
+        to: .asset_id
+      - default: .vulnerability_cve
+        value: ""
+        when: missing
+
+personas:
+  board:
+    question: "How much of our attack surface do we actually know? Are we getting better?"
+  ciso:
+    question: "What's our overall risk posture? Where are the biggest gaps?"
+  security_analyst:
+    question: "What's exposed and vulnerable? What needs patching first?"
+
+shapes:
+  risk_distribution:
+    pull: assets
+    aggregate:
+      - bucket:
+          by: [.risk]
+          ordered: [critical, high, medium, low, info, none]
+      - tally:
+          all: true
+          as: asset_count
+      - derive:
+          name: total
+          expr: sum(asset_count)
+      - derive:
+          name: at_risk
+          expr: sum(asset_count) where bucket in [critical, high]
+      - derive:
+          name: at_risk_pct
+          expr: at_risk / total * 100
+    persona: board, ciso
+    decided: true
+
+  asset_visibility:
+    pull: assets
+    aggregate:
+      - tally:
+          all: true
+          as: total
+      - tally:
+          where: .type != "unknown"
+          as: typed
+      - tally:
+          where: .os
+          not_empty: true
+          as: os_known
+      - tally:
+          where: .names
+          not_empty: true
+          as: named
+      - derive:
+          name: typed_pct
+          expr: typed / total * 100
+      - derive:
+          name: os_known_pct
+          expr: os_known / total * 100
+      - derive:
+          name: named_pct
+          expr: named / total * 100
+      - filter:
+          where: .type = "unknown"
+      - take: 20
+    persona: board, ciso
+    decided: true
+
+  service_exposure:
+    pull: services
+    aggregate:
+      - filter:
+          where: .service_transport = "tcp"
+      - filter:
+          where: .service_port != "0"
+      - bucket:
+          by: [.service_port, .service_protocol]
+      - tally:
+          all: true
+          as: listener_count
+      - tally:
+          distinct: .service_asset_id
+          as: asset_count
+      - rank:
+          by: asset_count
+          direction: desc
+      - take: 15
+    persona: security_analyst
+    decided: true
+
+  vulnerability_landscape:
+    pull: vulnerabilities
+    aggregate:
+      - bucket:
+          by: [.vulnerability_severity]
+          ordered: [critical, high, medium, low, info]
+      - tally:
+          all: true
+          as: vuln_count
+      - tally:
+          distinct: .asset_id
+          as: affected_assets
+      - tally:
+          distinct: .vulnerability_cve
+          as: unique_cves
+      - derive:
+          name: total_assets
+          expr: sum(affected_assets)
+      - derive:
+          name: affected_pct
+          expr: affected_assets / total_assets * 100
+    persona: board, security_analyst
+    decided: true
+
+  software_cpe_coverage:
+    pull: software
+    aggregate:
+      - tally:
+          all: true
+          as: total_software
+      - tally:
+          where: .software_cpe23
+          not_empty: true
+          as: cpe_present
+      - derive:
+          name: cpe_coverage_pct
+          expr: cpe_present / total_software * 100
+      - bucket:
+          by: [.software_vendor]
+      - tally:
+          all: true
+          as: install_count
+      - tally:
+          where: .software_cpe23
+          not_empty: true
+          as: cpe_count
+      - derive:
+          name: vendor_coverage
+          expr: cpe_count / install_count * 100
+      - rank:
+          by: install_count
+          direction: desc
+      - take: 10
+    persona: ciso, security_analyst
+    decided: true
+
+  attack_surface_density:
+    pull: assets
+    aggregate:
+      - bucket:
+          by: [.id, .names, .type, .risk]
+      - derive:
+          name: svc_density
+          expr: .service_count
+      - rank:
+          by: svc_density
+          direction: desc
+      - take: 10
+      - tally:
+          where: .service_count > 10
+          as: high_surface_assets
+      - derive:
+          name: avg_services
+          expr: avg(.service_count)
+    persona: ciso
+    decided: true
+
+  remediation_queue:
+    pull: vulnerabilities
+    aggregate:
+      - filter:
+          where: .vulnerability_severity
+          in: [critical, high]
+      - bucket:
+          by: [.vulnerability_cve, .vulnerability_name, .vulnerability_severity]
+      - tally:
+          distinct: .asset_id
+          as: affected_assets
+      - rank:
+          by: [.cvss, affected_assets]
+          direction: [desc, desc]
+      - take: 10
+    persona: security_analyst
+    decided: true
+
+  asset_risk_detail:
+    pull: assets
+    aggregate:
+      - filter:
+          where: .risk_rank >= 1
+      - derive:
+          name: vuln_density
+          expr: .vulnerability_count / .service_count
+      - rank:
+          by: [.risk_rank, vuln_density]
+          direction: [desc, desc]
+      - take: 15
+    persona: security_analyst, ciso
+    decided: true
+
+sections:
+  exposure-risk-distribution:
+    shape: risk_distribution
+    component: progress_bar
+    config:
+      label: "Assets at risk (high + critical)"
+      value: at_risk_pct
+      color: red
+      detail: "{{at_risk}} of {{total}} assets"
+    secondary:
+      component: stat_grid
+      config:
+        columns: 4
+        stats_from: buckets
+        color_map:
+          critical: red
+          high: red
+          low: yellow
+          none: green
+
+  exposure-asset-visibility:
+    shape: asset_visibility
+    component: stat_grid
+    config:
+      columns: 3
+      stats:
+        - label: "Device type known"
+          value: typed_pct
+          color_thresholds: { 80: green, 60: yellow, 0: red }
+        - label: "OS identified"
+          value: os_known_pct
+          color_thresholds: { 80: green, 60: yellow, 0: red }
+        - label: "Hostname assigned"
+          value: named_pct
+          color_thresholds: { 80: green, 60: yellow, 0: red }
+    secondary:
+      component: callout
+      config:
+        variant: warn
+        title: "{{untyped_count}} blind spots"
+        body: "{{untyped_count}} of {{total}} assets have no device type."
+
+  exposure-service-exposure:
+    shape: service_exposure
+    component: table
+    config:
+      filterable: true
+      columns:
+        - key: port_proto
+          label: Port / Protocol
+        - key: listeners
+          label: Listeners
+          sortable: true
+        - key: assets
+          label: Assets
+          sortable: true
+
+  exposure-vulnerability-landscape:
+    shape: vulnerability_landscape
+    component: stat_grid
+    config:
+      columns: 3
+      stats:
+        - label: "Total vulnerabilities"
+          value: total_vulns
+        - label: "Unique CVEs"
+          value: unique_cves
+        - label: "Assets affected"
+          value: affected_assets
+    secondary:
+      component: chart
+      config:
+        kind: bar
+        title: "Vulnerabilities by Severity"
+        color_map:
+          critical: red
+          high: red
+          low: yellow
+          info: green
+
+  exposure-software-cpe:
+    shape: software_cpe_coverage
+    component: progress_bar
+    config:
+      label: "CPE coverage"
+      value: cpe_coverage_pct
+      color_thresholds: { 30: red, 60: yellow, 80: green }
+    secondary:
+      component: table
+      config:
+        filterable: false
+        columns:
+          - key: vendor
+            label: Vendor
+          - key: installs
+            label: Installs
+            sortable: true
+          - key: cpe_count
+            label: CPE
+          - key: coverage
+            label: Coverage
+
+  exposure-attack-surface:
+    shape: attack_surface_density
+    component: table
+    config:
+      filterable: true
+      columns:
+        - key: name
+          label: Device
+        - key: services
+          label: Services
+          sortable: true
+        - key: risk
+          label: Risk
+          color_map:
+            critical: red
+            high: red
+            low: yellow
+            none: green
+    secondary:
+      component: stat_grid
+      config:
+        columns: 3
+        stats:
+          - label: "Avg services/asset"
+            value: avg_services
+          - label: "High surface (>10)"
+            value: high_surface_assets
+          - label: "Max services"
+            value: max_services
+
+  exposure-remediation-queue:
+    shape: remediation_queue
+    component: priority_queue
+    config:
+      title: "Patch Priority"
+      group_by: urgency
+      label: "{{cve}} - {{name}}"
+      detail: "CVSS {{cvss}} - {{affected_assets}} asset(s)"
+      status_map:
+        critical: priority
+        high: active
+
+  exposure-asset-risk-detail:
+    shape: asset_risk_detail
+    component: table
+    config:
+      filterable: true
+      columns:
+        - key: name
+          label: Device
+        - key: risk
+          label: Risk
+          color_map:
+            critical: red
+            high: red
+            low: yellow
+        - key: vulns
+          label: Vulns
+          sortable: true
+        - key: services
+          label: Services
+        - key: density
+          label: Vuln Density
+          sortable: true

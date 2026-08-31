@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add Sankey, Radar, Quadrant, and Architecture diagram components to kazam as build-time SVG — no JavaScript.
+**Goal:** Add Sankey, Radar, Quadrant, and Architecture diagram components to kazam as build-time SVG - no JavaScript.
 
 **Architecture:** Four new top-level `Component` enum variants (following `Venn` precedent, not extending `ChartKind`). Each has its own data model in `types.rs`, SVG renderer in `render/charts.rs`, CSS in `theme.rs`, validation in `validate.rs`, and SDK output in `sdk.rs`. A demo page at `examples/kb/demo/charts.yaml` showcases all four with security-themed example data.
 
@@ -64,7 +64,7 @@ In the `Component` enum (after the `Chart` variant, around line 524), add:
 Run: `cargo check`
 Expected: Warnings about unused fields but no errors. (The match in `components.rs` will need a wildcard or arm eventually, but `#[serde(tag)]` deserialization compiles without a match arm.)
 
-Actually — the existing `render()` match is exhaustive, so this will fail with a non-exhaustive match error. That's expected. We'll fix it in Task 5 after all 4 types are added.
+Actually - the existing `render()` match is exhaustive, so this will fail with a non-exhaustive match error. That's expected. We'll fix it in Task 5 after all 4 types are added.
 
 - [ ] **Step 4: Commit**
 
@@ -327,7 +327,7 @@ pub fn render_architecture(
 - [ ] **Step 3: Verify it compiles**
 
 Run: `cargo check`
-Expected: Clean compilation (possibly with unused-variable warnings from stubs — fine).
+Expected: Clean compilation (possibly with unused-variable warnings from stubs - fine).
 
 - [ ] **Step 4: Commit**
 
@@ -373,7 +373,7 @@ In `src/render/charts.rs`, in the `#[cfg(test)] mod tests` block, add:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cargo test sankey_renders_svg`
-Expected: FAIL — current stub doesn't output SVG.
+Expected: FAIL - current stub doesn't output SVG.
 
 - [ ] **Step 3: Replace the stub with full Sankey renderer**
 
@@ -751,7 +751,7 @@ pub fn render_radar(
         // Dots at each vertex
         for (i, &val) in curve.values.iter().enumerate() {
             let (px, py) = point_at(i, val.min(max_val));
-            let tip = format!("{} — {}: {}", curve.label, axes[i], fmt_num(val));
+            let tip = format!("{} - {}: {}", curve.label, axes[i], fmt_num(val));
             svg.push_str(&format!(
                 r#"<circle cx="{px:.1}" cy="{py:.1}" r="3.5" fill="{color}" class="c-chart-dot"><title>{tip}</title></circle>"#,
                 tip = esc(&tip),
@@ -1516,7 +1516,7 @@ shell: standard
 components:
 - type: section
   eyebrow: "SANKEY"
-  heading: "Finding Flow — Vulnerability Triage Pipeline"
+  heading: "Finding Flow - Vulnerability Triage Pipeline"
   components:
   - type: sankey
     title: "Scanner → Maze → Outcome"
@@ -1558,7 +1558,7 @@ components:
 
 - type: section
   eyebrow: "RADAR"
-  heading: "Security Program Maturity — Before & After"
+  heading: "Security Program Maturity - Before & After"
   components:
   - type: radar
     title: "Maturity Scorecard"
@@ -1624,7 +1624,7 @@ components:
   heading: "Deployment Topology"
   components:
   - type: architecture
-    title: "Alloy — Maze Deployment"
+    title: "Alloy - Maze Deployment"
     height: 280
     direction: left_to_right
     nodes:

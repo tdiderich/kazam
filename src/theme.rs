@@ -37,7 +37,7 @@ impl Theme {
                     Mode::Light => light(),
                 };
                 // Muted, earthy accents sibling to the dark theme's sage
-                // (#899878). ~45% saturation, ~60% lightness — they sit on
+                // (#899878). ~45% saturation, ~60% lightness - they sit on
                 // a dark bg without screaming. Users can still override any
                 // accent via `colors:` for a brighter brand pop.
                 let accent = match other {
@@ -130,10 +130,12 @@ impl Theme {
         let accent_rgb = hex_to_rgb_triple(&self.accent).unwrap_or_else(|| "60, 206, 206".into());
         let bg_rgb = hex_to_rgb_triple(&self.bg).unwrap_or_else(|| "9, 13, 24".into());
         let text_rgb = hex_to_rgb_triple(&self.text).unwrap_or_else(|| "255, 255, 255".into());
+        let panel = panel_from_bg(&self.bg);
         format!(
             ":root {{\
              --bg: {bg};\
              --bg-rgb: {bg_rgb};\
+             --surface: {panel};\
              --card-bg: {surface};\
              --card-border: {border};\
              --card-hover-border: {border_strong};\
@@ -173,6 +175,29 @@ impl Theme {
     }
 }
 
+/// Opaque panel color for floating chrome (modals, overlays, pickers) that
+/// must not let page content bleed through. Derived from the page bg: dark
+/// grounds get a slightly lifted shade, light grounds get white.
+fn panel_from_bg(bg: &str) -> String {
+    let h = bg.trim().trim_start_matches('#');
+    if h.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&h[0..2], 16),
+            u8::from_str_radix(&h[2..4], 16),
+            u8::from_str_radix(&h[4..6], 16),
+        ) {
+            let luma = 0.2126 * r as f32 + 0.7152 * g as f32 + 0.0722 * b as f32;
+            if luma < 128.0 {
+                // Lift the dark bg ~4% toward white for an elevated panel.
+                let lift = |c: u8| -> u8 { c.saturating_add(((255 - c as u16) / 16) as u8) };
+                return format!("#{:02X}{:02X}{:02X}", lift(r), lift(g), lift(b));
+            }
+            return "#FFFFFF".into();
+        }
+    }
+    "#1C1B1E".into()
+}
+
 fn hex_to_rgb_triple(hex: &str) -> Option<String> {
     let h = hex.trim().trim_start_matches('#');
     if h.len() != 6 {
@@ -186,7 +211,7 @@ fn hex_to_rgb_triple(hex: &str) -> Option<String> {
 
 pub fn dark() -> Theme {
     // Surface/border at the old 3–7% range read too subtle against
-    // #121113 — cards, code blocks, and meta grids faded into the bg.
+    // #121113 - cards, code blocks, and meta grids faded into the bg.
     // Bumped to 5/9/11% for clearer card definition without making the
     // chrome feel heavy.
     Theme {
@@ -209,7 +234,7 @@ pub fn dark() -> Theme {
 }
 
 pub fn light() -> Theme {
-    // Light mode needs roughly 2x the overlay opacity dark mode uses — a
+    // Light mode needs roughly 2x the overlay opacity dark mode uses - a
     // 4% near-black wash on paper reads as invisible, while a 4% white
     // wash on #121113 reads clearly. Bumping surface/border/overlay values
     // keeps card definition, code blocks, and meta grids from washing out.
@@ -251,12 +276,13 @@ pub fn render_switchable_css(theme: &Theme) -> String {
     // ── Light mode override ───────────────────────────────────────────────
     // These values are hardcoded (not derived from light()) because the
     // data-attribute override context cannot use self-referential
-    // `var(--text-rgb)` chains — the circular references resolve incorrectly
+    // `var(--text-rgb)` chains - the circular references resolve incorrectly
     // when layered over the dark :root.
     out.push_str(
         "[data-mode=\"light\"] {\n\
           --bg: #F7F7F2;\n\
           --bg-rgb: 247, 247, 242;\n\
+          --surface: #FFFFFF;\n\
           --snow: #1a1a1a;\n\
           --text-rgb: 26, 26, 26;\n\
           --muted: #888888;\n\
@@ -317,7 +343,7 @@ pub fn render_switchable_css(theme: &Theme) -> String {
            rgba(var(--text-rgb), 0.04) 0 1px, transparent 1px 14px); }\n",
     );
 
-    // Grain: inline SVG with fractal noise — feColorMatrix cannot resolve CSS
+    // Grain: inline SVG with fractal noise - feColorMatrix cannot resolve CSS
     // vars, so we keep hardcoded float values derived from the dark theme text color.
     let text_rgb = hex_to_rgb_triple(&theme.text).unwrap_or_else(|| "255, 255, 255".into());
     let layer = "content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1;";
@@ -449,7 +475,7 @@ fn texture_css(texture: Texture, text_rgb: &str) -> String {
             )
         }
         Texture::Topography => {
-            // Two stacked wavy contours with offsets — gives a calm topo feel.
+            // Two stacked wavy contours with offsets - gives a calm topo feel.
             let svg = format!(
                 "<svg xmlns='http://www.w3.org/2000/svg' width='240' height='160' viewBox='0 0 240 160'>\
 <g fill='none' stroke='rgb({rgb})' stroke-opacity='0.07' stroke-width='1'>\
@@ -747,7 +773,7 @@ body.shell-document [id] {
 .site-bar nav .nav-chevron { font-size: 9px; opacity: 0.6; margin-top: 1px; }
 .site-bar nav .nav-dropdown {
   position: absolute;
-  /* Touch the bottom of the button — no hover gap between trigger and
+  /* Touch the bottom of the button - no hover gap between trigger and
      panel, otherwise the pointer leaves the :hover region while moving
      toward the menu and the dropdown snaps shut. */
   top: 100%;
@@ -757,7 +783,7 @@ body.shell-document [id] {
   border: 1px solid var(--card-border);
   border-radius: 10px;
   /* The 6px top padding gives visual breathing room without a dead hover
-     zone — the whole panel edge-to-edge is still a hover target. */
+     zone - the whole panel edge-to-edge is still a hover target. */
   padding: 6px 4px 4px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
   opacity: 0;
@@ -908,7 +934,6 @@ body.shell-document .doc-card {
   padding: 40px 48px;
   box-shadow: 0 4px 40px rgba(0,0,0,0.3);
 }
-body.shell-document .doc-body { line-height: 1.7; color: rgba(var(--text-rgb),0.9); font-size: 15px; }
 body.shell-document .doc-footer {
   margin-top: 40px;
   padding-top: 20px;
@@ -1205,12 +1230,6 @@ body.presenting .deck-viewport,
 body.shell-hub { min-height: 100vh; }
 
 .hub-masthead {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  background: rgba(var(--bg-rgb), 0.88);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid rgba(var(--text-rgb), 0.08);
 }
 
@@ -1293,7 +1312,7 @@ body.shell-hub { min-height: 100vh; }
 
 /* ──────────────────── Components ──────────────────── */
 
-/* — stack spacing for components in main flow — */
+/* - stack spacing for components in main flow - */
 .main-content > *, .deck-inner > *, .doc-body > *, .hub-content > *, .c-section > *:not(.c-section-header), .tab-panel > * {
   margin-bottom: 32px;
 }
@@ -1672,71 +1691,158 @@ a.c-card { color: inherit; }
 .c-step-detail { font-size: 14px; color: rgba(var(--text-rgb),0.7); line-height: 1.5; }
 
 /* Markdown */
-.c-markdown {
+.c-markdown, body.shell-document .doc-body {
   color: var(--light-muted);
   font-size: 15px;
   line-height: 1.75;
 }
-.c-markdown h1, .c-markdown h2, .c-markdown h3 { color: var(--snow); margin-top: 2em; margin-bottom: 0.75em; }
-.c-markdown h1 { font-size: 24px; }
-.c-markdown h2 { font-size: 18px; }
-.c-markdown h3 { font-size: 16px; color: var(--teal); }
-.c-markdown h1:first-child, .c-markdown h2:first-child, .c-markdown h3:first-child { margin-top: 0; }
-.c-markdown p { margin-bottom: 1em; }
-.c-markdown ul, .c-markdown ol { padding-left: 1.5em; margin-bottom: 1em; }
-.c-markdown li { margin-bottom: 0.4em; }
-.c-markdown strong { color: var(--snow); font-weight: 600; }
-.c-markdown code {
+.c-markdown h1, .c-markdown h2, .c-markdown h3, .c-markdown h4,
+body.shell-document .doc-body h1, body.shell-document .doc-body h2,
+body.shell-document .doc-body h3, body.shell-document .doc-body h4 {
+  color: var(--snow);
+  margin-top: 2em;
+  margin-bottom: 0.75em;
+  letter-spacing: -0.005em;
+}
+.c-markdown h1, body.shell-document .doc-body h1 {
+  font-size: 24px;
+  padding-bottom: 0.4em;
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, var(--teal), var(--card-border) 55%, transparent) 1;
+}
+.c-markdown h2, body.shell-document .doc-body h2 {
+  font-size: 18px;
+  padding-left: 12px;
+  border-left: 3px solid var(--teal);
+}
+.c-markdown h3, body.shell-document .doc-body h3 { font-size: 16px; color: var(--teal); }
+.c-markdown h4, body.shell-document .doc-body h4 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.c-markdown h1:first-child, .c-markdown h2:first-child, .c-markdown h3:first-child, .c-markdown h4:first-child,
+body.shell-document .doc-body h1:first-child, body.shell-document .doc-body h2:first-child,
+body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:first-child { margin-top: 0; }
+.c-markdown p, body.shell-document .doc-body p { margin-bottom: 1em; }
+.c-markdown ul, .c-markdown ol, body.shell-document .doc-body ul, body.shell-document .doc-body ol {
+  padding-left: 1.5em;
+  margin-bottom: 1em;
+}
+.c-markdown li, body.shell-document .doc-body li { margin-bottom: 0.4em; }
+.c-markdown li::marker, body.shell-document .doc-body li::marker { color: var(--teal); }
+.c-markdown li input[type="checkbox"], body.shell-document .doc-body li input[type="checkbox"] {
+  accent-color: var(--teal);
+  margin-right: 0.4em;
+}
+.c-markdown strong, body.shell-document .doc-body strong { color: var(--snow); font-weight: 600; }
+.c-markdown code, body.shell-document .doc-body code {
   font-family: 'SF Mono', 'Monaco', monospace;
   font-size: 13px;
   background: rgba(var(--text-rgb), 0.09);
+  border: 1px solid var(--card-border);
   padding: 2px 6px;
   border-radius: 4px;
   color: var(--teal);
 }
-.c-markdown pre {
+.c-markdown pre, body.shell-document .doc-body pre {
+  position: relative;
   background: rgba(var(--text-rgb), 0.07);
   border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 20px;
   overflow-x: auto;
   margin-bottom: 1.5em;
+  box-shadow: inset 0 1px 0 rgba(var(--text-rgb),0.05);
 }
-.c-markdown pre code { background: none; padding: 0; color: var(--snow); }
-.c-markdown table { width: 100%; border-collapse: collapse; margin-bottom: 1.5em; }
-.c-markdown th {
+.c-markdown pre::before, body.shell-document .doc-body pre::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(90deg, var(--teal), transparent 70%);
+  opacity: 0.6;
+}
+.c-markdown pre code, body.shell-document .doc-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--snow);
+}
+.c-markdown table, body.shell-document .doc-body table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 1.5em;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.c-markdown th, body.shell-document .doc-body th {
   text-align: left;
   font-size: 11px; font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--muted);
+  background: var(--surface-strong);
   padding: 10px 16px;
   border-bottom: 1px solid var(--card-border);
 }
-.c-markdown td {
+.c-markdown td, body.shell-document .doc-body td {
   padding: 12px 16px;
   border-bottom: 1px solid rgba(var(--text-rgb), 0.07);
   color: var(--light-muted);
 }
-.c-markdown tr:last-child td { border-bottom: none; }
-.c-markdown img { max-width: 100%; height: auto; border-radius: 8px; display: block; margin: 1.5em 0; }
-.c-markdown a { color: var(--teal); }
-.c-markdown a:hover { text-decoration: underline; }
-.c-markdown blockquote {
-  border-left: 3px solid rgba(var(--accent-rgb), 0.3);
-  padding-left: 20px;
+.c-markdown tr:last-child td, body.shell-document .doc-body tr:last-child td { border-bottom: none; }
+.c-markdown tbody tr:nth-child(even), body.shell-document .doc-body tbody tr:nth-child(even) {
+  background: rgba(var(--text-rgb),0.025);
+}
+.c-markdown img, body.shell-document .doc-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+  margin: 1.5em 0;
+}
+.c-markdown a, body.shell-document .doc-body a {
+  color: var(--teal);
+  text-decoration: underline;
+  text-decoration-color: rgba(var(--accent-rgb),0.35);
+  text-underline-offset: 3px;
+  border-radius: 3px;
+}
+.c-markdown a:hover, body.shell-document .doc-body a:hover {
+  background: rgba(var(--accent-rgb),0.12);
+  text-decoration-color: var(--teal);
+}
+.c-markdown blockquote, body.shell-document .doc-body blockquote {
+  position: relative;
+  background: rgba(var(--accent-rgb),0.07);
+  border-left: 3px solid rgba(var(--accent-rgb), 0.5);
+  border-radius: 0 8px 8px 0;
+  padding: 0.6em 1.2em 0.6em 1.4em;
   color: var(--muted);
   font-style: italic;
   margin-bottom: 1em;
 }
-
-/* Document body inherits markdown styling for h3 in teal etc. */
-body.shell-document .doc-body h3 { color: var(--teal); }
-body.shell-document .doc-body h1 { font-size: 24px; margin-bottom: 20px; }
-body.shell-document .doc-body h2 { font-size: 18px; margin: 24px 0 12px; }
-body.shell-document .doc-body h3 { font-size: 16px; margin: 20px 0 10px; }
-body.shell-document .doc-body p { margin-bottom: 12px; }
-body.shell-document .doc-body strong { color: #fff; }
+.c-markdown blockquote::before, body.shell-document .doc-body blockquote::before {
+  content: "\201C";
+  position: absolute;
+  left: 0.4em;
+  top: 0.1em;
+  font-size: 1.6em;
+  font-style: normal;
+  color: var(--teal);
+  opacity: 0.55;
+}
+.c-markdown hr, body.shell-document .doc-body hr {
+  border: none;
+  height: 1px;
+  margin: 2em 0;
+  background: linear-gradient(90deg, transparent, var(--card-border) 20%, var(--card-border) 80%, transparent);
+}
 
 /* Table */
 .c-table-wrap { display: flex; flex-direction: column; gap: 12px; }
@@ -1817,8 +1923,8 @@ body.shell-document .doc-body strong { color: #fff; }
 
 /* Freshness banner: the review-overdue / due-soon nudge that kazam
    injects at the top of a page when its freshness metadata is expired.
-   Builds on `c-callout` for colors — yellow for "due soon", red for
-   "overdue" — and adds a sources-of-truth list underneath. */
+   Builds on `c-callout` for colors - yellow for "due soon", red for
+   "overdue" - and adds a sources-of-truth list underneath. */
 .c-freshness-banner { margin-bottom: 24px; }
 .c-freshness-sources {
   margin-top: 12px;
@@ -2178,7 +2284,7 @@ body.shell-document .doc-body strong { color: #fff; }
    the dot bottom (~30px from rail top). */
 .c-event:first-child .c-event-rail::before { top: 18px; }
 .c-event:last-child .c-event-rail::before { bottom: calc(100% - 30px); }
-/* Filter visibility — when filter=major, hide non-major events */
+/* Filter visibility - when filter=major, hide non-major events */
 .c-event-timeline.filter-major .c-event[data-severity="minor"],
 .c-event-timeline.filter-major .c-event[data-severity="info"] { display: none; }
 .c-event-rail {
@@ -2426,7 +2532,7 @@ body.shell-document .doc-body strong { color: #fff; }
   color: var(--teal);
 }
 /* filter-incomplete: hide every node whose status is `completed`.
-   A `completed` branch correctly hides its descendants — they're "done",
+   A `completed` branch correctly hides its descendants - they're "done",
    the user didn't ask for them. The non-completed siblings stay visible. */
 .c-tree.filter-incomplete .c-tree-node.status-completed { display: none; }
 /* filter-blocked: show only blocked nodes + their ancestor chain.
@@ -2455,9 +2561,11 @@ body.shell-document .doc-body strong { color: #fff; }
 }
 .c-venn-svg {
   width: 100%;
-  max-width: 560px;
+  max-width: 680px;
   height: auto;
 }
+/* Toggle panels swap via the hidden attribute; beat any display rule above. */
+.c-venn [hidden] { display: none !important; }
 .c-venn-circle {
   fill-opacity: 0.18;
   stroke-width: 2;
@@ -2487,6 +2595,98 @@ body.shell-document .doc-body strong { color: #fff; }
   font-size: 13px;
   color: rgba(var(--text-rgb),0.5);
   font-style: italic;
+}
+/* Venn header row: title centered, view toggle pinned top-right */
+.c-venn-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: 100%;
+  max-width: 680px;
+  min-height: 28px;
+}
+.c-venn-head > .c-venn-title { grid-column: 2; text-align: center; }
+.c-venn-head > .c-venn-toggle { grid-column: 3; justify-self: end; }
+.c-venn-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(var(--text-rgb),0.05);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+}
+.c-venn-toggle button {
+  appearance: none;
+  background: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  color: rgba(var(--text-rgb),0.55);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.c-venn-toggle button:hover { color: var(--snow); }
+.c-venn-toggle button.active {
+  background: rgba(var(--accent-rgb),0.15);
+  color: var(--teal);
+}
+/* Venn matrix view: sets as rows and columns, totals on the diagonal */
+.c-venn-matrix-wrap {
+  width: 100%;
+  max-width: 680px;
+  overflow-x: auto;
+}
+.c-venn-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(var(--text-rgb),0.05);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.c-venn-matrix th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  padding: 10px 14px;
+  text-align: center;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--card-border);
+  background: rgba(var(--text-rgb),0.05);
+  user-select: none;
+}
+.c-venn-matrix th[scope="row"] {
+  text-align: left;
+  border-right: 1px solid var(--card-border);
+}
+.c-venn-matrix td {
+  padding: 10px 14px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--light-muted);
+  border-bottom: 1px solid rgba(var(--text-rgb),0.07);
+}
+.c-venn-matrix tr:last-child td,
+.c-venn-matrix tr:last-child th { border-bottom: none; }
+.c-venn-matrix td.c-venn-cell-total   { background: rgba(52,211,153,0.12); color: #34D399; }
+.c-venn-matrix td.c-venn-cell-overlap { background: rgba(251,191,36,0.12); color: #FBBF24; }
+.c-venn-matrix td.c-venn-cell-all     { background: rgba(60,206,206,0.12); color: #3CCECE; }
+.c-venn-matrix td.c-venn-cell-empty   { color: rgba(var(--text-rgb),0.35); font-weight: 400; }
+.c-venn-matrix th.c-venn-th-teal   { color: var(--teal); }
+.c-venn-matrix th.c-venn-th-green  { color: var(--green); }
+.c-venn-matrix th.c-venn-th-yellow { color: var(--yellow); }
+.c-venn-matrix th.c-venn-th-red    { color: var(--red); }
+@media print {
+  .c-venn-toggle { display: none; }
 }
 
 /* Image */
@@ -2793,12 +2993,28 @@ body.shell-document .doc-body strong { color: #fff; }
   border-radius: 12px;
   display: flex; flex-direction: column; gap: 14px;
 }
+.c-chart-scale {
+  display: flex;
+  justify-content: center;
+}
+.c-chart-scale > * {
+  width: calc(var(--kz-scale, 1) * 100%);
+}
 .c-chart-title {
   font-size: 13px; font-weight: 600;
   color: var(--snow);
   letter-spacing: 0.2px;
   margin: 0;
 }
+.c-chart-axes { display: flex; align-items: stretch; gap: 8px; }
+.c-chart-axes-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.c-chart-xlabel, .c-chart-ylabel {
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+.c-chart-ylabel { writing-mode: vertical-rl; transform: rotate(180deg); align-self: center; white-space: nowrap; }
 .c-chart-svg {
   width: 100%;
   height: auto;
@@ -2992,7 +3208,7 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-rule-red .c-rule-label { color: #F87171; }
 .c-rule-teal .c-rule-label { color: #3CCECE; }
 
-/* Gauge — grid variant (Rust renderer) */
+/* Gauge - grid variant (Rust renderer) */
 .c-gauge-grid { display: grid; grid-template-columns: repeat(var(--gauge-cols, 3), 1fr); gap: 20px; }
 .c-gauge-grid .c-gauge-title { grid-column: 1 / -1; }
 .c-gauge-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -3000,7 +3216,7 @@ body.shell-document .doc-body strong { color: #fff; }
 .c-gauge-value { font-size: 13px; font-weight: 600; fill: var(--snow); }
 .c-gauge-label { font-size: 12px; color: rgba(var(--text-rgb),0.6); text-align: center; }
 
-/* Gauge — donut variant (TSX renderer) */
+/* Gauge - donut variant (TSX renderer) */
 .c-gauge { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; margin: 0; }
 .c-gauge-title { font-size: 14px; font-weight: 600; color: var(--snow); }
 .c-gauge-svg { display: block; }
@@ -3143,9 +3359,255 @@ body.shell-document .doc-body strong { color: #fff; }
 .source-edit-status-error { color: var(--red); }
 .source-edit-status-ok { color: var(--green); }
 
+/* ── Priority Queue ──────────────────────────── */
+
+.c-queue {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.c-queue-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--snow);
+  margin-bottom: 12px;
+}
+.c-queue-search {
+  margin-bottom: 12px;
+}
+.c-queue-search-input {
+  width: 100%;
+  max-width: 320px;
+  padding: 7px 12px 7px 32px;
+  font-size: 13px;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: rgba(var(--text-rgb), 0.05);
+  color: var(--snow);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+}
+.c-queue-search-input::placeholder {
+  color: rgba(var(--text-rgb), 0.35);
+}
+.c-queue-search-input:focus {
+  outline: none;
+  border-color: rgba(var(--accent-rgb), 0.6);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.15);
+}
+.c-queue-group {
+  margin-bottom: 16px;
+}
+.c-queue-group:last-child {
+  margin-bottom: 0;
+}
+.c-queue-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(var(--text-rgb), 0.08);
+  cursor: pointer;
+  user-select: none;
+}
+.c-queue-group-header::before {
+  content: '';
+  display: inline-block;
+  width: 0; height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid rgba(var(--text-rgb), 0.4);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.c-queue-group.collapsed .c-queue-group-header::before {
+  transform: rotate(-90deg);
+}
+.c-queue-group.collapsed .c-queue-row {
+  display: none;
+}
+.c-queue-done {
+  margin-top: 16px;
+  border-top: 1px solid rgba(var(--text-rgb), 0.1);
+  padding-top: 8px;
+}
+.c-queue-done .c-queue-group-label {
+  opacity: 0.6;
+}
+.c-queue-group-label {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(var(--text-rgb), 0.5);
+}
+.c-queue-group-count {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: rgba(var(--text-rgb), 0.35);
+}
+
+/* Row: stripe | main | date */
+.c-queue-row {
+  display: grid;
+  grid-template-columns: 4px 1fr max-content;
+  gap: 0 12px;
+  padding: 8px 0;
+  align-items: start;
+}
+.c-queue-row + .c-queue-row {
+  border-top: 1px solid rgba(var(--text-rgb), 0.06);
+}
+
+/* Urgency stripe */
+.c-queue-stripe {
+  width: 4px;
+  border-radius: 2px;
+  min-height: 100%;
+  align-self: stretch;
+}
+.c-queue-row.urgency-overdue .c-queue-stripe { background: var(--red); }
+.c-queue-row.urgency-soon .c-queue-stripe { background: var(--yellow); }
+.c-queue-row.urgency-track .c-queue-stripe { background: var(--green); }
+.c-queue-row.urgency-blocked .c-queue-stripe { background: rgba(var(--text-rgb), 0.25); }
+.c-queue-row.urgency-none .c-queue-stripe { background: transparent; }
+
+/* Main content area */
+.c-queue-main {
+  min-width: 0;
+}
+.c-queue-label-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.c-queue-label {
+  font-weight: 500;
+  color: var(--snow);
+}
+a.c-queue-label {
+  text-decoration: none;
+  color: var(--teal);
+}
+a.c-queue-label:hover {
+  text-decoration: underline;
+}
+.c-queue-row.status-completed .c-queue-label {
+  text-decoration: line-through;
+  color: rgba(var(--text-rgb), 0.5);
+}
+.c-queue-owner {
+  font-size: 12px;
+  color: rgba(var(--text-rgb), 0.5);
+}
+.c-queue-detail {
+  font-size: 13px;
+  color: rgba(var(--text-rgb), 0.6);
+  margin-top: 2px;
+}
+.c-queue-row.status-completed .c-queue-detail {
+  color: rgba(var(--text-rgb), 0.35);
+}
+
+/* Tags */
+.c-queue-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.c-queue-tag {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid rgba(var(--text-rgb), 0.12);
+  color: rgba(var(--text-rgb), 0.6);
+  white-space: nowrap;
+}
+.c-queue-tag.color-teal {
+  color: var(--teal);
+  border-color: rgba(var(--accent-rgb), 0.25);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.c-queue-tag.color-red {
+  color: var(--red);
+  border-color: rgba(255, 107, 107, 0.25);
+}
+.c-queue-tag.color-yellow {
+  color: var(--yellow);
+  border-color: rgba(251, 191, 36, 0.25);
+}
+.c-queue-tag.color-green {
+  color: var(--green);
+  border-color: rgba(126, 217, 87, 0.25);
+}
+.c-queue-tag.emphasis {
+  font-weight: 600;
+  background: rgba(var(--text-rgb), 0.06);
+}
+.c-queue-tag.color-red.emphasis {
+  background: rgba(255, 107, 107, 0.1);
+}
+
+/* Date column */
+.c-queue-date {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.c-queue-due {
+  font-size: 13px;
+  color: rgba(var(--text-rgb), 0.7);
+}
+.c-queue-row.urgency-overdue .c-queue-due {
+  color: var(--red);
+  font-weight: 500;
+}
+.c-queue-slip {
+  display: block;
+  font-size: 11px;
+  color: rgba(var(--text-rgb), 0.4);
+}
+.c-queue-slip.pulled {
+  color: var(--green);
+}
+
+/* Status glyphs on rows */
+.c-queue-row.status-blocked .c-queue-label {
+  color: rgba(var(--text-rgb), 0.7);
+}
+
+/* Drift: explicit horizon is less urgent than date implies */
+.c-queue-row.drift {
+  background: rgba(251, 191, 36, 0.06);
+  border-radius: 4px;
+  padding-left: 4px;
+  margin-left: -4px;
+}
+.c-queue-row.drift .c-queue-stripe {
+  background: var(--yellow);
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
+}
+.c-queue-row.drift .c-queue-date::before {
+  content: "drift";
+  display: block;
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--yellow);
+  opacity: 0.7;
+  margin-bottom: 2px;
+}
+
 /* ──────────────────── Print ──────────────────── */
 
-/* Default @page — portrait content pages; deck in slides mode forces
+/* Default @page - portrait content pages; deck in slides mode forces
    landscape full-bleed. `print-continuous` decks stay on the default
    portrait page. Standard shell uses a zero-margin named page so the
    theme background reaches the sheet edges; breathing room is added
@@ -3204,7 +3666,7 @@ body.shell-standard { page: standard-page; }
   body.shell-standard.print-continuous .c-hero + .c-divider + .c-section { break-before: auto; page-break-before: auto; }
   body.shell-standard.print-continuous .c-divider { display: block !important; height: auto !important; margin: 0.2in 0 !important; border-bottom: 1px solid var(--muted) !important; }
 
-  /* Keep card grids horizontal in print — 10in landscape page is wide enough */
+  /* Keep card grids horizontal in print - 10in landscape page is wide enough */
   .c-card-grid { flex-direction: row !important; flex-wrap: nowrap !important; }
   .c-card-grid-arrow { flex-direction: row !important; }
   .c-card-grid .c-card { min-width: 0 !important; flex: 1 !important; }
@@ -3231,7 +3693,7 @@ body.shell-standard { page: standard-page; }
   body.shell-deck .deck-slide { min-width: 100% !important; overflow: visible !important; }
   body.shell-deck .deck-nav { display: none !important; }
 
-  /* Drop the JS-applied scale transform when printing — the screen-fit
+  /* Drop the JS-applied scale transform when printing - the screen-fit
      scale calculation has nothing to do with the print page size and
      leaves content top-anchored on the printed page. Browsers honor
      `!important` on regular CSS over inline styles set via JS. */
@@ -3242,7 +3704,7 @@ body.shell-standard { page: standard-page; }
 
   /* Default print mode: one slide per landscape page, Keynote-style.
      Pin slide height to the page so flex centering inside .deck-inner
-     actually has a container to center against — otherwise content hugs
+     actually has a container to center against - otherwise content hugs
      the top of each page. Width is the @page deck-page landscape size. */
   body.shell-deck.print-slides .deck-slide {
     height: 7.5in !important;
@@ -3633,7 +4095,7 @@ mod tests {
     fn grain_emits_url_encoded_svg_data_uri() {
         let css = decoration_css(&dark(), Texture::Grain, Glow::None);
         assert!(css.contains("data:image/svg+xml;utf8,"));
-        // SVG body must be URL-encoded — no raw <, >, # in the URL payload.
+        // SVG body must be URL-encoded - no raw <, >, # in the URL payload.
         let uri_start = css.find("data:image/svg+xml;utf8,").unwrap();
         let uri_end = css[uri_start..].find('"').unwrap() + uri_start;
         let payload = &css[uri_start..uri_end];
@@ -3643,7 +4105,7 @@ mod tests {
 
     #[test]
     fn rainbow_themes_swap_accent_only() {
-        // Each rainbow theme keeps the chosen base — same bg, same text — and
+        // Each rainbow theme keeps the chosen base - same bg, same text - and
         // swaps just the accent hex. Default mode is Dark.
         let cases = [
             ("red", "#BB7777"),
@@ -3692,5 +4154,17 @@ mod tests {
         let css = decoration_css(&dark(), Texture::Topography, Glow::None);
         // URL-encoded SVG keeps commas/parens raw, only spaces become %20.
         assert!(css.contains("rgb(247,%20247,%20242)"));
+    }
+
+    #[test]
+    fn switchable_css_renders_root_with_theme_accent() {
+        let violet = Theme::named("violet", Mode::Dark);
+        let css = render_switchable_css(&violet);
+        assert!(css.contains(":root {"));
+        assert!(css.contains("--teal: #AB7FBB;"));
+        assert!(css.contains("--accent-rgb: 171, 127, 187;"));
+        assert!(css.contains("[data-mode=\"light\"]"));
+        assert!(css.contains("[data-theme=\"violet\"]"));
+        assert!(css.contains("[data-theme=\"green\"]"));
     }
 }

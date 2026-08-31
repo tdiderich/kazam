@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # Rust dependencies — weekly security + version bumps.
+  # Rust dependencies - weekly security + version bumps.
   - package-ecosystem: cargo
     directory: /
     schedule:
@@ -16,7 +16,7 @@ updates:
           - minor
           - patch
 
-  # GitHub Actions versions — weekly.
+  # GitHub Actions versions - weekly.
   - package-ecosystem: github-actions
     directory: /
     schedule:

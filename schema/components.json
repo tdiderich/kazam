@@ -60,7 +60,8 @@
       "all",
       "incomplete",
       "blocked",
-      "priority"
+      "priority",
+      "overdue"
     ],
     "ButtonVariant": [
       "primary",
@@ -170,999 +171,1365 @@
       "month",
       "quarter",
       "source"
+    ],
+    "VennView": [
+      "venn",
+      "table"
+    ],
+    "QueueGroup": [
+      "urgency",
+      "horizon",
+      "owner",
+      "status",
+      "none"
+    ],
+    "QueueHorizon": [
+      "now",
+      "next",
+      "later"
     ]
   },
   "types": {
     "ThemeTokens": {
       "bg": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "surface": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "surface_strong": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "border": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "border_strong": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "accent": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "accent_soft": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "text": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "text_muted": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "text_subtle": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "overlay_hover": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "green": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "yellow": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "red": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "header_border": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       }
     },
     "MetaField": {
       "key": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "value": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       }
     },
     "Link": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "href": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "url"
       }
     },
     "Badge": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "Card": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "badge": {
         "type": "Badge",
-        "required": false
+        "required": false,
+        "kind": "object"
       },
       "description": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "links": {
         "type": "Link[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "href": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "url"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "SelectableCard": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "eyebrow": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "bullets": {
         "type": "string[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "body": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "markdown"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "TimelineItem": {
       "name": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "status": {
         "type": "TimelineStatus",
-        "required": true
+        "required": true,
+        "kind": "enum"
       }
     },
     "Stat": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "value": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "detail": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "trend": {
         "type": "Trend",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "previous": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "history": {
         "type": "number[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "BeforeAfterItem": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "before": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "after": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "after_context": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "ComparePanel": {
       "eyebrow": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "stats": {
         "type": "CompareStat[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "CompareStat": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "value": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "Step": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "detail": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "TableColumn": {
       "key": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "sortable": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       },
       "align": {
         "type": "Align",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "color_map": {
         "type": "Record<string, SemColor>",
-        "required": false
+        "required": false,
+        "kind": "object"
       }
     },
     "Tab": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "components": {
         "type": "Component[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "AccordionItem": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "components": {
         "type": "Component[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "EventItem": {
       "date": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "summary": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "markdown"
       },
       "severity": {
         "type": "EventSeverity",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "source": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "link": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "url"
       },
       "tags": {
         "type": "string[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "TreeNode": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "status": {
         "type": "TreeStatus",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "note": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "children": {
         "type": "TreeNode[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "owner": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
+      },
+      "due": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "original_due": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
       }
     },
     "VennSet": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "VennOverlap": {
       "sets": {
         "type": "number[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "BreadcrumbItem": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "href": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "url"
       }
     },
     "ButtonConfig": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "href": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "url"
       },
       "variant": {
         "type": "ButtonVariant",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "external": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       },
       "icon": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       }
     },
     "DefinitionItem": {
       "term": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "definition": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "markdown"
       }
     },
     "AvatarConfig": {
       "name": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "src": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "url"
       }
     },
     "EmptyStateAction": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "href": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "url"
       }
     },
     "ChartPoint": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "value": {
         "type": "number",
-        "required": true
+        "required": true,
+        "kind": "number"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "ChartSeries": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "points": {
         "type": "ChartPoint[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "ResourceItem": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "href": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "url"
       },
       "description": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "owner": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "Slide": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "components": {
         "type": "Component[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "eyebrow": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "subtitle": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "align": {
         "type": "Align",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "valign": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "cover": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       },
       "hide_label": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       }
     },
     "SourceOfTruth": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "href": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "url"
       }
     },
     "RefreshStep": {
       "run": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "prompt": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "review": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "RefreshConfig": {
       "mode": {
         "type": "RefreshMode",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "steps": {
         "type": "RefreshStep[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "Freshness": {
       "updated": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "review_every": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "owner": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "sources_of_truth": {
         "type": "(string | SourceOfTruth)[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "expires": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "refresh": {
         "type": "string | RefreshConfig",
-        "required": false
+        "required": false,
+        "kind": "object"
       }
     },
     "Reference": {
       "url": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "url"
       },
       "note": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "NavLink": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "href": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "url"
       },
       "children": {
         "type": "NavLink[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "personas": {
         "type": "string[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "collapsed": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       }
     },
     "OrgChartPerson": {
-      "id": { "type": "string", "required": false },
-      "name": { "type": "string", "required": true },
-      "title": { "type": "string", "required": false },
-      "color": { "type": "SemColor", "required": false },
-      "email": { "type": "string", "required": false },
-      "linkedin": { "type": "string", "required": false },
-      "tags": { "type": "OrgChartTag[]", "required": false },
-      "reports": { "type": "OrgChartPerson[]", "required": false }
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      },
+      "name": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "title": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      },
+      "email": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      },
+      "linkedin": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      },
+      "tags": {
+        "type": "OrgChartTag[]",
+        "required": false,
+        "kind": "list"
+      },
+      "reports": {
+        "type": "OrgChartPerson[]",
+        "required": false,
+        "kind": "list"
+      }
     },
     "OrgChartTag": {
-      "label": { "type": "string", "required": true },
-      "color": { "type": "SemColor", "required": false }
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      }
     },
     "Voice": {
       "tone": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "reading_level": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "terminology": {
         "type": "{ prefer?: Record<string, string>; avoid?: string[] }",
-        "required": false
+        "required": false,
+        "kind": "object"
       }
     },
     "Role": {
       "id": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "description": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "icon": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "href": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "url"
       }
     },
     "DriftRepo": {
       "prefix": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "local": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       }
     },
     "DriftConfig": {
       "repos": {
         "type": "DriftRepo[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "ValidationError": {
       "file": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "path": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "error_type": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "message": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "suggestion": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "Annotation": {
       "id": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "text": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "author": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "section": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "added": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "status": {
         "type": "AnnotationStatus",
-        "required": true
+        "required": true,
+        "kind": "enum"
       },
       "source": {
         "type": "AnnotationSource",
-        "required": true
+        "required": true,
+        "kind": "enum"
       }
     },
     "SankeyFlow": {
       "source": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "target": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "value": {
         "type": "number",
-        "required": true
+        "required": true,
+        "kind": "number"
       }
     },
     "RadarCurve": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "values": {
         "type": "number[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "QuadrantPoint": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "x": {
         "type": "number",
-        "required": true
+        "required": true,
+        "kind": "layout"
       },
       "y": {
         "type": "number",
-        "required": true
+        "required": true,
+        "kind": "layout"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "ArchNode": {
       "id": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "detail": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "icon": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "ArchConnection": {
       "from": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "to": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "PipelineItem": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "detail": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "dim": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       }
     },
     "PipelineStage": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "detail": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "capabilities": {
         "type": "PipelineCapability[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "PipelineCapability": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "detail": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "dim": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       }
     },
     "GraphNode": {
       "id": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "detail": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
+      },
+      "hex": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      },
+      "status": {
+        "type": "TimelineStatus",
+        "required": false,
+        "kind": "enum"
       },
       "shape": {
         "type": "GraphShape",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "group": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "width": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "height": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "ports": {
         "type": "PortLabel[]",
-        "required": false
+        "required": false,
+        "kind": "list"
+      },
+      "row": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "column": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
       }
     },
     "GraphEdge": {
       "from": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "to": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "style": {
         "type": "GraphEdgeStyle",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "GraphGroup": {
       "id": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "parent": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "PortLabel": {
       "side": {
         "type": "PortSide",
-        "required": true
+        "required": true,
+        "kind": "enum"
       },
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       }
     },
     "HubLink": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "href": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "url"
       }
     },
     "HubConfig": {
       "name": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "eyebrow": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "status": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "status_color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "pages": {
         "type": "HubLink[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "TableSummary": {
       "group_by": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "colors": {
         "type": "Record<string, SemColor>",
-        "required": false
+        "required": false,
+        "kind": "object"
       }
     },
     "GaugeItem": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "value": {
         "type": "number",
-        "required": true
+        "required": true,
+        "kind": "number"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "RuleItem": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "body": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "markdown"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "QueueItem": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "detail": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "due": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "original_due": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "owner": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "status": {
+        "type": "TreeStatus",
+        "required": false,
+        "kind": "enum"
+      },
+      "tags": {
+        "type": "QueueTag[]",
+        "required": false,
+        "kind": "list"
+      },
+      "href": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      },
+      "horizon": {
+        "type": "QueueHorizon",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "QueueTag": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      },
+      "emphasis": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
       }
     }
   },
@@ -1170,727 +1537,925 @@
     "header": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "subtitle": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "eyebrow": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "align": {
         "type": "Align",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "id": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       }
     },
     "hero_banner": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "eyebrow": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "subtitle": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "buttons": {
         "type": "ButtonConfig[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "meta": {
       "fields": {
         "type": "MetaField[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "card_grid": {
       "cards": {
         "type": "Card[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "min_width": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "connector": {
         "type": "Connector",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "selectable_grid": {
       "cards": {
         "type": "SelectableCard[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "interaction": {
         "type": "Interaction",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "connector": {
         "type": "Connector",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "timeline": {
       "items": {
         "type": "TimelineItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "stat_grid": {
       "stats": {
         "type": "Stat[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "columns": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       }
     },
     "before_after": {
       "items": {
         "type": "BeforeAfterItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "before_label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "after_label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "split_compare": {
       "left": {
         "type": "ComparePanel",
-        "required": true
+        "required": true,
+        "kind": "object"
       },
       "right": {
         "type": "ComparePanel",
-        "required": true
+        "required": true,
+        "kind": "object"
       }
     },
     "steps": {
       "items": {
         "type": "Step[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "numbered": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       }
     },
     "markdown": {
       "body": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "markdown"
       }
     },
     "table": {
       "columns": {
         "type": "TableColumn[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "rows": {
         "type": "Record<string, unknown>[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "filterable": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       },
       "summary": {
         "type": "TableSummary",
-        "required": false
+        "required": false,
+        "kind": "object"
       }
     },
     "callout": {
       "variant": {
         "type": "CalloutVariant",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "body": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "markdown"
       },
       "links": {
         "type": "ButtonConfig[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "code": {
       "language": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       },
       "code": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "code"
       }
     },
     "tabs": {
       "tabs": {
         "type": "Tab[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "section": {
       "heading": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "eyebrow": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "components": {
         "type": "Component[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "align": {
         "type": "Align",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "id": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       }
     },
     "columns": {
       "columns": {
         "type": "Component[][]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "equal_heights": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       }
     },
     "accordion": {
       "items": {
         "type": "AccordionItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "event_timeline": {
       "events": {
         "type": "EventItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "default_filter": {
         "type": "EventFilter",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "show_filter_toggle": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       },
       "limit": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "filter_by": {
         "type": "string[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "group_by": {
         "type": "EventGroupBy",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "tree": {
       "nodes": {
         "type": "TreeNode[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "default_filter": {
         "type": "TreeFilter",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "show_filter_toggle": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       },
       "default_collapsed": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       },
       "default_depth": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "show_counts": {
         "type": "boolean",
-        "required": false
+        "required": false,
+        "kind": "bool"
       }
     },
     "org_chart": {
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "people": {
         "type": "OrgChartPerson[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "default_open_depth": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       }
     },
     "venn": {
       "sets": {
         "type": "VennSet[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "overlaps": {
         "type": "VennOverlap[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
+      },
+      "default_view": {
+        "type": "VennView",
+        "required": false,
+        "kind": "enum"
       }
     },
     "image": {
       "src": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "url"
       },
       "alt": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "caption": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "max_width": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "align": {
         "type": "Align",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "embed": {
       "src": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "url"
       },
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "aspect": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       }
     },
     "resources": {
       "items": {
         "type": "ResourceItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "badge": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "tag": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "divider": {
       "label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "kbd": {
       "keys": {
         "type": "string[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "status": {
       "label": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "breadcrumb": {
       "items": {
         "type": "BreadcrumbItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "button_group": {
       "buttons": {
         "type": "ButtonConfig[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "definition_list": {
       "items": {
         "type": "DefinitionItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "blockquote": {
       "body": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "markdown"
       },
       "attribution": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "avatar": {
       "name": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "src": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "url"
       },
       "size": {
         "type": "AvatarSize",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "subtitle": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "avatar_group": {
       "avatars": {
         "type": "AvatarConfig[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "size": {
         "type": "AvatarSize",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "max": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       }
     },
     "progress_bar": {
       "value": {
         "type": "number",
-        "required": true
+        "required": true,
+        "kind": "number"
       },
       "label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "color": {
-        "type": "SemColor",
-        "required": false
+        "type": "string",
+        "required": false,
+        "kind": "id"
       },
       "detail": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "target": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "number"
       },
       "thresholds": {
-        "type": "Record<string, SemColor>",
-        "required": false
+        "type": "Record<string, string>",
+        "required": false,
+        "kind": "object"
       }
     },
     "empty_state": {
       "title": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "body": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "markdown"
       },
       "action": {
         "type": "EmptyStateAction",
-        "required": false
+        "required": false,
+        "kind": "object"
       },
       "icon": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "id"
       }
     },
     "icon": {
       "name": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "id"
       },
       "size": {
         "type": "IconSize",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "color": {
         "type": "SemColor",
-        "required": false
+        "required": false,
+        "kind": "enum"
       }
     },
     "chart": {
       "kind": {
         "type": "ChartKind",
-        "required": true
+        "required": true,
+        "kind": "enum"
       },
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "height": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "x_label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "y_label": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "orientation": {
         "type": "ChartOrientation",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "data": {
         "type": "ChartPoint[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "series": {
         "type": "ChartSeries[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "chart_group": {
       "components": {
         "type": "Component[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "columns": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "role_map": {
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       }
     },
     "sankey": {
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "height": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "flows": {
         "type": "SankeyFlow[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "colors": {
         "type": "Record<string, SemColor>",
-        "required": false
+        "required": false,
+        "kind": "object"
       }
     },
     "radar": {
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "height": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "axes": {
         "type": "string[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "curves": {
         "type": "RadarCurve[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "max": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       }
     },
     "quadrant": {
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "height": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "x_axis": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "y_axis": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "text"
       },
       "quadrants": {
         "type": "string[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "points": {
         "type": "QuadrantPoint[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "architecture": {
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "height": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "direction": {
         "type": "ArchDirection",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "nodes": {
         "type": "ArchNode[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "connections": {
         "type": "ArchConnection[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "pipeline": {
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "height": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "inputs": {
         "type": "PipelineItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "stages": {
         "type": "PipelineStage[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "outputs": {
         "type": "PipelineItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "context": {
         "type": "PipelineItem[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       }
     },
     "graph": {
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "height": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "direction": {
         "type": "ArchDirection",
-        "required": false
+        "required": false,
+        "kind": "enum"
       },
       "nodes": {
         "type": "GraphNode[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "edges": {
         "type": "GraphEdge[]",
-        "required": false
+        "required": false,
+        "kind": "list"
       },
       "groups": {
         "type": "GraphGroup[]",
-        "required": false
+        "required": false,
+        "kind": "list"
+      },
+      "row_labels": {
+        "type": "(string | null)[]",
+        "required": false,
+        "kind": "list"
       }
     },
     "aside": {
       "body": {
         "type": "string",
-        "required": true
+        "required": true,
+        "kind": "markdown"
       }
     },
     "rule_list": {
       "items": {
         "type": "RuleItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       }
     },
     "gauge": {
       "items": {
         "type": "GaugeItem[]",
-        "required": true
+        "required": true,
+        "kind": "list"
       },
       "title": {
         "type": "string",
-        "required": false
+        "required": false,
+        "kind": "text"
       },
       "columns": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
       },
       "max": {
         "type": "number",
-        "required": false
+        "required": false,
+        "kind": "layout"
+      }
+    },
+    "priority_queue": {
+      "items": {
+        "type": "QueueItem[]",
+        "required": true,
+        "kind": "list"
+      },
+      "group_by": {
+        "type": "QueueGroup",
+        "required": false,
+        "kind": "enum"
+      },
+      "show_dates": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
+      },
+      "show_counts": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
+      },
+      "filterable": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
+      },
+      "title": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
       }
     }
   }

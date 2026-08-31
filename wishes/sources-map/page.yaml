@@ -5,9 +5,9 @@ freshness:
   review_every: quarterly
   owner: changeme@company.com
   sources_of_truth:
-  - label: Example — API endpoint handlers
+  - label: Example - API endpoint handlers
     href: https://github.com/your-org/your-repo/src/api/endpoints/
-  - label: Example — Terraform deployment module
+  - label: Example - Terraform deployment module
     href: https://github.com/your-org/infra-repo/terraform/modules/deploy/
   refresh:
     mode: assisted

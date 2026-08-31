@@ -12,9 +12,9 @@ kazam audit > scripts/audit-results.json
 
 ## PR strategies
 
-- **single** — one PR with all fixes
-- **per-owner** — one PR per page owner (each owner reviews their own)
-- **per-page** — one PR per page (granular)
+- **single** - one PR with all fixes
+- **per-owner** - one PR per page owner (each owner reviews their own)
+- **per-page** - one PR per page (granular)
 
 ## What gets auto-fixed
 

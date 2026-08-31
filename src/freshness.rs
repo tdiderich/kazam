@@ -1,13 +1,13 @@
 //! Freshness metadata: staleness check + reporting.
 //!
-//! Staleness is computed at build time — zero runtime JS. A page is stale
+//! Staleness is computed at build time - zero runtime JS. A page is stale
 //! when `updated + review_every < today`. "Today" comes from the env var
 //! `KAZAM_TODAY` when set (deterministic tests), otherwise from the
 //! system clock.
 //!
 //! Date handling is hand-rolled against ISO `YYYY-MM-DD`. We only care
 //! about day-resolution comparisons, so days-since-1970-01-01 via the
-//! Julian-day-number algorithm is enough — no chrono / time dep.
+//! Julian-day-number algorithm is enough - no chrono / time dep.
 //!
 //! Duration parsing accepts `Nd` / `Nw` / `Nm` / `Ny` and the word
 //! shortcuts `weekly` / `monthly` / `quarterly` / `yearly` / `annually`.
@@ -19,7 +19,7 @@ use crate::types::{Freshness, FreshnessValue};
 
 /// For cadences longer than this threshold (in days), a "review due soon"
 /// banner appears when 25% of the cadence remains. Cadences at or below
-/// this skip the warning entirely — they go straight from Fresh to Overdue.
+/// this skip the warning entirely - they go straight from Fresh to Overdue.
 /// This prevents daily/weekly/monthly pages from permanently showing a
 /// yellow banner that's meaningless at short timescales.
 pub const DUE_SOON_CADENCE_THRESHOLD: i64 = 30;
@@ -31,12 +31,12 @@ pub enum FreshnessStatus {
     /// No banner. Either no freshness metadata, or comfortably within the
     /// review window.
     Fresh,
-    /// Yellow banner — review is approaching. Only shown for cadences
+    /// Yellow banner - review is approaching. Only shown for cadences
     /// longer than 30 days. `days_until_due` is non-negative.
     DueSoon { days_until_due: i64 },
-    /// Red banner — review window has elapsed. `days_overdue` is positive.
+    /// Red banner - review window has elapsed. `days_overdue` is positive.
     Overdue { days_overdue: i64 },
-    /// Page has passed its hard expiration date. Stronger than Overdue —
+    /// Page has passed its hard expiration date. Stronger than Overdue -
     /// the content is no longer relevant, not just due for review.
     Expired { days_past_expiry: i64 },
 }
@@ -72,7 +72,7 @@ impl FreshnessInfo {
 
     /// True when an `updated` date AND a `review_every` cadence are set AND
     /// the elapsed days exceed the cadence. Pages without both fields set
-    /// are never "stale" — they simply have nothing to compare against.
+    /// are never "stale" - they simply have nothing to compare against.
     #[allow(dead_code)]
     pub fn is_stale(&self) -> bool {
         matches!(
@@ -194,7 +194,7 @@ fn serialize_refresh_json(refresh: &Option<crate::types::RefreshValue>) -> Strin
 
 // ── `kazam freshness` command ──────────────────────────────────────────────
 
-/// Run the `kazam freshness` command — walk `dir`, evaluate staleness for
+/// Run the `kazam freshness` command - walk `dir`, evaluate staleness for
 /// every page, and print a JSON or human-readable report.
 pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::Result<()> {
     use anyhow::Context;
@@ -378,7 +378,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
 
     if pretty {
         // Human-readable table output
-        println!("Freshness report — {}", today);
+        println!("Freshness report - {}", today);
         println!(
             "  total: {}  fresh: {}  due_soon: {}  overdue: {}  expired: {}  never: {}  no_freshness: {}",
             total, fresh_count, due_soon_count, overdue_count, expired_count, never_count, no_freshness_count
@@ -475,7 +475,7 @@ pub fn run_command(dir: &Path, pretty: bool, threshold: Option<u64>) -> anyhow::
     Ok(())
 }
 
-/// `kazam freshness review` — list stale pages with recommended actions.
+/// `kazam freshness review` - list stale pages with recommended actions.
 /// Each page gets a recommendation: "archive" for expired or 180+ days overdue,
 /// "refresh" for moderately overdue, "review" for recently due.
 pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
@@ -619,7 +619,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
         }
         println!("]}}");
     } else {
-        println!("Freshness review — {}", today);
+        println!("Freshness review - {}", today);
         println!("{} page(s) need attention\n", items.len());
         for item in &items {
             let status_label = match item.status {
@@ -637,7 +637,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
             let owner = item
                 .owner
                 .as_deref()
-                .map(|o| format!(" — owner: {}", o))
+                .map(|o| format!(" - owner: {}", o))
                 .unwrap_or_default();
             let updated = item
                 .updated
@@ -658,7 +658,7 @@ pub fn run_review(dir: &Path, json: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `kazam freshness act` — take action on a stale page.
+/// `kazam freshness act` - take action on a stale page.
 pub fn run_act(dir: &Path, rel_path: &str, action: &crate::FreshnessAction) -> anyhow::Result<()> {
     use anyhow::Context;
     use std::fs;
@@ -722,7 +722,7 @@ pub fn run_act(dir: &Path, rel_path: &str, action: &crate::FreshnessAction) -> a
     Ok(())
 }
 
-/// `kazam freshness notify` — stale pages grouped by owner, formatted for
+/// `kazam freshness notify` - stale pages grouped by owner, formatted for
 /// Slack or email. Outputs markdown by default, JSON with `--json`.
 pub fn run_notify(dir: &Path, json: bool) -> anyhow::Result<()> {
     use anyhow::Context;
@@ -859,10 +859,10 @@ pub fn run_notify(dir: &Path, json: bool) -> anyhow::Result<()> {
         );
     } else {
         if by_owner.is_empty() {
-            println!("All pages are fresh — nothing to notify.");
+            println!("All pages are fresh - nothing to notify.");
             return Ok(());
         }
-        println!("**Freshness digest — {}**\n", today);
+        println!("**Freshness digest - {}**\n", today);
         println!(
             "{} page(s) need attention across {} owner(s)\n",
             total_items,
@@ -897,7 +897,7 @@ pub fn run_notify(dir: &Path, json: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `kazam freshness drift` — check git history for source-of-truth files to
+/// `kazam freshness drift` - check git history for source-of-truth files to
 /// detect when upstream code has changed since a documentation page was last
 /// reviewed.
 pub fn run_drift(dir: &Path, pretty: bool, cli_repos: Vec<String>) -> anyhow::Result<()> {
@@ -1039,7 +1039,7 @@ pub fn run_drift(dir: &Path, pretty: bool, cli_repos: Vec<String>) -> anyhow::Re
 
             match matched {
                 None => {
-                    // Unmapped source — not an error, just collect unique ones
+                    // Unmapped source - not an error, just collect unique ones
                     if !unmapped.contains(&href.to_string()) {
                         unmapped.push(href.to_string());
                     }
@@ -1062,7 +1062,7 @@ pub fn run_drift(dir: &Path, pretty: bool, cli_repos: Vec<String>) -> anyhow::Re
 
                     match output {
                         Err(_) => {
-                            // git not available or repo not found — skip silently
+                            // git not available or repo not found - skip silently
                         }
                         Ok(out) => {
                             let stdout = String::from_utf8_lossy(&out.stdout);
@@ -1108,7 +1108,7 @@ pub fn run_drift(dir: &Path, pretty: bool, cli_repos: Vec<String>) -> anyhow::Re
     let drifted_count = drifted.len();
 
     if pretty {
-        println!("Freshness drift — {}", today);
+        println!("Freshness drift - {}", today);
         println!(
             "  {} pages, {} drifted, {} clean, {} unmapped sources",
             total, drifted_count, clean, unmapped_count
@@ -1201,7 +1201,7 @@ pub fn json_escape(s: &str) -> String {
 }
 
 /// Parse an ISO `YYYY-MM-DD` date into days since 1970-01-01. Returns
-/// `None` on malformed input — the renderer degrades to "not stale."
+/// `None` on malformed input - the renderer degrades to "not stale."
 pub fn parse_iso_date(s: &str) -> Option<i64> {
     let s = s.trim();
     let mut parts = s.split('-');
@@ -1243,7 +1243,7 @@ fn iso_from_days_since_epoch(days: i64) -> String {
 }
 
 /// Parse a duration string into days. Returns `None` on anything we don't
-/// recognize — renderer falls back to "not stale."
+/// recognize - renderer falls back to "not stale."
 pub fn parse_duration_days(s: &str) -> Option<i64> {
     let s = s.trim();
     match s.to_ascii_lowercase().as_str() {

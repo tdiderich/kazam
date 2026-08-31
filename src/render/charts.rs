@@ -1,4 +1,4 @@
-//! Build-time SVG chart renderer. Three kinds — pie, bar, timeseries — with an
+//! Build-time SVG chart renderer. Three kinds - pie, bar, timeseries - with an
 //! optional second dimension via `series:`. No JS, no runtime deps.
 //!
 //! Chart colors use the canonical `SemColor` hexes (teal/green/yellow/red)
@@ -12,7 +12,7 @@ use crate::types::{ChartKind, ChartOrientation, ChartPoint, ChartSeries, SemColo
 
 const VB_W: f64 = 720.0;
 
-/// Bundle of chart render inputs. Mirrors the `Component::Chart` fields —
+/// Bundle of chart render inputs. Mirrors the `Component::Chart` fields -
 /// passed as one arg so the entry point isn't a 7-positional-parameter blob.
 pub struct ChartSpec<'a> {
     pub kind: ChartKind,
@@ -181,7 +181,7 @@ fn cycle_color(idx: usize) -> SemColor {
 
 fn render_pie(series: &[NormSeries], height: u32) -> String {
     // Pie is always single-series. If the user accidentally passed `series:`
-    // with multiple entries, flatten the first one — matches the "pie = one
+    // with multiple entries, flatten the first one - matches the "pie = one
     // ring of slices" mental model rather than silently dropping data.
     let Some(first) = series.first() else {
         return empty_svg(height);
@@ -359,7 +359,7 @@ fn render_bar_vertical(
             let title = if s.label.is_empty() {
                 format!("{}: {}", bucket, fmt_num(v))
             } else {
-                format!("{} — {}: {}", s.label, bucket, fmt_num(v))
+                format!("{} - {}: {}", s.label, bucket, fmt_num(v))
             };
             out.push_str(&format!(
                 r#"<rect x="{x:.2}" y="{y:.2}" width="{w:.2}" height="{seg_h:.2}" fill="{fill}" class="c-chart-bar"><title>{title}</title></rect>"#,
@@ -463,7 +463,7 @@ fn render_bar_horizontal(
             let title = if s.label.is_empty() {
                 format!("{}: {}", bucket, fmt_num(val))
             } else {
-                format!("{} — {}: {}", s.label, bucket, fmt_num(val))
+                format!("{} - {}: {}", s.label, bucket, fmt_num(val))
             };
             out.push_str(&format!(
                 r#"<rect x="{x:.2}" y="{y:.2}" width="{w:.2}" height="{seg_h:.2}" fill="{fill}" class="c-chart-bar"><title>{title}</title></rect>"#,
@@ -513,7 +513,7 @@ fn render_timeseries(
     }
 
     // Timeseries = multi-line (not stacked). Max is the largest single value
-    // across all series — each line needs its own y-space, not a summed one.
+    // across all series - each line needs its own y-space, not a summed one.
     let max_val = series
         .iter()
         .flat_map(|s| s.points.iter())
@@ -592,7 +592,7 @@ fn render_timeseries(
             let title = if s.label.is_empty() {
                 format!("{}: {}", bucket, fmt_num(p.value))
             } else {
-                format!("{} — {}: {}", s.label, bucket, fmt_num(p.value))
+                format!("{} - {}: {}", s.label, bucket, fmt_num(p.value))
             };
             dots.push_str(&format!(
                 r#"<circle cx="{x:.2}" cy="{y:.2}" r="3" fill="{stroke}" class="c-chart-dot"><title>{title}</title></circle>"#,
@@ -697,7 +697,7 @@ fn empty_svg(height: u32) -> String {
 
 fn fmt_num(v: f64) -> String {
     if v.is_nan() || v.is_infinite() {
-        return "—".into();
+        return "-".into();
     }
     if v.fract().abs() < 1e-9 {
         return format!("{}", v as i64);
@@ -707,7 +707,7 @@ fn fmt_num(v: f64) -> String {
     trimmed.to_string()
 }
 
-/// Round `raw` to a "nice" number — one of {1,2,5} * 10^n. `round=true` picks
+/// Round `raw` to a "nice" number - one of {1,2,5} * 10^n. `round=true` picks
 /// the nearest nice step for tick spacing; `round=false` picks the next nice
 /// number ≥ raw for the axis extent.
 fn nice_number(raw: f64, round: bool) -> f64 {
@@ -1791,6 +1791,122 @@ fn edge_label_svg(x: f64, y: f64, text: &str, fill: Option<&str>) -> String {
     )
 }
 
+// ── Text wrapping for graph node boxes ──────────────
+// SVG <text> has no native wrap, so a long label/detail overflows the node
+// box and collides with its neighbors. This estimates a wrap width from an
+// average px-per-char (same approach as the pipeline sizing above), splits
+// into tspans, and feeds the resulting line count back into node height so
+// boxes grow to fit instead of clipping.
+const GRAPH_LABEL_CHAR_W: f64 = 7.0;
+const GRAPH_DETAIL_CHAR_W: f64 = 5.6;
+const GRAPH_LABEL_LINE_H: f64 = 15.0;
+const GRAPH_DETAIL_LINE_H: f64 = 12.0;
+const GRAPH_NODE_PAD_Y: f64 = 16.0;
+const GRAPH_NODE_PAD_X: f64 = 20.0;
+const GRAPH_LABEL_DETAIL_GAP: f64 = 6.0;
+const GRAPH_MAX_WRAP_LINES: usize = 4;
+
+fn wrap_lines(text: &str, char_w: f64, max_width: f64) -> Vec<String> {
+    let max_chars = ((max_width / char_w).floor() as usize).max(4);
+    let mut lines: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        let candidate_len = if current.is_empty() {
+            word.chars().count()
+        } else {
+            current.chars().count() + 1 + word.chars().count()
+        };
+        if candidate_len > max_chars && !current.is_empty() {
+            lines.push(std::mem::take(&mut current));
+        }
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(word);
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    if lines.len() > GRAPH_MAX_WRAP_LINES {
+        lines.truncate(GRAPH_MAX_WRAP_LINES);
+        if let Some(last) = lines.last_mut() {
+            last.push('…');
+        }
+    }
+    lines
+}
+
+/// Accepts `#RGB`, `#RRGGBB`, or `#RRGGBBAA` (case-insensitive hex digits
+/// only). This gets embedded directly into an unescaped SVG attribute, so a
+/// strict allowlist here is what keeps a bad value from breaking out of it.
+fn valid_hex_color(s: &str) -> bool {
+    let Some(rest) = s.strip_prefix('#') else {
+        return false;
+    };
+    matches!(rest.len(), 3 | 6 | 8) && rest.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn node_stroke(n: &crate::types::GraphNode) -> &str {
+    n.hex
+        .as_deref()
+        .filter(|h| valid_hex_color(h))
+        .unwrap_or_else(|| n.color.hex())
+}
+
+/// Progress badge anchored on the box's top-right corner: a green check for
+/// `completed`, an amber play-triangle for `active`, nothing for `upcoming`
+/// (the default). Deliberately a fixed color (not `n.color`/`n.hex`) so it
+/// reads as a progress signal, independent of whatever role color the box
+/// border is already using.
+fn progress_badge_svg(
+    status: crate::types::TimelineStatus,
+    corner_x: f64,
+    corner_y: f64,
+) -> String {
+    use crate::types::TimelineStatus;
+    match status {
+        TimelineStatus::Upcoming => String::new(),
+        TimelineStatus::Completed => format!(
+            r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="9" fill="{fill}" stroke="#0A0E17" stroke-width="2"/><path d="M {x1:.1} {y1:.1} L {x2:.1} {y2:.1} L {x3:.1} {y3:.1}" fill="none" stroke="#0A0E17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##,
+            cx = corner_x,
+            cy = corner_y,
+            fill = SemColor::Green.hex(),
+            x1 = corner_x - 4.0,
+            y1 = corner_y,
+            x2 = corner_x - 1.2,
+            y2 = corner_y + 2.8,
+            x3 = corner_x + 4.2,
+            y3 = corner_y - 3.2,
+        ),
+        TimelineStatus::Active => format!(
+            r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="9" fill="{fill}" stroke="#0A0E17" stroke-width="2"/><path d="M {x1:.1} {y1:.1} L {x1:.1} {y2:.1} L {x3:.1} {cy:.1} Z" fill="#0A0E17"/>"##,
+            cx = corner_x,
+            cy = corner_y,
+            fill = SemColor::Yellow.hex(),
+            x1 = corner_x - 2.5,
+            y1 = corner_y - 3.5,
+            y2 = corner_y + 3.5,
+            x3 = corner_x + 3.5,
+        ),
+    }
+}
+
+fn multiline_text_svg(cx: f64, top_y: f64, lines: &[String], line_h: f64, class: &str) -> String {
+    let mut out = String::from("<text>");
+    for (i, line) in lines.iter().enumerate() {
+        out.push_str(&format!(
+            r#"<tspan x="{cx:.1}" y="{y:.1}" text-anchor="middle" class="{class}">{l}</tspan>"#,
+            y = top_y + i as f64 * line_h,
+            l = esc(line),
+        ));
+    }
+    out.push_str("</text>");
+    out
+}
+
 pub fn render_graph(
     title: &Option<String>,
     height: Option<u32>,
@@ -1798,6 +1914,7 @@ pub fn render_graph(
     nodes: &[crate::types::GraphNode],
     edges: &[crate::types::GraphEdge],
     groups: &[crate::types::GraphGroup],
+    row_labels: &[Option<String>],
 ) -> Rendered {
     use crate::types::{ArchDirection, GraphEdgeStyle, GraphShape, PortSide};
 
@@ -1818,11 +1935,34 @@ pub fn render_graph(
         .iter()
         .map(|n| {
             let w = n.width.map(|v| v as f64).unwrap_or(default_w);
-            let h = n.height.map(|v| v as f64).unwrap_or(default_h);
             let scale = if n.shape == GraphShape::Diamond {
                 1.4
             } else {
                 1.0
+            };
+            let h = match n.height {
+                Some(v) => v as f64,
+                None => {
+                    // No explicit height: size the box to fit wrapped text
+                    // instead of clipping it.
+                    let wrap_w = w * scale - GRAPH_NODE_PAD_X;
+                    let label_lines = wrap_lines(&n.label, GRAPH_LABEL_CHAR_W, wrap_w).len() as f64;
+                    let detail_lines = n
+                        .detail
+                        .as_deref()
+                        .map(|d| wrap_lines(d, GRAPH_DETAIL_CHAR_W, wrap_w).len() as f64)
+                        .unwrap_or(0.0);
+                    let gap = if detail_lines > 0.0 {
+                        GRAPH_LABEL_DETAIL_GAP
+                    } else {
+                        0.0
+                    };
+                    let text_h = label_lines * GRAPH_LABEL_LINE_H
+                        + detail_lines * GRAPH_DETAIL_LINE_H
+                        + gap
+                        + GRAPH_NODE_PAD_Y;
+                    text_h.max(default_h)
+                }
             };
             (
                 n.id.as_str(),
@@ -1834,48 +1974,60 @@ pub fn render_graph(
         })
         .collect();
 
-    // Drop BOTH directions of bidirectional edges from column assignment
-    let edge_set: std::collections::HashSet<(&str, &str)> = edges
-        .iter()
-        .map(|e| (e.from.as_str(), e.to.as_str()))
-        .collect();
-    let forward_edges: Vec<&crate::types::GraphEdge> = edges
-        .iter()
-        .filter(|e| !edge_set.contains(&(e.to.as_str(), e.from.as_str())))
-        .collect();
+    // A node with an explicit `row` switches the whole diagram from
+    // topological auto-layout into tiered/grid mode: rows come from `row`
+    // directly and (later) x-position comes from `column`, instead of both
+    // being derived from edge topology.
+    let explicit_mode = nodes.iter().any(|n| n.row.is_some());
 
     let mut col: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    let mut in_set: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    for e in &forward_edges {
-        in_set.insert(&e.to);
-    }
-    for n in nodes {
-        if !in_set.contains(n.id.as_str()) {
-            col.insert(&n.id, 0);
+    if explicit_mode {
+        for n in nodes {
+            col.insert(&n.id, n.row.unwrap_or(0) as usize);
         }
-    }
-    let max_iters = nodes.len() * forward_edges.len() + 1;
-    let mut iters = 0;
-    let mut changed = true;
-    while changed && iters < max_iters {
-        changed = false;
-        iters += 1;
+    } else {
+        // Drop BOTH directions of bidirectional edges from column assignment
+        let edge_set: std::collections::HashSet<(&str, &str)> = edges
+            .iter()
+            .map(|e| (e.from.as_str(), e.to.as_str()))
+            .collect();
+        let forward_edges: Vec<&crate::types::GraphEdge> = edges
+            .iter()
+            .filter(|e| !edge_set.contains(&(e.to.as_str(), e.from.as_str())))
+            .collect();
+
+        let mut in_set: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for e in &forward_edges {
-            if let Some(&sc) = col.get(e.from.as_str()) {
-                let tc = col.entry(&e.to).or_insert(0);
-                if *tc <= sc {
-                    *tc = sc + 1;
-                    changed = true;
+            in_set.insert(&e.to);
+        }
+        for n in nodes {
+            if !in_set.contains(n.id.as_str()) {
+                col.insert(&n.id, 0);
+            }
+        }
+        let max_iters = nodes.len() * forward_edges.len() + 1;
+        let mut iters = 0;
+        let mut changed = true;
+        while changed && iters < max_iters {
+            changed = false;
+            iters += 1;
+            for e in &forward_edges {
+                if let Some(&sc) = col.get(e.from.as_str()) {
+                    let tc = col.entry(&e.to).or_insert(0);
+                    if *tc <= sc {
+                        *tc = sc + 1;
+                        changed = true;
+                    }
                 }
             }
         }
-    }
-    for n in nodes {
-        col.entry(&n.id).or_insert(0);
-    }
-    let min_col = col.values().copied().min().unwrap_or(0);
-    for v in col.values_mut() {
-        *v -= min_col;
+        for n in nodes {
+            col.entry(&n.id).or_insert(0);
+        }
+        let min_col = col.values().copied().min().unwrap_or(0);
+        for v in col.values_mut() {
+            *v -= min_col;
+        }
     }
 
     let max_col = col.values().copied().max().unwrap_or(0);
@@ -1885,7 +2037,13 @@ pub fn render_graph(
     let group_pad = 24.0;
     let node_gap_v = 32.0;
     let has_groups = !groups.is_empty();
-    let min_col_gap = if has_groups { 120.0 } else { 80.0 };
+    let min_col_gap = if has_groups {
+        120.0
+    } else if explicit_mode {
+        110.0
+    } else {
+        80.0
+    };
 
     // Max node dimensions per column (for spacing)
     let mut cols_nodes: Vec<Vec<&crate::types::GraphNode>> = vec![Vec::new(); num_cols];
@@ -1911,8 +2069,26 @@ pub fn render_graph(
         .collect();
     let max_col_height = cols_nodes.iter().map(|cn| cn.len()).max().unwrap_or(1);
 
+    // Aligned column count across ALL rows (not just the widest one), so a
+    // sparse row's nodes land in the same x-slots as their counterparts in a
+    // fuller row instead of centering independently.
+    let num_align_cols = if explicit_mode {
+        nodes
+            .iter()
+            .filter_map(|n| n.column)
+            .max()
+            .map(|m| m as usize + 1)
+            .unwrap_or_else(|| cols_nodes.iter().map(|cn| cn.len()).max().unwrap_or(1))
+    } else {
+        0
+    };
+
     let needed_w = if is_lr {
         pad * 2.0 + col_max_w.iter().sum::<f64>() + (num_cols as f64 - 1.0).max(0.0) * min_col_gap
+    } else if explicit_mode {
+        pad * 2.0
+            + num_align_cols as f64 * default_w
+            + (num_align_cols as f64 - 1.0).max(0.0) * node_gap_v
     } else {
         let max_row_count = cols_nodes.iter().map(|cn| cn.len()).max().unwrap_or(1);
         pad * 2.0
@@ -1935,6 +2111,9 @@ pub fn render_graph(
         cy: f64,
     }
     let mut positions: std::collections::HashMap<&str, NPos> = std::collections::HashMap::new();
+    // (row center y, row half-height), TB mode only, one entry per row in
+    // display order. Used to draw the row label + dashed rule above a tier.
+    let mut row_bands: Vec<(f64, f64)> = Vec::new();
 
     if is_lr {
         // Cumulative x positions based on per-column max widths
@@ -1980,18 +2159,42 @@ pub fn render_graph(
             0.0
         };
 
+        let align_col_w = default_w + node_gap_v;
+        let grid_w = num_align_cols as f64 * align_col_w;
+        let align_x_offset = if explicit_mode && vb_w > grid_w {
+            (vb_w - grid_w) / 2.0
+        } else {
+            0.0
+        };
+
         for (ci, col_nodes) in cols_nodes.iter().enumerate() {
-            let n_count = col_nodes.len();
-            let total_w = n_count as f64 * default_w + (n_count as f64 - 1.0).max(0.0) * node_gap_v;
-            let start_x = (vb_w - total_w) / 2.0;
-            for (ni, node) in col_nodes.iter().enumerate() {
-                positions.insert(
-                    &node.id,
-                    NPos {
-                        cx: start_x + ni as f64 * (default_w + node_gap_v) + default_w / 2.0,
-                        cy: row_cy[ci] + y_offset,
-                    },
-                );
+            row_bands.push((row_cy[ci] + y_offset, col_max_h[ci] / 2.0));
+
+            if explicit_mode {
+                for (ni, node) in col_nodes.iter().enumerate() {
+                    let node_col = node.column.unwrap_or(ni as u32) as f64;
+                    positions.insert(
+                        &node.id,
+                        NPos {
+                            cx: align_x_offset + node_col * align_col_w + align_col_w / 2.0,
+                            cy: row_cy[ci] + y_offset,
+                        },
+                    );
+                }
+            } else {
+                let n_count = col_nodes.len();
+                let total_w =
+                    n_count as f64 * default_w + (n_count as f64 - 1.0).max(0.0) * node_gap_v;
+                let start_x = (vb_w - total_w) / 2.0;
+                for (ni, node) in col_nodes.iter().enumerate() {
+                    positions.insert(
+                        &node.id,
+                        NPos {
+                            cx: start_x + ni as f64 * (default_w + node_gap_v) + default_w / 2.0,
+                            cy: row_cy[ci] + y_offset,
+                        },
+                    );
+                }
             }
         }
     }
@@ -2012,6 +2215,29 @@ pub fn render_graph(
     );
 
     svg.push_str(r#"<defs><marker id="graph-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)"/></marker></defs>"#);
+
+    // ── Row labels (tiered/grid mode) ──
+    if !is_lr {
+        for (ri, &(band_cy, half_h)) in row_bands.iter().enumerate() {
+            let Some(Some(label)) = row_labels.get(ri) else {
+                continue;
+            };
+            let rule_y = band_cy - half_h - 18.0;
+            let text_y = rule_y - 8.0;
+            svg.push_str(&format!(
+                r#"<text x="{pad:.1}" y="{ty:.1}" class="c-arch-node-detail" font-weight="600">{l}</text>"#,
+                pad = pad,
+                ty = text_y,
+                l = esc(label),
+            ));
+            svg.push_str(&format!(
+                r#"<line x1="{pad:.1}" y1="{ry:.1}" x2="{x2:.1}" y2="{ry:.1}" stroke="rgba(var(--text-rgb),0.15)" stroke-width="1" stroke-dasharray="2 3"/>"#,
+                pad = pad,
+                ry = rule_y,
+                x2 = vb_w - pad,
+            ));
+        }
+    }
 
     // ── Groups: nested containers (Enhancement 1 + 4) ──
     // Compute group bounding boxes, then expand parents to contain children
@@ -2159,14 +2385,26 @@ pub fn render_graph(
                 )
             }
         } else {
-            let downward = tp.cy >= fp.cy;
-            if bidir && !downward {
-                (0u8, 0u8) // backward bidir in TB: right→right
-            } else {
+            let same_row = (tp.cy - fp.cy).abs() < 0.5;
+            if same_row {
+                // Lateral edge within a tier (explicit-mode row): connect
+                // left/right ports instead of top/bottom so it draws as a
+                // clean horizontal arrow rather than dipping below the box.
+                let forward = tp.cx >= fp.cx;
                 (
-                    if downward { 3u8 } else { 2u8 },
-                    if downward { 2u8 } else { 3u8 },
+                    if forward { 0u8 } else { 1u8 },
+                    if forward { 1u8 } else { 0u8 },
                 )
+            } else {
+                let downward = tp.cy >= fp.cy;
+                if bidir && !downward {
+                    (0u8, 0u8) // backward bidir in TB: right→right
+                } else {
+                    (
+                        if downward { 3u8 } else { 2u8 },
+                        if downward { 2u8 } else { 3u8 },
+                    )
+                }
             }
         };
         edge_src_side.push(ss);
@@ -2374,7 +2612,7 @@ pub fn render_graph(
             GraphShape::Box => {
                 svg.push_str(&format!(
                     r#"<rect x="{rx:.1}" y="{ry:.1}" width="{nw}" height="{nh}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
-                    stroke = n.color.hex(),
+                    stroke = node_stroke(n),
                 ));
             }
             GraphShape::Diamond => {
@@ -2385,27 +2623,58 @@ pub fn render_graph(
                 svg.push_str(&format!(
                     r#"<polygon points="{cx:.1},{top:.1} {right:.1},{cy:.1} {cx:.1},{bot:.1} {left:.1},{cy:.1}" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
                     top = cy - hh, right = cx + hw, bot = cy + hh, left = cx - hw,
-                    stroke = n.color.hex(),
+                    stroke = node_stroke(n),
                 ));
             }
             GraphShape::Pill => {
                 svg.push_str(&format!(
                     r#"<rect x="{rx:.1}" y="{ry:.1}" width="{nw}" height="{nh}" rx="{rx_val}" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
-                    rx_val = nh / 2.0, stroke = n.color.hex(),
+                    rx_val = nh / 2.0, stroke = node_stroke(n),
                 ));
             }
         }
 
-        svg.push_str(&format!(
-            r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{label}</text>"#,
-            cx = pos.cx,
-            cy = if n.detail.is_some() { pos.cy - 7.0 } else { pos.cy },
-            label = esc(&n.label),
+        svg.push_str(&progress_badge_svg(
+            n.status,
+            pos.cx + nw / 2.0,
+            pos.cy - nh / 2.0,
         ));
-        if let Some(detail) = &n.detail {
-            svg.push_str(&format!(
-                r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail">{d}</text>"#,
-                cx = pos.cx, cy = pos.cy + 10.0, d = esc(detail),
+
+        let wrap_w = nw - GRAPH_NODE_PAD_X;
+        let label_lines = wrap_lines(&n.label, GRAPH_LABEL_CHAR_W, wrap_w);
+        let detail_lines = n
+            .detail
+            .as_deref()
+            .map(|d| wrap_lines(d, GRAPH_DETAIL_CHAR_W, wrap_w));
+        let gap = if detail_lines.is_some() {
+            GRAPH_LABEL_DETAIL_GAP
+        } else {
+            0.0
+        };
+        let total_text_h = label_lines.len() as f64 * GRAPH_LABEL_LINE_H
+            + gap
+            + detail_lines
+                .as_ref()
+                .map(|l| l.len() as f64 * GRAPH_DETAIL_LINE_H)
+                .unwrap_or(0.0);
+
+        let mut cursor_y = pos.cy - total_text_h / 2.0 + GRAPH_LABEL_LINE_H * 0.72;
+        svg.push_str(&multiline_text_svg(
+            pos.cx,
+            cursor_y,
+            &label_lines,
+            GRAPH_LABEL_LINE_H,
+            "c-arch-node-label",
+        ));
+        cursor_y += (label_lines.len() as f64 - 1.0) * GRAPH_LABEL_LINE_H;
+        if let Some(detail_lines) = &detail_lines {
+            cursor_y += GRAPH_LABEL_LINE_H * 0.28 + gap + GRAPH_DETAIL_LINE_H * 0.72;
+            svg.push_str(&multiline_text_svg(
+                pos.cx,
+                cursor_y,
+                detail_lines,
+                GRAPH_DETAIL_LINE_H,
+                "c-arch-node-detail",
             ));
         }
 
