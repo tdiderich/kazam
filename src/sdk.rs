@@ -1043,6 +1043,14 @@ const getColor = (c?: string, i?: number) => {
   return palette[(i || 0) % palette.length];
 };
 
+// Shared SVG label budgeter: estimates rendered width (~0.56px per char per
+// fontSize unit) and end-ellipsizes to fit budgetPx. When the result differs
+// from the input, render the full text in a <title> child for hover.
+const fitLabel = (label: string, budgetPx: number, fontSize = 11): string => {
+  const maxChars = Math.floor(budgetPx / (fontSize * 0.56));
+  return label.length > maxChars ? label.slice(0, Math.max(maxChars - 1, 1)) + "…" : label;
+};
+
 function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
   const [tip, setTip] = React.useState<{ x: number; y: number; text: string } | null>(null);
   const title = comp.title as string | undefined;
@@ -1102,17 +1110,23 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
     const gap = 8;
     const barW = Math.max(20, (vw - padX * 2 - gap * (data.length - 1)) / data.length);
     if (orientation === "horizontal") {
-      const barH = 24;
-      const svgH = data.length * (barH + 6) + 20;
+      // Label sits on its own line above the bar - no gutter, so bars get the
+      // full width and names never truncate at any realistic length. fitLabel
+      // only guards absurd (>90 char) input.
+      const rowH = 40;
+      const svgH = data.length * rowH + 4;
+      const padL = 8;
+      const plotW = vw - padL - 48;
       chart = (
         <svg width="100%" viewBox={`0 0 ${vw} ${svgH}`} preserveAspectRatio="xMidYMid meet" style={{ overflow: "visible" }}>
           {data.map((d, i) => {
-            const w = (d.value / maxVal) * (vw - 120);
-            const y = i * (barH + 6) + 10;
+            const w = (d.value / maxVal) * plotW;
+            const rowY = i * rowH;
+            const shown = fitLabel(d.label, vw - padL - 12);
             return <React.Fragment key={i}>
-              <rect x={80} y={y} width={w} height={barH} fill={getColor(d.color, i)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: 80 + w / 2, y: y - 4, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
-              <text x={74} y={y + barH / 2 + 4} textAnchor="end" fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{d.label}</text>
-              <text x={84 + w} y={y + barH / 2 + 4} fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].value`}>{d.value}</text>
+              <text x={padL} y={rowY + 14} fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{shown}{shown !== d.label && <title>{d.label}</title>}</text>
+              <rect x={padL} y={rowY + 20} width={w} height={18} fill={getColor(d.color, i)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: padL + w / 2, y: rowY + 16, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
+              <text x={padL + w + 6} y={rowY + 33} fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].value`}>{d.value}</text>
             </React.Fragment>;
           })}
           {Tip}
@@ -1120,16 +1134,25 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       );
     } else {
       const plotH = h - padTop;
+      // Tilt x-labels when the longest one is wider than its slot; tilted
+      // labels are end-ellipsized past ~150px with the full text on hover.
+      const slotW = barW + gap;
+      const tilted = Math.max(...data.map(d => d.label.length), 1) * 6.2 > slotW;
+      const labelBudget = tilted ? 150 : slotW;
+      const extraH = tilted ? 90 : 30;
       chart = (
-        <svg width="100%" viewBox={`0 0 ${vw} ${h + 30}`} preserveAspectRatio="xMidYMid meet" style={{ overflow: "visible" }}>
+        <svg width="100%" viewBox={`0 0 ${vw} ${h + extraH}`} preserveAspectRatio="xMidYMid meet" style={{ overflow: "visible" }}>
           <line x1={padX} y1={h} x2={vw - padX} y2={h} stroke="var(--color-text-muted, #999)" strokeWidth="0.5" strokeOpacity="0.3" />
           {data.map((d, i) => {
             const barH = (d.value / maxVal) * plotH;
             const x = padX + i * (barW + gap);
+            const shown = fitLabel(d.label, labelBudget);
             return <React.Fragment key={i}>
               <rect x={x} y={h - barH} width={barW} height={barH} fill={getColor(d.color, i)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: x + barW / 2, y: h - barH - 4, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
               <text x={x + barW / 2} y={h - barH - 6} textAnchor="middle" fontSize={11} fontWeight="500" fill="var(--color-text, #eee)" data-kz-field={`data[${i}].value`}>{d.value}</text>
-              <text x={x + barW / 2} y={h + 16} textAnchor="middle" fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{d.label}</text>
+              {tilted
+                ? <text x={x + barW / 2} y={h + 14} textAnchor="end" transform={`rotate(-30 ${x + barW / 2} ${h + 14})`} fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{shown}{shown !== d.label && <title>{d.label}</title>}</text>
+                : <text x={x + barW / 2} y={h + 16} textAnchor="middle" fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{shown}{shown !== d.label && <title>{d.label}</title>}</text>}
             </React.Fragment>;
           })}
           {Tip}
@@ -1168,9 +1191,17 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
         return <circle key={`${si}-${pi}`} cx={x} cy={y} r={4} fill={getColor(s.color, si)} className="c-chart-dot" data-kz-field={`series[${si}].points[${pi}].value`} onMouseEnter={() => setTip({ x, y: y - 4, text: label })} onMouseLeave={() => setTip(null)} />;
       })
     );
+    // At most ~8 x-labels: every step-th point plus the last, each ellipsized
+    // to its slot so neighbors can't collide.
+    const labelStep = Math.ceil(n / 8);
+    const labelSlotPx = plotW / Math.min(n, 8);
     const labels = (series[0]?.points || []).map((p, pi) => {
+      const isLast = pi === n - 1;
+      if (!isLast && pi % labelStep !== 0) return null;
+      if (!isLast && n - 1 - pi < labelStep / 2) return null;
       const x = pad.l + (pi / Math.max(n - 1, 1)) * plotW;
-      return <text key={pi} x={x} y={h - 2} textAnchor="middle" fontSize={10} fill="var(--color-text-muted, #999)" data-kz-field={`series[0].points[${pi}].label`}>{p.label}</text>;
+      const shown = fitLabel(p.label, labelSlotPx - 6, 10);
+      return <text key={pi} x={x} y={h - 2} textAnchor="middle" fontSize={10} fill="var(--color-text-muted, #999)" data-kz-field={`series[0].points[${pi}].label`}>{shown}{shown !== p.label && <title>{p.label}</title>}</text>;
     });
     const legend = series.length > 1 ? series.map((s, si) => (
       <div key={si} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
@@ -3342,9 +3373,11 @@ function ComponentView({
         const c = col[n];
         const [lx, anchor] = c === 0 ? [pos.x - 6, "end" as const] : c === maxCol ? [pos.x + nodeW + 6, "start" as const] : [pos.x + nodeW / 2, "middle" as const];
         const ly = pos.y + pos.h / 2;
+        const labelBudget = c === 0 || c === maxCol ? padX - 10 : Math.max(colSpacing - nodeW - 12, 60);
+        const shown = fitLabel(n, labelBudget, 12);
         return <React.Fragment key={i}>
           <rect x={pos.x} y={pos.y} width={nodeW} height={pos.h} fill={fill} rx={2} className="c-sankey-node" />
-          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-sankey-label">{n}</text>
+          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-sankey-label">{shown}{shown !== n && <title>{n}</title>}</text>
           <text x={lx} y={ly + 14} textAnchor={anchor} dominantBaseline="middle" className="c-sankey-value">{fmtNum(nodeTotal[n])}</text>
         </React.Fragment>;
       });
@@ -3386,9 +3419,11 @@ function ComponentView({
         const a = angleOf(i), ld = r + 16;
         const lx = cx + ld * Math.cos(a), ly = cy + ld * Math.sin(a);
         const anchor = Math.abs(Math.cos(a)) < 0.1 ? "middle" : Math.cos(a) > 0 ? "start" : "end";
+        const labelBudget = anchor === "middle" ? 160 : anchor === "start" ? VB_W - lx - 4 : lx - 4;
+        const shown = fitLabel(label, labelBudget, 11);
         return <React.Fragment key={i}>
           <line x1={cx} y1={cy} x2={ex} y2={ey} stroke="rgba(128,128,128,0.15)" strokeWidth={1} className="c-radar-axis" />
-          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-radar-label" data-kz-field={`axes[${i}]`}>{label}</text>
+          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-radar-label" data-kz-field={`axes[${i}]`}>{shown}{shown !== label && <title>{label}</title>}</text>
         </React.Fragment>;
       });
 
