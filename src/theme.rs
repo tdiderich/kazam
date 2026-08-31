@@ -2996,6 +2996,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-chart-scale {
   display: flex;
   justify-content: center;
+  margin-bottom: calc(var(--kz-scale, 1) * 32px) !important;
 }
 .c-chart-scale > * {
   width: calc(var(--kz-scale, 1) * 100%);
