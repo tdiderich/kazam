@@ -3841,7 +3841,7 @@ function ComponentView({
   // rendered elements back to the page data without guessing.
   const tagged = React.isValidElement(content) && typeof content.type === "string"
     ? React.cloneElement(content as React.ReactElement<Record<string, unknown>>, { "data-kz-path": kz, "data-kz-type": comp.type })
-    : <div data-kz-path={kz} data-kz-type={comp.type} style={{ display: "contents" }}>{content}</div>;
+    : <div data-kz-path={kz} data-kz-type={comp.type} className="kz-wrap" style={{ display: "contents" }}>{content}</div>;
 
   const scale = comp.scale as number | undefined;
   if (scale != null) {

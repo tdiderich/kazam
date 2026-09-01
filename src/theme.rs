@@ -1316,7 +1316,13 @@ body.shell-hub { min-height: 100vh; }
 .main-content > *, .deck-inner > *, .doc-body > *, .hub-content > *, .c-section > *:not(.c-section-header), .tab-panel > * {
   margin-bottom: 32px;
 }
+/* .kz-wrap is display:contents (no box), so margin on it is ignored - push
+   the stack spacing down onto its children instead */
+.main-content > .kz-wrap > *, .deck-inner > .kz-wrap > *, .doc-body > .kz-wrap > *, .hub-content > .kz-wrap > *, .c-section > .kz-wrap > *, .tab-panel > .kz-wrap > * {
+  margin-bottom: 32px;
+}
 .main-content > *:last-child, .deck-inner > *:last-child, .doc-body > *:last-child { margin-bottom: 0; }
+.main-content > .kz-wrap:last-child > *, .deck-inner > .kz-wrap:last-child > *, .doc-body > .kz-wrap:last-child > * { margin-bottom: 0; }
 
 /* Header component */
 .c-header { }
