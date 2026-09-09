@@ -796,6 +796,9 @@ pub(super) fn parse_markdown(md: &str, base: &str) -> String {
                 id,
             })
         }
+        // Raw HTML in a body would land in the page unescaped. Downgrade it
+        // to text so markup shows literally instead of executing.
+        Event::Html(raw) | Event::InlineHtml(raw) => Event::Text(raw),
         other => other,
     });
     let mut html = String::new();

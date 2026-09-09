@@ -2645,3 +2645,18 @@ fn export_pdf_writes_letter_document() {
         "expected 2 pages (one per section), found {pages}"
     );
 }
+
+#[test]
+fn markdown_raw_html_is_escaped_not_executed() {
+    let html = build_one_page(
+        "md-raw-html",
+        "title: L\nshell: standard\ncomponents:\n  - type: markdown\n    body: |\n      Before <img src=x onerror=\"alert(1)\"> after.\n\n      <script>alert(2)</script>\n  - type: box\n    title: B\n    body: \"inline <b onclick=alert(3)>bold</b>\"\n",
+        "",
+    );
+    assert!(!html.contains("<img src=x"), "raw img tag leaked");
+    assert!(!html.contains("<script>alert(2)"), "raw script leaked");
+    assert!(!html.contains("<b onclick"), "raw inline tag leaked");
+    assert_contains(&html, "&lt;b onclick=alert(3)&gt;");
+    assert_contains(&html, "&lt;img src=x");
+    assert_contains(&html, "&lt;script&gt;alert(2)&lt;/script&gt;");
+}

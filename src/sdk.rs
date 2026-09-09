@@ -654,7 +654,6 @@ interface ComponentData {
 
 interface PageRendererProps {
   page: PageData;
-  renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
   /** Map a hub link href to an environment URL (e.g. slug -> /pages/slug). Defaults to identity. */
@@ -1874,14 +1873,12 @@ function AccordionView({
   id,
   items,
   kzPath,
-  renderMarkdown,
   renderChart,
   renderRoleMap,
 }: {
   id: string;
   items: Array<{ title: string; components: ComponentData[] }>;
   kzPath: string;
-  renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
 }) {
@@ -1896,7 +1893,7 @@ function AccordionView({
           {openIndex === i && (
             <div className="accordion-body">
               {(item.components || []).map((c, ci) => (
-                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kzPath}.items[${i}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kzPath}.items[${i}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           )}
@@ -2000,7 +1997,6 @@ function ComponentView({
   comp,
   index,
   kzPath,
-  renderMarkdown,
   renderChart,
   renderRoleMap,
 }: {
@@ -2008,18 +2004,12 @@ function ComponentView({
   index: number;
   /** Absolute data path of this component within the page, e.g. `components[2].components[0]`. */
   kzPath?: string;
-  renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
 }) {
   const id = (comp.id as string) || `c-${index}`;
   const kz = kzPath ?? `components[${index}]`;
-  const md = (s: string) =>
-    renderMarkdown ? (
-      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(s) }} />
-    ) : (
-      renderBlock(s)
-    );
+  const md = (s: string) => renderBlock(s);
 
   const content = (() => {
   switch (comp.type) {
@@ -2288,7 +2278,7 @@ function ComponentView({
             </div>
           )}
           {children.map((c, i) => (
-            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
           ))}
         </section>
       );
@@ -2444,7 +2434,7 @@ function ComponentView({
           {tabs.map((tab, ti) => (
             <div key={ti} className="tab-panel" style={{ display: ti === activeTab ? "block" : "none" }}>
               {(tab.components || []).map((c, ci) => (
-                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kz}.tabs[${ti}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kz}.tabs[${ti}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           ))}
@@ -2460,7 +2450,7 @@ function ComponentView({
           {cols.map((col, ci) => (
             <div key={ci} className="c-column">
               {col.map((c, i) => (
-                <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.columns[${ci}][${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.columns[${ci}][${i}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           ))}
@@ -2488,7 +2478,7 @@ function ComponentView({
         <div id={id} className="c-grid" style={gridStyle as React.CSSProperties} data-kz-list="children">
           {children.map((ch, i) => (
             <div key={i} className="c-grid-cell" style={cellStyle(ch)}>
-              <ComponentView comp={ch.component} index={i} kzPath={`${kz}.children[${i}].component`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+              <ComponentView comp={ch.component} index={i} kzPath={`${kz}.children[${i}].component`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
             </div>
           ))}
         </div>
@@ -2515,7 +2505,7 @@ function ComponentView({
           )}
           {body && <div className="c-box-body c-markdown" data-kz-field="body" data-kz-block="">{md(body)}</div>}
           {children.length > 0 && children.map((c, i) => (
-            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
           ))}
         </div>
       );
@@ -2538,7 +2528,7 @@ function ComponentView({
 
     case "accordion": {
       const items = (comp.items as Array<{ title: string; components: ComponentData[] }>) || [];
-      return <AccordionView id={id} items={items} kzPath={kz} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+      return <AccordionView id={id} items={items} kzPath={kz} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
     }
 
     case "hero_banner": {
@@ -3326,7 +3316,7 @@ function ComponentView({
         <div id={id} className="c-chart-group" style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 16 }}>
           {title && <h3 className="c-chart-group-title" style={{ gridColumn: "1 / -1" }} data-kz-field="title">{title}</h3>}
           {children.map((child, ci) => (
-            <ComponentView key={ci} comp={child} index={ci} kzPath={`${kz}.components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            <ComponentView key={ci} comp={child} index={ci} kzPath={`${kz}.components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
           ))}
         </div>
       );
@@ -3919,7 +3909,7 @@ function ComponentView({
   return tagged;
 }
 
-function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { slides: SlideData[]; renderMarkdown?: (md: string) => string; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
+function DeckRenderer({ slides, renderChart, renderRoleMap }: { slides: SlideData[]; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
   const control = React.useContext(DeckControlContext);
   const [internalCurrent, setInternalCurrent] = React.useState(() => {
     if (control?.slide !== undefined) return control.slide;
@@ -4034,7 +4024,7 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
                   </div>
                 ) : (!slide.hide_label && <div className="deck-label">{slide.label}</div>)}
                 {(slide.components ?? []).map((comp, ci) => (
-                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
                 ))}
               </div>
             </div>
@@ -4151,7 +4141,7 @@ function HubMasthead({ hub, resolveHref, activeHref, exportMode }: { hub: HubDat
   );
 }
 
-export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap, resolveHubHref, activeHubHref, exportMode, componentWrapper: CW }: PageRendererProps) {
+export function PageRenderer({ page, renderChart, renderRoleMap, resolveHubHref, activeHubHref, exportMode, componentWrapper: CW }: PageRendererProps) {
   if (page.shell === "deck" && page.slides && page.slides.length > 0) {
     if (exportMode) {
       return (
@@ -4167,7 +4157,7 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
                   </div>
                 ) : (!slide.hide_label && <div className="deck-label">{slide.label}</div>)}
                 {(slide.components ?? []).map((comp, ci) => (
-                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
                 ))}
               </div>
             </div>
@@ -4175,14 +4165,14 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
         </div>
       );
     }
-    return <DeckRenderer slides={page.slides} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+    return <DeckRenderer slides={page.slides} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
   }
   const components = page.components ?? [];
   const body = (
     <>
       {!exportMode && <FreshnessBanner freshness={page.freshness} />}
       {components.map((comp, i) => {
-        const cv = <ComponentView comp={comp} index={i} kzPath={`components[${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+        const cv = <ComponentView comp={comp} index={i} kzPath={`components[${i}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
         // Key by id when present so reorders move nodes instead of re-rendering every slot.
         const key = typeof comp.id === "string" && comp.id ? `id-${comp.id}` : `i-${i}`;
         return CW ? <CW key={key} comp={comp} index={i}>{cv}</CW> : <React.Fragment key={key}>{cv}</React.Fragment>;

@@ -1252,7 +1252,12 @@ fn render_markdown(src: &str) -> String {
     opts.insert(Options::ENABLE_STRIKETHROUGH);
     opts.insert(Options::ENABLE_TASKLISTS);
     let body = escape_spaced_image_paths(body);
-    let parser = Parser::new_ext(&body, opts);
+    let parser = Parser::new_ext(&body, opts).map(|ev| match ev {
+        pulldown_cmark::Event::Html(raw) | pulldown_cmark::Event::InlineHtml(raw) => {
+            pulldown_cmark::Event::Text(raw)
+        }
+        other => other,
+    });
     html::push_html(&mut out, parser);
     out
 }

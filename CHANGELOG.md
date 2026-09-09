@@ -18,6 +18,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The `CardGrid`/`SelectableGrid` connector enum is now `CardConnector` in the schema (values unchanged: `none | dots_line | arrow`). YAML authored as `connector: arrow` is unaffected.
 - `valid_hex_color` moved from the chart renderer into `types` and is shared by `graph`, `box`, and `connector`.
 
+### Security
+- Markdown bodies no longer pass raw HTML through. `pulldown-cmark` `Html`/`InlineHtml` events are downgraded to escaped text in both the static renderer and `kazam open`, so `<script>` or `onerror=` in a body shows literally instead of running.
+- `sdk emit-react`: removed the optional `renderMarkdown` prop and its `dangerouslySetInnerHTML` branch. No shipped host used it; the built-in `renderBlock` path (React-escaped) is now the only markdown renderer.
+
 ### Fixed
 - Skill and pack markdown collection now recurses into `columns`, not only `section`, so installable markdown inside a column is picked up.
 - Print: `columns` no longer jump to a fresh page when they would fit; in letter flow they lay out as table cells, which Chrome paginates correctly.
