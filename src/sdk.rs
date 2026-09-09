@@ -688,7 +688,8 @@ function assetSrc(src: string): string {
 }
 
 function renderInline(text: string): React.ReactNode[] {
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  // Underscore emphasis only at word boundaries so snake_case_names survive.
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|(?<![A-Za-z0-9])_(?:[^_\n]|_(?=[A-Za-z0-9]))+_(?![A-Za-z0-9])|\[[^\]]+\]\([^)]+\))/g;
   const parts: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -699,14 +700,15 @@ function renderInline(text: string): React.ReactNode[] {
     if (token.startsWith("`")) {
       parts.push(<code key={key++} className="c-inline-code">{token.slice(1, -1)}</code>);
     } else if (token.startsWith("**")) {
-      parts.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
+      parts.push(<strong key={key++}>{renderInline(token.slice(2, -2))}</strong>);
     } else if (token.startsWith("[")) {
       const labelEnd = token.indexOf("](");
       const label = token.slice(1, labelEnd);
       const href = token.slice(labelEnd + 2, -1);
       parts.push(<a key={key++} href={href}>{label}</a>);
     } else {
-      parts.push(<em key={key++}>{token.slice(1, -1)}</em>);
+      // `*text*` or `_text_`, recursing so **bold** inside emphasis renders
+      parts.push(<em key={key++}>{renderInline(token.slice(1, -1))}</em>);
     }
     last = match.index + token.length;
   }

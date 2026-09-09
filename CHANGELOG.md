@@ -26,6 +26,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `sdk emit-react`: removed the optional `renderMarkdown` prop and its `dangerouslySetInnerHTML` branch. No shipped host used it; the built-in `renderBlock` path (React-escaped) is now the only markdown renderer.
 
 ### Fixed
+- `sdk emit-react`: the built-in markdown tokenizer now renders `_text_` as emphasis (word-boundary only, so `snake_case` survives). Previously only `*text*` worked and underscores showed literally in curata.
 - Skill and pack markdown collection now recurses into `columns`, not only `section`, so installable markdown inside a column is picked up.
 - Print: `columns` no longer jump to a fresh page when they would fit; in letter flow they lay out as table cells, which Chrome paginates correctly.
 
