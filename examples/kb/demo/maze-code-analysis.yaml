@@ -1,0 +1,221 @@
+title: "Maze Code: how the analysis works"
+shell: standard
+
+components:
+  - type: section
+    id: analysis
+    components:
+      - type: header
+        title: "Maze Code: how the analysis works"
+        subtitle: Scanners find candidates. Agents decide what's real. One verdict per finding, with the reasoning attached.
+
+      - type: grid
+        id: analysis-grid
+        columns: 2
+        gap: 12
+        children:
+          - col: 1
+            row: 1
+            colspan: 2
+            component:
+              type: box
+              id: connect
+              title: 1 · Connect and inventory
+              tag: Repeatable
+              color: teal
+              body: |
+                Your repo is read at one exact commit. Maze builds a full SBOM per commit with a real dependency graph: which package requires which, not a flat list. _Dev-only and first-party components are marked from your lockfiles._
+
+          - col: 1
+            row: 2
+            colspan: 2
+            component:
+              type: connector
+              label: same commit in, same findings out
+
+          - col: 1
+            row: 3
+            component:
+              type: box
+              id: scanner
+              title: 2a · Maze scanner
+              tag: Repeatable
+              color: teal
+              body: |
+                **SCA** matches your dependency graph against a mirrored vulnerability advisory database.
+                **SAST** runs pattern rules over your source.
+
+                _Recall first, on purpose. Everything here is a candidate, not a verdict._
+
+          - col: 2
+            row: 3
+            component:
+              type: box
+              id: aisast
+              title: 2b · AI SAST
+              tag: Model-driven
+              hex: "#7a3f8a"
+              body: |
+                No scanner. No ruleset. Agents read your code and reason through the attack scenarios a rule can't express: broken object-level authorisation, auth bypass, cross-tenant access, business logic.
+
+                `discover → recon → plan → investigate → sceptic → present`
+
+                A sceptic pass tries to break each claim. Everything is grounded back to real source. _Two modes: **web** from HTTP flows and your auth model, **library** from the public API surface._
+
+          - col: 1
+            row: 4
+            component:
+              type: connector
+              label: candidate findings
+
+          - col: 2
+            row: 4
+            component:
+              type: connector
+              label: straight to verdict, own lane
+              hex: "#7a3f8a"
+
+          - col: 1
+            row: 5
+            colspan: 2
+            component:
+              type: box
+              id: investigation
+              title: 3 · Investigation, one finding at a time
+              tag: Model-driven
+              hex: "#7a3f8a"
+              border: dashed
+              components:
+                - type: grid
+                  columns: 4
+                  gap: 7
+                  children:
+                    - component:
+                        type: box
+                        id: research
+                        title: Research
+                        hex: "#7a3f8a"
+                        body: |
+                          What this vulnerability actually needs from an attacker. The advisory, plus the vulnerable package's own source. _Done once per CVE, shared across every finding of it._
+                    - component:
+                        type: box
+                        id: reachability
+                        title: Reachability
+                        hex: "#7a3f8a"
+                        body: |
+                          Can your code hit the vulnerable path at all. A static call graph and an agent both check. Either says yes, we treat it as reachable. _Nothing reachable means not exploitable, and the run ends here._
+                    - component:
+                        type: box
+                        id: exploitability
+                        title: Exploitability
+                        hex: "#7a3f8a"
+                        body: |
+                          Read the path. Weigh the guards, the sanitisers, and whether an attacker controls the value that reaches the sink. _This is the step that recognises a safe case as safe._
+                    - component:
+                        type: box
+                        id: impact
+                        title: Impact and likelihood
+                        hex: "#7a3f8a"
+                        body: |
+                          What a working exploit gets an attacker, weighed against how hard it is to pull off. _Both come from your code, not from a CVSS score._
+
+          - col: 1
+            row: 6
+            colspan: 2
+            component:
+              type: connector
+              label: verdict per finding
+
+          - col: 1
+            row: 7
+            colspan: 2
+            component:
+              type: box
+              id: verdict
+              title: 4 · Verdict and outputs
+              tag: Recorded
+              color: teal
+              components:
+                - type: badge
+                  label: exploitable · Maze severity
+                  color: red
+                - type: badge
+                  label: not exploitable
+                  color: green
+                - type: markdown
+                  body: |
+                    Every finding ends as one or the other, never a bare label. Exploitable findings carry a Maze severity based on impact and likelihood in your code. The reasoning, and the code each step relied on, stay with the finding. _Everything lands in the portal with the full reasoning trail, and exports to CSV._
+
+      - type: columns
+        columns:
+          - - type: markdown
+              body: "**Repeatable:** code and open-source tooling. Same input, same output, every run."
+          - - type: markdown
+              body: "**Model-driven:** Maze agents reading your code."
+
+  - type: section
+    id: compare
+    heading: How this compares to other SAST engines
+    components:
+      - type: markdown
+        body: Most engines decide at detection time. Maze splits the two. Detection is a scanner. The decision is an agent reading your code.
+
+      - type: table
+        columns:
+          - key: approach
+            label: Approach
+          - key: decides
+            label: How it decides
+          - key: struggles
+            label: Where it struggles
+        rows:
+          - approach: Pattern matching
+            decides: Matches shapes in your parsed source.
+            struggles: Broad and fast, but blind to whether the path is guarded. Safe, sanitised code still comes back as a hit.
+          - approach: Database queries
+            decides: Builds a model of your code and runs queries against it.
+            struggles: Precise where a query exists for the thing you care about. Blind where nobody has written one.
+          - approach: Maze
+            decides: Pattern matching to find candidates. Then an agent reasons about whether this instance is exploitable in this codebase.
+            struggles: The judgement isn't encoded in a rule or a query up front, so it can weigh a guard it's never seen before. The cost is that judgement is model-driven, not bit-identical between runs.
+
+      - type: callout
+        variant: info
+        body: "Recall belongs in the scanner. Precision belongs in the investigation. That's the trade, and it's deliberate: a rule that fires too often is fine when an agent reads every hit before you do."
+
+      - type: section
+        heading: What's repeatable and what's model-driven
+        components:
+          - type: columns
+            columns:
+              - - type: markdown
+                  body: "**Repeatable.** The SBOM, the dependency graph, the SCA match, the SAST match, and the static call graph are all functions of the commit and the rules. Same commit, same results, every run."
+              - - type: markdown
+                  body: "**Model-driven.** Agent reachability, exploitability, impact and likelihood, and all of AI SAST are reasoning steps. They're held steady by structured stages, source grounding, and a sceptic pass that tries to break each claim."
+
+      - type: section
+        heading: What we use under the hood
+        components:
+          - type: markdown
+            body: The scanner is a component, not the product. Nothing downstream depends on which tool produced a candidate, and we'll swap components as better ones appear.
+          - type: table
+            columns:
+              - key: layer
+                label: Layer
+              - key: what
+                label: What it is
+              - key: origin
+                label: Origin
+            rows:
+              - layer: SCA
+                what: Open-source dependency matcher, run offline against our own mirror of the public advisory database
+                origin: Open source
+              - layer: SAST
+                what: "Open-source pattern-matching engine, running Maze rule bundles: our own rules plus reviewed open-source rules"
+                origin: Open source + Maze
+              - layer: SBOM
+                what: Standard SBOM format with real dependency edges, built per commit from your lockfiles
+                origin: Maze
+              - layer: Investigation and AI SAST
+                what: Cached static call graph, plus Maze agent pipelines
+                origin: Maze

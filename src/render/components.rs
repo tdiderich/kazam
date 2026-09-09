@@ -84,6 +84,43 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             equal_heights,
             ..
         } => columns_component(columns, *equal_heights, base, config),
+        Component::Grid {
+            columns,
+            rows,
+            gap,
+            children,
+            id,
+            ..
+        } => grid(*columns, *rows, *gap, children, id.as_deref(), base, config),
+        Component::Box {
+            title,
+            tag,
+            body,
+            components,
+            color,
+            hex,
+            border,
+            id,
+            ..
+        } => box_component(
+            title.as_deref(),
+            tag.as_deref(),
+            body.as_deref(),
+            components,
+            *color,
+            hex.as_deref(),
+            *border,
+            id.as_deref(),
+            base,
+            config,
+        ),
+        Component::Connector {
+            label,
+            direction,
+            color,
+            hex,
+            ..
+        } => connector(label.as_deref(), *direction, *color, hex.as_deref()),
         Component::Accordion { items, .. } => accordion(items, base, config),
         Component::EventTimeline {
             events,
@@ -386,9 +423,14 @@ fn meta(fields: &[MetaField]) -> Rendered {
 
 // ── Card Grid ─────────────────────────────────────
 
-fn card_grid(cards: &[Card], min_width: Option<u32>, connector: Connector, base: &str) -> Rendered {
+fn card_grid(
+    cards: &[Card],
+    min_width: Option<u32>,
+    connector: CardConnector,
+    base: &str,
+) -> Rendered {
     let mw = min_width.unwrap_or(320);
-    let is_arrow = matches!(connector, Connector::Arrow);
+    let is_arrow = matches!(connector, CardConnector::Arrow);
     let mut h = if is_arrow {
         String::from(r#"<div class="c-card-grid c-card-grid-arrow">"#)
     } else {
@@ -449,7 +491,7 @@ fn card_grid(cards: &[Card], min_width: Option<u32>, connector: Connector, base:
 fn selectable_grid(
     cards: &[SelectableCard],
     interaction: Interaction,
-    connector: Connector,
+    connector: CardConnector,
     base: &str,
 ) -> Rendered {
     let interaction_attr = match interaction {
@@ -457,13 +499,13 @@ fn selectable_grid(
         Interaction::MultiSelect => "multi_select",
         Interaction::None => "none",
     };
-    let is_arrow = matches!(connector, Connector::Arrow);
+    let is_arrow = matches!(connector, CardConnector::Arrow);
 
     let mut h = format!(
         r#"<div class="c-selectable-grid" data-selectable-grid data-interaction="{interaction_attr}">"#
     );
 
-    if matches!(connector, Connector::DotsLine) {
+    if matches!(connector, CardConnector::DotsLine) {
         h.push_str(r#"<div class="c-sel-dots-row"><div class="c-sel-dots-line"></div>"#);
         for (i, _) in cards.iter().enumerate() {
             let n = i + 1;
@@ -1070,6 +1112,144 @@ fn columns_component(
             r.extend(render(c, base, config));
         }
         r.html.push_str("</div>");
+    }
+    r.html.push_str("</div>");
+    r
+}
+
+// ── Grid / Box / Connector ────────────────────────
+
+fn grid(
+    columns: u32,
+    rows: Option<u32>,
+    gap: Option<u32>,
+    children: &[GridChild],
+    id: Option<&str>,
+    base: &str,
+    config: &SiteConfig,
+) -> Rendered {
+    let mut r = Rendered::default();
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let mut style = format!("--cols: {}", columns.max(1));
+    if let Some(rows) = rows {
+        style.push_str(&format!("; --rows: {}", rows));
+    }
+    if let Some(gap) = gap {
+        style.push_str(&format!("; --gap: {}px", gap));
+    }
+    r.html.push_str(&format!(
+        r#"<div{} class="c-grid" style="{}">"#,
+        id_attr, style
+    ));
+    for child in children {
+        r.html.push_str(&format!(
+            r#"<div class="c-grid-cell" style="{}">"#,
+            grid_cell_style(child)
+        ));
+        r.extend(render(&child.component, base, config));
+        r.html.push_str("</div>");
+    }
+    r.html.push_str("</div>");
+    r
+}
+
+/// Explicit `grid-column`/`grid-row` when the child pins itself, span-only
+/// otherwise so CSS grid auto-flow places it.
+pub(crate) fn grid_cell_style(child: &GridChild) -> String {
+    let mut parts = Vec::new();
+    match child.col {
+        Some(c) => parts.push(format!(
+            "grid-column: {} / span {}",
+            c,
+            child.colspan.max(1)
+        )),
+        None if child.colspan > 1 => parts.push(format!("grid-column: span {}", child.colspan)),
+        None => {}
+    }
+    match child.row {
+        Some(r) => parts.push(format!("grid-row: {} / span {}", r, child.rowspan.max(1))),
+        None if child.rowspan > 1 => parts.push(format!("grid-row: span {}", child.rowspan)),
+        None => {}
+    }
+    parts.join("; ")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn box_component(
+    title: Option<&str>,
+    tag: Option<&str>,
+    body: Option<&str>,
+    comps: &[Component],
+    color: SemColor,
+    hex: Option<&str>,
+    border: BorderStyle,
+    id: Option<&str>,
+    base: &str,
+    config: &SiteConfig,
+) -> Rendered {
+    let mut r = Rendered::default();
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let accent = crate::types::resolve_hex(hex, color);
+    r.html.push_str(&format!(
+        r#"<div{} class="c-box c-box-{} c-box-border-{}" style="--box-accent: {}">"#,
+        id_attr,
+        color.class_suffix(),
+        border.class_suffix(),
+        accent
+    ));
+    if title.is_some() || tag.is_some() {
+        r.html.push_str(r#"<div class="c-box-h">"#);
+        if let Some(t) = title {
+            r.html
+                .push_str(&format!(r#"<b class="c-box-title">{}</b>"#, esc(t)));
+        }
+        if let Some(t) = tag {
+            r.html
+                .push_str(&format!(r#"<span class="c-box-tag">{}</span>"#, esc(t)));
+        }
+        r.html.push_str("</div>");
+    }
+    if let Some(b) = body {
+        r.html.push_str(&format!(
+            r#"<div class="c-box-body">{}</div>"#,
+            parse_markdown(b, base)
+        ));
+    }
+    for c in comps {
+        r.extend(render(c, base, config));
+    }
+    r.html.push_str("</div>");
+    r
+}
+
+fn connector(
+    label: Option<&str>,
+    direction: Direction,
+    color: SemColor,
+    hex: Option<&str>,
+) -> Rendered {
+    let mut r = Rendered::default();
+    let accent = hex
+        .filter(|h| crate::types::valid_hex_color(h))
+        .map(|h| format!(r#" style="--connector-accent: {}""#, h))
+        .unwrap_or_else(|| match color {
+            SemColor::Default => String::new(),
+            c => format!(r#" style="--connector-accent: {}""#, c.hex()),
+        });
+    r.html.push_str(&format!(
+        r#"<div class="c-connector c-connector-{}"{}>"#,
+        direction.class_suffix(),
+        accent
+    ));
+    if let Some(l) = label {
+        r.html.push_str(&format!(
+            r#"<span class="c-connector-label">{}</span>"#,
+            esc(l)
+        ));
     }
     r.html.push_str("</div>");
     r

@@ -481,7 +481,7 @@ pub enum Component {
         #[serde(default)]
         min_width: Option<u32>,
         #[serde(default)]
-        connector: Connector,
+        connector: CardConnector,
         #[serde(default)]
         scale: Option<f32>,
     },
@@ -490,7 +490,7 @@ pub enum Component {
         #[serde(default)]
         interaction: Interaction,
         #[serde(default)]
-        connector: Connector,
+        connector: CardConnector,
         #[serde(default)]
         scale: Option<f32>,
     },
@@ -582,6 +582,60 @@ pub enum Component {
         columns: Vec<Vec<Component>>,
         #[serde(default)]
         equal_heights: bool,
+        #[serde(default)]
+        scale: Option<f32>,
+    },
+    /// Explicit-placement CSS grid. Children carry their own `col`/`row`
+    /// (1-based) and spans; omit them to let the grid auto-flow. Cells size
+    /// from the container, never from a fixed slot width.
+    Grid {
+        columns: u32,
+        #[serde(default)]
+        rows: Option<u32>,
+        #[serde(default)]
+        gap: Option<u32>,
+        children: Vec<GridChild>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+    },
+    /// Bordered panel with a title row (title left, uppercase tag right), a
+    /// markdown body, and optional nested components. Nesting is what lets a
+    /// box hold a grid of boxes.
+    Box {
+        #[serde(default)]
+        title: Option<String>,
+        #[serde(default)]
+        tag: Option<String>,
+        #[serde(default)]
+        body: Option<String>,
+        #[serde(default)]
+        components: Vec<Component>,
+        #[serde(default)]
+        color: SemColor,
+        /// Exact accent, same contract as `GraphNode.hex`: wins over `color`
+        /// when valid, silently ignored otherwise.
+        #[serde(default)]
+        hex: Option<String>,
+        #[serde(default)]
+        border: BorderStyle,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+    },
+    /// A cell, not an edge: a line with an arrowhead that fills whatever
+    /// cell it sits in, with an optional label drawn over the line.
+    Connector {
+        #[serde(default)]
+        label: Option<String>,
+        #[serde(default)]
+        direction: Direction,
+        #[serde(default)]
+        color: SemColor,
+        #[serde(default)]
+        hex: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
     },
@@ -948,6 +1002,9 @@ impl Component {
             | Component::Tabs { scale, .. }
             | Component::Section { scale, .. }
             | Component::Columns { scale, .. }
+            | Component::Grid { scale, .. }
+            | Component::Box { scale, .. }
+            | Component::Connector { scale, .. }
             | Component::Accordion { scale, .. }
             | Component::EventTimeline { scale, .. }
             | Component::Tree { scale, .. }
@@ -1047,6 +1104,74 @@ impl SemColor {
     }
 }
 
+/// Accepts `#RGB`, `#RRGGBB`, or `#RRGGBBAA` (case-insensitive hex digits
+/// only). Values pass through to unescaped style/SVG attributes, so a strict
+/// allowlist is what keeps a bad value from breaking out of them.
+pub(crate) fn valid_hex_color(s: &str) -> bool {
+    let Some(rest) = s.strip_prefix('#') else {
+        return false;
+    };
+    matches!(rest.len(), 3 | 6 | 8) && rest.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Resolves an optional `hex` override against a semantic color, dropping
+/// invalid overrides silently.
+pub(crate) fn resolve_hex(hex: Option<&str>, color: SemColor) -> &str {
+    hex.filter(|h| valid_hex_color(h))
+        .unwrap_or_else(|| color.hex())
+}
+
+#[derive(Deserialize)]
+pub struct GridChild {
+    #[serde(default)]
+    pub col: Option<u32>,
+    #[serde(default)]
+    pub row: Option<u32>,
+    #[serde(default = "one")]
+    pub colspan: u32,
+    #[serde(default = "one")]
+    pub rowspan: u32,
+    pub component: Component,
+}
+
+fn one() -> u32 {
+    1
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BorderStyle {
+    #[default]
+    Solid,
+    Dashed,
+}
+
+impl BorderStyle {
+    pub fn class_suffix(&self) -> &'static str {
+        match self {
+            BorderStyle::Solid => "solid",
+            BorderStyle::Dashed => "dashed",
+        }
+    }
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Direction {
+    #[default]
+    Down,
+    Right,
+}
+
+impl Direction {
+    pub fn class_suffix(&self) -> &'static str {
+        match self {
+            Direction::Down => "down",
+            Direction::Right => "right",
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct Link {
     pub label: String,
@@ -1074,7 +1199,7 @@ pub enum Interaction {
 
 #[derive(Deserialize, Default, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
-pub enum Connector {
+pub enum CardConnector {
     #[default]
     None,
     DotsLine,

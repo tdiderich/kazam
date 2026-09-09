@@ -2205,6 +2205,89 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-column > *:last-child { margin-bottom: 0; }
 .c-columns-stretch .c-column > * { flex: 1; }
 
+/* Grid: explicit-placement layout, cells size from the container */
+.c-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  grid-auto-rows: auto;
+  gap: var(--gap, 12px);
+  align-items: stretch;
+}
+.c-grid-cell { min-width: 0; display: flex; flex-direction: column; }
+.c-grid-cell > * { margin-bottom: 0; flex: 1; }
+.c-grid-cell > .kz-wrap > * { margin-bottom: 0; }
+
+/* Box: bordered panel with title row, markdown body, optional children */
+.c-box {
+  --box-accent: var(--teal);
+  border: 1.5px solid var(--box-accent);
+  background: color-mix(in srgb, var(--box-accent) 7%, var(--card-bg));
+  border-radius: 8px;
+  padding: 10px 13px;
+  font-size: 14px;
+  line-height: 1.45;
+  min-width: 0;
+}
+.c-box-border-dashed { border-style: dashed; border-radius: 10px; }
+.c-box-default { --box-accent: var(--teal); }
+.c-box-green { --box-accent: var(--green); }
+.c-box-yellow { --box-accent: var(--yellow); }
+.c-box-red { --box-accent: var(--red); }
+.c-box-teal { --box-accent: var(--teal); }
+.c-box-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.c-box-title { font-size: 15px; font-weight: 600; color: var(--snow); }
+.c-box-tag {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--box-accent);
+  white-space: nowrap;
+}
+.c-box-body { color: var(--light-muted); }
+.c-box-body p { margin: 0 0 6px; }
+.c-box-body p:last-child { margin-bottom: 0; }
+.c-box-body strong { color: var(--snow); font-weight: 600; }
+.c-box-body em { color: var(--muted); font-style: normal; }
+.c-box-body code { color: var(--box-accent); font-size: 0.92em; }
+.c-box > .c-box-body + * , .c-box > .c-box-h + *:not(.c-box-body) { margin-top: 8px; }
+.c-box > .c-grid, .c-box > .c-columns, .c-box > .c-box, .c-box > .c-markdown { margin-bottom: 0; }
+.c-box > .kz-wrap > * { margin-bottom: 0; }
+.c-box > * + *, .c-box > .kz-wrap + .kz-wrap > * { margin-top: 8px; }
+.c-box > .c-box-h + .c-box-body { margin-top: 0; }
+
+/* Connector: a cell holding a line with an arrowhead and an optional label */
+.c-connector {
+  --connector-accent: rgba(var(--text-rgb), 0.4);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.c-connector-down::before {
+  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1.5px;
+  background: var(--connector-accent); transform: translateX(-50%);
+}
+.c-connector-down::after {
+  content: ""; position: absolute; left: 50%; bottom: -1px; transform: translateX(-50%);
+  border: 5px solid transparent; border-top: 7px solid var(--connector-accent); border-bottom: 0;
+}
+.c-connector-right { min-height: 0; min-width: 24px; height: 100%; }
+.c-connector-right::before {
+  content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 1.5px;
+  background: var(--connector-accent); transform: translateY(-50%);
+}
+.c-connector-right::after {
+  content: ""; position: absolute; top: 50%; right: -1px; transform: translateY(-50%);
+  border: 5px solid transparent; border-left: 7px solid var(--connector-accent); border-right: 0;
+}
+.c-connector-label { position: relative; z-index: 1; background: var(--bg); padding: 0 8px; }
+
 /* Accordion */
 .c-accordion { display: flex; flex-direction: column; gap: 8px; }
 .c-accordion-item {
@@ -3652,6 +3735,8 @@ body.shell-standard { page: standard-page; }
   body.shell-standard .c-empty-state { break-inside: avoid; page-break-inside: avoid; }
   body.shell-standard .c-card-grid,
   body.shell-standard .c-stat-grid,
+  body.shell-standard .c-grid,
+  body.shell-standard .c-box,
   body.shell-standard .c-split-compare { break-inside: avoid; page-break-inside: avoid; }
   body.shell-standard h1, body.shell-standard h2, body.shell-standard h3 { break-after: avoid; page-break-after: avoid; }
   .c-section-header { break-after: avoid; page-break-after: avoid; }

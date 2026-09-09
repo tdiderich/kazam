@@ -97,7 +97,19 @@ fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
         for c in components {
             match c {
                 Component::Markdown { body, .. } => out.push(body),
-                Component::Section { components, .. } => collect_markdown(components, out),
+                Component::Section { components, .. } | Component::Box { components, .. } => {
+                    collect_markdown(components, out)
+                }
+                Component::Columns { columns, .. } => {
+                    for col in columns {
+                        collect_markdown(col, out);
+                    }
+                }
+                Component::Grid { children, .. } => {
+                    for child in children {
+                        collect_markdown(std::slice::from_ref(&child.component), out);
+                    }
+                }
                 _ => {}
             }
         }
@@ -214,7 +226,15 @@ fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
     fn has_installable_markdown(components: &[Component]) -> bool {
         components.iter().any(|c| match c {
             Component::Markdown { body, .. } => !body.trim().is_empty(),
-            Component::Section { components, .. } => has_installable_markdown(components),
+            Component::Section { components, .. } | Component::Box { components, .. } => {
+                has_installable_markdown(components)
+            }
+            Component::Columns { columns, .. } => {
+                columns.iter().any(|col| has_installable_markdown(col))
+            }
+            Component::Grid { children, .. } => children
+                .iter()
+                .any(|ch| has_installable_markdown(std::slice::from_ref(&ch.component))),
             _ => false,
         })
     }
@@ -582,6 +602,22 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::Section { components, .. } => {
             1 + components.iter().map(component_height_cost).sum::<u32>()
         }
+        Component::Box {
+            body, components, ..
+        } => {
+            1 + body.as_deref().map_or(0, |b| b.lines().count() as u32 / 4)
+                + components.iter().map(component_height_cost).sum::<u32>()
+        }
+        Component::Grid {
+            columns, children, ..
+        } => {
+            let total: u32 = children
+                .iter()
+                .map(|c| component_height_cost(&c.component))
+                .sum();
+            total.div_ceil((*columns).max(1))
+        }
+        Component::Connector { .. } => 1,
         Component::Tabs { tabs, .. } => 2 + tabs.len().min(1) as u32,
         Component::Markdown { body, .. } => 1 + (body.lines().count() as u32 / 4),
         Component::Code { code, .. } => 2 + (code.lines().count() as u32 / 3),
@@ -628,6 +664,161 @@ fn validate_components(
     for (i, component) in components.iter().enumerate() {
         let path = format!("{}[{}]", path_prefix, i);
         validate_component(file, &path, component, errors);
+    }
+}
+
+/// Grids nested more than this many levels deep (grid inside grid inside
+/// grid) are almost always an authoring mistake and unreadable on a page.
+const MAX_GRID_DEPTH: usize = 3;
+
+fn grid_depth(component: &Component) -> usize {
+    match component {
+        Component::Grid { children, .. } => {
+            1 + children
+                .iter()
+                .map(|c| grid_depth(&c.component))
+                .max()
+                .unwrap_or(0)
+        }
+        Component::Section { components, .. } | Component::Box { components, .. } => {
+            components.iter().map(grid_depth).max().unwrap_or(0)
+        }
+        Component::Columns { columns, .. } => columns
+            .iter()
+            .flat_map(|col| col.iter().map(grid_depth))
+            .max()
+            .unwrap_or(0),
+        _ => 0,
+    }
+}
+
+fn validate_grid(
+    file: &str,
+    path: &str,
+    columns: u32,
+    rows: Option<u32>,
+    children: &[crate::types::GridChild],
+    errors: &mut Vec<ValidationError>,
+) {
+    if columns == 0 {
+        errors.push(ValidationError::new(
+            file,
+            format!("{}.columns", path),
+            "invalid_value",
+            "grid columns must be at least 1",
+            None,
+        ));
+        return;
+    }
+    if children.is_empty() {
+        errors.push(ValidationError::new(
+            file,
+            format!("{}.children", path),
+            "missing_field",
+            "grid requires at least one child",
+            Some("Add children: with { col, row, component }.".into()),
+        ));
+        return;
+    }
+
+    // Occupancy pass. Pinned children claim their cells first; auto-flow
+    // children then take the first free cell in row-major order, which is
+    // how CSS grid places them, so overlap detection matches the render.
+    let mut occupied: std::collections::HashMap<(u32, u32), usize> = Default::default();
+    for (i, child) in children.iter().enumerate() {
+        let cpath = format!("{}.children[{}]", path, i);
+        let colspan = child.colspan.max(1);
+        let rowspan = child.rowspan.max(1);
+        if let Some(c) = child.col {
+            if c == 0 || c + colspan - 1 > columns {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.col", cpath),
+                    "invalid_value",
+                    format!(
+                        "child {} spans columns {}..{} but grid has {} column{}",
+                        i,
+                        c,
+                        c + colspan - 1,
+                        columns,
+                        if columns == 1 { "" } else { "s" }
+                    ),
+                    Some("Lower col or colspan, or raise grid columns.".into()),
+                ));
+                continue;
+            }
+        }
+        if let (Some(r), Some(rows)) = (child.row, rows) {
+            if r == 0 || r + rowspan - 1 > rows {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.row", cpath),
+                    "invalid_value",
+                    format!(
+                        "child {} spans rows {}..{} but grid has {} row{}",
+                        i,
+                        r,
+                        r + rowspan - 1,
+                        rows,
+                        if rows == 1 { "" } else { "s" }
+                    ),
+                    Some("Lower row or rowspan, or raise grid rows.".into()),
+                ));
+                continue;
+            }
+        }
+        if let (Some(c), Some(r)) = (child.col, child.row) {
+            for dc in 0..colspan {
+                for dr in 0..rowspan {
+                    if let Some(prev) = occupied.insert((c + dc, r + dr), i) {
+                        errors.push(ValidationError::new(
+                            file,
+                            cpath.clone(),
+                            "structural",
+                            format!(
+                                "child {} overlaps child {} at col {} row {}",
+                                i,
+                                prev,
+                                c + dc,
+                                r + dr
+                            ),
+                            Some(
+                                "Give each child its own cells, or drop col/row to auto-flow."
+                                    .into(),
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    for (i, child) in children.iter().enumerate() {
+        validate_component(
+            file,
+            &format!("{}.children[{}].component", path, i),
+            &child.component,
+            errors,
+        );
+    }
+
+    let depth = 1 + children
+        .iter()
+        .map(|c| grid_depth(&c.component))
+        .max()
+        .unwrap_or(0);
+    if depth > MAX_GRID_DEPTH {
+        errors.push(ValidationError::new(
+            file,
+            path,
+            "structural",
+            format!(
+                "grids nest {} levels deep, max is {}",
+                depth, MAX_GRID_DEPTH
+            ),
+            Some(
+                "Flatten the layout: a box with a body usually replaces the innermost grid.".into(),
+            ),
+        ));
     }
 }
 
@@ -804,6 +995,53 @@ fn validate_component(
                 validate_components(file, &format!("{}.components", path), components, errors);
             }
         }
+
+        Component::Grid {
+            columns,
+            rows,
+            children,
+            ..
+        } => validate_grid(file, path, *columns, *rows, children, errors),
+
+        Component::Box {
+            body, components, ..
+        } => {
+            let has_body = body.as_deref().is_some_and(|b| !b.trim().is_empty());
+            if !has_body && components.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    path,
+                    "missing_field",
+                    "box needs a body: or at least one nested component",
+                    Some("Add body: markdown, or components: with child blocks.".into()),
+                ));
+            }
+            if let Component::Box { hex: Some(h), .. } = component {
+                if !crate::types::valid_hex_color(h) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.hex", path),
+                        "invalid_value",
+                        format!("hex '{}' is not a valid color", h),
+                        Some("Use #RGB, #RRGGBB, or #RRGGBBAA.".into()),
+                    ));
+                }
+            }
+            if !components.is_empty() {
+                validate_components(file, &format!("{}.components", path), components, errors);
+            }
+        }
+
+        Component::Connector { hex: Some(h), .. } if !crate::types::valid_hex_color(h) => {
+            errors.push(ValidationError::new(
+                file,
+                format!("{}.hex", path),
+                "invalid_value",
+                format!("hex '{}' is not a valid color", h),
+                Some("Use #RGB, #RRGGBB, or #RRGGBBAA.".into()),
+            ));
+        }
+        Component::Connector { .. } => {}
 
         Component::Columns { columns, .. } => {
             if columns.is_empty() {
@@ -1679,13 +1917,13 @@ mod tests {
 
     #[test]
     fn card_grid_with_empty_cards_fails() {
-        use crate::types::Connector;
+        use crate::types::CardConnector;
         let page = make_page(
             Shell::Standard,
             Some(vec![Component::CardGrid {
                 cards: vec![],
                 min_width: None,
-                connector: Connector::None,
+                connector: CardConnector::None,
                 scale: None,
             }]),
         );
@@ -1975,5 +2213,89 @@ mod tests {
         );
         let errors = validate_page("plain.yaml", &page);
         assert!(errors.is_empty(), "unexpected: {errors:?}");
+    }
+
+    fn page_from_yaml(yaml: &str) -> Page {
+        serde_yaml::from_str(yaml).expect("yaml parses")
+    }
+
+    #[test]
+    fn grid_overlapping_children_error() {
+        let page = page_from_yaml(
+            "title: G\nshell: standard\ncomponents:\n  - type: grid\n    columns: 2\n    children:\n      - col: 1\n        row: 1\n        colspan: 2\n        component: { type: markdown, body: a }\n      - col: 2\n        row: 1\n        component: { type: markdown, body: b }\n",
+        );
+        let errors = validate_page("g.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.error_type == "structural" && e.message.contains("overlaps")),
+            "expected overlap error, got {errors:?}"
+        );
+    }
+
+    #[test]
+    fn grid_child_outside_columns_error() {
+        let page = page_from_yaml(
+            "title: G\nshell: standard\ncomponents:\n  - type: grid\n    columns: 2\n    children:\n      - col: 2\n        colspan: 2\n        component: { type: markdown, body: a }\n",
+        );
+        let errors = validate_page("g.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.path.ends_with(".col") && e.error_type == "invalid_value"),
+            "expected out-of-bounds error, got {errors:?}"
+        );
+    }
+
+    #[test]
+    fn grid_auto_flow_children_pass() {
+        let page = page_from_yaml(
+            "title: G\nshell: standard\ncomponents:\n  - type: grid\n    columns: 4\n    children:\n      - component: { type: box, title: A, body: a }\n      - component: { type: box, title: B, body: b }\n      - component: { type: box, title: C, body: c }\n",
+        );
+        let errors = validate_page("g.yaml", &page);
+        assert!(errors.is_empty(), "unexpected: {errors:?}");
+    }
+
+    #[test]
+    fn box_without_body_or_children_error() {
+        let page = page_from_yaml(
+            "title: B\nshell: standard\ncomponents:\n  - type: box\n    title: Empty\n",
+        );
+        let errors = validate_page("b.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("box needs a body")),
+            "expected empty-box error, got {errors:?}"
+        );
+    }
+
+    #[test]
+    fn box_with_nested_grid_passes_and_bad_hex_errors() {
+        let page = page_from_yaml(
+            "title: B\nshell: standard\ncomponents:\n  - type: box\n    title: Band\n    hex: purple\n    components:\n      - type: grid\n        columns: 2\n        children:\n          - component: { type: box, title: A, body: a }\n          - component: { type: box, title: B, body: b }\n",
+        );
+        let errors = validate_page("b.yaml", &page);
+        assert_eq!(errors.len(), 1, "only the hex error expected: {errors:?}");
+        assert!(errors[0].path.ends_with(".hex"));
+    }
+
+    #[test]
+    fn grid_nesting_past_three_levels_error() {
+        let inner = "{ type: markdown, body: x }";
+        let mut yaml = inner.to_string();
+        for _ in 0..4 {
+            yaml = format!("{{ type: grid, columns: 1, children: [ {{ component: {yaml} }} ] }}");
+        }
+        let page = page_from_yaml(&format!(
+            "title: G\nshell: standard\ncomponents:\n  - {yaml}\n"
+        ));
+        let errors = validate_page("g.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("nest") && e.message.contains("max is 3")),
+            "expected depth error, got {errors:?}"
+        );
     }
 }

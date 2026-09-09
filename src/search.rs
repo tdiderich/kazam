@@ -148,6 +148,34 @@ fn extract_searchable_text(
                     extract_searchable_text(col, headings, snippets);
                 }
             }
+            Component::Grid { children, .. } => {
+                for child in children {
+                    extract_searchable_text(
+                        std::slice::from_ref(&child.component),
+                        headings,
+                        snippets,
+                    );
+                }
+            }
+            Component::Box {
+                title,
+                body,
+                components,
+                ..
+            } => {
+                if let Some(t) = title {
+                    headings.push(t.clone());
+                }
+                if let Some(b) = body {
+                    push_snippet(snippets, b);
+                }
+                extract_searchable_text(components, headings, snippets);
+            }
+            Component::Connector { label, .. } => {
+                if let Some(l) = label {
+                    push_snippet(snippets, l);
+                }
+            }
             Component::SelectableGrid { cards, .. } => {
                 for card in cards {
                     headings.push(card.title.clone());

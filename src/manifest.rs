@@ -78,6 +78,14 @@ fn collect_into(components: &[Component], out: &mut Vec<String>) {
                     collect_into(&item.components, out);
                 }
             }
+            Component::Grid { children, .. } => {
+                for child in children {
+                    collect_into(std::slice::from_ref(&child.component), out);
+                }
+            }
+            Component::Box {
+                components: inner, ..
+            } => collect_into(inner, out),
             _ => {}
         }
     }
@@ -100,6 +108,9 @@ fn component_type_name(c: &Component) -> String {
         Component::Tabs { .. } => "tabs",
         Component::Section { .. } => "section",
         Component::Columns { .. } => "columns",
+        Component::Grid { .. } => "grid",
+        Component::Box { .. } => "box",
+        Component::Connector { .. } => "connector",
         Component::Accordion { .. } => "accordion",
         Component::EventTimeline { .. } => "event_timeline",
         Component::Tree { .. } => "tree",

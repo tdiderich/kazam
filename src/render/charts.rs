@@ -1839,21 +1839,8 @@ fn wrap_lines(text: &str, char_w: f64, max_width: f64) -> Vec<String> {
     lines
 }
 
-/// Accepts `#RGB`, `#RRGGBB`, or `#RRGGBBAA` (case-insensitive hex digits
-/// only). This gets embedded directly into an unescaped SVG attribute, so a
-/// strict allowlist here is what keeps a bad value from breaking out of it.
-fn valid_hex_color(s: &str) -> bool {
-    let Some(rest) = s.strip_prefix('#') else {
-        return false;
-    };
-    matches!(rest.len(), 3 | 6 | 8) && rest.chars().all(|c| c.is_ascii_hexdigit())
-}
-
 fn node_stroke(n: &crate::types::GraphNode) -> &str {
-    n.hex
-        .as_deref()
-        .filter(|h| valid_hex_color(h))
-        .unwrap_or_else(|| n.color.hex())
+    crate::types::resolve_hex(n.hex.as_deref(), n.color)
 }
 
 /// Progress badge anchored on the box's top-right corner: a green check for

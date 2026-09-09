@@ -29,10 +29,18 @@
       "multi_select",
       "none"
     ],
-    "Connector": [
+    "CardConnector": [
       "none",
       "dots_line",
       "arrow"
+    ],
+    "BorderStyle": [
+      "solid",
+      "dashed"
+    ],
+    "Direction": [
+      "down",
+      "right"
     ],
     "TimelineStatus": [
       "completed",
@@ -516,6 +524,33 @@
         "type": "Component[]",
         "required": true,
         "kind": "list"
+      }
+    },
+    "GridChild": {
+      "col": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "row": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "colspan": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "rowspan": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "component": {
+        "type": "Component",
+        "required": true,
+        "kind": "object"
       }
     },
     "AccordionItem": {
@@ -1602,7 +1637,7 @@
         "kind": "layout"
       },
       "connector": {
-        "type": "Connector",
+        "type": "CardConnector",
         "required": false,
         "kind": "enum"
       }
@@ -1619,7 +1654,7 @@
         "kind": "enum"
       },
       "connector": {
-        "type": "Connector",
+        "type": "CardConnector",
         "required": false,
         "kind": "enum"
       }
@@ -1791,6 +1826,97 @@
         "type": "boolean",
         "required": false,
         "kind": "bool"
+      }
+    },
+    "grid": {
+      "columns": {
+        "type": "number",
+        "required": true,
+        "kind": "layout"
+      },
+      "rows": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "gap": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "children": {
+        "type": "GridChild[]",
+        "required": true,
+        "kind": "list"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
+    },
+    "box": {
+      "title": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "tag": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "body": {
+        "type": "string",
+        "required": false,
+        "kind": "markdown"
+      },
+      "components": {
+        "type": "Component[]",
+        "required": false,
+        "kind": "list"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      },
+      "hex": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      },
+      "border": {
+        "type": "BorderStyle",
+        "required": false,
+        "kind": "enum"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
+    },
+    "connector": {
+      "label": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "direction": {
+        "type": "Direction",
+        "required": false,
+        "kind": "enum"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      },
+      "hex": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
       }
     },
     "accordion": {

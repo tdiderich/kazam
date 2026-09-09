@@ -2578,3 +2578,32 @@ fn build_json_human_output_unchanged() {
         "human output should not start with JSON object"
     );
 }
+
+#[test]
+fn grid_box_connector_render_html() {
+    let html = build_one_page(
+        "layout-prims",
+        "title: L\nshell: standard\ncomponents:\n  - type: grid\n    id: g\n    columns: 2\n    gap: 12\n    children:\n      - col: 1\n        row: 1\n        colspan: 2\n        component:\n          type: box\n          title: One\n          tag: Repeatable\n          body: \"**SCA** first\"\n      - col: 1\n        row: 2\n        colspan: 2\n        component: { type: connector, label: next }\n      - col: 1\n        row: 3\n        component:\n          type: box\n          title: Band\n          hex: \"#7a3f8a\"\n          border: dashed\n          components:\n            - type: grid\n              columns: 2\n              children:\n                - component: { type: box, title: A, body: a }\n                - component: { type: box, title: B, body: b }\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<div id="g" class="c-grid" style="--cols: 2; --gap: 12px">"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="c-grid-cell" style="grid-column: 1 / span 2; grid-row: 1 / span 1">"#,
+    );
+    assert_contains(&html, r#"<b class="c-box-title">One</b>"#);
+    assert_contains(&html, r#"<span class="c-box-tag">Repeatable</span>"#);
+    assert_contains(&html, "<strong>SCA</strong>");
+    assert_contains(
+        &html,
+        r#"<div class="c-connector c-connector-down"><span class="c-connector-label">next</span></div>"#,
+    );
+    assert_contains(
+        &html,
+        r#"class="c-box c-box-default c-box-border-dashed" style="--box-accent: #7a3f8a""#,
+    );
+    assert_contains(&html, r#"<b class="c-box-title">B</b>"#);
+}

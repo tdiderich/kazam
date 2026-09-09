@@ -2468,6 +2468,74 @@ function ComponentView({
       );
     }
 
+    case "grid": {
+      type GridChild = { col?: number; row?: number; colspan?: number; rowspan?: number; component: ComponentData };
+      const children = (comp.children as GridChild[]) || [];
+      const gridStyle: Record<string, string | number> = { "--cols": Math.max(1, Number(comp.columns) || 1) };
+      if (comp.rows != null) gridStyle["--rows"] = Number(comp.rows);
+      if (comp.gap != null) gridStyle["--gap"] = `${Number(comp.gap)}px`;
+      const cellStyle = (ch: GridChild): React.CSSProperties => {
+        const s: React.CSSProperties = {};
+        const cs = Math.max(1, ch.colspan ?? 1);
+        const rs = Math.max(1, ch.rowspan ?? 1);
+        if (ch.col != null) s.gridColumn = `${ch.col} / span ${cs}`;
+        else if (cs > 1) s.gridColumn = `span ${cs}`;
+        if (ch.row != null) s.gridRow = `${ch.row} / span ${rs}`;
+        else if (rs > 1) s.gridRow = `span ${rs}`;
+        return s;
+      };
+      return (
+        <div id={id} className="c-grid" style={gridStyle as React.CSSProperties} data-kz-list="children">
+          {children.map((ch, i) => (
+            <div key={i} className="c-grid-cell" style={cellStyle(ch)}>
+              <ComponentView comp={ch.component} index={i} kzPath={`${kz}.children[${i}].component`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "box": {
+      const title = comp.title as string | undefined;
+      const tag = comp.tag as string | undefined;
+      const body = comp.body as string | undefined;
+      const children = (comp.components as ComponentData[]) || [];
+      const color = (comp.color as string) || "default";
+      const hex = comp.hex as string | undefined;
+      const hexOk = !!hex && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex);
+      const border = (comp.border as string) || "solid";
+      const style = hexOk ? ({ "--box-accent": hex } as React.CSSProperties) : undefined;
+      return (
+        <div id={id} className={`c-box c-box-${color} c-box-border-${border}`} style={style}>
+          {(title || tag) && (
+            <div className="c-box-h">
+              {title && <b className="c-box-title" data-kz-field="title">{title}</b>}
+              {tag && <span className="c-box-tag" data-kz-field="tag">{tag}</span>}
+            </div>
+          )}
+          {body && <div className="c-box-body c-markdown" data-kz-field="body" data-kz-block="">{md(body)}</div>}
+          {children.length > 0 && children.map((c, i) => (
+            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+          ))}
+        </div>
+      );
+    }
+
+    case "connector": {
+      const label = comp.label as string | undefined;
+      const direction = (comp.direction as string) || "down";
+      const color = (comp.color as string) || "default";
+      const hex = comp.hex as string | undefined;
+      const hexOk = !!hex && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex);
+      const accent = hexOk ? hex : color !== "default" ? semToHex[color] : undefined;
+      const style = accent ? ({ "--connector-accent": accent } as React.CSSProperties) : undefined;
+      return (
+        <div id={id} className={`c-connector c-connector-${direction}`} style={style}>
+          {label && <span className="c-connector-label" data-kz-field="label">{label}</span>}
+        </div>
+      );
+    }
+
     case "accordion": {
       const items = (comp.items as Array<{ title: string; components: ComponentData[] }>) || [];
       return <AccordionView id={id} items={items} kzPath={kz} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
@@ -4315,6 +4383,9 @@ export const EDITOR_TYPES: Array<{type: string; label: string; icon: string}> = 
   { type: "tabs", label: "Tabs", icon: "⊑" },
   { type: "section", label: "Section", icon: "§" },
   { type: "columns", label: "Columns", icon: "||" },
+  { type: "grid", label: "Grid", icon: "#" },
+  { type: "box", label: "Box", icon: "▢" },
+  { type: "connector", label: "Connector", icon: "↓" },
   { type: "accordion", label: "Accordion", icon: "≡" },
   { type: "event_timeline", label: "Event Timeline", icon: "E" },
   { type: "tree", label: "Tree", icon: "T" },
@@ -4519,6 +4590,11 @@ function KzFieldRow({ field, value, siblings, onChange, depth }: { field: KzFiel
   let control: React.ReactNode;
   if (field.kind === "list") {
     control = <KzListEditor field={field} items={(value as unknown[]) || []} siblings={siblings} depth={depth} onChange={(items) => onChange(items.length === 0 && !field.required ? undefined : items)} />;
+  } else if (field.kind === "object" && field.type === "Component") {
+    // A single nested component (grid child). Reuse the list editor so the
+    // author gets the same type picker, and keep exactly one entry.
+    const one = value ? [value as ComponentData] : [];
+    control = <NestedComponentList components={one} onChange={(c) => onChange(c.length > 0 ? c[c.length - 1] : undefined)} />;
   } else if (field.kind === "object") {
     control = KZ_SCHEMA.types[field.type]
       ? <KzObjectFields typeName={field.type} value={(value as Record<string, unknown>) || {}} depth={depth + 1} onChange={(v) => onChange(Object.keys(v).length === 0 && !field.required ? undefined : v)} />
