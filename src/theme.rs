@@ -2300,6 +2300,50 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-column > *:last-child { margin-bottom: 0; }
 .c-columns-stretch .c-column > * { flex: 1; }
 
+/* Motion: entrance reveals, only under body.kz-motion (page sets motion: true
+   or a host forces it). Carriers start hidden and transition in when the
+   observer adds .kz-in. Reduced motion, print, and export show everything. */
+.kz-anim { display: block; }
+.kz-motion .kz-anim { opacity: 0; transition: opacity 0.5s ease, transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1); will-change: opacity, transform; }
+.kz-motion .kz-anim[data-animate="fade-up"] { transform: translateY(14px); }
+.kz-motion .kz-anim[data-animate="slide-left"] { transform: translateX(-18px); }
+.kz-motion .kz-anim[data-animate="slide-right"] { transform: translateX(18px); }
+.kz-motion .kz-anim.kz-in { opacity: 1; transform: none; }
+/* Stagger: the carrier shows at once, its direct grid/column/section children step in. */
+.kz-motion .kz-anim[data-animate="stagger"] { opacity: 1; transform: none; }
+.kz-motion .kz-anim[data-animate="stagger"] .c-grid > .c-grid-cell,
+.kz-motion .kz-anim[data-animate="stagger"] .c-columns > .c-column,
+.kz-motion .kz-anim[data-animate="stagger"] .c-card-grid > .c-card,
+.kz-motion .kz-anim[data-animate="stagger"] .c-stat-grid > .c-stat,
+.kz-motion .kz-anim[data-animate="stagger"] > .c-section > *:not(.c-section-header),
+.kz-motion .kz-anim[data-animate="stagger"] > .c-box > *:not(.c-box-h) { opacity: 0; transform: translateY(12px); transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-grid > .c-grid-cell,
+.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-columns > .c-column,
+.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-card-grid > .c-card,
+.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-stat-grid > .c-stat,
+.kz-motion .kz-anim[data-animate="stagger"].kz-in > .c-section > *:not(.c-section-header),
+.kz-motion .kz-anim[data-animate="stagger"].kz-in > .c-box > *:not(.c-box-h) { opacity: 1; transform: none; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(1) { transition-delay: 0ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(2) { transition-delay: 80ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(3) { transition-delay: 160ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(4) { transition-delay: 240ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(5) { transition-delay: 320ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(6) { transition-delay: 400ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(7) { transition-delay: 480ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(8) { transition-delay: 560ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(9) { transition-delay: 640ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(10) { transition-delay: 720ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(n+11) { transition-delay: 800ms; }
+@media (prefers-reduced-motion: reduce) {
+  .kz-motion .kz-anim, .kz-motion .kz-anim * { opacity: 1 !important; transform: none !important; transition: none !important; animation: none !important; }
+}
+@media print {
+  .kz-anim, .kz-anim * { opacity: 1 !important; transform: none !important; transition: none !important; animation: none !important; }
+}
+.export-root .kz-anim, .export-root .kz-anim * { opacity: 1 !important; transform: none !important; transition: none !important; animation: none !important; }
+/* Stack spacing sees the carrier, not the component; pass it through. */
+.main-content > .kz-anim > *, .deck-inner > .kz-anim > *, .doc-body > .kz-anim > *, .hub-content > .kz-anim > *, .c-section > .kz-anim > *, .tab-panel > .kz-anim > *, .c-grid-cell > .kz-anim > *, .c-box > .kz-anim > * { margin-bottom: 0; }
+
 /* Grid: explicit-placement layout, cells size from the container */
 .c-grid {
   display: grid;

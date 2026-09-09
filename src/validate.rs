@@ -1723,6 +1723,7 @@ mod tests {
             texture: None,
             glow: None,
             depth: None,
+            motion: false,
             print_flow: None,
             hub: None,
             freshness: None,
@@ -1753,6 +1754,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: "rules".into(),
                 scale: None,
+                animate: None,
             }]),
         );
         page.pack = Some(pack_meta(&[]));
@@ -1769,10 +1771,12 @@ mod tests {
                 components: vec![Component::Markdown {
                     body: "rules".into(),
                     scale: None,
+                    animate: None,
                 }],
                 align: Default::default(),
                 id: None,
                 scale: None,
+                animate: None,
             }]),
         );
         page.pack = Some(pack_meta(&["claude", "cursor"]));
@@ -1796,6 +1800,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: "   ".into(),
                 scale: None,
+                animate: None,
             }]),
         );
         page.pack = Some(pack_meta(&[]));
@@ -1812,6 +1817,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: "rules".into(),
                 scale: None,
+                animate: None,
             }]),
         );
         page.pack = Some(pack_meta(&["claude", "notatool"]));
@@ -1829,6 +1835,7 @@ mod tests {
             align: Default::default(),
             id: None,
             scale: None,
+            animate: None,
         }
     }
 
@@ -1869,6 +1876,7 @@ mod tests {
             texture: None,
             glow: None,
             depth: None,
+            motion: false,
             print_flow: None,
             hub: None,
             freshness: None,
@@ -1927,6 +1935,7 @@ mod tests {
                 min_width: None,
                 connector: CardConnector::None,
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1948,6 +1957,7 @@ mod tests {
                 filterable: false,
                 summary: None,
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1972,6 +1982,7 @@ mod tests {
                 data: None,
                 series: None,
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -2008,6 +2019,7 @@ mod tests {
                     }],
                 }]),
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -2029,6 +2041,7 @@ mod tests {
                 target: None,
                 thresholds: std::collections::HashMap::new(),
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -2148,6 +2161,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: body.into(),
                 scale: None,
+                animate: None,
             }]),
         );
         page.skill = Some(crate::types::SkillMeta {
@@ -2211,6 +2225,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: "```agl\nbroken\n```".into(),
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("plain.yaml", &page);

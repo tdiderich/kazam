@@ -323,11 +323,25 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             title.as_deref(),
         ),
     };
-    apply_scale(rendered, c.scale())
+    apply_motion(apply_scale(rendered, c.scale()), c.animate())
 }
 
 pub(super) fn sem_color_class(c: SemColor) -> &'static str {
     c.class_suffix()
+}
+
+/// Wraps a component in a motion carrier when it opts into `animate`. The
+/// wrapper only does anything under `body.kz-motion`, so pages that never
+/// turn motion on render the same HTML plus one inert div.
+fn apply_motion(mut r: Rendered, animate: Option<Animate>) -> Rendered {
+    if let Some(a) = animate.filter(|a| *a != Animate::None) {
+        r.html = format!(
+            r#"<div class="kz-anim" data-animate="{}">{}</div>"#,
+            a.name(),
+            r.html
+        );
+    }
+    r
 }
 
 /// Wraps a chart/diagram's rendered HTML in a centered container sized to

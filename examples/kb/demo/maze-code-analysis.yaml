@@ -1,12 +1,14 @@
 title: "Maze Code: how the analysis works"
 shell: standard
 print_flow: letter
+motion: true
 
 components:
   - type: section
     id: analysis
     components:
       - type: header
+        animate: fade_up
         title: "Maze Code: how the analysis works"
         subtitle: Scanners find candidates. Agents decide what's real. One verdict per finding, with the reasoning attached.
 
@@ -14,6 +16,7 @@ components:
         id: analysis-grid
         columns: 2
         gap: 12
+        animate: stagger
         children:
           - col: 1
             row: 1

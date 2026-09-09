@@ -127,6 +127,35 @@ components:
             accent: '#14B8B8'
             accent_soft: 'rgba(var(--accent-rgb), 0.08)'
 
+  - type: section
+    eyebrow: Motion
+    heading: Entrance motion, opt in per page
+    components:
+      - type: markdown
+        body: |
+          Any component can carry `animate:` with `fade_up`, `fade_in`, `slide_left`, `slide_right`, or `stagger`. Nothing moves until the page sets `motion: true`. Then each component eases in the first time it scrolls into view; `stagger` on a `grid`, `columns`, `section`, `box`, `card_grid`, or `stat_grid` steps its children in 80ms apart.
+
+          Hosts can force motion on for a presentation view regardless of the page flag. Motion never plays in print, in export screenshots, or for readers who set `prefers-reduced-motion`.
+
+      - type: code
+        language: yaml
+        code: |
+          title: Launch review
+          shell: standard
+          motion: true
+
+          components:
+            - type: header
+              animate: fade_up
+              title: Launch review
+            - type: grid
+              animate: stagger
+              columns: 3
+              children:
+                - component: { type: box, title: Build, body: Green. }
+                - component: { type: box, title: Deploy, body: Green. }
+                - component: { type: box, title: Verify, body: Pending. }
+
   - type: callout
     variant: info
     title: Next up

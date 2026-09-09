@@ -387,6 +387,7 @@ mod tests {
             texture: None,
             glow: None,
             depth: None,
+            motion: false,
             print_flow: None,
             hub: None,
             freshness: None,
@@ -412,6 +413,7 @@ mod tests {
             align: Default::default(),
             id: None,
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Hello World".to_string()));
@@ -426,6 +428,7 @@ mod tests {
         let page = make_page(vec![Component::Markdown {
             body: "# Heading\n**bold** text with [link](http://example.com)".to_string(),
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(!entry.content_snippets.is_empty());
@@ -452,6 +455,7 @@ mod tests {
             ],
             numbered: true,
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Step one".to_string()));
@@ -472,8 +476,10 @@ mod tests {
             components: vec![Component::Markdown {
                 body: "Inner content here".to_string(),
                 scale: None,
+                animate: None,
             }],
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Section Heading".to_string()));
@@ -497,6 +503,7 @@ mod tests {
         let page = make_page(vec![Component::Markdown {
             body: long_text,
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         for snippet in &entry.content_snippets {
@@ -510,6 +517,7 @@ mod tests {
             language: Some("rust".to_string()),
             code: "fn main() { println!(\"secret\"); }".to_string(),
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.content_snippets.is_empty());
@@ -525,9 +533,11 @@ mod tests {
                 components: vec![Component::Markdown {
                     body: "Tab A content".to_string(),
                     scale: None,
+                    animate: None,
                 }],
             }],
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Tab A".to_string()));
@@ -544,14 +554,17 @@ mod tests {
                 vec![Component::Markdown {
                     body: "Left column".to_string(),
                     scale: None,
+                    animate: None,
                 }],
                 vec![Component::Markdown {
                     body: "Right column".to_string(),
                     scale: None,
+                    animate: None,
                 }],
             ],
             equal_heights: false,
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry

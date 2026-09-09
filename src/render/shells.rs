@@ -481,7 +481,7 @@ pub mod standard {
             crate::types::PrintFlow::Letter => "print-letter",
         };
 
-        let body_class = if is_sidebar {
+        let mut body_class = if is_sidebar {
             format!(
                 "{} nav-layout-sidebar {}",
                 Shell::Standard.class(),
@@ -490,6 +490,10 @@ pub mod standard {
         } else {
             format!("{} {}", Shell::Standard.class(), flow_class)
         };
+        if page.motion {
+            body_class.push_str(" kz-motion");
+            scripts.push("motion");
+        }
 
         format!(
             r#"<!DOCTYPE html>
@@ -614,6 +618,9 @@ pub mod hub {
 
         let mut scripts = body.scripts.clone();
         scripts.push("search");
+        if page.motion {
+            scripts.push("motion");
+        }
         if !release {
             scripts.push("reload");
         }
@@ -636,7 +643,11 @@ pub mod hub {
 </body>
 </html>"#,
             head = head(page, config, base, rel_path),
-            cls = Shell::Hub.class(),
+            cls = if page.motion {
+                format!("{} kz-motion", Shell::Hub.class())
+            } else {
+                Shell::Hub.class().to_string()
+            },
             bar = bar,
             masthead = masthead_html,
             body = body.html,
@@ -670,6 +681,9 @@ pub mod document {
 
         let mut scripts = body.scripts.clone();
         scripts.push("search");
+        if page.motion {
+            scripts.push("motion");
+        }
         if !release {
             scripts.push("reload");
         }
@@ -697,7 +711,11 @@ pub mod document {
 </body>
 </html>"#,
             head = head(page, config, base, rel_path),
-            cls = Shell::Document.class(),
+            cls = if page.motion {
+                format!("{} kz-motion", Shell::Document.class())
+            } else {
+                Shell::Document.class().to_string()
+            },
             bar = bar,
             body = body.html,
             view_src = view_src,

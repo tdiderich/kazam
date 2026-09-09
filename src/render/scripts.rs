@@ -15,6 +15,7 @@ pub fn get(name: &str) -> Option<&'static str> {
         "source_pill" => Some(SOURCE_PILL),
         "queue_collapse" => Some(QUEUE_COLLAPSE),
         "queue_filter" => Some(QUEUE_FILTER),
+        "motion" => Some(MOTION),
         _ => None,
     }
 }
@@ -862,4 +863,24 @@ document.querySelectorAll('[data-queue-search]').forEach(function (input) {
     });
   });
 });
+"#;
+
+/// Reveals `[data-animate]` carriers as they scroll into view. Without an
+/// IntersectionObserver (or with reduced motion) everything is shown at once.
+const MOTION: &str = r#"
+(function () {
+  var els = document.querySelectorAll('.kz-motion .kz-anim');
+  if (!els.length) return;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !('IntersectionObserver' in window)) {
+    els.forEach(function (el) { el.classList.add('kz-in'); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('kz-in'); io.unobserve(e.target); }
+    });
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+  els.forEach(function (el) { io.observe(el); });
+})();
 "#;

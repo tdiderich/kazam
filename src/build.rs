@@ -811,6 +811,7 @@ fn generate_health_page(
         ],
         columns: 4,
         scale: None,
+        animate: None,
     });
 
     // 2. ProgressBar: Freshness coverage
@@ -831,6 +832,7 @@ fn generate_health_page(
         target: None,
         thresholds: HashMap::new(),
         scale: None,
+        animate: None,
     });
 
     // 3. Overdue table (if any)
@@ -905,6 +907,7 @@ fn generate_health_page(
             filterable: true,
             summary: None,
             scale: None,
+            animate: None,
         });
     }
 
@@ -975,6 +978,7 @@ fn generate_health_page(
             filterable: true,
             summary: None,
             scale: None,
+            animate: None,
         });
     }
 
@@ -1074,6 +1078,7 @@ fn generate_health_page(
                 filterable: false,
                 summary: None,
                 scale: None,
+                animate: None,
             });
         }
     }
@@ -1095,6 +1100,7 @@ fn generate_health_page(
             ),
             links: None,
             scale: None,
+            animate: None,
         });
     }
 
@@ -1109,6 +1115,7 @@ fn generate_health_page(
         texture: None,
         glow: None,
         depth: None,
+        motion: false,
         print_flow: None,
         hub: None,
         freshness: None,

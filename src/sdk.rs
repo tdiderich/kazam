@@ -285,6 +285,7 @@ fn generate_typescript() -> String {
     out.push_str("  texture?: Texture;\n");
     out.push_str("  glow?: Glow;\n");
     out.push_str("  depth?: Depth;\n");
+    out.push_str("  motion?: boolean;\n");
     out.push_str("  print_flow?: PrintFlow;\n");
     out.push_str("  hub?: HubConfig;\n");
     out.push_str("  search_terms?: string[];\n");
@@ -647,6 +648,8 @@ interface PageData {
   slides?: SlideData[];
   freshness?: FreshnessData | "never";
   hub?: HubData;
+  /** Play entrance motion for components with `animate`. Off by default. */
+  motion?: boolean;
 }
 
 interface ComponentData {
@@ -658,6 +661,8 @@ interface PageRendererProps {
   page: PageData;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
+  /** Force entrance motion on regardless of `page.motion` (presentation mode). */
+  motion?: boolean;
   /** Map a hub link href to an environment URL (e.g. slug -> /pages/slug). Defaults to identity. */
   resolveHubHref?: (href: string) => string;
   /** The current page's href as written in the hub block - drives the active tab. */
@@ -3904,11 +3909,35 @@ function ComponentView({
     : <div data-kz-path={kz} data-kz-type={comp.type} className="kz-wrap" style={{ display: "contents" }}>{content}</div>;
 
   const scale = comp.scale as number | undefined;
-  if (scale != null) {
-    const s = Math.min(2, Math.max(0.1, scale));
-    return <div className="c-chart-scale" style={{ ["--kz-scale" as any]: s }}>{tagged}</div>;
+  const scaled = scale != null
+    ? <div className="c-chart-scale" style={{ ["--kz-scale" as any]: Math.min(2, Math.max(0.1, scale)) }}>{tagged}</div>
+    : tagged;
+  const animate = comp.animate as string | undefined;
+  if (animate && animate !== "none") {
+    return <div className="kz-anim" data-animate={animate.replace(/_/g, "-")}>{scaled}</div>;
   }
-  return tagged;
+  return scaled;
+}
+
+/** Reveals `.kz-anim` carriers under `root` as they scroll into view. */
+function useMotionReveal(root: React.RefObject<HTMLElement | null>, enabled: boolean) {
+  React.useEffect(() => {
+    if (!enabled || !root.current) return;
+    const els = Array.from(root.current.querySelectorAll<HTMLElement>(".kz-anim"));
+    if (els.length === 0) return;
+    const reduce = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || typeof IntersectionObserver === "undefined") {
+      els.forEach((el) => el.classList.add("kz-in"));
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add("kz-in"); io.unobserve(e.target); }
+      });
+    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [root, enabled]);
 }
 
 function DeckRenderer({ slides, renderChart, renderRoleMap }: { slides: SlideData[]; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
@@ -4143,7 +4172,10 @@ function HubMasthead({ hub, resolveHref, activeHref, exportMode }: { hub: HubDat
   );
 }
 
-export function PageRenderer({ page, renderChart, renderRoleMap, resolveHubHref, activeHubHref, exportMode, componentWrapper: CW }: PageRendererProps) {
+export function PageRenderer({ page, renderChart, renderRoleMap, motion, resolveHubHref, activeHubHref, exportMode, componentWrapper: CW }: PageRendererProps) {
+  const motionOn = !exportMode && (motion ?? page.motion ?? false);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  useMotionReveal(rootRef, motionOn);
   if (page.shell === "deck" && page.slides && page.slides.length > 0) {
     if (exportMode) {
       return (
@@ -4183,13 +4215,13 @@ export function PageRenderer({ page, renderChart, renderRoleMap, resolveHubHref,
   );
   if (page.shell === "hub" && page.hub) {
     return (
-      <div className={`hub-root${exportMode ? " export-root" : ""}`}>
+      <div ref={rootRef} className={`hub-root${exportMode ? " export-root" : ""}${motionOn ? " kz-motion" : ""}`}>
         <HubMasthead hub={page.hub} resolveHref={resolveHubHref} activeHref={activeHubHref} exportMode={exportMode} />
         <div className="hub-content">{body}</div>
       </div>
     );
   }
-  return <div className={exportMode ? "export-root" : undefined}>{body}</div>;
+  return <div ref={rootRef} className={[exportMode ? "export-root" : "", motionOn ? "kz-motion" : ""].filter(Boolean).join(" ") || undefined}>{body}</div>;
 }
 
 export { ComponentView, DeckRenderer, HubMasthead, type SlideData, type PageData, type ComponentData, type PageRendererProps, type HubData };

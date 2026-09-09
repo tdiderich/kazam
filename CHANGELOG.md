@@ -13,6 +13,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `kazam export pdf <page.yaml> [-o out.pdf] [--chrome <path>]`: builds the page's site to a temp dir and prints it with headless Chrome using the same `@media print` rules as the browser Download PDF button. Auto-detects Chrome on macOS/Linux, or set `KAZAM_CHROME`.
 - `print_flow: letter` for `shell: standard`: portrait US letter, one top-level section per page, top-aligned document flow. Nested sections render as headings within the page.
 - `depth: flat | soft | lifted` theme axis (site-wide in `kazam.yaml`, per-page override, `kazam theme css --depth`). Panels (card, stat, callout, box, code, table, and friends) get a layered surface tint and low shadow at `soft` (the new default); `lifted` adds an accent top edge and hover lift. Switchable CSS emits `[data-depth="…"]` selectors. Print and `.export-root` always render flat.
+- Entrance motion: every component accepts `animate: none | fade_up | fade_in | slide_left | slide_right | stagger` (a styling field like `scale`, not in the component schema). Pages opt in with `motion: true`; the static build adds an IntersectionObserver reveal script and `body.kz-motion`, the React renderer takes `page.motion` or a `motion` prop (for presentation mode). Disabled under `prefers-reduced-motion`, in print, and in `.export-root`.
 - Example page `examples/kb/demo/maze-code-analysis.yaml` reproducing a two-page customer PDF with the new primitives.
 
 ### Changed

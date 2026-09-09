@@ -239,6 +239,7 @@ mod tests {
             align: Default::default(),
             id: None,
             scale: None,
+            animate: None,
         }
     }
 
@@ -246,6 +247,7 @@ mod tests {
         Component::Markdown {
             body: "Hello".to_string(),
             scale: None,
+            animate: None,
         }
     }
 
@@ -257,6 +259,7 @@ mod tests {
             align: Default::default(),
             id: None,
             scale: None,
+            animate: None,
         }
     }
 
@@ -299,6 +302,7 @@ mod tests {
         let tabs = Component::Tabs {
             tabs: vec![tab1, tab2],
             scale: None,
+            animate: None,
         };
         let names = collect_component_types(&[tabs]);
         assert!(names.contains(&"tabs".to_string()));
@@ -312,6 +316,7 @@ mod tests {
             columns: vec![vec![make_header()], vec![make_markdown()]],
             equal_heights: false,
             scale: None,
+            animate: None,
         };
         let names = collect_component_types(&[cols]);
         assert!(names.contains(&"columns".to_string()));
@@ -327,6 +332,7 @@ mod tests {
                 components: vec![make_markdown()],
             }],
             scale: None,
+            animate: None,
         };
         let names = collect_component_types(&[acc]);
         assert!(names.contains(&"accordion".to_string()));

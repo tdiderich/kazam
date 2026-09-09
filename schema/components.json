@@ -122,6 +122,14 @@
       "soft",
       "lifted"
     ],
+    "Animate": [
+      "none",
+      "fade_up",
+      "fade_in",
+      "slide_left",
+      "slide_right",
+      "stagger"
+    ],
     "NavLayout": [
       "top",
       "sidebar"

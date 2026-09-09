@@ -2660,3 +2660,44 @@ fn markdown_raw_html_is_escaped_not_executed() {
     assert_contains(&html, "&lt;img src=x");
     assert_contains(&html, "&lt;script&gt;alert(2)&lt;/script&gt;");
 }
+
+#[test]
+fn motion_page_emits_carriers_body_class_and_script() {
+    let html = build_one_page(
+        "motion-on",
+        "title: M\nshell: standard\nmotion: true\ncomponents:\n  - type: markdown\n    animate: fade_up\n    body: hi\n  - type: grid\n    animate: stagger\n    columns: 2\n    children:\n      - component: { type: box, title: A, body: a }\n      - component: { type: box, title: B, body: b }\n  - type: markdown\n    body: plain\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<body class="shell-standard print-slides kz-motion">"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="kz-anim" data-animate="fade-up"><div class="c-markdown">"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="kz-anim" data-animate="stagger"><div class="c-grid""#,
+    );
+    assert_contains(&html, "IntersectionObserver");
+    assert!(html.matches("kz-anim").count() >= 2);
+}
+
+#[test]
+fn motion_off_page_has_no_body_class_or_script() {
+    let html = build_one_page(
+        "motion-off",
+        "title: M\nshell: standard\ncomponents:\n  - type: markdown\n    animate: fade_up\n    body: hi\n",
+        "",
+    );
+    assert!(
+        !html.contains(r#"print-slides kz-motion"#),
+        "body class leaked without motion: true"
+    );
+    assert!(
+        !html.contains("IntersectionObserver"),
+        "motion script leaked"
+    );
+    assert_contains(&html, r#"data-animate="fade-up""#);
+}
