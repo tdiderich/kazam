@@ -12,6 +12,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `connector` component: a grid cell holding a line with an arrowhead, `direction: down | right`, optional `label` drawn over the line, `color`/`hex`.
 - `kazam export pdf <page.yaml> [-o out.pdf] [--chrome <path>]`: builds the page's site to a temp dir and prints it with headless Chrome using the same `@media print` rules as the browser Download PDF button. Auto-detects Chrome on macOS/Linux, or set `KAZAM_CHROME`.
 - `print_flow: letter` for `shell: standard`: portrait US letter, one top-level section per page, top-aligned document flow. Nested sections render as headings within the page.
+- `depth: flat | soft | lifted` theme axis (site-wide in `kazam.yaml`, per-page override, `kazam theme css --depth`). Panels (card, stat, callout, box, code, table, and friends) get a layered surface tint and low shadow at `soft` (the new default); `lifted` adds an accent top edge and hover lift. Switchable CSS emits `[data-depth="…"]` selectors. Print and `.export-root` always render flat.
 - Example page `examples/kb/demo/maze-code-analysis.yaml` reproducing a two-page customer PDF with the new primitives.
 
 ### Changed

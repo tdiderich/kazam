@@ -12,6 +12,7 @@ fn head(page: &Page, config: &SiteConfig, base: &str, rel_path: &str) -> String 
     // explicit `none` at the page level turns the effect off on that page.
     let texture = page.texture.unwrap_or(config.texture);
     let glow = page.glow.unwrap_or(config.glow);
+    let depth = page.depth.unwrap_or(config.depth);
     let social = social_meta(page, config, base, rel_path);
     format!(
         r#"<head>
@@ -25,7 +26,7 @@ fn head(page: &Page, config: &SiteConfig, base: &str, rel_path: &str) -> String 
         site = esc(&config.name),
         social = social,
         favicon = favicon,
-        css = theme::render_css(&theme, texture, glow),
+        css = theme::render_css(&theme, texture, glow, depth),
     )
 }
 

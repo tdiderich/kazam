@@ -284,6 +284,7 @@ fn generate_typescript() -> String {
     out.push_str("  unlisted?: boolean;\n");
     out.push_str("  texture?: Texture;\n");
     out.push_str("  glow?: Glow;\n");
+    out.push_str("  depth?: Depth;\n");
     out.push_str("  print_flow?: PrintFlow;\n");
     out.push_str("  hub?: HubConfig;\n");
     out.push_str("  search_terms?: string[];\n");
@@ -308,6 +309,7 @@ fn generate_typescript() -> String {
     out.push_str("  view_source?: boolean;\n");
     out.push_str("  texture?: Texture;\n");
     out.push_str("  glow?: Glow;\n");
+    out.push_str("  depth?: Depth;\n");
     out.push_str("  nav_layout?: NavLayout;\n");
     out.push_str("  mode?: Mode;\n");
     out.push_str("  description?: string;\n");

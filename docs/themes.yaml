@@ -110,9 +110,12 @@ components:
           mode: light              # optional - flips rainbow themes onto light base
           texture: grid            # pairs with any theme
           glow: accent             # picks up the active accent
+          depth: soft              # flat | soft (default) | lifted
 
       - type: markdown
         body: |
+          `depth` controls how panels (cards, callouts, boxes, stats, tables, code) sit on the page. `flat` is a hairline border only. `soft`, the default, layers a faint top tint and a low shadow so panels read as resting on the background. `lifted` adds an accent top edge and a hover lift for interactive pages. Any page can override it with its own `depth:`. Print and export always render flat.
+
           `mode` only affects the rainbow themes (`red` / `orange` / …). `theme: dark` and `theme: light` are self-contained and ignore it. Need a custom accent outside the stock set? Override any theme token directly with `colors:` - the named theme is just a starting point.
 
       - type: code

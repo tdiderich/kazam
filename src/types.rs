@@ -176,6 +176,9 @@ pub struct Page {
     /// above: unset = inherit, any Some value wins over the site config.
     #[serde(default)]
     pub glow: Option<Glow>,
+    /// Override the site-wide `depth` on this page. Unset = inherit.
+    #[serde(default)]
+    pub depth: Option<Depth>,
     /// How `shell: deck` pages export to PDF. `slides` (default): one slide per
     /// landscape page, Keynote-style. `continuous`: all slides flow on a single
     /// scrolling document with a thin separator between them - nicer for
@@ -2078,6 +2081,9 @@ pub struct SiteConfig {
     /// Defaults to `none`.
     #[serde(default)]
     pub glow: Glow,
+    /// Surface depth for panel components. Defaults to `soft`.
+    #[serde(default)]
+    pub depth: Depth,
     /// Nav layout for `shell: standard` pages. Defaults to `top`.
     #[serde(default)]
     pub nav_layout: NavLayout,
@@ -2218,6 +2224,29 @@ pub enum Glow {
     Corner,
 }
 
+/// How much surface depth cards, callouts, boxes, and similar panels get.
+/// `flat` is a hairline border on the page ground. `soft` (default) adds a
+/// layered tint and a low shadow so panels read as sitting on the page.
+/// `lifted` adds a hover lift and an accent top edge for interactive pages.
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Depth {
+    Flat,
+    #[default]
+    Soft,
+    Lifted,
+}
+
+impl Depth {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Depth::Flat => "flat",
+            Depth::Soft => "soft",
+            Depth::Lifted => "lifted",
+        }
+    }
+}
+
 /// Logo image for the site-bar brand slot. Accepts either a shorthand
 /// string (a path to the image) or an object with `src`, optional
 /// `height` (px - upper bound on rendered height; defaults to the
@@ -2354,6 +2383,7 @@ impl Default for SiteConfig {
             view_source: None,
             texture: Texture::None,
             glow: Glow::None,
+            depth: Depth::Soft,
             nav_layout: NavLayout::Top,
             mode: Mode::Dark,
             description: None,

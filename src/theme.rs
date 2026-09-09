@@ -1,4 +1,4 @@
-use crate::types::{Glow, Mode, Texture};
+use crate::types::{Depth, Glow, Mode, Texture};
 use std::collections::HashMap;
 
 /// A theme is a set of named color tokens. Any page rendered with this theme
@@ -259,10 +259,104 @@ pub fn light() -> Theme {
     }
 }
 
-pub fn render_css(theme: &Theme, texture: Texture, glow: Glow) -> String {
+pub fn render_css(theme: &Theme, texture: Texture, glow: Glow, depth: Depth) -> String {
     let mut out = theme.root_block();
     out.push_str(STATIC_CSS);
     out.push_str(&decoration_css(theme, texture, glow));
+    out.push_str(&depth_css(Some(depth)));
+    out
+}
+
+/// Panel components that take the depth treatment.
+const DEPTH_SURFACES: &str =
+    ".c-card, .c-stat, .c-callout, .c-box, .c-ba-card, .c-step, .c-meta-item, \
+     .c-accordion-item, .c-code, .c-table, .c-blockquote, .c-empty-state, .c-definition-list, \
+     .c-event, .c-tree-node, .c-chart, .c-selectable-card";
+
+/// Depth rules. `Some(d)` bakes one level in; `None` emits every level under
+/// a `[data-depth=...]` selector for runtime switching. Both paths reference
+/// CSS custom properties only, so they follow theme/mode switches.
+fn depth_css(baked: Option<Depth>) -> String {
+    fn rules(prefix: &str) -> [(Depth, String); 3] {
+        let sel = |d: Depth| -> String {
+            DEPTH_SURFACES
+                .split(',')
+                .map(|s| {
+                    format!(
+                        "{}{}",
+                        if prefix.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{} ", prefix.replace("{d}", d.name()))
+                        },
+                        s.trim()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let hover = |d: Depth| -> String {
+            [".c-card", ".c-box", ".c-stat", ".c-selectable-card"]
+                .iter()
+                .map(|s| {
+                    format!(
+                        "{}{}:hover",
+                        if prefix.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{} ", prefix.replace("{d}", d.name()))
+                        },
+                        s
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let flat = format!(
+            "{} {{ box-shadow: none; background-image: none; }}\n",
+            sel(Depth::Flat)
+        );
+        let soft = format!(
+            "{} {{ background-image: linear-gradient(180deg, rgba(var(--text-rgb), 0.035), rgba(var(--text-rgb), 0) 55%); \
+             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), 0 10px 28px -14px rgba(0, 0, 0, 0.45); }}\n",
+            sel(Depth::Soft)
+        );
+        let lifted = format!(
+            "{} {{ background-image: linear-gradient(180deg, rgba(var(--text-rgb), 0.05), rgba(var(--text-rgb), 0) 55%); \
+             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 14px 36px -16px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(var(--accent-rgb), 0.35); \
+             transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.2s; }}\n\
+             {} {{ transform: translateY(-2px); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25), 0 20px 44px -16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(var(--accent-rgb), 0.55); }}\n",
+            sel(Depth::Lifted),
+            hover(Depth::Lifted)
+        );
+        [
+            (Depth::Flat, flat),
+            (Depth::Soft, soft),
+            (Depth::Lifted, lifted),
+        ]
+    }
+    let mut out = String::from("/* ── Depth ── */\n");
+    match baked {
+        Some(d) => {
+            for (level, css) in rules("") {
+                if level == d {
+                    out.push_str(&css);
+                }
+            }
+        }
+        None => {
+            for (_, css) in rules("[data-depth=\"{d}\"]") {
+                out.push_str(&css);
+            }
+        }
+    }
+    // Shadows and lifts are screen-only. Export and print stay flat.
+    out.push_str(&format!(
+        "@media print {{ {sel} {{ box-shadow: none !important; transform: none !important; background-image: none !important; }} }}\n\
+         .export-root {sel_export} {{ box-shadow: none !important; transform: none !important; background-image: none !important; }}\n\n",
+        sel = DEPTH_SURFACES.split(',').map(|s| s.trim().to_string()).collect::<Vec<_>>().join(", "),
+        sel_export = DEPTH_SURFACES.split(',').map(|s| s.trim().to_string()).collect::<Vec<_>>().join(", .export-root "),
+    ));
     out
 }
 
@@ -392,6 +486,7 @@ pub fn render_switchable_css(theme: &Theme) -> String {
     out.push_str("[data-glow=\"none\"] body::after { display: none; }\n\n");
 
     out.push_str(STATIC_CSS);
+    out.push_str(&depth_css(None));
 
     // ── Print: move texture from ::before (position:fixed doesn't print) to body background, strip glow ──
     out.push_str("@media print { body::before, body::after { display: none !important; } }\n");
@@ -4292,5 +4387,19 @@ mod tests {
         assert!(css.contains("[data-mode=\"light\"]"));
         assert!(css.contains("[data-theme=\"violet\"]"));
         assert!(css.contains("[data-theme=\"green\"]"));
+        assert!(css.contains("[data-depth=\"soft\"] .c-card"));
+        assert!(css.contains("[data-depth=\"lifted\"] .c-card:hover"));
+    }
+
+    #[test]
+    fn baked_css_emits_only_requested_depth() {
+        let t = Theme::named("dark", Mode::Dark);
+        let soft = render_css(&t, Texture::None, Glow::None, Depth::Soft);
+        assert!(soft.contains("/* ── Depth ── */"));
+        assert!(soft.contains("box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22)"));
+        assert!(!soft.contains("inset 0 1px 0 rgba(var(--accent-rgb), 0.55)"));
+        let flat = render_css(&t, Texture::None, Glow::None, Depth::Flat);
+        assert!(!flat.contains("0 10px 28px"));
+        assert!(flat.contains(".export-root .c-card"));
     }
 }

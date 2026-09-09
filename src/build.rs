@@ -1108,6 +1108,7 @@ fn generate_health_page(
         unlisted: true,
         texture: None,
         glow: None,
+        depth: None,
         print_flow: None,
         hub: None,
         freshness: None,

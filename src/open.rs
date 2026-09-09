@@ -556,7 +556,7 @@ fn render_page(
 
     let cfg = load_theme_config();
     let (theme, texture, glow) = resolve_theme(&cfg);
-    let theme_css = theme::render_css(&theme, texture, glow);
+    let theme_css = theme::render_css(&theme, texture, glow, crate::types::Depth::Soft);
     let (syn_key, syn_str, syn_num, syn_bool, syn_null) = if cfg.mode == "light" {
         ("#0369a1", "#15803d", "#a16207", "#7e22ce", "#b91c1c")
     } else {

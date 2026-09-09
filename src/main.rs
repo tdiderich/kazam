@@ -396,7 +396,10 @@ enum ThemeCommand {
         /// Enable glow effect (none, accent, corner)
         #[arg(long, default_value = "none")]
         glow: String,
-        /// Emit all theme/mode/texture/glow variants as [data-*] CSS selectors
+        /// Surface depth for panels (flat, soft, lifted)
+        #[arg(long, default_value = "soft")]
+        depth: String,
+        /// Emit all theme/mode/texture/glow/depth variants as [data-*] CSS selectors
         /// for runtime switching. When set, --theme/--mode/--texture/--glow are ignored.
         #[arg(long)]
         switchable: bool,
@@ -521,6 +524,14 @@ fn parse_glow(s: &str) -> types::Glow {
         "accent" => types::Glow::Accent,
         "corner" => types::Glow::Corner,
         _ => types::Glow::None,
+    }
+}
+
+fn parse_depth(s: &str) -> types::Depth {
+    match s {
+        "flat" => types::Depth::Flat,
+        "lifted" => types::Depth::Lifted,
+        _ => types::Depth::Soft,
     }
 }
 
@@ -750,6 +761,7 @@ fn main() -> Result<()> {
                 mode,
                 texture,
                 glow,
+                depth,
                 switchable,
             } => {
                 if switchable {
@@ -766,7 +778,8 @@ fn main() -> Result<()> {
                     let t = theme::Theme::named(&theme_name, m);
                     let tex = parse_texture(&texture);
                     let g = parse_glow(&glow);
-                    print!("{}", theme::render_css(&t, tex, g));
+                    let d = parse_depth(&depth);
+                    print!("{}", theme::render_css(&t, tex, g, d));
                 }
                 Ok(())
             }

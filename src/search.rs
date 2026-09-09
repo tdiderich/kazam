@@ -386,6 +386,7 @@ mod tests {
             unlisted: false,
             texture: None,
             glow: None,
+            depth: None,
             print_flow: None,
             hub: None,
             freshness: None,
