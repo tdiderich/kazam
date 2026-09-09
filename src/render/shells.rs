@@ -477,6 +477,7 @@ pub mod standard {
             crate::types::PrintFlow::Slides => "print-slides",
             crate::types::PrintFlow::Continuous => "print-continuous",
             crate::types::PrintFlow::Square => "print-square",
+            crate::types::PrintFlow::Letter => "print-letter",
         };
 
         let body_class = if is_sidebar {
@@ -798,6 +799,7 @@ pub mod deck {
             crate::types::PrintFlow::Slides => "print-slides",
             crate::types::PrintFlow::Continuous => "print-continuous",
             crate::types::PrintFlow::Square => "print-square",
+            crate::types::PrintFlow::Letter => "print-letter",
         };
 
         format!(

@@ -3707,6 +3707,7 @@ a.c-queue-label:hover {
 @page deck-page-square { size: 8.5in 8.5in; margin: 0; }
 @page standard-page { size: 10in 5.625in; margin: 0; }
 @page standard-continuous { size: 11in 8.5in; margin: 0; }
+@page standard-letter { size: 8.5in 11in; margin: 0; }
 body.shell-deck.print-slides { page: deck-page; }
 body.shell-deck.print-square { page: deck-page-square; }
 body.shell-standard { page: standard-page; }
@@ -3748,6 +3749,39 @@ body.shell-standard { page: standard-page; }
   body.shell-standard .c-section > * { width: 100%; max-width: 9in; margin-left: auto; margin-right: auto; }
   body.shell-standard .c-hero { height: 5.625in; box-sizing: border-box; padding: 0.28in 0.5in !important; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; }
   body.shell-standard .c-chart { break-inside: avoid; page-break-inside: avoid; }
+
+  /* ── Standard letter: portrait pages, one section per page, top-aligned document flow ── */
+  body.shell-standard.print-letter { page: standard-letter !important; }
+  body.shell-standard.print-letter .c-section { break-before: page; page-break-before: always; min-height: 0; height: auto; padding: 0.45in 0.6in !important; display: block; }
+  body.shell-standard.print-letter .c-section > * { max-width: none; margin-left: 0; margin-right: 0; }
+  body.shell-standard.print-letter .c-section > *:not(.c-section-header) { margin-bottom: 12px; }
+  body.shell-standard.print-letter .c-section > .kz-wrap > * { margin-bottom: 12px; }
+  body.shell-standard.print-letter .c-section-header { margin-bottom: 10px; }
+  body.shell-standard.print-letter .main-content > .c-section:first-child,
+  body.shell-standard.print-letter .main-content > .kz-wrap:first-child > .c-section { break-before: auto; page-break-before: auto; }
+  body.shell-standard.print-letter .c-hero + .c-section { break-before: auto; page-break-before: auto; }
+  /* Only top-level sections start a page; nested sections are headings within it. */
+  body.shell-standard.print-letter .c-section .c-section { break-before: auto !important; page-break-before: auto !important; padding: 0 !important; margin-top: 6px; }
+  body.shell-standard.print-letter .c-header { margin-bottom: 6px; }
+  body.shell-standard.print-letter .c-header-title { font-size: 22px; }
+  body.shell-standard.print-letter .c-header-subtitle { font-size: 13px; }
+  /* Flex columns inside a grid fragment badly in Chrome print and jump to a
+     fresh page even when they fit. Block columns paginate normally. */
+  body.shell-standard.print-letter .c-columns { display: table; width: 100%; table-layout: fixed; border-spacing: 16px 0; margin-left: -16px; width: calc(100% + 32px); }
+  body.shell-standard.print-letter .c-column { display: table-cell; vertical-align: top; }
+  body.shell-standard.print-letter .c-column > * { margin-bottom: 8px; }
+  body.shell-standard.print-letter .c-table { font-size: 11px; line-height: 1.4; }
+  body.shell-standard.print-letter .c-table th, body.shell-standard.print-letter .c-table td { padding: 5px 9px; }
+  body.shell-standard.print-letter .c-table-wrap { display: block; }
+  body.shell-standard.print-letter .c-callout { padding: 8px 12px; }
+  body.shell-standard.print-letter .c-box, body.shell-standard.print-letter .c-grid-cell { break-inside: avoid; page-break-inside: avoid; }
+  body.shell-standard.print-letter { font-size: 12px; }
+  body.shell-standard.print-letter .c-box { font-size: 11px; padding: 8px 11px; }
+  body.shell-standard.print-letter .c-box-title { font-size: 12.5px; }
+  body.shell-standard.print-letter .c-box-tag { font-size: 9.5px; }
+  body.shell-standard.print-letter .c-connector { min-height: 20px; font-size: 9.5px; }
+  body.shell-standard.print-letter .c-markdown, body.shell-standard.print-letter .c-callout-body, body.shell-standard.print-letter .c-table { font-size: 12px; }
+  body.shell-standard.print-letter .c-section-heading { font-size: 16px; }
 
   /* ── Standard continuous: letter-size pages, vertically centered sections ── */
   body.shell-standard.print-continuous { page: standard-continuous !important; }

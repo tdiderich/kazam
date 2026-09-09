@@ -2607,3 +2607,41 @@ fn grid_box_connector_render_html() {
     );
     assert_contains(&html, r#"<b class="c-box-title">B</b>"#);
 }
+
+#[test]
+fn export_pdf_writes_letter_document() {
+    let chrome =
+        std::path::Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+    if !chrome.exists() && std::env::var("KAZAM_CHROME").is_err() {
+        eprintln!("skipping export_pdf test: no Chrome");
+        return;
+    }
+    let dir = tmp_dir("export-pdf");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: T\ntheme: dark\n").unwrap();
+    std::fs::write(
+        dir.join("doc.yaml"),
+        "title: Doc\nshell: standard\nprint_flow: letter\ncomponents:\n  - type: section\n    heading: One\n    components:\n      - type: markdown\n        body: first page\n  - type: section\n    heading: Two\n    components:\n      - type: markdown\n        body: second page\n",
+    )
+    .unwrap();
+    let out = dir.join("doc.pdf");
+    let status = Command::new(bin())
+        .args(["export", "pdf"])
+        .arg(dir.join("doc.yaml"))
+        .arg("-o")
+        .arg(&out)
+        .arg("--quiet")
+        .status()
+        .expect("run kazam export pdf");
+    assert!(status.success());
+    let bytes = std::fs::read(&out).unwrap();
+    assert!(bytes.starts_with(b"%PDF"), "not a PDF");
+    let pages = bytes
+        .windows(6)
+        .filter(|w| *w == b"/Page\n" || *w == b"/Page " || *w == b"/Page/")
+        .count();
+    assert!(
+        pages >= 2,
+        "expected 2 pages (one per section), found {pages}"
+    );
+}

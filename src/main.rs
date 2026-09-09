@@ -13,6 +13,7 @@ mod cli_reference;
 mod connect;
 mod ctx;
 mod dev;
+mod export;
 mod freshness;
 mod icons;
 mod id;
@@ -205,6 +206,11 @@ enum Command {
         #[arg(short, long, default_value_t = 3001)]
         port: u16,
     },
+    /// Export a page to another format (currently: pdf via headless Chrome)
+    Export {
+        #[command(subcommand)]
+        command: ExportCommand,
+    },
     /// Open a file (.md, .yaml, .json) in the browser with live reload and inline editing.
     Open {
         /// Path to the file to open
@@ -353,6 +359,25 @@ enum SdkCommand {
     EmitSchema,
     /// Print markdown component reference to stdout (for agent context)
     EmitAgents,
+}
+
+#[derive(Subcommand)]
+enum ExportCommand {
+    /// Build one page and print it to PDF with headless Chrome. Honors the
+    /// page's `print_flow` (use `letter` for a portrait document).
+    Pdf {
+        /// Path to the page .yaml
+        page: PathBuf,
+        /// Output PDF path (default: next to the page, .pdf extension)
+        #[arg(short, long)]
+        out: Option<PathBuf>,
+        /// Chrome/Chromium binary (default: auto-detect, or $KAZAM_CHROME)
+        #[arg(long)]
+        chrome: Option<PathBuf>,
+        /// Suppress the success line
+        #[arg(short, long)]
+        quiet: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -555,6 +580,17 @@ fn main() -> Result<()> {
         Command::Track { command, dir } => track::run(command, &dir),
         Command::Ctx { command, dir } => ctx::run(command, &dir),
         Command::Board { dir, port } => board::run(&dir, port),
+        Command::Export { command } => match command {
+            ExportCommand::Pdf {
+                page,
+                out,
+                chrome,
+                quiet,
+            } => {
+                let out = out.unwrap_or_else(|| page.with_extension("pdf"));
+                export::run_pdf(&page, &out, chrome.as_deref(), quiet)
+            }
+        },
         Command::Open { path, port } => open::run(&path, port),
         Command::Show { path } => show::run(&path),
         Command::Workspace { command, dir } => workspace::run_command(command, &dir),

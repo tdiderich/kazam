@@ -4,6 +4,24 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `grid` component: explicit-placement CSS grid. Children carry 1-based `col`/`row` plus `colspan`/`rowspan`; omit them to auto-flow. Cells size from the container. Validation errors on overlapping cells, out-of-bounds placement, and grids nested more than 3 deep.
+- `box` component: bordered panel with `title`, uppercase right-aligned `tag`, markdown `body`, and optional nested `components`. `color` (SemColor) or `hex` override, `border: solid | dashed`. Needs a body or at least one child.
+- `connector` component: a grid cell holding a line with an arrowhead, `direction: down | right`, optional `label` drawn over the line, `color`/`hex`.
+- `kazam export pdf <page.yaml> [-o out.pdf] [--chrome <path>]`: builds the page's site to a temp dir and prints it with headless Chrome using the same `@media print` rules as the browser Download PDF button. Auto-detects Chrome on macOS/Linux, or set `KAZAM_CHROME`.
+- `print_flow: letter` for `shell: standard`: portrait US letter, one top-level section per page, top-aligned document flow. Nested sections render as headings within the page.
+- Example page `examples/kb/demo/maze-code-analysis.yaml` reproducing a two-page customer PDF with the new primitives.
+
+### Changed
+- The `CardGrid`/`SelectableGrid` connector enum is now `CardConnector` in the schema (values unchanged: `none | dots_line | arrow`). YAML authored as `connector: arrow` is unaffected.
+- `valid_hex_color` moved from the chart renderer into `types` and is shared by `graph`, `box`, and `connector`.
+
+### Fixed
+- Skill and pack markdown collection now recurses into `columns`, not only `section`, so installable markdown inside a column is picked up.
+- Print: `columns` no longer jump to a fresh page when they would fit; in letter flow they lay out as table cells, which Chrome paginates correctly.
+
 ## [1.26.0] - 2026-08-31
 
 ### Added

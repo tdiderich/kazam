@@ -1,5 +1,6 @@
 title: "Maze Code: how the analysis works"
 shell: standard
+print_flow: letter
 
 components:
   - type: section

@@ -101,7 +101,8 @@
     "PrintFlow": [
       "slides",
       "continuous",
-      "square"
+      "square",
+      "letter"
     ],
     "Texture": [
       "none",

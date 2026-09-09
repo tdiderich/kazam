@@ -411,6 +411,9 @@ pub enum PrintFlow {
     Slides,
     Continuous,
     Square,
+    /// Portrait US letter, one section per page, top-aligned. For documents
+    /// meant to be read as a PDF rather than presented.
+    Letter,
 }
 
 #[derive(Deserialize)]
