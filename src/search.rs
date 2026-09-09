@@ -176,6 +176,13 @@ fn extract_searchable_text(
                     push_snippet(snippets, l);
                 }
             }
+            Component::Sequence { steps, .. } => {
+                for step in steps {
+                    if let Some(n) = &step.note {
+                        push_snippet(snippets, n);
+                    }
+                }
+            }
             Component::SelectableGrid { cards, .. } => {
                 for card in cards {
                     headings.push(card.title.clone());

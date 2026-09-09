@@ -2533,6 +2533,67 @@ function ComponentView({
       );
     }
 
+    case "sequence": {
+      type SeqStep = { highlight?: string[]; note?: string };
+      const target = (comp.target as string) || "";
+      const steps = (comp.steps as SeqStep[]) || [];
+      const [cur, setCur] = React.useState(-1);
+      const rootRef = React.useRef<HTMLDivElement | null>(null);
+      React.useEffect(() => {
+        if (typeof document === "undefined") return;
+        const t = document.getElementById(target);
+        if (!t) return;
+        const clear = () => {
+          t.classList.remove("seq-active");
+          t.querySelectorAll(".seq-dim, .seq-hi").forEach((el) => el.classList.remove("seq-dim", "seq-hi"));
+        };
+        clear();
+        if (cur < 0 || !steps[cur]) return;
+        t.classList.add("seq-active");
+        const want = steps[cur].highlight ?? [];
+        const set = new Set(want);
+        const hi = want.map((w) => document.getElementById(w)).filter((x): x is HTMLElement => !!x);
+        t.querySelectorAll<HTMLElement>("[id]").forEach((el) => {
+          if (set.has(el.id)) { el.classList.add("seq-hi"); return; }
+          if (!hi.some((h) => el !== h && el.contains(h))) el.classList.add("seq-dim");
+        });
+        return clear;
+      }, [cur, target, steps]);
+      const shown = cur < 0 ? 0 : cur;
+      const step = steps[shown];
+      const go = (d: 1 | -1) => setCur((c) => (d > 0 ? Math.min(steps.length - 1, c < 0 ? 0 : c + 1) : Math.max(0, c - 1)));
+      return (
+        <div
+          id={id}
+          ref={rootRef}
+          className={`c-sequence${cur >= 0 ? " c-seq-live" : ""}`}
+          data-sequence=""
+          data-target={target}
+          tabIndex={0}
+          aria-label="Walkthrough"
+          onKeyDown={(e) => {
+            if (e.key === "ArrowRight" || e.key === "]") { e.preventDefault(); go(1); }
+            else if (e.key === "ArrowLeft" || e.key === "[") { e.preventDefault(); go(-1); }
+            else if (e.key === "Escape") { setCur(-1); }
+          }}
+        >
+          <div className="c-seq-bar">
+            <button type="button" className="c-seq-btn" disabled={cur <= 0} onClick={() => go(-1)} aria-label="Previous step">&larr;</button>
+            <span className="c-seq-count">{shown + 1} / {Math.max(1, steps.length)}</span>
+            <button type="button" className="c-seq-btn" disabled={cur >= steps.length - 1} onClick={() => go(1)} aria-label="Next step">&rarr;</button>
+            <button type="button" className="c-seq-btn c-seq-reset" onClick={() => setCur(-1)} aria-label="Show everything">Show all</button>
+          </div>
+          <div className="c-seq-steps" data-kz-list="steps">
+            {step && (
+              <div className="c-seq-step" data-highlight={(step.highlight ?? []).join(" ")}>
+                {step.note && <div className="c-seq-note c-markdown" data-kz-field={`steps[${shown}].note`} data-kz-block="">{md(step.note)}</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     case "accordion": {
       const items = (comp.items as Array<{ title: string; components: ComponentData[] }>) || [];
       return <AccordionView id={id} items={items} kzPath={kz} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
@@ -4410,6 +4471,7 @@ export const EDITOR_TYPES: Array<{type: string; label: string; icon: string}> = 
   { type: "grid", label: "Grid", icon: "#" },
   { type: "box", label: "Box", icon: "▢" },
   { type: "connector", label: "Connector", icon: "↓" },
+  { type: "sequence", label: "Sequence", icon: "▶" },
   { type: "accordion", label: "Accordion", icon: "≡" },
   { type: "event_timeline", label: "Event Timeline", icon: "E" },
   { type: "tree", label: "Tree", icon: "T" },

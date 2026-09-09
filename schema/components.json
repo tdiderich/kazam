@@ -540,6 +540,18 @@
         "kind": "list"
       }
     },
+    "SeqStep": {
+      "highlight": {
+        "type": "string[]",
+        "required": false,
+        "kind": "list"
+      },
+      "note": {
+        "type": "string",
+        "required": false,
+        "kind": "markdown"
+      }
+    },
     "GridChild": {
       "col": {
         "type": "number",
@@ -1904,6 +1916,23 @@
         "type": "BorderStyle",
         "required": false,
         "kind": "enum"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
+    },
+    "sequence": {
+      "target": {
+        "type": "string",
+        "required": true,
+        "kind": "id"
+      },
+      "steps": {
+        "type": "SeqStep[]",
+        "required": true,
+        "kind": "list"
       },
       "id": {
         "type": "string",

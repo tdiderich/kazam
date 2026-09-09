@@ -673,6 +673,19 @@ pub enum Component {
         #[serde(default)]
         animate: Option<Animate>,
     },
+    /// Guided walkthrough of another component on the page. Each step names
+    /// the `id`s to highlight inside `target`; everything else in the target
+    /// dims. Steps advance with the strip's buttons or arrow keys.
+    Sequence {
+        target: String,
+        steps: Vec<SeqStep>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
     /// A cell, not an edge: a line with an arrowhead that fills whatever
     /// cell it sits in, with an optional label drawn over the line.
     Connector {
@@ -1123,6 +1136,7 @@ impl Component {
             | Component::Grid { scale, .. }
             | Component::Box { scale, .. }
             | Component::Connector { scale, .. }
+            | Component::Sequence { scale, .. }
             | Component::Accordion { scale, .. }
             | Component::EventTimeline { scale, .. }
             | Component::Tree { scale, .. }
@@ -1182,6 +1196,7 @@ impl Component {
             | Component::Grid { animate, .. }
             | Component::Box { animate, .. }
             | Component::Connector { animate, .. }
+            | Component::Sequence { animate, .. }
             | Component::Accordion { animate, .. }
             | Component::EventTimeline { animate, .. }
             | Component::Tree { animate, .. }
@@ -1296,6 +1311,16 @@ pub(crate) fn valid_hex_color(s: &str) -> bool {
 pub(crate) fn resolve_hex(hex: Option<&str>, color: SemColor) -> &str {
     hex.filter(|h| valid_hex_color(h))
         .unwrap_or_else(|| color.hex())
+}
+
+#[derive(Deserialize)]
+pub struct SeqStep {
+    /// Component `id`s inside the sequence target to bring forward.
+    #[serde(default)]
+    pub highlight: Vec<String>,
+    /// Markdown shown in the strip for this step.
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Deserialize)]

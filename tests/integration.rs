@@ -2701,3 +2701,21 @@ fn motion_off_page_has_no_body_class_or_script() {
     );
     assert_contains(&html, r#"data-animate="fade-up""#);
 }
+
+#[test]
+fn sequence_renders_strip_and_ships_script() {
+    let html = build_one_page(
+        "sequence",
+        "title: S\nshell: standard\ncomponents:\n  - type: grid\n    id: g\n    columns: 2\n    children:\n      - component: { type: box, id: a, title: A, body: a }\n      - component: { type: box, id: b, title: B, body: b }\n  - type: sequence\n    target: g\n    steps:\n      - highlight: [a]\n        note: \"**First**\"\n      - highlight: [b]\n        note: Second\n",
+        "",
+    );
+    assert_contains(&html, r#"class="c-sequence" data-sequence data-target="g""#);
+    assert_contains(&html, r#"<div class="c-seq-step" data-highlight="a">"#);
+    assert_contains(
+        &html,
+        r#"<div class="c-seq-step" data-highlight="b" hidden>"#,
+    );
+    assert_contains(&html, "<strong>First</strong>");
+    assert_contains(&html, "data-seq-next");
+    assert_contains(&html, "seq-active");
+}

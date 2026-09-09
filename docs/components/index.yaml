@@ -44,9 +44,9 @@ components:
 
       - title: Interactive
         badge:
-          label: "3"
+          label: "4"
           color: default
-        description: "table, tabs, accordion"
+        description: "table, tabs, accordion, sequence"
         links:
           - label: Open →
             href: interactive.html

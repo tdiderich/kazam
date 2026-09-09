@@ -111,6 +111,7 @@ fn component_type_name(c: &Component) -> String {
         Component::Grid { .. } => "grid",
         Component::Box { .. } => "box",
         Component::Connector { .. } => "connector",
+        Component::Sequence { .. } => "sequence",
         Component::Accordion { .. } => "accordion",
         Component::EventTimeline { .. } => "event_timeline",
         Component::Tree { .. } => "tree",

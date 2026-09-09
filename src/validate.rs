@@ -61,6 +61,7 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
     validate_shell_structure(file, page, &mut errors);
     if let Some(components) = &page.components {
         validate_components(file, "components", components, &mut errors);
+        validate_sequence_ids(file, components, &mut errors);
     }
     if let Some(slides) = &page.slides {
         for (i, slide) in slides.iter().enumerate() {
@@ -667,6 +668,114 @@ fn validate_components(
     }
 }
 
+/// Collect every explicit `id` in the tree. Sequence targets and highlights
+/// must name one of these, so authors get a page-level error instead of a
+/// silently inert walkthrough.
+fn collect_ids(components: &[Component], out: &mut Vec<String>) {
+    for c in components {
+        match c {
+            Component::Header { id: Some(id), .. }
+            | Component::Section { id: Some(id), .. }
+            | Component::Grid { id: Some(id), .. }
+            | Component::Box { id: Some(id), .. }
+            | Component::Sequence { id: Some(id), .. } => out.push(id.trim().to_string()),
+            _ => {}
+        }
+        match c {
+            Component::Section { components, .. } | Component::Box { components, .. } => {
+                collect_ids(components, out)
+            }
+            Component::Columns { columns, .. } => {
+                for col in columns {
+                    collect_ids(col, out);
+                }
+            }
+            Component::Grid { children, .. } => {
+                for ch in children {
+                    collect_ids(std::slice::from_ref(&ch.component), out);
+                }
+            }
+            Component::Tabs { tabs, .. } => {
+                for t in tabs {
+                    collect_ids(&t.components, out);
+                }
+            }
+            Component::Accordion { items, .. } => {
+                for i in items {
+                    collect_ids(&i.components, out);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+type SeqRef<'a> = (String, &'a str, &'a [crate::types::SeqStep]);
+
+fn collect_sequences<'a>(components: &'a [Component], prefix: &str, out: &mut Vec<SeqRef<'a>>) {
+    for (i, c) in components.iter().enumerate() {
+        let path = format!("{}[{}]", prefix, i);
+        match c {
+            Component::Sequence { target, steps, .. } => out.push((path, target, steps)),
+            Component::Section { components, .. } | Component::Box { components, .. } => {
+                collect_sequences(components, &format!("{}.components", path), out)
+            }
+            Component::Columns { columns, .. } => {
+                for (ci, col) in columns.iter().enumerate() {
+                    collect_sequences(col, &format!("{}.columns[{}]", path, ci), out);
+                }
+            }
+            Component::Grid { children, .. } => {
+                for (ci, ch) in children.iter().enumerate() {
+                    collect_sequences(
+                        std::slice::from_ref(&ch.component),
+                        &format!("{}.children[{}].component", path, ci),
+                        out,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn validate_sequence_ids(file: &str, components: &[Component], errors: &mut Vec<ValidationError>) {
+    let mut seqs = Vec::new();
+    collect_sequences(components, "components", &mut seqs);
+    if seqs.is_empty() {
+        return;
+    }
+    let mut ids = Vec::new();
+    collect_ids(components, &mut ids);
+    for (path, target, steps) in seqs {
+        if !ids.iter().any(|i| i == target.trim()) {
+            errors.push(ValidationError::new(
+                file,
+                format!("{}.target", path),
+                "cross_reference",
+                format!(
+                    "sequence target '{}' matches no component id on this page",
+                    target
+                ),
+                Some("Give the grid, box, or section an explicit id: and reference that.".into()),
+            ));
+        }
+        for (si, step) in steps.iter().enumerate() {
+            for (hi, h) in step.highlight.iter().enumerate() {
+                if !ids.iter().any(|i| i == h.trim()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.steps[{}].highlight[{}]", path, si, hi),
+                        "cross_reference",
+                        format!("highlight id '{}' matches no component id on this page", h),
+                        Some("Add id: to the box or grid child you want to bring forward.".into()),
+                    ));
+                }
+            }
+        }
+    }
+}
+
 /// Grids nested more than this many levels deep (grid inside grid inside
 /// grid) are almost always an authoring mistake and unreadable on a page.
 const MAX_GRID_DEPTH: usize = 3;
@@ -1042,6 +1151,20 @@ fn validate_component(
             ));
         }
         Component::Connector { .. } => {}
+
+        Component::Sequence { steps, .. } => {
+            if steps.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.steps", path),
+                    "missing_field",
+                    "sequence requires at least one step",
+                    Some("Add steps: with highlight: [ids] and an optional note:.".into()),
+                ));
+            }
+            // Target and highlight ids are checked page-wide in
+            // validate_sequence_ids, which needs the whole tree.
+        }
 
         Component::Columns { columns, .. } => {
             if columns.is_empty() {
@@ -2295,6 +2418,26 @@ mod tests {
         let errors = validate_page("b.yaml", &page);
         assert_eq!(errors.len(), 1, "only the hex error expected: {errors:?}");
         assert!(errors[0].path.ends_with(".hex"));
+    }
+
+    #[test]
+    fn sequence_unknown_ids_error_and_known_ids_pass() {
+        let page = page_from_yaml(
+            "title: S\nshell: standard\ncomponents:\n  - type: grid\n    id: g\n    columns: 2\n    children:\n      - component: { type: box, id: a, title: A, body: a }\n      - component: { type: box, id: b, title: B, body: b }\n  - type: sequence\n    target: g\n    steps:\n      - highlight: [a]\n      - highlight: [b, nope]\n",
+        );
+        let errors = validate_page("s.yaml", &page);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].path.ends_with(".steps[1].highlight[1]"));
+        assert_eq!(errors[0].error_type, "cross_reference");
+
+        let page = page_from_yaml(
+            "title: S\nshell: standard\ncomponents:\n  - type: box\n    id: only\n    title: X\n    body: y\n  - type: sequence\n    target: missing\n    steps:\n      - highlight: [only]\n",
+        );
+        let errors = validate_page("s.yaml", &page);
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".target")),
+            "{errors:?}"
+        );
     }
 
     #[test]

@@ -2344,6 +2344,25 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 /* Stack spacing sees the carrier, not the component; pass it through. */
 .main-content > .kz-anim > *, .deck-inner > .kz-anim > *, .doc-body > .kz-anim > *, .hub-content > .kz-anim > *, .c-section > .kz-anim > *, .tab-panel > .kz-anim > *, .c-grid-cell > .kz-anim > *, .c-box > .kz-anim > * { margin-bottom: 0; }
 
+/* Sequence: walkthrough strip that highlights ids inside a target */
+.c-sequence { border: 1px solid var(--card-border); border-radius: 10px; background: var(--card-bg); padding: 10px 14px 12px; outline: none; }
+.c-sequence:focus-visible { border-color: rgba(var(--accent-rgb), 0.6); }
+.c-seq-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.c-seq-btn { font: inherit; font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--card-border); background: rgba(var(--text-rgb), 0.04); color: var(--snow); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.c-seq-btn:hover:not(:disabled) { border-color: rgba(var(--accent-rgb), 0.6); background: rgba(var(--accent-rgb), 0.08); }
+.c-seq-btn:disabled { opacity: 0.4; cursor: default; }
+.c-seq-reset { margin-left: auto; font-size: 12px; color: var(--muted); }
+.c-seq-count { font-size: 12px; letter-spacing: 0.04em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.c-seq-note { color: var(--light-muted); font-size: 14px; line-height: 1.5; }
+.c-seq-note p { margin: 0 0 6px; }
+.c-seq-note p:last-child { margin-bottom: 0; }
+.seq-active .seq-dim { opacity: 0.32; filter: saturate(0.35); transition: opacity 0.25s ease, filter 0.25s ease; }
+.seq-active .seq-hi { transition: box-shadow 0.25s ease; box-shadow: 0 0 0 2px var(--box-accent, var(--teal)), 0 0 24px -6px var(--box-accent, var(--teal)); }
+.seq-active .seq-hi.c-connector { box-shadow: none; }
+.seq-active .seq-hi.c-connector .c-connector-label { color: var(--snow); }
+@media print { .c-sequence { display: none !important; } .seq-dim { opacity: 1 !important; filter: none !important; } .seq-hi { box-shadow: none !important; } }
+.export-root .c-sequence { display: none !important; }
+
 /* Grid: explicit-placement layout, cells size from the container */
 .c-grid {
   display: grid;

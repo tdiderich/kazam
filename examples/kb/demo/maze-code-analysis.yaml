@@ -157,6 +157,22 @@ components:
           - - type: markdown
               body: "**Model-driven:** Maze agents reading your code."
 
+      - type: sequence
+        target: analysis-grid
+        steps:
+          - highlight: [connect]
+            note: "**Start at the commit.** One exact SHA in, a full SBOM with real dependency edges out. Nothing downstream sees anything else."
+          - highlight: [scanner, aisast]
+            note: "**Two lanes.** The scanner side is repeatable and tuned for recall. The AI SAST side reads code the way a reviewer does, and goes straight to a verdict."
+          - highlight: [investigation]
+            note: "**One finding at a time.** Every scanner candidate gets its own investigation. Same input, same four questions, in order."
+          - highlight: [research, reachability]
+            note: "**Can it even be reached?** Research says what the CVE needs; reachability checks whether your code can hit that path. No path, run ends here as not exploitable."
+          - highlight: [exploitability, impact]
+            note: "**Is it real, and how bad?** Guards and sanitisers are weighed on the actual path. Impact and likelihood come from your code, not a CVSS score."
+          - highlight: [verdict]
+            note: "**One of two outcomes.** Exploitable with a Maze severity, or not exploitable. The reasoning and the code it relied on stay attached."
+
   - type: section
     id: compare
     heading: How this compares to other SAST engines

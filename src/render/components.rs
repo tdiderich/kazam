@@ -121,6 +121,9 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             hex,
             ..
         } => connector(label.as_deref(), *direction, *color, hex.as_deref()),
+        Component::Sequence {
+            target, steps, id, ..
+        } => sequence(target, steps, id.as_deref(), base),
         Component::Accordion { items, .. } => accordion(items, base, config),
         Component::EventTimeline {
             events,
@@ -1270,6 +1273,47 @@ fn connector(
     }
     r.html.push_str("</div>");
     r
+}
+
+// ── Sequence ──────────────────────────────────────
+
+fn sequence(target: &str, steps: &[SeqStep], id: Option<&str>, base: &str) -> Rendered {
+    let mut h = String::new();
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    h.push_str(&format!(
+        r#"<div{} class="c-sequence" data-sequence data-target="{}" tabindex="0" aria-label="Walkthrough">"#,
+        id_attr,
+        esc(target)
+    ));
+    h.push_str(r#"<div class="c-seq-bar">"#);
+    h.push_str(r#"<button type="button" class="c-seq-btn" data-seq-prev aria-label="Previous step">&larr;</button>"#);
+    h.push_str(&format!(
+        r#"<span class="c-seq-count"><span data-seq-index>1</span> / {}</span>"#,
+        steps.len().max(1)
+    ));
+    h.push_str(r#"<button type="button" class="c-seq-btn" data-seq-next aria-label="Next step">&rarr;</button>"#);
+    h.push_str(r#"<button type="button" class="c-seq-btn c-seq-reset" data-seq-reset aria-label="Show everything">Show all</button>"#);
+    h.push_str("</div>");
+    h.push_str(r#"<div class="c-seq-steps">"#);
+    for (i, step) in steps.iter().enumerate() {
+        let hidden = if i == 0 { "" } else { " hidden" };
+        h.push_str(&format!(
+            r#"<div class="c-seq-step" data-highlight="{}"{}>"#,
+            esc(&step.highlight.join(" ")),
+            hidden
+        ));
+        if let Some(n) = &step.note {
+            h.push_str(&format!(
+                r#"<div class="c-seq-note c-markdown">{}</div>"#,
+                parse_markdown(n, base)
+            ));
+        }
+        h.push_str("</div>");
+    }
+    h.push_str("</div></div>");
+    Rendered::new(h).with_script("sequence")
 }
 
 // ── Accordion ─────────────────────────────────────
