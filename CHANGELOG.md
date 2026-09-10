@@ -20,6 +20,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `kazam sdk emit-agents` now prints use-when/avoid-when notes, a curated known-good example (from `schema/examples/`) instead of placeholder values, and the shape rules for each guided component.
 - `kazam sdk emit-mcp`: JSON bundle of MCP tool descriptions, a server-instructions section, and per-component guidance slices, generated from the schema so hosts stop hand-writing them.
 - `validate --file` now finds the nearest `kazam.yaml` above the file for site-level rules.
+- `sdk emit-mcp` also describes `read_component` and `write_component`, the curata tools for editing one component by id.
 - Example page `examples/kb/demo/maze-code-analysis.yaml` reproducing a two-page customer PDF with the new primitives.
 
 ### Changed

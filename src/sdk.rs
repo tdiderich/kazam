@@ -532,12 +532,14 @@ pub(crate) fn example_yaml(name: &str) -> Option<&'static str> {
     })
 }
 
-const GUIDED_TOOLS: [&str; 5] = [
+const GUIDED_TOOLS: [&str; 7] = [
     "write_page",
     "create_page",
     "patch_page",
     "create_from_template",
     "get_component_reference",
+    "read_component",
+    "write_component",
 ];
 
 /// Agent-facing MCP bundle: tool description text, a server-instructions
@@ -592,6 +594,18 @@ fn generate_mcp() -> String {
          can copy, and the shape rules the write tools will warn about. Without component, returns \
          the full reference. Call this before the first write that uses a component you have not \
          used in this conversation."
+    );
+
+    let read_component_desc = "Read one component from a page by id (any depth: inside sections, grids, \
+         boxes, tabs, columns). read_page's outline lists the ids. Returns the component YAML, its \
+         keypath, parent id, sibling ids, and a component_hash to pass to write_component. Use this \
+         plus write_component to change one part of a page instead of rewriting it.";
+    let write_component_desc = format!(
+        "Replace one component on a page by id with new YAML for just that component. Keeps the id, \
+         validates the whole page, runs shape rules ({layout_list} and the rest) and content rules. \
+         Same warning contract as write_page: written, WARNINGS block on the response. Pass the \
+         component_hash from read_component so a concurrent edit to that component is caught; \
+         expected_hash (page hash) also works. Prefer this over write_page for a one-component edit."
     );
 
     let mut instructions = String::new();
@@ -665,6 +679,8 @@ fn generate_mcp() -> String {
             GUIDED_TOOLS[2]: patch_desc,
             GUIDED_TOOLS[3]: template_desc,
             GUIDED_TOOLS[4]: reference_desc,
+            GUIDED_TOOLS[5]: read_component_desc,
+            GUIDED_TOOLS[6]: write_component_desc,
         },
         "instructions_section": instructions,
         "components": components,
