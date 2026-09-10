@@ -4,7 +4,7 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.27.0] - 2026-09-09
 
 ### Added
 - `grid` component: explicit-placement CSS grid. Children carry 1-based `col`/`row` plus `colspan`/`rowspan`; omit them to auto-flow. Cells size from the container. Validation errors on overlapping cells, out-of-bounds placement, and grids nested more than 3 deep.
