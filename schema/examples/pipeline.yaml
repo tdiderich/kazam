@@ -1,8 +1,9 @@
-# Two to four stages, at most five capabilities each. inputs/outputs are
-# short nouns. context is optional and takes 22% of the height.
+# Two to four stages, stacked vertically inside height. Budget about 48px per
+# stage plus 42px per capability (here 3 stages, 9 capabilities, 1 context strip).
+# inputs/outputs are short nouns. context is optional and takes 22% of the height.
 - type: pipeline
   title: Code analysis
-  height: 380
+  height: 720
   inputs:
     - { label: Repository, detail: One commit }
     - { label: Lockfiles }

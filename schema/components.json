@@ -2666,12 +2666,28 @@
           "say": "Pipelines wider than 4 stages compress each stage below readable width. Split or switch to a tiered graph."
         },
         {
-          "warn": "stages[*].capabilities > 5",
-          "say": "Five capabilities per stage is the ceiling before rows truncate at the default height. Trim, dim the minor ones, or raise height."
+          "warn": "!has(height) && stages == 3 && sum(stages[*].capabilities) > 5",
+          "say": "Stages stack vertically inside the height (default 400): about 48px per stage plus 42px per capability. Three stages fit about 5 capabilities total at the default; set height (9 capabilities need about 560) or trim."
         },
         {
-          "warn": "has(context) && stages[*].capabilities > 4 && !has(height)",
-          "say": "With a context strip the main area is 78% of the height. Set height (440 or more) or cut capabilities to 4."
+          "warn": "!has(height) && stages == 2 && sum(stages[*].capabilities) > 7",
+          "say": "Stages stack vertically inside the height (default 400): about 48px per stage plus 42px per capability. Two stages fit about 7 capabilities total at the default; set height or trim."
+        },
+        {
+          "warn": "!has(height) && stages >= 4 && sum(stages[*].capabilities) > 3",
+          "say": "Stages stack vertically inside the height (default 400): about 48px per stage plus 42px per capability. Four or more stages need an explicit height (about 48 per stage plus 42 per capability)."
+        },
+        {
+          "warn": "has(height) && height < 400 && sum(stages[*].capabilities) > 6",
+          "say": "A height under 400 with more than 6 capabilities clips the bottom stage. Raise height to about 48 per stage plus 42 per capability."
+        },
+        {
+          "warn": "has(context) && !has(height) && sum(stages[*].capabilities) > 4",
+          "say": "With a context strip the stages get 78% of the height. At the default 400 that fits about 4 capabilities total; set height to about 1.3 times the stacked size."
+        },
+        {
+          "warn": "stages[*].capabilities > 5",
+          "say": "Five capabilities per stage is the ceiling before rows truncate at the default height. Trim, dim the minor ones, or raise height."
         },
         {
           "warn": "any(stages, words(detail) > 8)",

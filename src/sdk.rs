@@ -615,7 +615,10 @@ fn generate_mcp() -> String {
 ",
     );
     instructions.push_str(
-        "Pages are YAML components. The write tools run shape rules on every write and return \
+        "A page is YAML with three top-level keys, all required: `title`, `shell` (usually \
+         `standard`), and `components` (a list of `- type: ...` blocks). Quote any inline YAML value \
+         that contains a comma or colon, or use block style. \
+         Pages are YAML components. The write tools run shape rules on every write and return \
          warnings without blocking; fix them in a follow-up edit. Cold starts on layout components go \
          wrong most often, so:
 

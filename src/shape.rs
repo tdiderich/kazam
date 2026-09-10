@@ -14,6 +14,7 @@
 //! words(body) > 120             word count of a string field
 //! stages[*].capabilities > 5    `[*]` maps over an array; a comparison on
 //!                               the result is true if ANY element matches
+//! sum(stages[*].capabilities)   total length (or value) across the matches
 //! a && b, a || b, !a, (a)       booleans
 //! has(context)                  field present and non-empty
 //! ```
@@ -46,6 +47,7 @@ enum Expr {
     Num(f64),
     Path(Vec<Seg>),
     Words(Vec<Seg>),
+    Sum(Vec<Seg>),
     Has(Vec<Seg>),
     Any(Vec<Seg>, Box<Expr>),
     All(Vec<Seg>, Vec<Seg>),
@@ -259,6 +261,7 @@ impl Parser {
                     self.next();
                     let e = match name.as_str() {
                         "words" => Expr::Words(self.parse_path()?),
+                        "sum" => Expr::Sum(self.parse_path()?),
                         "has" => Expr::Has(self.parse_path()?),
                         "any" => {
                             let list = self.parse_path()?;
@@ -393,6 +396,7 @@ fn numbers(e: &Expr, v: &Value) -> Vec<f64> {
         Expr::Num(n) => vec![*n],
         Expr::Path(segs) => resolve(v, segs).into_iter().filter_map(num_of).collect(),
         Expr::Words(segs) => resolve(v, segs).into_iter().map(word_count).collect(),
+        Expr::Sum(segs) => vec![resolve(v, segs).into_iter().filter_map(num_of).sum()],
         other => vec![if eval(other, v) { 1.0 } else { 0.0 }],
     }
 }
@@ -413,6 +417,7 @@ fn eval(e: &Expr, v: &Value) -> bool {
         Expr::Num(n) => *n != 0.0,
         Expr::Path(segs) => resolve(v, segs).into_iter().any(truthy),
         Expr::Words(segs) => resolve(v, segs).into_iter().any(|x| word_count(x) > 0.0),
+        Expr::Sum(segs) => resolve(v, segs).into_iter().filter_map(num_of).sum::<f64>() != 0.0,
         Expr::Has(segs) => resolve(v, segs).into_iter().any(truthy),
         Expr::Any(list, pred) => resolve(v, list)
             .into_iter()
@@ -666,6 +671,17 @@ mod tests {
         assert!(fires("words(body) > 3", yaml));
         assert!(!fires("words(body) > 4", yaml));
         assert!(fires("has(body) && !has(context)", yaml));
+    }
+
+    #[test]
+    fn sum_over_star_paths() {
+        let yaml = "stages:\n  - capabilities: [1,2,3]\n  - capabilities: [1,2,3]\n  - capabilities: [1,2,3]\n";
+        assert!(fires("sum(stages[*].capabilities) > 8", yaml));
+        assert!(!fires("sum(stages[*].capabilities) > 9", yaml));
+        assert!(fires(
+            "!has(height) && stages == 3 && sum(stages[*].capabilities) > 5",
+            yaml
+        ));
     }
 
     #[test]
