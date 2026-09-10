@@ -1,0 +1,24 @@
+# Tiered graph: every node pins a row (and column), so lanes line up and
+# dashed edges read as straight drops. Use this shape past 6 nodes.
+- type: graph
+  title: Request path
+  nodes:
+    - { id: edge, label: Edge, detail: "TLS, WAF, rate limits", row: 1, column: 1 }
+    - { id: api, label: API gateway, detail: Auth and routing, row: 1, column: 2 }
+    - { id: queue, label: Queue, detail: Buffers bursts, row: 1, column: 3, shape: pill }
+    - { id: svc-a, label: Orders service, row: 2, column: 1, group: core }
+    - { id: svc-b, label: Billing service, row: 2, column: 2, group: core }
+    - { id: worker, label: Async worker, row: 2, column: 3, group: core }
+    - { id: db, label: Postgres, detail: Primary plus read replica, row: 3, column: 2, color: teal }
+  edges:
+    - { from: edge, to: api }
+    - { from: api, to: svc-a }
+    - { from: api, to: svc-b }
+    - { from: api, to: queue, label: async }
+    - { from: queue, to: worker, style: dashed }
+    - { from: svc-a, to: db }
+    - { from: svc-b, to: db }
+    - { from: worker, to: db }
+  groups:
+    - { id: core, label: Core services }
+  row_labels: [Ingress, Services, Data]

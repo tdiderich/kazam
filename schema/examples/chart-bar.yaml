@@ -1,0 +1,13 @@
+# Bar chart: one series, short labels, under 10 points. Horizontal when
+# labels are long.
+- type: chart
+  kind: bar
+  title: Findings by severity
+  orientation: horizontal
+  series:
+    - label: Open
+      points:
+        - { label: Critical, value: 12, color: red }
+        - { label: High, value: 48 }
+        - { label: Medium, value: 210 }
+        - { label: Low, value: 1014 }

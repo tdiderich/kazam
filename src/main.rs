@@ -32,6 +32,7 @@ mod render;
 mod sdk;
 mod search;
 mod server;
+mod shape;
 mod show;
 mod theme;
 mod track;
@@ -359,6 +360,8 @@ enum SdkCommand {
     EmitSchema,
     /// Print markdown component reference to stdout (for agent context)
     EmitAgents,
+    /// Print the MCP guidance bundle (tool descriptions, instructions, per-component slices) as JSON
+    EmitMcp,
 }
 
 #[derive(Subcommand)]
@@ -617,7 +620,7 @@ fn main() -> Result<()> {
             } else {
                 println!("{}", serde_json::to_string_pretty(&errors)?);
             }
-            if !errors.is_empty() {
+            if validate::has_errors(&errors) {
                 std::process::exit(1);
             }
             Ok(())
@@ -680,6 +683,7 @@ fn main() -> Result<()> {
             SdkCommand::EmitReact => sdk::emit_react(),
             SdkCommand::EmitSchema => sdk::emit_schema(),
             SdkCommand::EmitAgents => sdk::emit_agents(),
+            SdkCommand::EmitMcp => sdk::emit_mcp(),
         },
         Command::Audit { dir, pretty } => audit::run(&dir, pretty),
         Command::Annotate { command, dir } => match command {

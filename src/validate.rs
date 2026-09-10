@@ -32,7 +32,14 @@ pub struct ValidationError {
     /// Optional hint to help an agent self-correct.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<String>,
+    /// `"error"` blocks builds and fails `kazam validate`. `"warning"` is
+    /// reported and returned to callers but never changes exit status: it
+    /// is guidance the author should act on, not a broken page.
+    pub severity: String,
 }
+
+pub const SEVERITY_ERROR: &str = "error";
+pub const SEVERITY_WARNING: &str = "warning";
 
 impl ValidationError {
     fn new(
@@ -48,14 +55,72 @@ impl ValidationError {
             error_type: error_type.into(),
             message: message.into(),
             suggestion,
+            severity: SEVERITY_ERROR.into(),
         }
     }
+
+    pub(crate) fn warning(
+        file: impl Into<String>,
+        path: impl Into<String>,
+        error_type: impl Into<String>,
+        message: impl Into<String>,
+        suggestion: Option<String>,
+    ) -> Self {
+        let mut e = Self::new(file, path, error_type, message, suggestion);
+        e.severity = SEVERITY_WARNING.into();
+        e
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.severity != SEVERITY_WARNING
+    }
+}
+
+/// True when any entry would fail a build. Warnings alone never do.
+pub fn has_errors(errors: &[ValidationError]) -> bool {
+    errors.iter().any(ValidationError::is_error)
 }
 
 // ── Public entry points ───────────────────────────────
 
+/// Validate page YAML text: semantic rules on the parsed [`Page`] plus shape
+/// rules on the raw YAML value. `site_rules` come from `kazam.yaml`.
+pub fn validate_source(
+    file: &str,
+    content: &str,
+    page: &Page,
+    site_rules: &[crate::shape::ShapeRule],
+) -> Vec<ValidationError> {
+    let mut errors = validate_page(file, page);
+    if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+        let (rules, problems) = crate::shape::rules_for(file, site_rules);
+        errors.extend(problems);
+        errors.extend(crate::shape::check_page(file, &value, &rules));
+    }
+    errors
+}
+
+/// Walk up from `path` to the nearest `kazam.yaml` and read its
+/// `shape_rules`. Missing or unparsable config means no site rules.
+pub fn site_shape_rules_for(path: &Path) -> Vec<crate::shape::ShapeRule> {
+    let mut dir = path.parent().map(Path::to_path_buf);
+    while let Some(d) = dir {
+        let cfg = d.join("kazam.yaml");
+        if cfg.exists() {
+            return std::fs::read_to_string(&cfg)
+                .ok()
+                .and_then(|s| serde_yaml::from_str::<SiteConfig>(&s).ok())
+                .map(|c| c.shape_rules)
+                .unwrap_or_default();
+        }
+        dir = d.parent().map(Path::to_path_buf);
+    }
+    Vec::new()
+}
+
 /// Validate a single parsed [`Page`] against semantic rules.
-/// `file` is included in every error for traceability.
+/// `file` is included in every error for traceability. Shape rules need the
+/// raw YAML; use [`validate_source`] when you have it.
 pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     validate_shell_structure(file, page, &mut errors);
@@ -324,7 +389,8 @@ pub fn validate_single_file(path: &Path) -> Vec<ValidationError> {
         }
     };
 
-    validate_page(&file_str, &page)
+    let site_rules = site_shape_rules_for(path);
+    validate_source(&file_str, &content, &page, &site_rules)
 }
 
 /// Validate a site directory. Parses every `.yaml` file (skipping `kazam.yaml`
@@ -432,7 +498,12 @@ pub fn validate_dir(dir: &Path) -> Vec<ValidationError> {
             }
         };
 
-        errors.extend(validate_page(&file_str, &page));
+        errors.extend(validate_source(
+            &file_str,
+            &content,
+            &page,
+            &config.shape_rules,
+        ));
     }
 
     // Second pass: nav cross-references.
@@ -1807,6 +1878,11 @@ pub fn print_pretty(errors: &[ValidationError]) {
         eprintln!("\u{2713} No validation errors found.");
         return;
     }
+    let n_err = errors.iter().filter(|e| e.is_error()).count();
+    let n_warn = errors.len() - n_err;
+    if n_err == 0 {
+        eprintln!("\u{2713} No validation errors. {} warning(s).", n_warn);
+    }
     // Group by file.
     let mut by_file: std::collections::BTreeMap<&str, Vec<&ValidationError>> =
         std::collections::BTreeMap::new();
@@ -1814,9 +1890,13 @@ pub fn print_pretty(errors: &[ValidationError]) {
         by_file.entry(&e.file).or_default().push(e);
     }
     for (file, errs) in &by_file {
-        eprintln!("\n\u{2718} {} ({} error(s))", file, errs.len());
+        let fe = errs.iter().filter(|e| e.is_error()).count();
+        let fw = errs.len() - fe;
+        let mark = if fe > 0 { "\u{2718}" } else { "\u{26a0}" };
+        eprintln!("\n{} {} ({} error(s), {} warning(s))", mark, file, fe, fw);
         for e in errs {
-            eprintln!("    [{:^16}] {}", e.error_type, e.message);
+            let tag = if e.is_error() { "error" } else { "warn " };
+            eprintln!("    [{}] [{:^16}] {}", tag, e.error_type, e.message);
             if !e.path.is_empty() {
                 eprintln!("    {:>18} {}", "at:", e.path);
             }
@@ -2241,6 +2321,7 @@ mod tests {
             error_type: "missing_field".into(),
             message: "needs at least one card".into(),
             suggestion: Some("add a card".into()),
+            severity: SEVERITY_ERROR.into(),
         };
         let json = serde_json::to_string(&err).unwrap();
         assert!(json.contains("\"file\":\"foo.yaml\""));
@@ -2257,6 +2338,7 @@ mod tests {
             error_type: "structural".into(),
             message: "something wrong".into(),
             suggestion: None,
+            severity: SEVERITY_ERROR.into(),
         };
         let json = serde_json::to_string(&err).unwrap();
         assert!(!json.contains("suggestion"));

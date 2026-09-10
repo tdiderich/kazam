@@ -1,0 +1,16 @@
+# Small auto-laid-out graph. Fine under 7 nodes; past that switch to
+# graph-tiered and pin rows.
+- type: graph
+  title: Finding lifecycle
+  direction: left_to_right
+  nodes:
+    - { id: detect, label: Detected, detail: Scanner match }
+    - { id: triage, label: Triaged, detail: Reachability checked, shape: diamond }
+    - { id: fix, label: Fix opened, color: green }
+    - { id: closed, label: Closed, color: teal }
+    - { id: dismissed, label: Not exploitable, color: yellow }
+  edges:
+    - { from: detect, to: triage }
+    - { from: triage, to: fix, label: reachable }
+    - { from: triage, to: dismissed, label: unreachable, style: dashed }
+    - { from: fix, to: closed }

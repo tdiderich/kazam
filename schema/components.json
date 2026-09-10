@@ -2627,5 +2627,247 @@
         "kind": "text"
       }
     }
+  },
+  "guidance": {
+    "graph": {
+      "use_when": "Named nodes with relationships where position carries meaning: request paths, data flow, dependency maps. Under 12 nodes.",
+      "avoid_when": "Linear steps (use steps or pipeline). Strict hierarchy (use tree or org_chart). A single row of peers (use card_grid).",
+      "example": "graph-tiered",
+      "rules": [
+        {
+          "warn": "nodes > 6 && !all(nodes, row)",
+          "say": "Past 6 nodes, set row (and column) on every node so the layout is tiered instead of auto-placed. Auto layout overlaps at this size."
+        },
+        {
+          "warn": "nodes > 14",
+          "say": "More than 14 nodes will not read on one screen. Split into two graphs or group nodes and drop detail text."
+        },
+        {
+          "warn": "any(nodes, width > 160)",
+          "say": "Node width above 160 overlaps the 172px slot in tiered mode. Shorten the label instead."
+        },
+        {
+          "warn": "any(nodes, words(detail) > 24)",
+          "say": "Node detail wraps to 4 lines then truncates. Keep each detail under about 24 words."
+        },
+        {
+          "warn": "nodes > 0 && !edges",
+          "say": "A graph with no edges is a card_grid. Add edges or switch component."
+        }
+      ]
+    },
+    "pipeline": {
+      "use_when": "Inputs flow through 2 to 4 stages to outputs, each stage owning a few named capabilities. Optional context strip below.",
+      "avoid_when": "One stage (use a box or steps). More than 4 stages (use a graph with rows, or two pipelines).",
+      "example": "pipeline",
+      "rules": [
+        {
+          "warn": "stages > 4",
+          "say": "Pipelines wider than 4 stages compress each stage below readable width. Split or switch to a tiered graph."
+        },
+        {
+          "warn": "stages[*].capabilities > 5",
+          "say": "Five capabilities per stage is the ceiling before rows truncate at the default height. Trim, dim the minor ones, or raise height."
+        },
+        {
+          "warn": "has(context) && stages[*].capabilities > 4 && !has(height)",
+          "say": "With a context strip the main area is 78% of the height. Set height (440 or more) or cut capabilities to 4."
+        },
+        {
+          "warn": "any(stages, words(detail) > 8)",
+          "say": "Stage detail is a tag line. Keep it under 8 words."
+        },
+        {
+          "warn": "!has(inputs) && !has(outputs)",
+          "say": "A pipeline needs inputs or outputs to show what flows through it."
+        }
+      ]
+    },
+    "grid": {
+      "use_when": "Diagram-style layouts: boxes in explicit cells, connectors between rows, bands made of a box holding another grid.",
+      "avoid_when": "Equal-width text columns (use columns). Cards of peers (use card_grid). Metrics (use stat_grid).",
+      "example": "grid-diagram",
+      "rules": [
+        {
+          "warn": "columns > 4",
+          "say": "More than 4 grid columns squeezes box text. Use 2 to 4 and nest a grid inside a box for a wider band."
+        },
+        {
+          "warn": "children > 16",
+          "say": "A grid with more than 16 children is hard to scan. Split into sections or collapse detail into a table."
+        }
+      ]
+    },
+    "box": {
+      "use_when": "A labelled panel: title left, uppercase tag right, short markdown body, optional nested components. The unit inside grid diagrams.",
+      "avoid_when": "Warnings or notes in prose flow (use callout). Long text (use section with markdown).",
+      "example": "box-band",
+      "rules": [
+        {
+          "warn": "words(body) > 120",
+          "say": "Box bodies over about 120 words stop reading as a panel. Move the prose into a markdown block and keep the box to a summary."
+        },
+        {
+          "warn": "words(title) > 8",
+          "say": "Box titles are labels. Keep them under 8 words."
+        },
+        {
+          "warn": "words(tag) > 3",
+          "say": "tag renders uppercase and right-aligned. One to three words."
+        }
+      ]
+    },
+    "connector": {
+      "use_when": "A short grid row between two boxes showing direction, with a label on the line.",
+      "avoid_when": "Anything outside a grid. It fills its cell and has no meaning on its own.",
+      "example": "grid-diagram",
+      "rules": [
+        {
+          "warn": "words(label) > 7",
+          "say": "Connector labels sit on a thin line. Keep them under 7 words."
+        }
+      ]
+    },
+    "sequence": {
+      "use_when": "Walking a reader through a diagram step by step: highlight a few ids per step with a one-line note.",
+      "avoid_when": "Pages with no target diagram. Static documents meant for print (it is hidden in export).",
+      "example": "sequence",
+      "rules": [
+        {
+          "warn": "steps > 8",
+          "say": "More than 8 steps loses the reader. Merge steps or split the walkthrough."
+        },
+        {
+          "warn": "any(steps, words(note) > 40)",
+          "say": "Step notes are captions. Keep each under 40 words."
+        },
+        {
+          "warn": "any(steps, highlight > 4)",
+          "say": "Highlighting more than 4 ids in one step dims almost nothing. Split the step."
+        }
+      ]
+    },
+    "markdown": {
+      "use_when": "Prose, lists, short tables. The default when nothing structured fits.",
+      "avoid_when": "Anything that has a component: metrics (stat_grid), comparisons (table), steps (steps), warnings (callout).",
+      "rules": [
+        {
+          "warn": "words(body) > 400",
+          "say": "Over about 400 words in one markdown block. Split into sections with headings, or pull structure into a table, steps, or boxes."
+        }
+      ]
+    },
+    "callout": {
+      "use_when": "One point the reader must not miss: a caveat, a decision, a rule of thumb. One or two sentences.",
+      "avoid_when": "Body copy. More than two callouts in a row.",
+      "rules": [
+        {
+          "warn": "words(body) > 80",
+          "say": "Callouts over about 80 words stop reading as a highlight. Trim to the point, move the rest to markdown."
+        }
+      ]
+    },
+    "table": {
+      "use_when": "Rows that share the same fields. Comparisons, inventories, mappings.",
+      "avoid_when": "One row (use a definition_list or stat_grid). Cells that need paragraphs (use markdown with headings).",
+      "example": "table",
+      "rules": [
+        {
+          "warn": "columns > 6",
+          "say": "More than 6 columns wraps every cell. Drop columns or split into two tables."
+        },
+        {
+          "warn": "rows > 40 && !filterable",
+          "say": "Over 40 rows, set filterable: true so readers can search."
+        }
+      ]
+    },
+    "chart": {
+      "use_when": "One series over a handful of categories or a time series. Headline numbers belong in stat_grid.",
+      "avoid_when": "More than 10 categories (use a table). Two unrelated metrics (use two charts).",
+      "example": "chart-bar",
+      "rules": [
+        {
+          "warn": "series[*].points > 10",
+          "say": "More than 10 points per series crowds the labels. Group the tail or switch to a table."
+        },
+        {
+          "warn": "series > 4",
+          "say": "More than 4 series is unreadable in one chart. Split it."
+        }
+      ]
+    },
+    "stat_grid": {
+      "use_when": "Two to six headline metrics, each with a label, a value, and a one-line detail.",
+      "avoid_when": "Long labels or paragraphs (use table). A single number (use markdown or callout).",
+      "example": "stat_grid",
+      "rules": [
+        {
+          "warn": "stats > 8",
+          "say": "More than 8 stats is a table. Pick the six that matter."
+        },
+        {
+          "warn": "any(stats, words(detail) > 12)",
+          "say": "Stat detail is one short line. Keep it under 12 words."
+        }
+      ]
+    },
+    "card_grid": {
+      "use_when": "Peer items with a title, a status badge, a line of description, and links: customers, projects, tools.",
+      "avoid_when": "Items with relationships between them (use graph). Items with many fields (use table).",
+      "example": "card_grid",
+      "rules": [
+        {
+          "warn": "cards > 12",
+          "say": "More than 12 cards is a directory. Use a filterable table or split by section."
+        },
+        {
+          "warn": "any(cards, words(description) > 30)",
+          "say": "Card descriptions are one or two lines. Keep them under 30 words."
+        }
+      ]
+    },
+    "tree": {
+      "use_when": "Hierarchical work with status per node: plans, rollouts, checklists with sub-items.",
+      "avoid_when": "Flat lists (use steps or markdown). Org structure (use org_chart).",
+      "example": "tree",
+      "rules": [
+        {
+          "warn": "nodes > 12",
+          "say": "More than 12 top-level nodes; group them under parents and set default_depth so the tree opens collapsed."
+        }
+      ]
+    },
+    "timeline": {
+      "use_when": "Ordered milestones with a status each.",
+      "avoid_when": "Dated events with descriptions (use event_timeline). Process steps (use steps).",
+      "example": "timeline",
+      "rules": [
+        {
+          "warn": "items > 10",
+          "say": "More than 10 milestones; consolidate or switch to event_timeline grouped by month."
+        }
+      ]
+    },
+    "section": {
+      "use_when": "Grouping a page into scannable chunks with a heading. In presentation mode each top-level section is a slide.",
+      "avoid_when": "Wrapping a single component with no heading.",
+      "rules": [
+        {
+          "warn": "components > 12",
+          "say": "A section with more than 12 components is a page. Split it."
+        }
+      ]
+    },
+    "columns": {
+      "use_when": "Two or three equal-width text columns.",
+      "avoid_when": "Boxes or diagram cells (use grid). More than three columns.",
+      "rules": [
+        {
+          "warn": "columns > 4",
+          "say": "More than 4 columns collapses on any normal width. Use grid for diagrams or a table for data."
+        }
+      ]
+    }
   }
 }

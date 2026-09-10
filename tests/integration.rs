@@ -2719,3 +2719,72 @@ fn sequence_renders_strip_and_ships_script() {
     assert_contains(&html, "data-seq-next");
     assert_contains(&html, "seq-active");
 }
+
+#[test]
+fn shape_rule_warnings_do_not_fail_validate_or_build() {
+    let dir = tmp_dir("shape-warn");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: T\ntheme: dark\nshape_rules:\n  - component: markdown\n    warn: words(body) > 3\n    say: Site rule fired.\n").unwrap();
+    let nodes: String = (0..9)
+        .map(|i| format!("      - {{ id: n{i}, label: N{i} }}\n"))
+        .collect();
+    std::fs::write(
+        dir.join("index.yaml"),
+        format!("title: G\nshell: standard\ncomponents:\n  - type: graph\n    nodes:\n{nodes}    edges:\n      - {{ from: n0, to: n1 }}\n  - type: markdown\n    body: one two three four five\n"),
+    )
+    .unwrap();
+
+    let out = Command::new(bin())
+        .args(["validate"])
+        .arg(&dir)
+        .output()
+        .expect("run kazam validate");
+    assert!(
+        out.status.success(),
+        "warnings must not fail validate: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let arr: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let arr = arr.as_array().unwrap();
+    assert!(arr.iter().all(|e| e["severity"] == "warning"), "{arr:?}");
+    assert!(
+        arr.iter()
+            .any(|e| e["path"] == "components[0]"
+                && e["message"].as_str().unwrap().contains("set row")),
+        "{arr:?}"
+    );
+    assert!(
+        arr.iter().any(|e| e["path"] == "components[1]"
+            && e["message"].as_str().unwrap().contains("Site rule fired")),
+        "{arr:?}"
+    );
+
+    let status = Command::new(bin())
+        .args(["build"])
+        .arg(&dir)
+        .arg("--out")
+        .arg(dir.join("_site"))
+        .status()
+        .expect("run kazam build");
+    assert!(status.success(), "warnings must not fail build");
+}
+
+#[test]
+fn validate_single_file_picks_up_site_shape_rules_from_parent_dir() {
+    let dir = tmp_dir("shape-single");
+    std::fs::create_dir_all(dir.join("pages")).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: T\nshape_rules:\n  - component: callout\n    warn: words(body) > 2\n    say: Too long for a callout.\n").unwrap();
+    std::fs::write(
+        dir.join("pages/a.yaml"),
+        "title: A\nshell: standard\ncomponents:\n  - type: callout\n    body: one two three\n",
+    )
+    .unwrap();
+    let out = Command::new(bin())
+        .args(["validate", "--file", "pages/a.yaml"])
+        .arg(&dir)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("Too long for a callout"), "{s}");
+}

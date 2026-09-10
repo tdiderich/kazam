@@ -2280,6 +2280,11 @@ pub struct SiteConfig {
     /// Surface depth for panel components. Defaults to `soft`.
     #[serde(default)]
     pub depth: Depth,
+    /// Site-level shape rules, same shape as the schema's guidance rules
+    /// plus `component`. Checked by `kazam validate` alongside the built-in
+    /// set; default severity is warning.
+    #[serde(default)]
+    pub shape_rules: Vec<crate::shape::ShapeRule>,
     /// Nav layout for `shell: standard` pages. Defaults to `top`.
     #[serde(default)]
     pub nav_layout: NavLayout,
@@ -2610,6 +2615,7 @@ impl Default for SiteConfig {
             texture: Texture::None,
             glow: Glow::None,
             depth: Depth::Soft,
+            shape_rules: Vec::new(),
             nav_layout: NavLayout::Top,
             mode: Mode::Dark,
             description: None,

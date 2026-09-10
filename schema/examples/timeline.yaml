@@ -1,0 +1,7 @@
+# Milestones in order with a status each.
+- type: timeline
+  items:
+    - { name: Kickoff, status: completed }
+    - { name: Repos connected, status: completed }
+    - { name: First verdicts, status: active }
+    - { name: Rollout complete, status: upcoming }

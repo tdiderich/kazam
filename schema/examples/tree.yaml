@@ -1,0 +1,15 @@
+# Nested work items with status. Two or three levels, owners on leaves.
+- type: tree
+  default_depth: 2
+  show_counts: true
+  nodes:
+    - label: Rollout
+      status: active
+      children:
+        - { label: Connect repos, status: completed, owner: Sam }
+        - { label: First scan, status: active, owner: Sam, due: 2026-09-15 }
+        - label: Review verdicts
+          status: upcoming
+          children:
+            - { label: Triage exploitable, status: upcoming, owner: Priya }
+            - { label: Dismiss unreachable, status: upcoming, owner: Priya }

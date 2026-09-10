@@ -23,6 +23,12 @@ impl<T> OMap<T> {
     }
 }
 
+impl<T> Default for OMap<T> {
+    fn default() -> Self {
+        OMap(Vec::new())
+    }
+}
+
 impl<'a, T> IntoIterator for &'a OMap<T> {
     type Item = (&'a String, &'a T);
     type IntoIter = std::iter::Map<
@@ -70,11 +76,47 @@ struct SchemaField {
     kind: Option<String>,
 }
 
+#[derive(Deserialize, Clone)]
+pub(crate) struct Guidance {
+    #[serde(default)]
+    pub use_when: Option<String>,
+    #[serde(default)]
+    pub avoid_when: Option<String>,
+    /// Name of a curated fixture in `schema/examples/`.
+    #[serde(default)]
+    pub example: Option<String>,
+    #[serde(default)]
+    pub rules: Vec<crate::shape::ShapeRule>,
+}
+
 #[derive(Deserialize)]
 struct Schema {
     enums: OMap<Vec<String>>,
     types: OMap<OMap<SchemaField>>,
     components: OMap<OMap<SchemaField>>,
+    /// Agent-facing guidance per component type. Emitted into the reference
+    /// and the MCP bundle; rules are enforced by `kazam validate`.
+    #[serde(default)]
+    guidance: OMap<Guidance>,
+}
+
+/// Every schema shape rule, tagged with its component type.
+pub(crate) fn schema_shape_rules() -> Vec<crate::shape::ShapeRule> {
+    let schema = load_schema();
+    let mut out = Vec::new();
+    for (ty, g) in &schema.guidance {
+        for r in &g.rules {
+            let mut r = r.clone();
+            r.component = Some(ty.clone());
+            out.push(r);
+        }
+    }
+    out
+}
+
+/// Guidance keyed by component type, for the emitters.
+pub(crate) fn schema_guidance() -> Vec<(String, Guidance)> {
+    load_schema().guidance.into_iter().collect()
 }
 
 /// Content kinds are the ones a human edits in place; everything else is
@@ -332,6 +374,7 @@ fn generate_typescript() -> String {
             ("error_type", "string"),
             ("message", "string"),
             ("suggestion?", "string"),
+            ("severity", "\"error\" | \"warning\""),
         ],
     );
 
@@ -464,6 +507,171 @@ pub fn emit_agents() -> Result<()> {
     Ok(())
 }
 
+pub fn emit_mcp() -> Result<()> {
+    print!("{}", generate_mcp());
+    Ok(())
+}
+
+/// Curated, known-good component examples. Embedded so the binary carries
+/// them; the schema's `guidance.<type>.example` names one of these.
+pub(crate) fn example_yaml(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "graph-tiered" => include_str!("../schema/examples/graph-tiered.yaml"),
+        "graph-flow" => include_str!("../schema/examples/graph-flow.yaml"),
+        "pipeline" => include_str!("../schema/examples/pipeline.yaml"),
+        "grid-diagram" => include_str!("../schema/examples/grid-diagram.yaml"),
+        "box-band" => include_str!("../schema/examples/box-band.yaml"),
+        "sequence" => include_str!("../schema/examples/sequence.yaml"),
+        "stat_grid" => include_str!("../schema/examples/stat_grid.yaml"),
+        "card_grid" => include_str!("../schema/examples/card_grid.yaml"),
+        "table" => include_str!("../schema/examples/table.yaml"),
+        "chart-bar" => include_str!("../schema/examples/chart-bar.yaml"),
+        "tree" => include_str!("../schema/examples/tree.yaml"),
+        "timeline" => include_str!("../schema/examples/timeline.yaml"),
+        _ => return None,
+    })
+}
+
+const GUIDED_TOOLS: [&str; 5] = [
+    "write_page",
+    "create_page",
+    "patch_page",
+    "create_from_template",
+    "get_component_reference",
+];
+
+/// Agent-facing MCP bundle: tool description text, a server-instructions
+/// section, and per-component guidance slices. Hosts (curata) load this
+/// instead of hand-writing descriptions, so a component that gains
+/// `guidance` in the schema shows up in every tool string on regenerate.
+fn generate_mcp() -> String {
+    let guidance = schema_guidance();
+    let guided: Vec<&str> = guidance
+        .iter()
+        .filter(|(_, g)| !g.rules.is_empty())
+        .map(|(k, _)| k.as_str())
+        .collect();
+    let layout_types: Vec<&str> = guided
+        .iter()
+        .copied()
+        .filter(|t| {
+            matches!(
+                *t,
+                "graph" | "pipeline" | "grid" | "box" | "sequence" | "chart"
+            )
+        })
+        .collect();
+    let layout_list = layout_types.join(", ");
+
+    let write_desc = format!(
+        "Create or update a page from full YAML. Every write is checked against shape rules \
+         (component layout guidance) and content rules. Shape rule hits do NOT block: the page \
+         is written and the response leads with a WARNINGS block naming the component path, the \
+         rule, and the fix. Treat a warning as a required follow-up edit. Before writing {layout_list}, \
+         call get_component_reference with component=<type> for a known-good example. To change \
+         one component, use read_component + write_component instead of rewriting the page."
+    );
+    let create_desc = format!(
+        "Create a new knowledge page. Search for duplicates FIRST (search_pages + get_related); \
+         patch an existing page instead of creating a near-duplicate. Same shape-rule warnings as \
+         write_page: the page is created, the response says what to fix. Before using {layout_list}, \
+         call get_component_reference with component=<type>. Tag the page with concepts."
+    );
+    let patch_desc = "Apply targeted operations to a page without rewriting full YAML. Operations \
+         target any component id, including ones nested in sections, grids, boxes, tabs, and \
+         columns; read_page returns an outline of ids. The patched page is shape-checked and the \
+         response carries the same WARNINGS block as write_page. For a one-component edit prefer \
+         write_component.";
+    let template_desc =
+        "Create a page from a template, interpolating {{variables}}. Templates are \
+         known-good starting points; start here for a new page whose type has a template. The \
+         result is validated and shape-checked like any write.";
+    let reference_desc = format!(
+        "Component authoring reference. Pass component=<type> ({layout_list}, and every other \
+         component type) to get a short slice: when to use it, when not to, a curated example you \
+         can copy, and the shape rules the write tools will warn about. Without component, returns \
+         the full reference. Call this before the first write that uses a component you have not \
+         used in this conversation."
+    );
+
+    let mut instructions = String::new();
+    instructions.push_str(
+        "## Writing components
+
+",
+    );
+    instructions.push_str(
+        "Pages are YAML components. The write tools run shape rules on every write and return \
+         warnings without blocking; fix them in a follow-up edit. Cold starts on layout components go \
+         wrong most often, so:
+
+",
+    );
+    instructions.push_str(&format!(
+        "- Before using {layout_list}: call `get_component_reference` with `component=<type>` and \
+         copy the example's structure.
+"
+    ));
+    instructions.push_str(
+        "- Prefer a template (`list_templates`, `create_from_template`) for a new page when one \
+         exists for its type.
+         - To change one component, use `read_page` (outline) then `read_component` and \
+         `write_component`. Do not rewrite the whole page.
+         - A response that starts with `WARNINGS` was written but needs a fix. Read the rule and the \
+         path, then edit that component.
+
+",
+    );
+    instructions.push_str(
+        "Shape rules currently active (warn on write):
+
+",
+    );
+    for (ty, g) in &guidance {
+        for r in &g.rules {
+            instructions.push_str(&format!(
+                "- `{ty}`: {} (`{}`)
+",
+                r.say, r.warn
+            ));
+        }
+    }
+
+    let mut components = serde_json::Map::new();
+    for (ty, g) in &guidance {
+        let example = g.example.as_deref().and_then(example_yaml);
+        components.insert(
+            ty.clone(),
+            serde_json::json!({
+                "use_when": g.use_when,
+                "avoid_when": g.avoid_when,
+                "example_name": g.example,
+                "example_yaml": example,
+                "rules": g.rules.iter().map(|r| serde_json::json!({
+                    "warn": r.warn,
+                    "say": r.say,
+                    "severity": r.severity.clone().unwrap_or_else(|| "warning".into()),
+                })).collect::<Vec<_>>(),
+            }),
+        );
+    }
+
+    let out = serde_json::json!({
+        "generated_by": "kazam sdk emit-mcp",
+        "guided_components": guided,
+        "tools": {
+            GUIDED_TOOLS[0]: write_desc,
+            GUIDED_TOOLS[1]: create_desc,
+            GUIDED_TOOLS[2]: patch_desc,
+            GUIDED_TOOLS[3]: template_desc,
+            GUIDED_TOOLS[4]: reference_desc,
+        },
+        "instructions_section": instructions,
+        "components": components,
+    });
+    serde_json::to_string_pretty(&out).expect("mcp bundle serializes") + "\n"
+}
+
 fn yaml_example_value(field_type: &str, field_name: &str, schema: &Schema) -> String {
     if field_type.ends_with("[]") {
         return "[]".to_string();
@@ -509,6 +717,11 @@ fn generate_agents() -> String {
 
     out.push_str("# kazam component reference\n\n");
     out.push_str("Auto-generated from schema. Do not edit.\n\n");
+    out.push_str(
+        "Components marked with **Use when** carry shape rules. `kazam validate` and every curata \
+         write tool check them and return warnings (the page still saves). When a component has a \
+         curated example below, copy its structure rather than inventing one from the field table.\n\n",
+    );
 
     // Enums
     out.push_str("## Enums\n\n");
@@ -567,29 +780,66 @@ fn generate_agents() -> String {
         }
         out.push('\n');
 
-        // YAML example: required fields + up to 2 optional
-        out.push_str("```yaml\n");
-        out.push_str("- type: ");
-        out.push_str(tag);
-        out.push('\n');
-        let mut optional_shown = 0usize;
-        for (fname, field) in fields {
-            if field.required {
-                out.push_str("  ");
-                out.push_str(fname);
-                out.push_str(": ");
-                out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
+        let guidance = schema.guidance.get(tag);
+        if let Some(g) = guidance {
+            if let Some(u) = &g.use_when {
+                out.push_str("**Use when:** ");
+                out.push_str(u);
                 out.push('\n');
-            } else if optional_shown < 2 {
-                out.push_str("  ");
-                out.push_str(fname);
-                out.push_str(": ");
-                out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
-                out.push_str("  # optional\n");
-                optional_shown += 1;
+            }
+            if let Some(a) = &g.avoid_when {
+                out.push_str("**Avoid when:** ");
+                out.push_str(a);
+                out.push('\n');
+            }
+            out.push('\n');
+        }
+
+        let curated = guidance
+            .and_then(|g| g.example.as_deref())
+            .and_then(example_yaml);
+        out.push_str("```yaml\n");
+        if let Some(ex) = curated {
+            out.push_str(ex.trim_end());
+            out.push('\n');
+        } else {
+            // Placeholder example: required fields + up to 2 optional
+            out.push_str("- type: ");
+            out.push_str(tag);
+            out.push('\n');
+            let mut optional_shown = 0usize;
+            for (fname, field) in fields {
+                if field.required {
+                    out.push_str("  ");
+                    out.push_str(fname);
+                    out.push_str(": ");
+                    out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
+                    out.push('\n');
+                } else if optional_shown < 2 {
+                    out.push_str("  ");
+                    out.push_str(fname);
+                    out.push_str(": ");
+                    out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
+                    out.push_str("  # optional\n");
+                    optional_shown += 1;
+                }
             }
         }
         out.push_str("```\n\n");
+
+        if let Some(g) = guidance {
+            if !g.rules.is_empty() {
+                out.push_str("**Shape rules (warn on write):**\n");
+                for r in &g.rules {
+                    out.push_str("- ");
+                    out.push_str(&r.say);
+                    out.push_str(" (`");
+                    out.push_str(&r.warn);
+                    out.push_str("`)\n");
+                }
+                out.push('\n');
+            }
+        }
     }
 
     out
@@ -5082,6 +5332,56 @@ mod tests {
         assert!(ts.contains("{ type: \"header\""));
         assert!(ts.contains("{ type: \"chart\""));
         assert!(ts.contains("{ type: \"role_map\""));
+    }
+
+    #[test]
+    fn every_guidance_example_resolves_and_parses() {
+        for (ty, g) in schema_guidance() {
+            if let Some(name) = &g.example {
+                let yaml = example_yaml(name)
+                    .unwrap_or_else(|| panic!("guidance.{ty}.example '{name}' has no fixture"));
+                let parsed: Vec<crate::types::Component> =
+                    serde_yaml::from_str(yaml).unwrap_or_else(|e| panic!("{name}: {e}"));
+                assert!(!parsed.is_empty(), "{name} is empty");
+            }
+            for r in &g.rules {
+                assert!(!r.say.is_empty(), "guidance.{ty} rule without say");
+            }
+        }
+    }
+
+    #[test]
+    fn agents_reference_carries_guidance_and_curated_examples() {
+        let md = generate_agents();
+        let graph = md.split("### graph\n").nth(1).expect("graph section");
+        assert!(graph.contains("**Use when:**"));
+        assert!(
+            graph.contains("row: 1"),
+            "curated tiered example should replace placeholder"
+        );
+        assert!(graph.contains("**Shape rules (warn on write):**"));
+        assert!(!graph.contains("nodes: []"));
+    }
+
+    #[test]
+    fn mcp_bundle_is_json_naming_every_guided_component() {
+        let raw = generate_mcp();
+        let v: serde_json::Value = serde_json::from_str(&raw).expect("valid json");
+        let guided = v["guided_components"].as_array().unwrap();
+        assert!(guided.iter().any(|g| g == "graph"));
+        for g in guided {
+            let ty = g.as_str().unwrap();
+            assert!(v["components"][ty].is_object(), "missing slice for {ty}");
+        }
+        for tool in GUIDED_TOOLS {
+            let d = v["tools"][tool].as_str().unwrap();
+            assert!(d.len() > 80, "{tool} description too short");
+        }
+        assert!(v["tools"]["write_page"].as_str().unwrap().contains("graph"));
+        assert!(v["instructions_section"]
+            .as_str()
+            .unwrap()
+            .contains("WARNINGS"));
     }
 
     #[test]
