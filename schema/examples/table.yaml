@@ -1,11 +1,17 @@
 # Columns declare key and label; rows are maps keyed by column key.
 # Keep cells to a sentence. Long prose belongs in markdown above the table.
+# summary is optional: group_by names a column, colors maps that column's
+# values to semantic colors. It draws a count-per-value strip above the table.
 - type: table
   columns:
     - { key: approach, label: Approach }
     - { key: decides, label: How it decides }
     - { key: struggles, label: Where it struggles }
+    - { key: verdict, label: Verdict, color_map: { Keep: green, Watch: yellow } }
   rows:
-    - { approach: Pattern matching, decides: Matches shapes in parsed source., struggles: Blind to whether the path is guarded. }
-    - { approach: Database queries, decides: Runs queries over a code model., struggles: Blind where nobody wrote a query. }
-    - { approach: Agent review, decides: Reads the path and reasons., struggles: Judgement is model-driven, not bit-identical. }
+    - { approach: Pattern matching, decides: Matches shapes in parsed source., struggles: Blind to whether the path is guarded., verdict: Watch }
+    - { approach: Database queries, decides: Runs queries over a code model., struggles: Blind where nobody wrote a query., verdict: Watch }
+    - { approach: Agent review, decides: Reads the path and reasons., struggles: Judgement is model-driven, not bit-identical., verdict: Keep }
+  summary:
+    group_by: verdict
+    colors: { Keep: green, Watch: yellow }

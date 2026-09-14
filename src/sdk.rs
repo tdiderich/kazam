@@ -2474,29 +2474,52 @@ function ComponentView({
     }
 
     case "table": {
-      const columns = (comp.columns as Array<{ key: string; label: string; color_map?: Record<string, string> }>) || [];
-      const rows = (comp.rows as Array<Record<string, unknown>>) || [];
-      const summary = comp.summary as Array<{ label: string; value: number; color?: string }> | undefined;
-      const summaryTotal = summary ? summary.reduce((acc, item) => acc + item.value, 0) : 0;
+      const columns = Array.isArray(comp.columns) ? (comp.columns as Array<{ key: string; label: string; color_map?: Record<string, string> }>) : [];
+      const rows = Array.isArray(comp.rows) ? (comp.rows as Array<Record<string, unknown>>) : [];
+      // `summary` is documented as TableSummary `{ group_by, colors? }`: count rows
+      // per distinct value of the group_by column and draw one dot + bar segment
+      // per value, mirroring the Rust renderer. Any other shape (an array, a
+      // string, an object without group_by) is ignored so one malformed optional
+      // field renders a plain table instead of blanking the page.
+      const rawSummary = comp.summary;
+      const summary =
+        rawSummary && typeof rawSummary === "object" && !Array.isArray(rawSummary) && typeof (rawSummary as { group_by?: unknown }).group_by === "string"
+          ? (rawSummary as { group_by: string; colors?: unknown })
+          : undefined;
+      const summaryGroups: Array<{ label: string; count: number; color: string }> = [];
+      if (summary) {
+        const colors: Record<string, unknown> =
+          summary.colors && typeof summary.colors === "object" && !Array.isArray(summary.colors) ? (summary.colors as Record<string, unknown>) : {};
+        const counts = new Map<string, number>();
+        for (const row of rows) {
+          const v = String(row[summary.group_by] ?? "");
+          counts.set(v, (counts.get(v) || 0) + 1);
+        }
+        for (const label of Array.from(counts.keys()).sort()) {
+          const c = colors[label];
+          summaryGroups.push({ label, count: counts.get(label) || 0, color: typeof c === "string" && c ? c : "default" });
+        }
+      }
+      const summaryTotal = Math.max(rows.length, 1);
       return (
         <div id={id} className="c-table-wrap">
-          {summary && summary.length > 0 && (
-            <div className="c-table-summary">
+          {summaryGroups.length > 0 && (
+            <div className="c-table-summary" data-kz-field="summary.group_by">
               <div className="c-table-summary-dots">
-                {summary.map((item, si) => (
-                  <span key={si} className={`c-table-summary-dot c-table-summary-dot-${item.color || "default"}`}>
-                    <span className="c-dot" />
-                    <span className="c-dot-label"><span data-kz-field={`summary[${si}].label`}>{item.label}</span>: <span data-kz-field={`summary[${si}].value`}>{item.value}</span></span>
+                {summaryGroups.map((g, si) => (
+                  <span key={si} className="c-table-summary-item">
+                    <span className={`c-table-summary-dot color-${g.color}`} />
+                    {g.label} <strong>{g.count}</strong>
                   </span>
                 ))}
               </div>
               <div className="c-table-summary-bar">
-                {summary.map((item, si) => (
+                {summaryGroups.map((g, si) => (
                   <div
                     key={si}
-                    className={`c-table-summary-seg c-table-summary-seg-${item.color || "default"}`}
-                    style={{ width: `${summaryTotal > 0 ? (item.value / summaryTotal * 100).toFixed(1) : 0}%` } as React.CSSProperties}
-                    title={`${item.label}: ${item.value}`}
+                    className={`c-table-summary-seg color-bg-${g.color}`}
+                    style={{ width: `${(g.count / summaryTotal * 100).toFixed(1)}%` } as React.CSSProperties}
+                    title={`${g.label}: ${g.count}`}
                   />
                 ))}
               </div>
@@ -5193,6 +5216,42 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// The doc kind of every component field must match how the emitted React
+    /// renderer reads it. `kind: object` fields (TableSummary, ComparePanel, ...)
+    /// are read as objects, `kind: list` fields as arrays. A `comp.x as Array<`
+    /// cast on an object field is exactly the drift that shipped a renderer
+    /// calling `.reduce` on a documented `{ group_by, colors }` object and
+    /// blanking the page, while `kazam validate` passed the payload.
+    #[test]
+    fn react_field_casts_match_schema_kinds() {
+        let schema = load_schema();
+        let out = generate_react();
+        let mut drift = Vec::new();
+        for (comp, fields) in &schema.components {
+            let region = render_region(&out, comp);
+            for (name, field) in fields {
+                let as_array = format!("comp.{name} as Array<");
+                let as_record = format!("comp.{name} as Record<");
+                let as_obj = format!("comp.{name} as {{");
+                match field.kind.as_deref().unwrap_or("") {
+                    "object" if region.contains(&as_array) => drift.push(format!(
+                        "{comp}.{name}: doc says object, renderer casts to Array"
+                    )),
+                    "list" if region.contains(&as_record) || region.contains(&as_obj) => drift
+                        .push(format!(
+                            "{comp}.{name}: doc says list, renderer casts to object"
+                        )),
+                    _ => {}
+                }
+            }
+        }
+        assert!(
+            drift.is_empty(),
+            "schema/renderer shape drift:\n{}",
+            drift.join("\n")
+        );
     }
 
     /// Every content field (text / markdown / code / number) of every component,
