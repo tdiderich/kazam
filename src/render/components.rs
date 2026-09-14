@@ -84,6 +84,46 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             equal_heights,
             ..
         } => columns_component(columns, *equal_heights, base, config),
+        Component::Grid {
+            columns,
+            rows,
+            gap,
+            children,
+            id,
+            ..
+        } => grid(*columns, *rows, *gap, children, id.as_deref(), base, config),
+        Component::Box {
+            title,
+            tag,
+            body,
+            components,
+            color,
+            hex,
+            border,
+            id,
+            ..
+        } => box_component(
+            title.as_deref(),
+            tag.as_deref(),
+            body.as_deref(),
+            components,
+            *color,
+            hex.as_deref(),
+            *border,
+            id.as_deref(),
+            base,
+            config,
+        ),
+        Component::Connector {
+            label,
+            direction,
+            color,
+            hex,
+            ..
+        } => connector(label.as_deref(), *direction, *color, hex.as_deref()),
+        Component::Sequence {
+            target, steps, id, ..
+        } => sequence(target, steps, id.as_deref(), base),
         Component::Accordion { items, .. } => accordion(items, base, config),
         Component::EventTimeline {
             events,
@@ -286,11 +326,25 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             title.as_deref(),
         ),
     };
-    apply_scale(rendered, c.scale())
+    apply_motion(apply_scale(rendered, c.scale()), c.animate())
 }
 
 pub(super) fn sem_color_class(c: SemColor) -> &'static str {
     c.class_suffix()
+}
+
+/// Wraps a component in a motion carrier when it opts into `animate`. The
+/// wrapper only does anything under `body.kz-motion`, so pages that never
+/// turn motion on render the same HTML plus one inert div.
+fn apply_motion(mut r: Rendered, animate: Option<Animate>) -> Rendered {
+    if let Some(a) = animate.filter(|a| *a != Animate::None) {
+        r.html = format!(
+            r#"<div class="kz-anim" data-animate="{}">{}</div>"#,
+            a.name(),
+            r.html
+        );
+    }
+    r
 }
 
 /// Wraps a chart/diagram's rendered HTML in a centered container sized to
@@ -386,9 +440,14 @@ fn meta(fields: &[MetaField]) -> Rendered {
 
 // ── Card Grid ─────────────────────────────────────
 
-fn card_grid(cards: &[Card], min_width: Option<u32>, connector: Connector, base: &str) -> Rendered {
+fn card_grid(
+    cards: &[Card],
+    min_width: Option<u32>,
+    connector: CardConnector,
+    base: &str,
+) -> Rendered {
     let mw = min_width.unwrap_or(320);
-    let is_arrow = matches!(connector, Connector::Arrow);
+    let is_arrow = matches!(connector, CardConnector::Arrow);
     let mut h = if is_arrow {
         String::from(r#"<div class="c-card-grid c-card-grid-arrow">"#)
     } else {
@@ -449,7 +508,7 @@ fn card_grid(cards: &[Card], min_width: Option<u32>, connector: Connector, base:
 fn selectable_grid(
     cards: &[SelectableCard],
     interaction: Interaction,
-    connector: Connector,
+    connector: CardConnector,
     base: &str,
 ) -> Rendered {
     let interaction_attr = match interaction {
@@ -457,13 +516,13 @@ fn selectable_grid(
         Interaction::MultiSelect => "multi_select",
         Interaction::None => "none",
     };
-    let is_arrow = matches!(connector, Connector::Arrow);
+    let is_arrow = matches!(connector, CardConnector::Arrow);
 
     let mut h = format!(
         r#"<div class="c-selectable-grid" data-selectable-grid data-interaction="{interaction_attr}">"#
     );
 
-    if matches!(connector, Connector::DotsLine) {
+    if matches!(connector, CardConnector::DotsLine) {
         h.push_str(r#"<div class="c-sel-dots-row"><div class="c-sel-dots-line"></div>"#);
         for (i, _) in cards.iter().enumerate() {
             let n = i + 1;
@@ -754,6 +813,9 @@ pub(super) fn parse_markdown(md: &str, base: &str) -> String {
                 id,
             })
         }
+        // Raw HTML in a body would land in the page unescaped. Downgrade it
+        // to text so markup shows literally instead of executing.
+        Event::Html(raw) | Event::InlineHtml(raw) => Event::Text(raw),
         other => other,
     });
     let mut html = String::new();
@@ -1073,6 +1135,185 @@ fn columns_component(
     }
     r.html.push_str("</div>");
     r
+}
+
+// ── Grid / Box / Connector ────────────────────────
+
+fn grid(
+    columns: u32,
+    rows: Option<u32>,
+    gap: Option<u32>,
+    children: &[GridChild],
+    id: Option<&str>,
+    base: &str,
+    config: &SiteConfig,
+) -> Rendered {
+    let mut r = Rendered::default();
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let mut style = format!("--cols: {}", columns.max(1));
+    if let Some(rows) = rows {
+        style.push_str(&format!("; --rows: {}", rows));
+    }
+    if let Some(gap) = gap {
+        style.push_str(&format!("; --gap: {}px", gap));
+    }
+    r.html.push_str(&format!(
+        r#"<div{} class="c-grid" style="{}">"#,
+        id_attr, style
+    ));
+    for child in children {
+        r.html.push_str(&format!(
+            r#"<div class="c-grid-cell" style="{}">"#,
+            grid_cell_style(child)
+        ));
+        r.extend(render(&child.component, base, config));
+        r.html.push_str("</div>");
+    }
+    r.html.push_str("</div>");
+    r
+}
+
+/// Explicit `grid-column`/`grid-row` when the child pins itself, span-only
+/// otherwise so CSS grid auto-flow places it.
+pub(crate) fn grid_cell_style(child: &GridChild) -> String {
+    let mut parts = Vec::new();
+    match child.col {
+        Some(c) => parts.push(format!(
+            "grid-column: {} / span {}",
+            c,
+            child.colspan.max(1)
+        )),
+        None if child.colspan > 1 => parts.push(format!("grid-column: span {}", child.colspan)),
+        None => {}
+    }
+    match child.row {
+        Some(r) => parts.push(format!("grid-row: {} / span {}", r, child.rowspan.max(1))),
+        None if child.rowspan > 1 => parts.push(format!("grid-row: span {}", child.rowspan)),
+        None => {}
+    }
+    parts.join("; ")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn box_component(
+    title: Option<&str>,
+    tag: Option<&str>,
+    body: Option<&str>,
+    comps: &[Component],
+    color: SemColor,
+    hex: Option<&str>,
+    border: BorderStyle,
+    id: Option<&str>,
+    base: &str,
+    config: &SiteConfig,
+) -> Rendered {
+    let mut r = Rendered::default();
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let accent = crate::types::resolve_hex(hex, color);
+    r.html.push_str(&format!(
+        r#"<div{} class="c-box c-box-{} c-box-border-{}" style="--box-accent: {}">"#,
+        id_attr,
+        color.class_suffix(),
+        border.class_suffix(),
+        accent
+    ));
+    if title.is_some() || tag.is_some() {
+        r.html.push_str(r#"<div class="c-box-h">"#);
+        if let Some(t) = title {
+            r.html
+                .push_str(&format!(r#"<b class="c-box-title">{}</b>"#, esc(t)));
+        }
+        if let Some(t) = tag {
+            r.html
+                .push_str(&format!(r#"<span class="c-box-tag">{}</span>"#, esc(t)));
+        }
+        r.html.push_str("</div>");
+    }
+    if let Some(b) = body {
+        r.html.push_str(&format!(
+            r#"<div class="c-box-body">{}</div>"#,
+            parse_markdown(b, base)
+        ));
+    }
+    for c in comps {
+        r.extend(render(c, base, config));
+    }
+    r.html.push_str("</div>");
+    r
+}
+
+fn connector(
+    label: Option<&str>,
+    direction: Direction,
+    color: SemColor,
+    hex: Option<&str>,
+) -> Rendered {
+    let mut r = Rendered::default();
+    let accent = hex
+        .filter(|h| crate::types::valid_hex_color(h))
+        .map(|h| format!(r#" style="--connector-accent: {}""#, h))
+        .unwrap_or_else(|| match color {
+            SemColor::Default => String::new(),
+            c => format!(r#" style="--connector-accent: {}""#, c.hex()),
+        });
+    r.html.push_str(&format!(
+        r#"<div class="c-connector c-connector-{}"{}>"#,
+        direction.class_suffix(),
+        accent
+    ));
+    if let Some(l) = label {
+        r.html.push_str(&format!(
+            r#"<span class="c-connector-label">{}</span>"#,
+            esc(l)
+        ));
+    }
+    r.html.push_str("</div>");
+    r
+}
+
+// ── Sequence ──────────────────────────────────────
+
+fn sequence(target: &str, steps: &[SeqStep], id: Option<&str>, base: &str) -> Rendered {
+    let mut h = String::new();
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    h.push_str(&format!(
+        r#"<div{} class="c-sequence" data-sequence data-target="{}" tabindex="0" aria-label="Walkthrough">"#,
+        id_attr,
+        esc(target)
+    ));
+    h.push_str(r#"<div class="c-seq-bar">"#);
+    h.push_str(r#"<button type="button" class="c-seq-btn" data-seq-prev aria-label="Previous step">&larr;</button>"#);
+    h.push_str(&format!(
+        r#"<span class="c-seq-count"><span data-seq-index>1</span> / {}</span>"#,
+        steps.len().max(1)
+    ));
+    h.push_str(r#"<button type="button" class="c-seq-btn" data-seq-next aria-label="Next step">&rarr;</button>"#);
+    h.push_str(r#"<button type="button" class="c-seq-btn c-seq-reset" data-seq-reset aria-label="Show everything">Show all</button>"#);
+    h.push_str("</div>");
+    h.push_str(r#"<div class="c-seq-steps">"#);
+    for (i, step) in steps.iter().enumerate() {
+        let hidden = if i == 0 { "" } else { " hidden" };
+        h.push_str(&format!(
+            r#"<div class="c-seq-step" data-highlight="{}"{}>"#,
+            esc(&step.highlight.join(" ")),
+            hidden
+        ));
+        if let Some(n) = &step.note {
+            h.push_str(&format!(
+                r#"<div class="c-seq-note c-markdown">{}</div>"#,
+                parse_markdown(n, base)
+            ));
+        }
+        h.push_str("</div>");
+    }
+    h.push_str("</div></div>");
+    Rendered::new(h).with_script("sequence")
 }
 
 // ── Accordion ─────────────────────────────────────

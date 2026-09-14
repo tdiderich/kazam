@@ -176,6 +176,13 @@ pub struct Page {
     /// above: unset = inherit, any Some value wins over the site config.
     #[serde(default)]
     pub glow: Option<Glow>,
+    /// Override the site-wide `depth` on this page. Unset = inherit.
+    #[serde(default)]
+    pub depth: Option<Depth>,
+    /// Turn on entrance motion for components that set `animate:`. Off by
+    /// default so pages read instantly; presentation mode forces it on.
+    #[serde(default)]
+    pub motion: bool,
     /// How `shell: deck` pages export to PDF. `slides` (default): one slide per
     /// landscape page, Keynote-style. `continuous`: all slides flow on a single
     /// scrolling document with a thin separator between them - nicer for
@@ -411,6 +418,9 @@ pub enum PrintFlow {
     Slides,
     Continuous,
     Square,
+    /// Portrait US letter, one section per page, top-aligned. For documents
+    /// meant to be read as a PDF rather than presented.
+    Letter,
 }
 
 #[derive(Deserialize)]
@@ -462,6 +472,8 @@ pub enum Component {
         id: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     HeroBanner {
         title: String,
@@ -470,34 +482,44 @@ pub enum Component {
         buttons: Option<Vec<ButtonConfig>>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Meta {
         fields: Vec<MetaField>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     CardGrid {
         cards: Vec<Card>,
         #[serde(default)]
         min_width: Option<u32>,
         #[serde(default)]
-        connector: Connector,
+        connector: CardConnector,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     SelectableGrid {
         cards: Vec<SelectableCard>,
         #[serde(default)]
         interaction: Interaction,
         #[serde(default)]
-        connector: Connector,
+        connector: CardConnector,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Timeline {
         items: Vec<TimelineItem>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     StatGrid {
         stats: Vec<Stat>,
@@ -505,6 +527,8 @@ pub enum Component {
         columns: u32,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     BeforeAfter {
         items: Vec<BeforeAfterItem>,
@@ -514,12 +538,16 @@ pub enum Component {
         after_label: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     SplitCompare {
         left: ComparePanel,
         right: ComparePanel,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Steps {
         items: Vec<Step>,
@@ -527,11 +555,15 @@ pub enum Component {
         numbered: bool,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Markdown {
         body: String,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Table {
         columns: Vec<TableColumn>,
@@ -542,6 +574,8 @@ pub enum Component {
         summary: Option<TableSummary>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Callout {
         #[serde(default)]
@@ -551,17 +585,23 @@ pub enum Component {
         links: Option<Vec<ButtonConfig>>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Code {
         language: Option<String>,
         code: String,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Tabs {
         tabs: Vec<Tab>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Section {
         heading: Option<String>,
@@ -577,6 +617,8 @@ pub enum Component {
         id: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Columns {
         columns: Vec<Vec<Component>>,
@@ -584,11 +626,88 @@ pub enum Component {
         equal_heights: bool,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
+    /// Explicit-placement CSS grid. Children carry their own `col`/`row`
+    /// (1-based) and spans; omit them to let the grid auto-flow. Cells size
+    /// from the container, never from a fixed slot width.
+    Grid {
+        columns: u32,
+        #[serde(default)]
+        rows: Option<u32>,
+        #[serde(default)]
+        gap: Option<u32>,
+        children: Vec<GridChild>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
+    /// Bordered panel with a title row (title left, uppercase tag right), a
+    /// markdown body, and optional nested components. Nesting is what lets a
+    /// box hold a grid of boxes.
+    Box {
+        #[serde(default)]
+        title: Option<String>,
+        #[serde(default)]
+        tag: Option<String>,
+        #[serde(default)]
+        body: Option<String>,
+        #[serde(default)]
+        components: Vec<Component>,
+        #[serde(default)]
+        color: SemColor,
+        /// Exact accent, same contract as `GraphNode.hex`: wins over `color`
+        /// when valid, silently ignored otherwise.
+        #[serde(default)]
+        hex: Option<String>,
+        #[serde(default)]
+        border: BorderStyle,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
+    /// Guided walkthrough of another component on the page. Each step names
+    /// the `id`s to highlight inside `target`; everything else in the target
+    /// dims. Steps advance with the strip's buttons or arrow keys.
+    Sequence {
+        target: String,
+        steps: Vec<SeqStep>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
+    /// A cell, not an edge: a line with an arrowhead that fills whatever
+    /// cell it sits in, with an optional label drawn over the line.
+    Connector {
+        #[serde(default)]
+        label: Option<String>,
+        #[serde(default)]
+        direction: Direction,
+        #[serde(default)]
+        color: SemColor,
+        #[serde(default)]
+        hex: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Accordion {
         items: Vec<AccordionItem>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     EventTimeline {
         events: Vec<EventItem>,
@@ -604,6 +723,8 @@ pub enum Component {
         group_by: Option<EventGroupBy>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Tree {
         nodes: Vec<TreeNode>,
@@ -623,6 +744,8 @@ pub enum Component {
         default_view: TreeDefaultView,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     PriorityQueue {
         items: Vec<QueueItem>,
@@ -638,6 +761,8 @@ pub enum Component {
         title: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Venn {
         sets: Vec<VennSet>,
@@ -651,6 +776,8 @@ pub enum Component {
         default_view: VennView,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Image {
         src: String,
@@ -661,6 +788,8 @@ pub enum Component {
         align: Align,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     /// Responsive iframe embed for Loom, YouTube, Vimeo, etc.
     Embed {
@@ -669,6 +798,8 @@ pub enum Component {
         aspect: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     /// Structured link collection with per-item metadata. Consolidates
     /// the "page that's just a few links" pattern into a reviewable list.
@@ -676,6 +807,8 @@ pub enum Component {
         items: Vec<ResourceItem>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Badge {
         label: String,
@@ -683,6 +816,8 @@ pub enum Component {
         color: SemColor,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Tag {
         label: String,
@@ -690,16 +825,22 @@ pub enum Component {
         color: SemColor,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Divider {
         label: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Kbd {
         keys: Vec<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Status {
         label: String,
@@ -707,27 +848,37 @@ pub enum Component {
         color: SemColor,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Breadcrumb {
         items: Vec<BreadcrumbItem>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     ButtonGroup {
         buttons: Vec<ButtonConfig>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     DefinitionList {
         items: Vec<DefinitionItem>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Blockquote {
         body: String,
         attribution: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Avatar {
         name: String,
@@ -737,6 +888,8 @@ pub enum Component {
         subtitle: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     AvatarGroup {
         avatars: Vec<AvatarConfig>,
@@ -746,6 +899,8 @@ pub enum Component {
         max: usize,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     ProgressBar {
         value: u8,
@@ -759,6 +914,8 @@ pub enum Component {
         thresholds: HashMap<String, String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     EmptyState {
         title: String,
@@ -768,6 +925,8 @@ pub enum Component {
         icon: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Icon {
         name: String,
@@ -777,6 +936,8 @@ pub enum Component {
         color: SemColor,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Chart {
         kind: ChartKind,
@@ -807,6 +968,8 @@ pub enum Component {
         /// fit on screen at full width.
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     /// Grid of role cards read from the site's `roles:` config in kazam.yaml.
     /// Each card links to `?role=<id>` to activate persona filtering.
@@ -815,6 +978,8 @@ pub enum Component {
         title: Option<String>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Sankey {
         title: Option<String>,
@@ -826,6 +991,8 @@ pub enum Component {
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Radar {
         title: Option<String>,
@@ -838,6 +1005,8 @@ pub enum Component {
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Quadrant {
         title: Option<String>,
@@ -850,6 +1019,8 @@ pub enum Component {
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Architecture {
         title: Option<String>,
@@ -862,6 +1033,8 @@ pub enum Component {
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Pipeline {
         title: Option<String>,
@@ -875,6 +1048,8 @@ pub enum Component {
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Graph {
         title: Option<String>,
@@ -896,6 +1071,8 @@ pub enum Component {
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     OrgChart {
         title: Option<String>,
@@ -904,16 +1081,22 @@ pub enum Component {
         default_open_depth: Option<u32>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Aside {
         body: String,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     RuleList {
         items: Vec<RuleItem>,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
     Gauge {
         items: Vec<GaugeItem>,
@@ -925,6 +1108,8 @@ pub enum Component {
         max: f64,
         #[serde(default)]
         scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
     },
 }
 
@@ -948,6 +1133,10 @@ impl Component {
             | Component::Tabs { scale, .. }
             | Component::Section { scale, .. }
             | Component::Columns { scale, .. }
+            | Component::Grid { scale, .. }
+            | Component::Box { scale, .. }
+            | Component::Connector { scale, .. }
+            | Component::Sequence { scale, .. }
             | Component::Accordion { scale, .. }
             | Component::EventTimeline { scale, .. }
             | Component::Tree { scale, .. }
@@ -982,6 +1171,66 @@ impl Component {
             | Component::Aside { scale, .. }
             | Component::RuleList { scale, .. }
             | Component::Gauge { scale, .. } => *scale,
+        }
+    }
+
+    pub(crate) fn animate(&self) -> Option<Animate> {
+        match self {
+            Component::Header { animate, .. }
+            | Component::HeroBanner { animate, .. }
+            | Component::Meta { animate, .. }
+            | Component::CardGrid { animate, .. }
+            | Component::SelectableGrid { animate, .. }
+            | Component::Timeline { animate, .. }
+            | Component::StatGrid { animate, .. }
+            | Component::BeforeAfter { animate, .. }
+            | Component::SplitCompare { animate, .. }
+            | Component::Steps { animate, .. }
+            | Component::Markdown { animate, .. }
+            | Component::Table { animate, .. }
+            | Component::Callout { animate, .. }
+            | Component::Code { animate, .. }
+            | Component::Tabs { animate, .. }
+            | Component::Section { animate, .. }
+            | Component::Columns { animate, .. }
+            | Component::Grid { animate, .. }
+            | Component::Box { animate, .. }
+            | Component::Connector { animate, .. }
+            | Component::Sequence { animate, .. }
+            | Component::Accordion { animate, .. }
+            | Component::EventTimeline { animate, .. }
+            | Component::Tree { animate, .. }
+            | Component::PriorityQueue { animate, .. }
+            | Component::Venn { animate, .. }
+            | Component::Image { animate, .. }
+            | Component::Embed { animate, .. }
+            | Component::Resources { animate, .. }
+            | Component::Badge { animate, .. }
+            | Component::Tag { animate, .. }
+            | Component::Divider { animate, .. }
+            | Component::Kbd { animate, .. }
+            | Component::Status { animate, .. }
+            | Component::Breadcrumb { animate, .. }
+            | Component::ButtonGroup { animate, .. }
+            | Component::DefinitionList { animate, .. }
+            | Component::Blockquote { animate, .. }
+            | Component::Avatar { animate, .. }
+            | Component::AvatarGroup { animate, .. }
+            | Component::ProgressBar { animate, .. }
+            | Component::EmptyState { animate, .. }
+            | Component::Icon { animate, .. }
+            | Component::Chart { animate, .. }
+            | Component::RoleMap { animate, .. }
+            | Component::Sankey { animate, .. }
+            | Component::Radar { animate, .. }
+            | Component::Quadrant { animate, .. }
+            | Component::Architecture { animate, .. }
+            | Component::Pipeline { animate, .. }
+            | Component::Graph { animate, .. }
+            | Component::OrgChart { animate, .. }
+            | Component::Aside { animate, .. }
+            | Component::RuleList { animate, .. }
+            | Component::Gauge { animate, .. } => *animate,
         }
     }
 }
@@ -1047,6 +1296,84 @@ impl SemColor {
     }
 }
 
+/// Accepts `#RGB`, `#RRGGBB`, or `#RRGGBBAA` (case-insensitive hex digits
+/// only). Values pass through to unescaped style/SVG attributes, so a strict
+/// allowlist is what keeps a bad value from breaking out of them.
+pub(crate) fn valid_hex_color(s: &str) -> bool {
+    let Some(rest) = s.strip_prefix('#') else {
+        return false;
+    };
+    matches!(rest.len(), 3 | 6 | 8) && rest.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Resolves an optional `hex` override against a semantic color, dropping
+/// invalid overrides silently.
+pub(crate) fn resolve_hex(hex: Option<&str>, color: SemColor) -> &str {
+    hex.filter(|h| valid_hex_color(h))
+        .unwrap_or_else(|| color.hex())
+}
+
+#[derive(Deserialize)]
+pub struct SeqStep {
+    /// Component `id`s inside the sequence target to bring forward.
+    #[serde(default)]
+    pub highlight: Vec<String>,
+    /// Markdown shown in the strip for this step.
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct GridChild {
+    #[serde(default)]
+    pub col: Option<u32>,
+    #[serde(default)]
+    pub row: Option<u32>,
+    #[serde(default = "one")]
+    pub colspan: u32,
+    #[serde(default = "one")]
+    pub rowspan: u32,
+    pub component: Component,
+}
+
+fn one() -> u32 {
+    1
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum BorderStyle {
+    #[default]
+    Solid,
+    Dashed,
+}
+
+impl BorderStyle {
+    pub fn class_suffix(&self) -> &'static str {
+        match self {
+            BorderStyle::Solid => "solid",
+            BorderStyle::Dashed => "dashed",
+        }
+    }
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Direction {
+    #[default]
+    Down,
+    Right,
+}
+
+impl Direction {
+    pub fn class_suffix(&self) -> &'static str {
+        match self {
+            Direction::Down => "down",
+            Direction::Right => "right",
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct Link {
     pub label: String,
@@ -1074,7 +1401,7 @@ pub enum Interaction {
 
 #[derive(Deserialize, Default, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
-pub enum Connector {
+pub enum CardConnector {
     #[default]
     None,
     DotsLine,
@@ -1950,6 +2277,14 @@ pub struct SiteConfig {
     /// Defaults to `none`.
     #[serde(default)]
     pub glow: Glow,
+    /// Surface depth for panel components. Defaults to `soft`.
+    #[serde(default)]
+    pub depth: Depth,
+    /// Site-level shape rules, same shape as the schema's guidance rules
+    /// plus `component`. Checked by `kazam validate` alongside the built-in
+    /// set; default severity is warning.
+    #[serde(default)]
+    pub shape_rules: Vec<crate::shape::ShapeRule>,
     /// Nav layout for `shell: standard` pages. Defaults to `top`.
     #[serde(default)]
     pub nav_layout: NavLayout,
@@ -2090,6 +2425,59 @@ pub enum Glow {
     Corner,
 }
 
+/// How much surface depth cards, callouts, boxes, and similar panels get.
+/// `flat` is a hairline border on the page ground. `soft` (default) adds a
+/// layered tint and a low shadow so panels read as sitting on the page.
+/// `lifted` adds a hover lift and an accent top edge for interactive pages.
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Depth {
+    Flat,
+    #[default]
+    Soft,
+    Lifted,
+}
+
+impl Depth {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Depth::Flat => "flat",
+            Depth::Soft => "soft",
+            Depth::Lifted => "lifted",
+        }
+    }
+}
+
+/// Entrance motion for a component. Only plays when the page opts in with
+/// `motion: true` (or a host forces it, as presentation mode does), and
+/// never in print, export, or for readers who prefer reduced motion.
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum Animate {
+    #[default]
+    None,
+    FadeUp,
+    FadeIn,
+    SlideLeft,
+    SlideRight,
+    /// Children enter one after another, 80ms apart. Meant for grid,
+    /// columns, section, card_grid, stat_grid.
+    Stagger,
+}
+
+impl Animate {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Animate::None => "none",
+            Animate::FadeUp => "fade-up",
+            Animate::FadeIn => "fade-in",
+            Animate::SlideLeft => "slide-left",
+            Animate::SlideRight => "slide-right",
+            Animate::Stagger => "stagger",
+        }
+    }
+}
+
 /// Logo image for the site-bar brand slot. Accepts either a shorthand
 /// string (a path to the image) or an object with `src`, optional
 /// `height` (px - upper bound on rendered height; defaults to the
@@ -2226,6 +2614,8 @@ impl Default for SiteConfig {
             view_source: None,
             texture: Texture::None,
             glow: Glow::None,
+            depth: Depth::Soft,
+            shape_rules: Vec::new(),
             nav_layout: NavLayout::Top,
             mode: Mode::Dark,
             description: None,

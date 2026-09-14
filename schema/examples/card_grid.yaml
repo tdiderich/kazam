@@ -1,0 +1,14 @@
+# Cards for peer items with a status badge and one or two links each.
+- type: card_grid
+  min_width: 280
+  cards:
+    - title: Acme Corp
+      badge: { label: Healthy, color: green }
+      description: Enterprise, AWS us-east-1
+      links:
+        - { label: Deployment guide, href: customers/acme.html }
+    - title: Beta Corp
+      badge: { label: At risk, color: yellow }
+      description: Mid-market, GCP
+      links:
+        - { label: Open issues, href: customers/beta.html }

@@ -751,6 +751,22 @@ Live dashboard - renders .kazam/ state as a visual board
 |---|---|---|
 | `--port, -p` | `3001` | Port to serve the board on |
 
+#### `kazam export`
+
+Export a page to another format (currently: pdf via headless Chrome)
+
+##### `kazam export pdf`
+
+Build one page and print it to PDF with headless Chrome. Honors the page's `print_flow` (use `letter` for a portrait document)
+
+- `page` - Path to the page .yaml
+
+| Flag | Default | Description |
+|---|---|---|
+| `--out, -o` |  | Output PDF path (default: next to the page, .pdf extension) |
+| `--chrome` |  | Chrome/Chromium binary (default: auto-detect, or $KAZAM_CHROME) |
+| `--quiet, -q` |  | Suppress the success line |
+
 #### `kazam open`
 
 Open a file (.md, .yaml, .json) in the browser with live reload and inline editing
@@ -1025,6 +1041,10 @@ Print JSON component schema to stdout (for agent tooling)
 
 Print markdown component reference to stdout (for agent context)
 
+##### `kazam sdk emit-mcp`
+
+Print the MCP guidance bundle (tool descriptions, instructions, per-component slices) as JSON
+
 #### `kazam theme`
 
 Output the kazam CSS theme for use in external apps
@@ -1039,7 +1059,8 @@ Print the full CSS stylesheet to stdout
 | `--mode` | `dark` | Base mode for rainbow themes (dark, light). Ignored for dark/light themes |
 | `--texture` | `none` | Enable texture overlay (none, dots, grid, grain, topography, diagonal) |
 | `--glow` | `none` | Enable glow effect (none, accent, corner) |
-| `--switchable` |  | Emit all theme/mode/texture/glow variants as [data-*] CSS selectors for runtime switching. When set, --theme/--mode/--texture/--glow are ignored |
+| `--depth` | `soft` | Surface depth for panels (flat, soft, lifted) |
+| `--switchable` |  | Emit all theme/mode/texture/glow/depth variants as [data-*] CSS selectors for runtime switching. When set, --theme/--mode/--texture/--glow are ignored |
 
 ##### `kazam theme vars`
 

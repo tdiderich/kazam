@@ -1,0 +1,24 @@
+# Diagram grid: boxes in explicit cells, connectors in their own short rows.
+# 1-based col/row. A box can hold a nested grid to make a band.
+- type: grid
+  id: flow
+  columns: 2
+  gap: 12
+  children:
+    - { col: 1, row: 1, colspan: 2, component: { type: box, id: ingest, title: 1 · Ingest, tag: Repeatable, color: teal, body: One commit in, full SBOM out. } }
+    - { col: 1, row: 2, colspan: 2, component: { type: connector, label: candidates } }
+    - { col: 1, row: 3, component: { type: box, id: scan, title: 2a · Scanner, tag: Repeatable, color: teal, body: Rules over source and dependencies. } }
+    - { col: 2, row: 3, component: { type: box, id: agent, title: 2b · Agent, tag: Model-driven, hex: "#7a3f8a", body: Reads the code, decides what is real. } }
+    - { col: 1, row: 4, colspan: 2, component: { type: connector, label: verdict } }
+    - col: 1
+      row: 5
+      colspan: 2
+      component:
+        type: box
+        id: verdict
+        title: 3 · Verdict
+        tag: Recorded
+        components:
+          - { type: badge, label: exploitable, color: red }
+          - { type: badge, label: not exploitable, color: green }
+          - { type: markdown, body: One of two outcomes, reasoning attached. }

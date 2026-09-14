@@ -15,6 +15,8 @@ pub fn get(name: &str) -> Option<&'static str> {
         "source_pill" => Some(SOURCE_PILL),
         "queue_collapse" => Some(QUEUE_COLLAPSE),
         "queue_filter" => Some(QUEUE_FILTER),
+        "motion" => Some(MOTION),
+        "sequence" => Some(SEQUENCE),
         _ => None,
     }
 }
@@ -861,5 +863,83 @@ document.querySelectorAll('[data-queue-search]').forEach(function (input) {
       if (count) count.textContent = visible.length;
     });
   });
+});
+"#;
+
+/// Reveals `[data-animate]` carriers as they scroll into view. Without an
+/// IntersectionObserver (or with reduced motion) everything is shown at once.
+const MOTION: &str = r#"
+(function () {
+  var els = document.querySelectorAll('.kz-motion .kz-anim');
+  if (!els.length) return;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !('IntersectionObserver' in window)) {
+    els.forEach(function (el) { el.classList.add('kz-in'); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('kz-in'); io.unobserve(e.target); }
+    });
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+  els.forEach(function (el) { io.observe(el); });
+})();
+"#;
+
+/// Steps a walkthrough through its target: highlighted ids come forward,
+/// every other id-bearing element inside the target dims, ancestors of a
+/// highlighted element stay clear so a band around a highlighted cell reads
+/// as context instead of noise.
+const SEQUENCE: &str = r#"
+document.querySelectorAll('[data-sequence]').forEach(function (root) {
+  var target = document.getElementById(root.getAttribute('data-target'));
+  var steps = root.querySelectorAll('.c-seq-step');
+  var idx = root.querySelector('[data-seq-index]');
+  var prev = root.querySelector('[data-seq-prev]');
+  var next = root.querySelector('[data-seq-next]');
+  var reset = root.querySelector('[data-seq-reset]');
+  if (!steps.length) return;
+  var cur = -1;
+  function clear() {
+    if (!target) return;
+    target.classList.remove('seq-active');
+    target.querySelectorAll('.seq-dim, .seq-hi').forEach(function (el) { el.classList.remove('seq-dim', 'seq-hi'); });
+  }
+  function apply(i) {
+    cur = i;
+    steps.forEach(function (s, j) { s.hidden = j !== i; });
+    if (idx) idx.textContent = String(i + 1);
+    if (prev) prev.disabled = i <= 0;
+    if (next) next.disabled = i >= steps.length - 1;
+    root.classList.add('c-seq-live');
+    if (!target) return;
+    clear();
+    target.classList.add('seq-active');
+    var want = (steps[i].getAttribute('data-highlight') || '').split(/\s+/).filter(Boolean);
+    var set = {};
+    want.forEach(function (w) { set[w] = true; });
+    var hi = want.map(function (w) { return document.getElementById(w); }).filter(Boolean);
+    target.querySelectorAll('[id]').forEach(function (el) {
+      if (set[el.id]) { el.classList.add('seq-hi'); return; }
+      var holds = hi.some(function (h) { return el !== h && el.contains(h); });
+      if (!holds) el.classList.add('seq-dim');
+    });
+  }
+  function off() {
+    cur = -1;
+    steps.forEach(function (s, j) { s.hidden = j !== 0; });
+    if (idx) idx.textContent = '1';
+    root.classList.remove('c-seq-live');
+    clear();
+  }
+  if (prev) prev.addEventListener('click', function () { if (cur > 0) apply(cur - 1); });
+  if (next) next.addEventListener('click', function () { apply(cur < 0 ? 0 : Math.min(steps.length - 1, cur + 1)); });
+  if (reset) reset.addEventListener('click', off);
+  root.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ']') { e.preventDefault(); apply(cur < 0 ? 0 : Math.min(steps.length - 1, cur + 1)); }
+    else if (e.key === 'ArrowLeft' || e.key === '[') { e.preventDefault(); if (cur > 0) apply(cur - 1); }
+    else if (e.key === 'Escape') { off(); }
+  });
+  if (prev) prev.disabled = true;
 });
 "#;

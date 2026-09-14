@@ -23,6 +23,12 @@ impl<T> OMap<T> {
     }
 }
 
+impl<T> Default for OMap<T> {
+    fn default() -> Self {
+        OMap(Vec::new())
+    }
+}
+
 impl<'a, T> IntoIterator for &'a OMap<T> {
     type Item = (&'a String, &'a T);
     type IntoIter = std::iter::Map<
@@ -70,11 +76,47 @@ struct SchemaField {
     kind: Option<String>,
 }
 
+#[derive(Deserialize, Clone)]
+pub(crate) struct Guidance {
+    #[serde(default)]
+    pub use_when: Option<String>,
+    #[serde(default)]
+    pub avoid_when: Option<String>,
+    /// Name of a curated fixture in `schema/examples/`.
+    #[serde(default)]
+    pub example: Option<String>,
+    #[serde(default)]
+    pub rules: Vec<crate::shape::ShapeRule>,
+}
+
 #[derive(Deserialize)]
 struct Schema {
     enums: OMap<Vec<String>>,
     types: OMap<OMap<SchemaField>>,
     components: OMap<OMap<SchemaField>>,
+    /// Agent-facing guidance per component type. Emitted into the reference
+    /// and the MCP bundle; rules are enforced by `kazam validate`.
+    #[serde(default)]
+    guidance: OMap<Guidance>,
+}
+
+/// Every schema shape rule, tagged with its component type.
+pub(crate) fn schema_shape_rules() -> Vec<crate::shape::ShapeRule> {
+    let schema = load_schema();
+    let mut out = Vec::new();
+    for (ty, g) in &schema.guidance {
+        for r in &g.rules {
+            let mut r = r.clone();
+            r.component = Some(ty.clone());
+            out.push(r);
+        }
+    }
+    out
+}
+
+/// Guidance keyed by component type, for the emitters.
+pub(crate) fn schema_guidance() -> Vec<(String, Guidance)> {
+    load_schema().guidance.into_iter().collect()
 }
 
 /// Content kinds are the ones a human edits in place; everything else is
@@ -284,6 +326,8 @@ fn generate_typescript() -> String {
     out.push_str("  unlisted?: boolean;\n");
     out.push_str("  texture?: Texture;\n");
     out.push_str("  glow?: Glow;\n");
+    out.push_str("  depth?: Depth;\n");
+    out.push_str("  motion?: boolean;\n");
     out.push_str("  print_flow?: PrintFlow;\n");
     out.push_str("  hub?: HubConfig;\n");
     out.push_str("  search_terms?: string[];\n");
@@ -308,6 +352,7 @@ fn generate_typescript() -> String {
     out.push_str("  view_source?: boolean;\n");
     out.push_str("  texture?: Texture;\n");
     out.push_str("  glow?: Glow;\n");
+    out.push_str("  depth?: Depth;\n");
     out.push_str("  nav_layout?: NavLayout;\n");
     out.push_str("  mode?: Mode;\n");
     out.push_str("  description?: string;\n");
@@ -329,6 +374,7 @@ fn generate_typescript() -> String {
             ("error_type", "string"),
             ("message", "string"),
             ("suggestion?", "string"),
+            ("severity", "\"error\" | \"warning\""),
         ],
     );
 
@@ -461,6 +507,190 @@ pub fn emit_agents() -> Result<()> {
     Ok(())
 }
 
+pub fn emit_mcp() -> Result<()> {
+    print!("{}", generate_mcp());
+    Ok(())
+}
+
+/// Curated, known-good component examples. Embedded so the binary carries
+/// them; the schema's `guidance.<type>.example` names one of these.
+pub(crate) fn example_yaml(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "graph-tiered" => include_str!("../schema/examples/graph-tiered.yaml"),
+        "graph-flow" => include_str!("../schema/examples/graph-flow.yaml"),
+        "pipeline" => include_str!("../schema/examples/pipeline.yaml"),
+        "grid-diagram" => include_str!("../schema/examples/grid-diagram.yaml"),
+        "box-band" => include_str!("../schema/examples/box-band.yaml"),
+        "sequence" => include_str!("../schema/examples/sequence.yaml"),
+        "stat_grid" => include_str!("../schema/examples/stat_grid.yaml"),
+        "card_grid" => include_str!("../schema/examples/card_grid.yaml"),
+        "table" => include_str!("../schema/examples/table.yaml"),
+        "chart-bar" => include_str!("../schema/examples/chart-bar.yaml"),
+        "tree" => include_str!("../schema/examples/tree.yaml"),
+        "timeline" => include_str!("../schema/examples/timeline.yaml"),
+        _ => return None,
+    })
+}
+
+const GUIDED_TOOLS: [&str; 7] = [
+    "write_page",
+    "create_page",
+    "patch_page",
+    "create_from_template",
+    "get_component_reference",
+    "read_component",
+    "write_component",
+];
+
+/// Agent-facing MCP bundle: tool description text, a server-instructions
+/// section, and per-component guidance slices. Hosts (curata) load this
+/// instead of hand-writing descriptions, so a component that gains
+/// `guidance` in the schema shows up in every tool string on regenerate.
+fn generate_mcp() -> String {
+    let guidance = schema_guidance();
+    let guided: Vec<&str> = guidance
+        .iter()
+        .filter(|(_, g)| !g.rules.is_empty())
+        .map(|(k, _)| k.as_str())
+        .collect();
+    let layout_types: Vec<&str> = guided
+        .iter()
+        .copied()
+        .filter(|t| {
+            matches!(
+                *t,
+                "graph" | "pipeline" | "grid" | "box" | "sequence" | "chart"
+            )
+        })
+        .collect();
+    let layout_list = layout_types.join(", ");
+
+    let write_desc = format!(
+        "Create or update a page from full YAML. Every write is checked against shape rules \
+         (component layout guidance) and content rules. Shape rule hits do NOT block: the page \
+         is written and the response leads with a WARNINGS block naming the component path, the \
+         rule, and the fix. Treat a warning as a required follow-up edit. Before writing {layout_list}, \
+         call get_component_reference with component=<type> for a known-good example. To change \
+         one component, use read_component + write_component instead of rewriting the page."
+    );
+    let create_desc = format!(
+        "Create a new knowledge page. Search for duplicates FIRST (search_pages + get_related); \
+         patch an existing page instead of creating a near-duplicate. Same shape-rule warnings as \
+         write_page: the page is created, the response says what to fix. Before using {layout_list}, \
+         call get_component_reference with component=<type>. Tag the page with concepts."
+    );
+    let patch_desc = "Apply targeted operations to a page without rewriting full YAML. Operations \
+         target any component id, including ones nested in sections, grids, boxes, tabs, and \
+         columns; read_page returns an outline of ids. The patched page is shape-checked and the \
+         response carries the same WARNINGS block as write_page. For a one-component edit prefer \
+         write_component.";
+    let template_desc =
+        "Create a page from a template, interpolating {{variables}}. Templates are \
+         known-good starting points; start here for a new page whose type has a template. The \
+         result is validated and shape-checked like any write.";
+    let reference_desc = format!(
+        "Component authoring reference. Pass component=<type> ({layout_list}, and every other \
+         component type) to get a short slice: when to use it, when not to, a curated example you \
+         can copy, and the shape rules the write tools will warn about. Without component, returns \
+         the full reference. Call this before the first write that uses a component you have not \
+         used in this conversation."
+    );
+
+    let read_component_desc = "Read one component from a page by id (any depth: inside sections, grids, \
+         boxes, tabs, columns). read_page's outline lists the ids. Returns the component YAML, its \
+         keypath, parent id, sibling ids, and a component_hash to pass to write_component. Use this \
+         plus write_component to change one part of a page instead of rewriting it.";
+    let write_component_desc = format!(
+        "Replace one component on a page by id with new YAML for just that component. Keeps the id, \
+         validates the whole page, runs shape rules ({layout_list} and the rest) and content rules. \
+         Same warning contract as write_page: written, WARNINGS block on the response. Pass the \
+         component_hash from read_component so a concurrent edit to that component is caught; \
+         expected_hash (page hash) also works. Prefer this over write_page for a one-component edit."
+    );
+
+    let mut instructions = String::new();
+    instructions.push_str(
+        "## Writing components
+
+",
+    );
+    instructions.push_str(
+        "A page is YAML with three top-level keys, all required: `title`, `shell` (usually \
+         `standard`), and `components` (a list of `- type: ...` blocks). Quote any inline YAML value \
+         that contains a comma or colon, or use block style. \
+         Pages are YAML components. The write tools run shape rules on every write and return \
+         warnings without blocking; fix them in a follow-up edit. Cold starts on layout components go \
+         wrong most often, so:
+
+",
+    );
+    instructions.push_str(&format!(
+        "- Before using {layout_list}: call `get_component_reference` with `component=<type>` and \
+         copy the example's structure.
+"
+    ));
+    instructions.push_str(
+        "- Prefer a template (`list_templates`, `create_from_template`) for a new page when one \
+         exists for its type.
+         - To change one component, use `read_page` (outline) then `read_component` and \
+         `write_component`. Do not rewrite the whole page.
+         - A response that starts with `WARNINGS` was written but needs a fix. Read the rule and the \
+         path, then edit that component.
+
+",
+    );
+    instructions.push_str(
+        "Shape rules currently active (warn on write):
+
+",
+    );
+    for (ty, g) in &guidance {
+        for r in &g.rules {
+            instructions.push_str(&format!(
+                "- `{ty}`: {} (`{}`)
+",
+                r.say, r.warn
+            ));
+        }
+    }
+
+    let mut components = serde_json::Map::new();
+    for (ty, g) in &guidance {
+        let example = g.example.as_deref().and_then(example_yaml);
+        components.insert(
+            ty.clone(),
+            serde_json::json!({
+                "use_when": g.use_when,
+                "avoid_when": g.avoid_when,
+                "example_name": g.example,
+                "example_yaml": example,
+                "rules": g.rules.iter().map(|r| serde_json::json!({
+                    "warn": r.warn,
+                    "say": r.say,
+                    "severity": r.severity.clone().unwrap_or_else(|| "warning".into()),
+                })).collect::<Vec<_>>(),
+            }),
+        );
+    }
+
+    let out = serde_json::json!({
+        "generated_by": "kazam sdk emit-mcp",
+        "guided_components": guided,
+        "tools": {
+            GUIDED_TOOLS[0]: write_desc,
+            GUIDED_TOOLS[1]: create_desc,
+            GUIDED_TOOLS[2]: patch_desc,
+            GUIDED_TOOLS[3]: template_desc,
+            GUIDED_TOOLS[4]: reference_desc,
+            GUIDED_TOOLS[5]: read_component_desc,
+            GUIDED_TOOLS[6]: write_component_desc,
+        },
+        "instructions_section": instructions,
+        "components": components,
+    });
+    serde_json::to_string_pretty(&out).expect("mcp bundle serializes") + "\n"
+}
+
 fn yaml_example_value(field_type: &str, field_name: &str, schema: &Schema) -> String {
     if field_type.ends_with("[]") {
         return "[]".to_string();
@@ -506,6 +736,11 @@ fn generate_agents() -> String {
 
     out.push_str("# kazam component reference\n\n");
     out.push_str("Auto-generated from schema. Do not edit.\n\n");
+    out.push_str(
+        "Components marked with **Use when** carry shape rules. `kazam validate` and every curata \
+         write tool check them and return warnings (the page still saves). When a component has a \
+         curated example below, copy its structure rather than inventing one from the field table.\n\n",
+    );
 
     // Enums
     out.push_str("## Enums\n\n");
@@ -564,29 +799,66 @@ fn generate_agents() -> String {
         }
         out.push('\n');
 
-        // YAML example: required fields + up to 2 optional
-        out.push_str("```yaml\n");
-        out.push_str("- type: ");
-        out.push_str(tag);
-        out.push('\n');
-        let mut optional_shown = 0usize;
-        for (fname, field) in fields {
-            if field.required {
-                out.push_str("  ");
-                out.push_str(fname);
-                out.push_str(": ");
-                out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
+        let guidance = schema.guidance.get(tag);
+        if let Some(g) = guidance {
+            if let Some(u) = &g.use_when {
+                out.push_str("**Use when:** ");
+                out.push_str(u);
                 out.push('\n');
-            } else if optional_shown < 2 {
-                out.push_str("  ");
-                out.push_str(fname);
-                out.push_str(": ");
-                out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
-                out.push_str("  # optional\n");
-                optional_shown += 1;
+            }
+            if let Some(a) = &g.avoid_when {
+                out.push_str("**Avoid when:** ");
+                out.push_str(a);
+                out.push('\n');
+            }
+            out.push('\n');
+        }
+
+        let curated = guidance
+            .and_then(|g| g.example.as_deref())
+            .and_then(example_yaml);
+        out.push_str("```yaml\n");
+        if let Some(ex) = curated {
+            out.push_str(ex.trim_end());
+            out.push('\n');
+        } else {
+            // Placeholder example: required fields + up to 2 optional
+            out.push_str("- type: ");
+            out.push_str(tag);
+            out.push('\n');
+            let mut optional_shown = 0usize;
+            for (fname, field) in fields {
+                if field.required {
+                    out.push_str("  ");
+                    out.push_str(fname);
+                    out.push_str(": ");
+                    out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
+                    out.push('\n');
+                } else if optional_shown < 2 {
+                    out.push_str("  ");
+                    out.push_str(fname);
+                    out.push_str(": ");
+                    out.push_str(&yaml_example_value(&field.field_type, fname, &schema));
+                    out.push_str("  # optional\n");
+                    optional_shown += 1;
+                }
             }
         }
         out.push_str("```\n\n");
+
+        if let Some(g) = guidance {
+            if !g.rules.is_empty() {
+                out.push_str("**Shape rules (warn on write):**\n");
+                for r in &g.rules {
+                    out.push_str("- ");
+                    out.push_str(&r.say);
+                    out.push_str(" (`");
+                    out.push_str(&r.warn);
+                    out.push_str("`)\n");
+                }
+                out.push('\n');
+            }
+        }
     }
 
     out
@@ -645,6 +917,8 @@ interface PageData {
   slides?: SlideData[];
   freshness?: FreshnessData | "never";
   hub?: HubData;
+  /** Play entrance motion for components with `animate`. Off by default. */
+  motion?: boolean;
 }
 
 interface ComponentData {
@@ -654,9 +928,10 @@ interface ComponentData {
 
 interface PageRendererProps {
   page: PageData;
-  renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
+  /** Force entrance motion on regardless of `page.motion` (presentation mode). */
+  motion?: boolean;
   /** Map a hub link href to an environment URL (e.g. slug -> /pages/slug). Defaults to identity. */
   resolveHubHref?: (href: string) => string;
   /** The current page's href as written in the hub block - drives the active tab. */
@@ -682,7 +957,8 @@ function assetSrc(src: string): string {
 }
 
 function renderInline(text: string): React.ReactNode[] {
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g;
+  // Underscore emphasis only at word boundaries so snake_case_names survive.
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|(?<![A-Za-z0-9])_(?:[^_\n]|_(?=[A-Za-z0-9]))+_(?![A-Za-z0-9])|\[[^\]]+\]\([^)]+\))/g;
   const parts: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -693,14 +969,15 @@ function renderInline(text: string): React.ReactNode[] {
     if (token.startsWith("`")) {
       parts.push(<code key={key++} className="c-inline-code">{token.slice(1, -1)}</code>);
     } else if (token.startsWith("**")) {
-      parts.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
+      parts.push(<strong key={key++}>{renderInline(token.slice(2, -2))}</strong>);
     } else if (token.startsWith("[")) {
       const labelEnd = token.indexOf("](");
       const label = token.slice(1, labelEnd);
       const href = token.slice(labelEnd + 2, -1);
       parts.push(<a key={key++} href={href}>{label}</a>);
     } else {
-      parts.push(<em key={key++}>{token.slice(1, -1)}</em>);
+      // `*text*` or `_text_`, recursing so **bold** inside emphasis renders
+      parts.push(<em key={key++}>{renderInline(token.slice(1, -1))}</em>);
     }
     last = match.index + token.length;
   }
@@ -1874,14 +2151,12 @@ function AccordionView({
   id,
   items,
   kzPath,
-  renderMarkdown,
   renderChart,
   renderRoleMap,
 }: {
   id: string;
   items: Array<{ title: string; components: ComponentData[] }>;
   kzPath: string;
-  renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
 }) {
@@ -1896,7 +2171,7 @@ function AccordionView({
           {openIndex === i && (
             <div className="accordion-body">
               {(item.components || []).map((c, ci) => (
-                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kzPath}.items[${i}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kzPath}.items[${i}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           )}
@@ -2000,7 +2275,6 @@ function ComponentView({
   comp,
   index,
   kzPath,
-  renderMarkdown,
   renderChart,
   renderRoleMap,
 }: {
@@ -2008,18 +2282,12 @@ function ComponentView({
   index: number;
   /** Absolute data path of this component within the page, e.g. `components[2].components[0]`. */
   kzPath?: string;
-  renderMarkdown?: (md: string) => string;
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
 }) {
   const id = (comp.id as string) || `c-${index}`;
   const kz = kzPath ?? `components[${index}]`;
-  const md = (s: string) =>
-    renderMarkdown ? (
-      <div dangerouslySetInnerHTML={{ __html: renderMarkdown(s) }} />
-    ) : (
-      renderBlock(s)
-    );
+  const md = (s: string) => renderBlock(s);
 
   const content = (() => {
   switch (comp.type) {
@@ -2288,7 +2556,7 @@ function ComponentView({
             </div>
           )}
           {children.map((c, i) => (
-            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
           ))}
         </section>
       );
@@ -2444,7 +2712,7 @@ function ComponentView({
           {tabs.map((tab, ti) => (
             <div key={ti} className="tab-panel" style={{ display: ti === activeTab ? "block" : "none" }}>
               {(tab.components || []).map((c, ci) => (
-                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kz}.tabs[${ti}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={ci} comp={c} index={ci} kzPath={`${kz}.tabs[${ti}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           ))}
@@ -2460,7 +2728,7 @@ function ComponentView({
           {cols.map((col, ci) => (
             <div key={ci} className="c-column">
               {col.map((c, i) => (
-                <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.columns[${ci}][${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.columns[${ci}][${i}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
               ))}
             </div>
           ))}
@@ -2468,9 +2736,138 @@ function ComponentView({
       );
     }
 
+    case "grid": {
+      type GridChild = { col?: number; row?: number; colspan?: number; rowspan?: number; component: ComponentData };
+      const children = (comp.children as GridChild[]) || [];
+      const gridStyle: Record<string, string | number> = { "--cols": Math.max(1, Number(comp.columns) || 1) };
+      if (comp.rows != null) gridStyle["--rows"] = Number(comp.rows);
+      if (comp.gap != null) gridStyle["--gap"] = `${Number(comp.gap)}px`;
+      const cellStyle = (ch: GridChild): React.CSSProperties => {
+        const s: React.CSSProperties = {};
+        const cs = Math.max(1, ch.colspan ?? 1);
+        const rs = Math.max(1, ch.rowspan ?? 1);
+        if (ch.col != null) s.gridColumn = `${ch.col} / span ${cs}`;
+        else if (cs > 1) s.gridColumn = `span ${cs}`;
+        if (ch.row != null) s.gridRow = `${ch.row} / span ${rs}`;
+        else if (rs > 1) s.gridRow = `span ${rs}`;
+        return s;
+      };
+      return (
+        <div id={id} className="c-grid" style={gridStyle as React.CSSProperties} data-kz-list="children">
+          {children.map((ch, i) => (
+            <div key={i} className="c-grid-cell" style={cellStyle(ch)}>
+              <ComponentView comp={ch.component} index={i} kzPath={`${kz}.children[${i}].component`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "box": {
+      const title = comp.title as string | undefined;
+      const tag = comp.tag as string | undefined;
+      const body = comp.body as string | undefined;
+      const children = (comp.components as ComponentData[]) || [];
+      const color = (comp.color as string) || "default";
+      const hex = comp.hex as string | undefined;
+      const hexOk = !!hex && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex);
+      const border = (comp.border as string) || "solid";
+      const style = hexOk ? ({ "--box-accent": hex } as React.CSSProperties) : undefined;
+      return (
+        <div id={id} className={`c-box c-box-${color} c-box-border-${border}`} style={style}>
+          {(title || tag) && (
+            <div className="c-box-h">
+              {title && <b className="c-box-title" data-kz-field="title">{title}</b>}
+              {tag && <span className="c-box-tag" data-kz-field="tag">{tag}</span>}
+            </div>
+          )}
+          {body && <div className="c-box-body c-markdown" data-kz-field="body" data-kz-block="">{md(body)}</div>}
+          {children.length > 0 && children.map((c, i) => (
+            <ComponentView key={i} comp={c} index={i} kzPath={`${kz}.components[${i}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+          ))}
+        </div>
+      );
+    }
+
+    case "connector": {
+      const label = comp.label as string | undefined;
+      const direction = (comp.direction as string) || "down";
+      const color = (comp.color as string) || "default";
+      const hex = comp.hex as string | undefined;
+      const hexOk = !!hex && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex);
+      const accent = hexOk ? hex : color !== "default" ? semToHex[color] : undefined;
+      const style = accent ? ({ "--connector-accent": accent } as React.CSSProperties) : undefined;
+      return (
+        <div id={id} className={`c-connector c-connector-${direction}`} style={style}>
+          {label && <span className="c-connector-label" data-kz-field="label">{label}</span>}
+        </div>
+      );
+    }
+
+    case "sequence": {
+      type SeqStep = { highlight?: string[]; note?: string };
+      const target = (comp.target as string) || "";
+      const steps = (comp.steps as SeqStep[]) || [];
+      const [cur, setCur] = React.useState(-1);
+      const rootRef = React.useRef<HTMLDivElement | null>(null);
+      React.useEffect(() => {
+        if (typeof document === "undefined") return;
+        const t = document.getElementById(target);
+        if (!t) return;
+        const clear = () => {
+          t.classList.remove("seq-active");
+          t.querySelectorAll(".seq-dim, .seq-hi").forEach((el) => el.classList.remove("seq-dim", "seq-hi"));
+        };
+        clear();
+        if (cur < 0 || !steps[cur]) return;
+        t.classList.add("seq-active");
+        const want = steps[cur].highlight ?? [];
+        const set = new Set(want);
+        const hi = want.map((w) => document.getElementById(w)).filter((x): x is HTMLElement => !!x);
+        t.querySelectorAll<HTMLElement>("[id]").forEach((el) => {
+          if (set.has(el.id)) { el.classList.add("seq-hi"); return; }
+          if (!hi.some((h) => el !== h && el.contains(h))) el.classList.add("seq-dim");
+        });
+        return clear;
+      }, [cur, target, steps]);
+      const shown = cur < 0 ? 0 : cur;
+      const step = steps[shown];
+      const go = (d: 1 | -1) => setCur((c) => (d > 0 ? Math.min(steps.length - 1, c < 0 ? 0 : c + 1) : Math.max(0, c - 1)));
+      return (
+        <div
+          id={id}
+          ref={rootRef}
+          className={`c-sequence${cur >= 0 ? " c-seq-live" : ""}`}
+          data-sequence=""
+          data-target={target}
+          tabIndex={0}
+          aria-label="Walkthrough"
+          onKeyDown={(e) => {
+            if (e.key === "ArrowRight" || e.key === "]") { e.preventDefault(); go(1); }
+            else if (e.key === "ArrowLeft" || e.key === "[") { e.preventDefault(); go(-1); }
+            else if (e.key === "Escape") { setCur(-1); }
+          }}
+        >
+          <div className="c-seq-bar">
+            <button type="button" className="c-seq-btn" disabled={cur <= 0} onClick={() => go(-1)} aria-label="Previous step">&larr;</button>
+            <span className="c-seq-count">{shown + 1} / {Math.max(1, steps.length)}</span>
+            <button type="button" className="c-seq-btn" disabled={cur >= steps.length - 1} onClick={() => go(1)} aria-label="Next step">&rarr;</button>
+            <button type="button" className="c-seq-btn c-seq-reset" onClick={() => setCur(-1)} aria-label="Show everything">Show all</button>
+          </div>
+          <div className="c-seq-steps" data-kz-list="steps">
+            {step && (
+              <div className="c-seq-step" data-highlight={(step.highlight ?? []).join(" ")}>
+                {step.note && <div className="c-seq-note c-markdown" data-kz-field={`steps[${shown}].note`} data-kz-block="">{md(step.note)}</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     case "accordion": {
       const items = (comp.items as Array<{ title: string; components: ComponentData[] }>) || [];
-      return <AccordionView id={id} items={items} kzPath={kz} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+      return <AccordionView id={id} items={items} kzPath={kz} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
     }
 
     case "hero_banner": {
@@ -3258,7 +3655,7 @@ function ComponentView({
         <div id={id} className="c-chart-group" style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 16 }}>
           {title && <h3 className="c-chart-group-title" style={{ gridColumn: "1 / -1" }} data-kz-field="title">{title}</h3>}
           {children.map((child, ci) => (
-            <ComponentView key={ci} comp={child} index={ci} kzPath={`${kz}.components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+            <ComponentView key={ci} comp={child} index={ci} kzPath={`${kz}.components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
           ))}
         </div>
       );
@@ -3844,14 +4241,38 @@ function ComponentView({
     : <div data-kz-path={kz} data-kz-type={comp.type} className="kz-wrap" style={{ display: "contents" }}>{content}</div>;
 
   const scale = comp.scale as number | undefined;
-  if (scale != null) {
-    const s = Math.min(2, Math.max(0.1, scale));
-    return <div className="c-chart-scale" style={{ ["--kz-scale" as any]: s }}>{tagged}</div>;
+  const scaled = scale != null
+    ? <div className="c-chart-scale" style={{ ["--kz-scale" as any]: Math.min(2, Math.max(0.1, scale)) }}>{tagged}</div>
+    : tagged;
+  const animate = comp.animate as string | undefined;
+  if (animate && animate !== "none") {
+    return <div className="kz-anim" data-animate={animate.replace(/_/g, "-")}>{scaled}</div>;
   }
-  return tagged;
+  return scaled;
 }
 
-function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { slides: SlideData[]; renderMarkdown?: (md: string) => string; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
+/** Reveals `.kz-anim` carriers under `root` as they scroll into view. */
+function useMotionReveal(root: React.RefObject<HTMLElement | null>, enabled: boolean) {
+  React.useEffect(() => {
+    if (!enabled || !root.current) return;
+    const els = Array.from(root.current.querySelectorAll<HTMLElement>(".kz-anim"));
+    if (els.length === 0) return;
+    const reduce = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || typeof IntersectionObserver === "undefined") {
+      els.forEach((el) => el.classList.add("kz-in"));
+      return;
+    }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add("kz-in"); io.unobserve(e.target); }
+      });
+    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [root, enabled]);
+}
+
+function DeckRenderer({ slides, renderChart, renderRoleMap }: { slides: SlideData[]; renderChart?: (comp: ComponentData) => React.ReactNode; renderRoleMap?: (comp: ComponentData) => React.ReactNode }) {
   const control = React.useContext(DeckControlContext);
   const [internalCurrent, setInternalCurrent] = React.useState(() => {
     if (control?.slide !== undefined) return control.slide;
@@ -3966,7 +4387,7 @@ function DeckRenderer({ slides, renderMarkdown, renderChart, renderRoleMap }: { 
                   </div>
                 ) : (!slide.hide_label && <div className="deck-label">{slide.label}</div>)}
                 {(slide.components ?? []).map((comp, ci) => (
-                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
                 ))}
               </div>
             </div>
@@ -4083,7 +4504,10 @@ function HubMasthead({ hub, resolveHref, activeHref, exportMode }: { hub: HubDat
   );
 }
 
-export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap, resolveHubHref, activeHubHref, exportMode, componentWrapper: CW }: PageRendererProps) {
+export function PageRenderer({ page, renderChart, renderRoleMap, motion, resolveHubHref, activeHubHref, exportMode, componentWrapper: CW }: PageRendererProps) {
+  const motionOn = !exportMode && (motion ?? page.motion ?? false);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  useMotionReveal(rootRef, motionOn);
   if (page.shell === "deck" && page.slides && page.slides.length > 0) {
     if (exportMode) {
       return (
@@ -4099,7 +4523,7 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
                   </div>
                 ) : (!slide.hide_label && <div className="deck-label">{slide.label}</div>)}
                 {(slide.components ?? []).map((comp, ci) => (
-                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                  <ComponentView key={ci} comp={comp} index={ci} kzPath={`slides[${si}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
                 ))}
               </div>
             </div>
@@ -4107,14 +4531,14 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
         </div>
       );
     }
-    return <DeckRenderer slides={page.slides} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+    return <DeckRenderer slides={page.slides} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
   }
   const components = page.components ?? [];
   const body = (
     <>
       {!exportMode && <FreshnessBanner freshness={page.freshness} />}
       {components.map((comp, i) => {
-        const cv = <ComponentView comp={comp} index={i} kzPath={`components[${i}]`} renderMarkdown={renderMarkdown} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+        const cv = <ComponentView comp={comp} index={i} kzPath={`components[${i}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
         // Key by id when present so reorders move nodes instead of re-rendering every slot.
         const key = typeof comp.id === "string" && comp.id ? `id-${comp.id}` : `i-${i}`;
         return CW ? <CW key={key} comp={comp} index={i}>{cv}</CW> : <React.Fragment key={key}>{cv}</React.Fragment>;
@@ -4123,13 +4547,13 @@ export function PageRenderer({ page, renderMarkdown, renderChart, renderRoleMap,
   );
   if (page.shell === "hub" && page.hub) {
     return (
-      <div className={`hub-root${exportMode ? " export-root" : ""}`}>
+      <div ref={rootRef} className={`hub-root${exportMode ? " export-root" : ""}${motionOn ? " kz-motion" : ""}`}>
         <HubMasthead hub={page.hub} resolveHref={resolveHubHref} activeHref={activeHubHref} exportMode={exportMode} />
         <div className="hub-content">{body}</div>
       </div>
     );
   }
-  return <div className={exportMode ? "export-root" : undefined}>{body}</div>;
+  return <div ref={rootRef} className={[exportMode ? "export-root" : "", motionOn ? "kz-motion" : ""].filter(Boolean).join(" ") || undefined}>{body}</div>;
 }
 
 export { ComponentView, DeckRenderer, HubMasthead, type SlideData, type PageData, type ComponentData, type PageRendererProps, type HubData };
@@ -4315,6 +4739,10 @@ export const EDITOR_TYPES: Array<{type: string; label: string; icon: string}> = 
   { type: "tabs", label: "Tabs", icon: "⊑" },
   { type: "section", label: "Section", icon: "§" },
   { type: "columns", label: "Columns", icon: "||" },
+  { type: "grid", label: "Grid", icon: "#" },
+  { type: "box", label: "Box", icon: "▢" },
+  { type: "connector", label: "Connector", icon: "↓" },
+  { type: "sequence", label: "Sequence", icon: "▶" },
   { type: "accordion", label: "Accordion", icon: "≡" },
   { type: "event_timeline", label: "Event Timeline", icon: "E" },
   { type: "tree", label: "Tree", icon: "T" },
@@ -4519,6 +4947,11 @@ function KzFieldRow({ field, value, siblings, onChange, depth }: { field: KzFiel
   let control: React.ReactNode;
   if (field.kind === "list") {
     control = <KzListEditor field={field} items={(value as unknown[]) || []} siblings={siblings} depth={depth} onChange={(items) => onChange(items.length === 0 && !field.required ? undefined : items)} />;
+  } else if (field.kind === "object" && field.type === "Component") {
+    // A single nested component (grid child). Reuse the list editor so the
+    // author gets the same type picker, and keep exactly one entry.
+    const one = value ? [value as ComponentData] : [];
+    control = <NestedComponentList components={one} onChange={(c) => onChange(c.length > 0 ? c[c.length - 1] : undefined)} />;
   } else if (field.kind === "object") {
     control = KZ_SCHEMA.types[field.type]
       ? <KzObjectFields typeName={field.type} value={(value as Record<string, unknown>) || {}} depth={depth + 1} onChange={(v) => onChange(Object.keys(v).length === 0 && !field.required ? undefined : v)} />
@@ -4918,6 +5351,56 @@ mod tests {
         assert!(ts.contains("{ type: \"header\""));
         assert!(ts.contains("{ type: \"chart\""));
         assert!(ts.contains("{ type: \"role_map\""));
+    }
+
+    #[test]
+    fn every_guidance_example_resolves_and_parses() {
+        for (ty, g) in schema_guidance() {
+            if let Some(name) = &g.example {
+                let yaml = example_yaml(name)
+                    .unwrap_or_else(|| panic!("guidance.{ty}.example '{name}' has no fixture"));
+                let parsed: Vec<crate::types::Component> =
+                    serde_yaml::from_str(yaml).unwrap_or_else(|e| panic!("{name}: {e}"));
+                assert!(!parsed.is_empty(), "{name} is empty");
+            }
+            for r in &g.rules {
+                assert!(!r.say.is_empty(), "guidance.{ty} rule without say");
+            }
+        }
+    }
+
+    #[test]
+    fn agents_reference_carries_guidance_and_curated_examples() {
+        let md = generate_agents();
+        let graph = md.split("### graph\n").nth(1).expect("graph section");
+        assert!(graph.contains("**Use when:**"));
+        assert!(
+            graph.contains("row: 1"),
+            "curated tiered example should replace placeholder"
+        );
+        assert!(graph.contains("**Shape rules (warn on write):**"));
+        assert!(!graph.contains("nodes: []"));
+    }
+
+    #[test]
+    fn mcp_bundle_is_json_naming_every_guided_component() {
+        let raw = generate_mcp();
+        let v: serde_json::Value = serde_json::from_str(&raw).expect("valid json");
+        let guided = v["guided_components"].as_array().unwrap();
+        assert!(guided.iter().any(|g| g == "graph"));
+        for g in guided {
+            let ty = g.as_str().unwrap();
+            assert!(v["components"][ty].is_object(), "missing slice for {ty}");
+        }
+        for tool in GUIDED_TOOLS {
+            let d = v["tools"][tool].as_str().unwrap();
+            assert!(d.len() > 80, "{tool} description too short");
+        }
+        assert!(v["tools"]["write_page"].as_str().unwrap().contains("graph"));
+        assert!(v["instructions_section"]
+            .as_str()
+            .unwrap()
+            .contains("WARNINGS"));
     }
 
     #[test]

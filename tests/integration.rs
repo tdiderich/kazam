@@ -2578,3 +2578,213 @@ fn build_json_human_output_unchanged() {
         "human output should not start with JSON object"
     );
 }
+
+#[test]
+fn grid_box_connector_render_html() {
+    let html = build_one_page(
+        "layout-prims",
+        "title: L\nshell: standard\ncomponents:\n  - type: grid\n    id: g\n    columns: 2\n    gap: 12\n    children:\n      - col: 1\n        row: 1\n        colspan: 2\n        component:\n          type: box\n          title: One\n          tag: Repeatable\n          body: \"**SCA** first\"\n      - col: 1\n        row: 2\n        colspan: 2\n        component: { type: connector, label: next }\n      - col: 1\n        row: 3\n        component:\n          type: box\n          title: Band\n          hex: \"#7a3f8a\"\n          border: dashed\n          components:\n            - type: grid\n              columns: 2\n              children:\n                - component: { type: box, title: A, body: a }\n                - component: { type: box, title: B, body: b }\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<div id="g" class="c-grid" style="--cols: 2; --gap: 12px">"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="c-grid-cell" style="grid-column: 1 / span 2; grid-row: 1 / span 1">"#,
+    );
+    assert_contains(&html, r#"<b class="c-box-title">One</b>"#);
+    assert_contains(&html, r#"<span class="c-box-tag">Repeatable</span>"#);
+    assert_contains(&html, "<strong>SCA</strong>");
+    assert_contains(
+        &html,
+        r#"<div class="c-connector c-connector-down"><span class="c-connector-label">next</span></div>"#,
+    );
+    assert_contains(
+        &html,
+        r#"class="c-box c-box-default c-box-border-dashed" style="--box-accent: #7a3f8a""#,
+    );
+    assert_contains(&html, r#"<b class="c-box-title">B</b>"#);
+}
+
+#[test]
+fn export_pdf_writes_letter_document() {
+    let chrome =
+        std::path::Path::new("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+    if !chrome.exists() && std::env::var("KAZAM_CHROME").is_err() {
+        eprintln!("skipping export_pdf test: no Chrome");
+        return;
+    }
+    let dir = tmp_dir("export-pdf");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: T\ntheme: dark\n").unwrap();
+    std::fs::write(
+        dir.join("doc.yaml"),
+        "title: Doc\nshell: standard\nprint_flow: letter\ncomponents:\n  - type: section\n    heading: One\n    components:\n      - type: markdown\n        body: first page\n  - type: section\n    heading: Two\n    components:\n      - type: markdown\n        body: second page\n",
+    )
+    .unwrap();
+    let out = dir.join("doc.pdf");
+    let status = Command::new(bin())
+        .args(["export", "pdf"])
+        .arg(dir.join("doc.yaml"))
+        .arg("-o")
+        .arg(&out)
+        .arg("--quiet")
+        .status()
+        .expect("run kazam export pdf");
+    assert!(status.success());
+    let bytes = std::fs::read(&out).unwrap();
+    assert!(bytes.starts_with(b"%PDF"), "not a PDF");
+    let pages = bytes
+        .windows(6)
+        .filter(|w| *w == b"/Page\n" || *w == b"/Page " || *w == b"/Page/")
+        .count();
+    assert!(
+        pages >= 2,
+        "expected 2 pages (one per section), found {pages}"
+    );
+}
+
+#[test]
+fn markdown_raw_html_is_escaped_not_executed() {
+    let html = build_one_page(
+        "md-raw-html",
+        "title: L\nshell: standard\ncomponents:\n  - type: markdown\n    body: |\n      Before <img src=x onerror=\"alert(1)\"> after.\n\n      <script>alert(2)</script>\n  - type: box\n    title: B\n    body: \"inline <b onclick=alert(3)>bold</b>\"\n",
+        "",
+    );
+    assert!(!html.contains("<img src=x"), "raw img tag leaked");
+    assert!(!html.contains("<script>alert(2)"), "raw script leaked");
+    assert!(!html.contains("<b onclick"), "raw inline tag leaked");
+    assert_contains(&html, "&lt;b onclick=alert(3)&gt;");
+    assert_contains(&html, "&lt;img src=x");
+    assert_contains(&html, "&lt;script&gt;alert(2)&lt;/script&gt;");
+}
+
+#[test]
+fn motion_page_emits_carriers_body_class_and_script() {
+    let html = build_one_page(
+        "motion-on",
+        "title: M\nshell: standard\nmotion: true\ncomponents:\n  - type: markdown\n    animate: fade_up\n    body: hi\n  - type: grid\n    animate: stagger\n    columns: 2\n    children:\n      - component: { type: box, title: A, body: a }\n      - component: { type: box, title: B, body: b }\n  - type: markdown\n    body: plain\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<body class="shell-standard print-slides kz-motion">"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="kz-anim" data-animate="fade-up"><div class="c-markdown">"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="kz-anim" data-animate="stagger"><div class="c-grid""#,
+    );
+    assert_contains(&html, "IntersectionObserver");
+    assert!(html.matches("kz-anim").count() >= 2);
+}
+
+#[test]
+fn motion_off_page_has_no_body_class_or_script() {
+    let html = build_one_page(
+        "motion-off",
+        "title: M\nshell: standard\ncomponents:\n  - type: markdown\n    animate: fade_up\n    body: hi\n",
+        "",
+    );
+    assert!(
+        !html.contains(r#"print-slides kz-motion"#),
+        "body class leaked without motion: true"
+    );
+    assert!(
+        !html.contains("IntersectionObserver"),
+        "motion script leaked"
+    );
+    assert_contains(&html, r#"data-animate="fade-up""#);
+}
+
+#[test]
+fn sequence_renders_strip_and_ships_script() {
+    let html = build_one_page(
+        "sequence",
+        "title: S\nshell: standard\ncomponents:\n  - type: grid\n    id: g\n    columns: 2\n    children:\n      - component: { type: box, id: a, title: A, body: a }\n      - component: { type: box, id: b, title: B, body: b }\n  - type: sequence\n    target: g\n    steps:\n      - highlight: [a]\n        note: \"**First**\"\n      - highlight: [b]\n        note: Second\n",
+        "",
+    );
+    assert_contains(&html, r#"class="c-sequence" data-sequence data-target="g""#);
+    assert_contains(&html, r#"<div class="c-seq-step" data-highlight="a">"#);
+    assert_contains(
+        &html,
+        r#"<div class="c-seq-step" data-highlight="b" hidden>"#,
+    );
+    assert_contains(&html, "<strong>First</strong>");
+    assert_contains(&html, "data-seq-next");
+    assert_contains(&html, "seq-active");
+}
+
+#[test]
+fn shape_rule_warnings_do_not_fail_validate_or_build() {
+    let dir = tmp_dir("shape-warn");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: T\ntheme: dark\nshape_rules:\n  - component: markdown\n    warn: words(body) > 3\n    say: Site rule fired.\n").unwrap();
+    let nodes: String = (0..9)
+        .map(|i| format!("      - {{ id: n{i}, label: N{i} }}\n"))
+        .collect();
+    std::fs::write(
+        dir.join("index.yaml"),
+        format!("title: G\nshell: standard\ncomponents:\n  - type: graph\n    nodes:\n{nodes}    edges:\n      - {{ from: n0, to: n1 }}\n  - type: markdown\n    body: one two three four five\n"),
+    )
+    .unwrap();
+
+    let out = Command::new(bin())
+        .args(["validate"])
+        .arg(&dir)
+        .output()
+        .expect("run kazam validate");
+    assert!(
+        out.status.success(),
+        "warnings must not fail validate: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let arr: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let arr = arr.as_array().unwrap();
+    assert!(arr.iter().all(|e| e["severity"] == "warning"), "{arr:?}");
+    assert!(
+        arr.iter()
+            .any(|e| e["path"] == "components[0]"
+                && e["message"].as_str().unwrap().contains("set row")),
+        "{arr:?}"
+    );
+    assert!(
+        arr.iter().any(|e| e["path"] == "components[1]"
+            && e["message"].as_str().unwrap().contains("Site rule fired")),
+        "{arr:?}"
+    );
+
+    let status = Command::new(bin())
+        .args(["build"])
+        .arg(&dir)
+        .arg("--out")
+        .arg(dir.join("_site"))
+        .status()
+        .expect("run kazam build");
+    assert!(status.success(), "warnings must not fail build");
+}
+
+#[test]
+fn validate_single_file_picks_up_site_shape_rules_from_parent_dir() {
+    let dir = tmp_dir("shape-single");
+    std::fs::create_dir_all(dir.join("pages")).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: T\nshape_rules:\n  - component: callout\n    warn: words(body) > 2\n    say: Too long for a callout.\n").unwrap();
+    std::fs::write(
+        dir.join("pages/a.yaml"),
+        "title: A\nshell: standard\ncomponents:\n  - type: callout\n    body: one two three\n",
+    )
+    .unwrap();
+    let out = Command::new(bin())
+        .args(["validate", "--file", "pages/a.yaml"])
+        .arg(&dir)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert!(s.contains("Too long for a callout"), "{s}");
+}

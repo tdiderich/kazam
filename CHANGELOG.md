@@ -4,6 +4,39 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-09-09
+
+### Added
+- `grid` component: explicit-placement CSS grid. Children carry 1-based `col`/`row` plus `colspan`/`rowspan`; omit them to auto-flow. Cells size from the container. Validation errors on overlapping cells, out-of-bounds placement, and grids nested more than 3 deep.
+- `box` component: bordered panel with `title`, uppercase right-aligned `tag`, markdown `body`, and optional nested `components`. `color` (SemColor) or `hex` override, `border: solid | dashed`. Needs a body or at least one child.
+- `connector` component: a grid cell holding a line with an arrowhead, `direction: down | right`, optional `label` drawn over the line, `color`/`hex`.
+- `kazam export pdf <page.yaml> [-o out.pdf] [--chrome <path>]`: builds the page's site to a temp dir and prints it with headless Chrome using the same `@media print` rules as the browser Download PDF button. Auto-detects Chrome on macOS/Linux, or set `KAZAM_CHROME`.
+- `print_flow: letter` for `shell: standard`: portrait US letter, one top-level section per page, top-aligned document flow. Nested sections render as headings within the page.
+- `depth: flat | soft | lifted` theme axis (site-wide in `kazam.yaml`, per-page override, `kazam theme css --depth`). Panels (card, stat, callout, box, code, table, and friends) get a layered surface tint and low shadow at `soft` (the new default); `lifted` adds an accent top edge and hover lift. Switchable CSS emits `[data-depth="…"]` selectors. Print and `.export-root` always render flat.
+- Entrance motion: every component accepts `animate: none | fade_up | fade_in | slide_left | slide_right | stagger` (a styling field like `scale`, not in the component schema). Pages opt in with `motion: true`; the static build adds an IntersectionObserver reveal script and `body.kz-motion`, the React renderer takes `page.motion` or a `motion` prop (for presentation mode). Disabled under `prefers-reduced-motion`, in print, and in `.export-root`.
+- `sequence` component: a guided walkthrough strip. `target` names a component `id`; each step lists `highlight` ids to bring forward (everything else with an `id` inside the target dims, containers of a highlighted element stay clear) and a markdown `note`. Prev/next buttons, arrow keys or `[` `]`, Escape / Show all to clear. Validation errors when `target` or any `highlight` id is not an explicit `id:` on the page. Hidden in print and export.
+- Shape rules: `schema/components.json` gains a `guidance` block per component (use when, avoid when, a curated example, and declarative rules like `nodes > 6 && !all(nodes, row)`). `kazam validate` and `kazam build` evaluate them on every page and report them as **warnings** that never change exit status. Sites add their own under `shape_rules:` in `kazam.yaml`. Expression language in `src/shape.rs`.
+- `ValidationError.severity` (`"error"` | `"warning"`). Only errors fail `kazam validate`/`build`; `--pretty` shows both. Emitted TS type updated.
+- `kazam sdk emit-agents` now prints use-when/avoid-when notes, a curated known-good example (from `schema/examples/`) instead of placeholder values, and the shape rules for each guided component.
+- `kazam sdk emit-mcp`: JSON bundle of MCP tool descriptions, a server-instructions section, and per-component guidance slices, generated from the schema so hosts stop hand-writing them.
+- `validate --file` now finds the nearest `kazam.yaml` above the file for site-level rules.
+- Shape expressions gain `sum(path)`; pipeline rules now budget stacked stage height (about 48px per stage plus 42px per capability) so a three-stage pipeline at the default height warns before it clips. Guidance slices and instructions carry the page skeleton (`title`/`shell`/`components`).
+- `sdk emit-mcp` also describes `read_component` and `write_component`, the curata tools for editing one component by id.
+- Example page `examples/kb/demo/maze-code-analysis.yaml` reproducing a two-page customer PDF with the new primitives.
+
+### Changed
+- The `CardGrid`/`SelectableGrid` connector enum is now `CardConnector` in the schema (values unchanged: `none | dots_line | arrow`). YAML authored as `connector: arrow` is unaffected.
+- `valid_hex_color` moved from the chart renderer into `types` and is shared by `graph`, `box`, and `connector`.
+
+### Security
+- Markdown bodies no longer pass raw HTML through. `pulldown-cmark` `Html`/`InlineHtml` events are downgraded to escaped text in both the static renderer and `kazam open`, so `<script>` or `onerror=` in a body shows literally instead of running.
+- `sdk emit-react`: removed the optional `renderMarkdown` prop and its `dangerouslySetInnerHTML` branch. No shipped host used it; the built-in `renderBlock` path (React-escaped) is now the only markdown renderer.
+
+### Fixed
+- `sdk emit-react`: the built-in markdown tokenizer now renders `_text_` as emphasis (word-boundary only, so `snake_case` survives). Previously only `*text*` worked and underscores showed literally in curata.
+- Skill and pack markdown collection now recurses into `columns`, not only `section`, so installable markdown inside a column is picked up.
+- Print: `columns` no longer jump to a fresh page when they would fit; in letter flow they lay out as table cells, which Chrome paginates correctly.
+
 ## [1.26.0] - 2026-08-31
 
 ### Added

@@ -1,0 +1,10 @@
+# Walkthrough strip. target and every highlight must be explicit ids on the page.
+- type: sequence
+  target: flow
+  steps:
+    - highlight: [ingest]
+      note: "**Start at the commit.** One SHA in, a full SBOM out."
+    - highlight: [scan, agent]
+      note: "**Two lanes.** Repeatable rules on the left, an agent reading code on the right."
+    - highlight: [verdict]
+      note: "**One of two outcomes.** Exploitable with a severity, or not exploitable."

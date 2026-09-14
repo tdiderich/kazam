@@ -12,6 +12,7 @@ fn head(page: &Page, config: &SiteConfig, base: &str, rel_path: &str) -> String 
     // explicit `none` at the page level turns the effect off on that page.
     let texture = page.texture.unwrap_or(config.texture);
     let glow = page.glow.unwrap_or(config.glow);
+    let depth = page.depth.unwrap_or(config.depth);
     let social = social_meta(page, config, base, rel_path);
     format!(
         r#"<head>
@@ -25,7 +26,7 @@ fn head(page: &Page, config: &SiteConfig, base: &str, rel_path: &str) -> String 
         site = esc(&config.name),
         social = social,
         favicon = favicon,
-        css = theme::render_css(&theme, texture, glow),
+        css = theme::render_css(&theme, texture, glow, depth),
     )
 }
 
@@ -477,9 +478,10 @@ pub mod standard {
             crate::types::PrintFlow::Slides => "print-slides",
             crate::types::PrintFlow::Continuous => "print-continuous",
             crate::types::PrintFlow::Square => "print-square",
+            crate::types::PrintFlow::Letter => "print-letter",
         };
 
-        let body_class = if is_sidebar {
+        let mut body_class = if is_sidebar {
             format!(
                 "{} nav-layout-sidebar {}",
                 Shell::Standard.class(),
@@ -488,6 +490,10 @@ pub mod standard {
         } else {
             format!("{} {}", Shell::Standard.class(), flow_class)
         };
+        if page.motion {
+            body_class.push_str(" kz-motion");
+            scripts.push("motion");
+        }
 
         format!(
             r#"<!DOCTYPE html>
@@ -612,6 +618,9 @@ pub mod hub {
 
         let mut scripts = body.scripts.clone();
         scripts.push("search");
+        if page.motion {
+            scripts.push("motion");
+        }
         if !release {
             scripts.push("reload");
         }
@@ -634,7 +643,11 @@ pub mod hub {
 </body>
 </html>"#,
             head = head(page, config, base, rel_path),
-            cls = Shell::Hub.class(),
+            cls = if page.motion {
+                format!("{} kz-motion", Shell::Hub.class())
+            } else {
+                Shell::Hub.class().to_string()
+            },
             bar = bar,
             masthead = masthead_html,
             body = body.html,
@@ -668,6 +681,9 @@ pub mod document {
 
         let mut scripts = body.scripts.clone();
         scripts.push("search");
+        if page.motion {
+            scripts.push("motion");
+        }
         if !release {
             scripts.push("reload");
         }
@@ -695,7 +711,11 @@ pub mod document {
 </body>
 </html>"#,
             head = head(page, config, base, rel_path),
-            cls = Shell::Document.class(),
+            cls = if page.motion {
+                format!("{} kz-motion", Shell::Document.class())
+            } else {
+                Shell::Document.class().to_string()
+            },
             bar = bar,
             body = body.html,
             view_src = view_src,
@@ -798,6 +818,7 @@ pub mod deck {
             crate::types::PrintFlow::Slides => "print-slides",
             crate::types::PrintFlow::Continuous => "print-continuous",
             crate::types::PrintFlow::Square => "print-square",
+            crate::types::PrintFlow::Letter => "print-letter",
         };
 
         format!(

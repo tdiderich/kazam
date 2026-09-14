@@ -1,0 +1,34 @@
+# Two to four stages, stacked vertically inside height. Budget about 48px per
+# stage plus 42px per capability (here 3 stages, 9 capabilities, 1 context strip).
+# inputs/outputs are short nouns. context is optional and takes 22% of the height.
+- type: pipeline
+  title: Code analysis
+  height: 720
+  inputs:
+    - { label: Repository, detail: One commit }
+    - { label: Lockfiles }
+  stages:
+    - label: Inventory
+      detail: Repeatable
+      capabilities:
+        - { label: SBOM }
+        - { label: Dependency graph }
+        - { label: First-party tagging, dim: true }
+    - label: Detect
+      detail: Repeatable
+      capabilities:
+        - { label: SCA match }
+        - { label: SAST rules }
+        - { label: AI SAST }
+    - label: Investigate
+      detail: Model-driven
+      capabilities:
+        - { label: Reachability }
+        - { label: Exploitability }
+        - { label: Impact }
+  outputs:
+    - { label: Exploitable, color: red }
+    - { label: Not exploitable, color: green }
+  context:
+    - { label: Advisory mirror }
+    - { label: Static call graph }

@@ -32,7 +32,14 @@ pub struct ValidationError {
     /// Optional hint to help an agent self-correct.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suggestion: Option<String>,
+    /// `"error"` blocks builds and fails `kazam validate`. `"warning"` is
+    /// reported and returned to callers but never changes exit status: it
+    /// is guidance the author should act on, not a broken page.
+    pub severity: String,
 }
+
+pub const SEVERITY_ERROR: &str = "error";
+pub const SEVERITY_WARNING: &str = "warning";
 
 impl ValidationError {
     fn new(
@@ -48,19 +55,78 @@ impl ValidationError {
             error_type: error_type.into(),
             message: message.into(),
             suggestion,
+            severity: SEVERITY_ERROR.into(),
         }
     }
+
+    pub(crate) fn warning(
+        file: impl Into<String>,
+        path: impl Into<String>,
+        error_type: impl Into<String>,
+        message: impl Into<String>,
+        suggestion: Option<String>,
+    ) -> Self {
+        let mut e = Self::new(file, path, error_type, message, suggestion);
+        e.severity = SEVERITY_WARNING.into();
+        e
+    }
+
+    pub fn is_error(&self) -> bool {
+        self.severity != SEVERITY_WARNING
+    }
+}
+
+/// True when any entry would fail a build. Warnings alone never do.
+pub fn has_errors(errors: &[ValidationError]) -> bool {
+    errors.iter().any(ValidationError::is_error)
 }
 
 // ── Public entry points ───────────────────────────────
 
+/// Validate page YAML text: semantic rules on the parsed [`Page`] plus shape
+/// rules on the raw YAML value. `site_rules` come from `kazam.yaml`.
+pub fn validate_source(
+    file: &str,
+    content: &str,
+    page: &Page,
+    site_rules: &[crate::shape::ShapeRule],
+) -> Vec<ValidationError> {
+    let mut errors = validate_page(file, page);
+    if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
+        let (rules, problems) = crate::shape::rules_for(file, site_rules);
+        errors.extend(problems);
+        errors.extend(crate::shape::check_page(file, &value, &rules));
+    }
+    errors
+}
+
+/// Walk up from `path` to the nearest `kazam.yaml` and read its
+/// `shape_rules`. Missing or unparsable config means no site rules.
+pub fn site_shape_rules_for(path: &Path) -> Vec<crate::shape::ShapeRule> {
+    let mut dir = path.parent().map(Path::to_path_buf);
+    while let Some(d) = dir {
+        let cfg = d.join("kazam.yaml");
+        if cfg.exists() {
+            return std::fs::read_to_string(&cfg)
+                .ok()
+                .and_then(|s| serde_yaml::from_str::<SiteConfig>(&s).ok())
+                .map(|c| c.shape_rules)
+                .unwrap_or_default();
+        }
+        dir = d.parent().map(Path::to_path_buf);
+    }
+    Vec::new()
+}
+
 /// Validate a single parsed [`Page`] against semantic rules.
-/// `file` is included in every error for traceability.
+/// `file` is included in every error for traceability. Shape rules need the
+/// raw YAML; use [`validate_source`] when you have it.
 pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     validate_shell_structure(file, page, &mut errors);
     if let Some(components) = &page.components {
         validate_components(file, "components", components, &mut errors);
+        validate_sequence_ids(file, components, &mut errors);
     }
     if let Some(slides) = &page.slides {
         for (i, slide) in slides.iter().enumerate() {
@@ -97,7 +163,19 @@ fn validate_skill(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
         for c in components {
             match c {
                 Component::Markdown { body, .. } => out.push(body),
-                Component::Section { components, .. } => collect_markdown(components, out),
+                Component::Section { components, .. } | Component::Box { components, .. } => {
+                    collect_markdown(components, out)
+                }
+                Component::Columns { columns, .. } => {
+                    for col in columns {
+                        collect_markdown(col, out);
+                    }
+                }
+                Component::Grid { children, .. } => {
+                    for child in children {
+                        collect_markdown(std::slice::from_ref(&child.component), out);
+                    }
+                }
                 _ => {}
             }
         }
@@ -214,7 +292,15 @@ fn validate_pack(file: &str, page: &Page, errors: &mut Vec<ValidationError>) {
     fn has_installable_markdown(components: &[Component]) -> bool {
         components.iter().any(|c| match c {
             Component::Markdown { body, .. } => !body.trim().is_empty(),
-            Component::Section { components, .. } => has_installable_markdown(components),
+            Component::Section { components, .. } | Component::Box { components, .. } => {
+                has_installable_markdown(components)
+            }
+            Component::Columns { columns, .. } => {
+                columns.iter().any(|col| has_installable_markdown(col))
+            }
+            Component::Grid { children, .. } => children
+                .iter()
+                .any(|ch| has_installable_markdown(std::slice::from_ref(&ch.component))),
             _ => false,
         })
     }
@@ -303,7 +389,8 @@ pub fn validate_single_file(path: &Path) -> Vec<ValidationError> {
         }
     };
 
-    validate_page(&file_str, &page)
+    let site_rules = site_shape_rules_for(path);
+    validate_source(&file_str, &content, &page, &site_rules)
 }
 
 /// Validate a site directory. Parses every `.yaml` file (skipping `kazam.yaml`
@@ -411,7 +498,12 @@ pub fn validate_dir(dir: &Path) -> Vec<ValidationError> {
             }
         };
 
-        errors.extend(validate_page(&file_str, &page));
+        errors.extend(validate_source(
+            &file_str,
+            &content,
+            &page,
+            &config.shape_rules,
+        ));
     }
 
     // Second pass: nav cross-references.
@@ -582,6 +674,22 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::Section { components, .. } => {
             1 + components.iter().map(component_height_cost).sum::<u32>()
         }
+        Component::Box {
+            body, components, ..
+        } => {
+            1 + body.as_deref().map_or(0, |b| b.lines().count() as u32 / 4)
+                + components.iter().map(component_height_cost).sum::<u32>()
+        }
+        Component::Grid {
+            columns, children, ..
+        } => {
+            let total: u32 = children
+                .iter()
+                .map(|c| component_height_cost(&c.component))
+                .sum();
+            total.div_ceil((*columns).max(1))
+        }
+        Component::Connector { .. } => 1,
         Component::Tabs { tabs, .. } => 2 + tabs.len().min(1) as u32,
         Component::Markdown { body, .. } => 1 + (body.lines().count() as u32 / 4),
         Component::Code { code, .. } => 2 + (code.lines().count() as u32 / 3),
@@ -628,6 +736,269 @@ fn validate_components(
     for (i, component) in components.iter().enumerate() {
         let path = format!("{}[{}]", path_prefix, i);
         validate_component(file, &path, component, errors);
+    }
+}
+
+/// Collect every explicit `id` in the tree. Sequence targets and highlights
+/// must name one of these, so authors get a page-level error instead of a
+/// silently inert walkthrough.
+fn collect_ids(components: &[Component], out: &mut Vec<String>) {
+    for c in components {
+        match c {
+            Component::Header { id: Some(id), .. }
+            | Component::Section { id: Some(id), .. }
+            | Component::Grid { id: Some(id), .. }
+            | Component::Box { id: Some(id), .. }
+            | Component::Sequence { id: Some(id), .. } => out.push(id.trim().to_string()),
+            _ => {}
+        }
+        match c {
+            Component::Section { components, .. } | Component::Box { components, .. } => {
+                collect_ids(components, out)
+            }
+            Component::Columns { columns, .. } => {
+                for col in columns {
+                    collect_ids(col, out);
+                }
+            }
+            Component::Grid { children, .. } => {
+                for ch in children {
+                    collect_ids(std::slice::from_ref(&ch.component), out);
+                }
+            }
+            Component::Tabs { tabs, .. } => {
+                for t in tabs {
+                    collect_ids(&t.components, out);
+                }
+            }
+            Component::Accordion { items, .. } => {
+                for i in items {
+                    collect_ids(&i.components, out);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+type SeqRef<'a> = (String, &'a str, &'a [crate::types::SeqStep]);
+
+fn collect_sequences<'a>(components: &'a [Component], prefix: &str, out: &mut Vec<SeqRef<'a>>) {
+    for (i, c) in components.iter().enumerate() {
+        let path = format!("{}[{}]", prefix, i);
+        match c {
+            Component::Sequence { target, steps, .. } => out.push((path, target, steps)),
+            Component::Section { components, .. } | Component::Box { components, .. } => {
+                collect_sequences(components, &format!("{}.components", path), out)
+            }
+            Component::Columns { columns, .. } => {
+                for (ci, col) in columns.iter().enumerate() {
+                    collect_sequences(col, &format!("{}.columns[{}]", path, ci), out);
+                }
+            }
+            Component::Grid { children, .. } => {
+                for (ci, ch) in children.iter().enumerate() {
+                    collect_sequences(
+                        std::slice::from_ref(&ch.component),
+                        &format!("{}.children[{}].component", path, ci),
+                        out,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn validate_sequence_ids(file: &str, components: &[Component], errors: &mut Vec<ValidationError>) {
+    let mut seqs = Vec::new();
+    collect_sequences(components, "components", &mut seqs);
+    if seqs.is_empty() {
+        return;
+    }
+    let mut ids = Vec::new();
+    collect_ids(components, &mut ids);
+    for (path, target, steps) in seqs {
+        if !ids.iter().any(|i| i == target.trim()) {
+            errors.push(ValidationError::new(
+                file,
+                format!("{}.target", path),
+                "cross_reference",
+                format!(
+                    "sequence target '{}' matches no component id on this page",
+                    target
+                ),
+                Some("Give the grid, box, or section an explicit id: and reference that.".into()),
+            ));
+        }
+        for (si, step) in steps.iter().enumerate() {
+            for (hi, h) in step.highlight.iter().enumerate() {
+                if !ids.iter().any(|i| i == h.trim()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.steps[{}].highlight[{}]", path, si, hi),
+                        "cross_reference",
+                        format!("highlight id '{}' matches no component id on this page", h),
+                        Some("Add id: to the box or grid child you want to bring forward.".into()),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+/// Grids nested more than this many levels deep (grid inside grid inside
+/// grid) are almost always an authoring mistake and unreadable on a page.
+const MAX_GRID_DEPTH: usize = 3;
+
+fn grid_depth(component: &Component) -> usize {
+    match component {
+        Component::Grid { children, .. } => {
+            1 + children
+                .iter()
+                .map(|c| grid_depth(&c.component))
+                .max()
+                .unwrap_or(0)
+        }
+        Component::Section { components, .. } | Component::Box { components, .. } => {
+            components.iter().map(grid_depth).max().unwrap_or(0)
+        }
+        Component::Columns { columns, .. } => columns
+            .iter()
+            .flat_map(|col| col.iter().map(grid_depth))
+            .max()
+            .unwrap_or(0),
+        _ => 0,
+    }
+}
+
+fn validate_grid(
+    file: &str,
+    path: &str,
+    columns: u32,
+    rows: Option<u32>,
+    children: &[crate::types::GridChild],
+    errors: &mut Vec<ValidationError>,
+) {
+    if columns == 0 {
+        errors.push(ValidationError::new(
+            file,
+            format!("{}.columns", path),
+            "invalid_value",
+            "grid columns must be at least 1",
+            None,
+        ));
+        return;
+    }
+    if children.is_empty() {
+        errors.push(ValidationError::new(
+            file,
+            format!("{}.children", path),
+            "missing_field",
+            "grid requires at least one child",
+            Some("Add children: with { col, row, component }.".into()),
+        ));
+        return;
+    }
+
+    // Occupancy pass. Pinned children claim their cells first; auto-flow
+    // children then take the first free cell in row-major order, which is
+    // how CSS grid places them, so overlap detection matches the render.
+    let mut occupied: std::collections::HashMap<(u32, u32), usize> = Default::default();
+    for (i, child) in children.iter().enumerate() {
+        let cpath = format!("{}.children[{}]", path, i);
+        let colspan = child.colspan.max(1);
+        let rowspan = child.rowspan.max(1);
+        if let Some(c) = child.col {
+            if c == 0 || c + colspan - 1 > columns {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.col", cpath),
+                    "invalid_value",
+                    format!(
+                        "child {} spans columns {}..{} but grid has {} column{}",
+                        i,
+                        c,
+                        c + colspan - 1,
+                        columns,
+                        if columns == 1 { "" } else { "s" }
+                    ),
+                    Some("Lower col or colspan, or raise grid columns.".into()),
+                ));
+                continue;
+            }
+        }
+        if let (Some(r), Some(rows)) = (child.row, rows) {
+            if r == 0 || r + rowspan - 1 > rows {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.row", cpath),
+                    "invalid_value",
+                    format!(
+                        "child {} spans rows {}..{} but grid has {} row{}",
+                        i,
+                        r,
+                        r + rowspan - 1,
+                        rows,
+                        if rows == 1 { "" } else { "s" }
+                    ),
+                    Some("Lower row or rowspan, or raise grid rows.".into()),
+                ));
+                continue;
+            }
+        }
+        if let (Some(c), Some(r)) = (child.col, child.row) {
+            for dc in 0..colspan {
+                for dr in 0..rowspan {
+                    if let Some(prev) = occupied.insert((c + dc, r + dr), i) {
+                        errors.push(ValidationError::new(
+                            file,
+                            cpath.clone(),
+                            "structural",
+                            format!(
+                                "child {} overlaps child {} at col {} row {}",
+                                i,
+                                prev,
+                                c + dc,
+                                r + dr
+                            ),
+                            Some(
+                                "Give each child its own cells, or drop col/row to auto-flow."
+                                    .into(),
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    for (i, child) in children.iter().enumerate() {
+        validate_component(
+            file,
+            &format!("{}.children[{}].component", path, i),
+            &child.component,
+            errors,
+        );
+    }
+
+    let depth = 1 + children
+        .iter()
+        .map(|c| grid_depth(&c.component))
+        .max()
+        .unwrap_or(0);
+    if depth > MAX_GRID_DEPTH {
+        errors.push(ValidationError::new(
+            file,
+            path,
+            "structural",
+            format!(
+                "grids nest {} levels deep, max is {}",
+                depth, MAX_GRID_DEPTH
+            ),
+            Some(
+                "Flatten the layout: a box with a body usually replaces the innermost grid.".into(),
+            ),
+        ));
     }
 }
 
@@ -803,6 +1174,67 @@ fn validate_component(
             if !components.is_empty() {
                 validate_components(file, &format!("{}.components", path), components, errors);
             }
+        }
+
+        Component::Grid {
+            columns,
+            rows,
+            children,
+            ..
+        } => validate_grid(file, path, *columns, *rows, children, errors),
+
+        Component::Box {
+            body, components, ..
+        } => {
+            let has_body = body.as_deref().is_some_and(|b| !b.trim().is_empty());
+            if !has_body && components.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    path,
+                    "missing_field",
+                    "box needs a body: or at least one nested component",
+                    Some("Add body: markdown, or components: with child blocks.".into()),
+                ));
+            }
+            if let Component::Box { hex: Some(h), .. } = component {
+                if !crate::types::valid_hex_color(h) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.hex", path),
+                        "invalid_value",
+                        format!("hex '{}' is not a valid color", h),
+                        Some("Use #RGB, #RRGGBB, or #RRGGBBAA.".into()),
+                    ));
+                }
+            }
+            if !components.is_empty() {
+                validate_components(file, &format!("{}.components", path), components, errors);
+            }
+        }
+
+        Component::Connector { hex: Some(h), .. } if !crate::types::valid_hex_color(h) => {
+            errors.push(ValidationError::new(
+                file,
+                format!("{}.hex", path),
+                "invalid_value",
+                format!("hex '{}' is not a valid color", h),
+                Some("Use #RGB, #RRGGBB, or #RRGGBBAA.".into()),
+            ));
+        }
+        Component::Connector { .. } => {}
+
+        Component::Sequence { steps, .. } => {
+            if steps.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.steps", path),
+                    "missing_field",
+                    "sequence requires at least one step",
+                    Some("Add steps: with highlight: [ids] and an optional note:.".into()),
+                ));
+            }
+            // Target and highlight ids are checked page-wide in
+            // validate_sequence_ids, which needs the whole tree.
         }
 
         Component::Columns { columns, .. } => {
@@ -1446,6 +1878,11 @@ pub fn print_pretty(errors: &[ValidationError]) {
         eprintln!("\u{2713} No validation errors found.");
         return;
     }
+    let n_err = errors.iter().filter(|e| e.is_error()).count();
+    let n_warn = errors.len() - n_err;
+    if n_err == 0 {
+        eprintln!("\u{2713} No validation errors. {} warning(s).", n_warn);
+    }
     // Group by file.
     let mut by_file: std::collections::BTreeMap<&str, Vec<&ValidationError>> =
         std::collections::BTreeMap::new();
@@ -1453,9 +1890,13 @@ pub fn print_pretty(errors: &[ValidationError]) {
         by_file.entry(&e.file).or_default().push(e);
     }
     for (file, errs) in &by_file {
-        eprintln!("\n\u{2718} {} ({} error(s))", file, errs.len());
+        let fe = errs.iter().filter(|e| e.is_error()).count();
+        let fw = errs.len() - fe;
+        let mark = if fe > 0 { "\u{2718}" } else { "\u{26a0}" };
+        eprintln!("\n{} {} ({} error(s), {} warning(s))", mark, file, fe, fw);
         for e in errs {
-            eprintln!("    [{:^16}] {}", e.error_type, e.message);
+            let tag = if e.is_error() { "error" } else { "warn " };
+            eprintln!("    [{}] [{:^16}] {}", tag, e.error_type, e.message);
             if !e.path.is_empty() {
                 eprintln!("    {:>18} {}", "at:", e.path);
             }
@@ -1484,6 +1925,8 @@ mod tests {
             unlisted: false,
             texture: None,
             glow: None,
+            depth: None,
+            motion: false,
             print_flow: None,
             hub: None,
             freshness: None,
@@ -1514,6 +1957,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: "rules".into(),
                 scale: None,
+                animate: None,
             }]),
         );
         page.pack = Some(pack_meta(&[]));
@@ -1530,10 +1974,12 @@ mod tests {
                 components: vec![Component::Markdown {
                     body: "rules".into(),
                     scale: None,
+                    animate: None,
                 }],
                 align: Default::default(),
                 id: None,
                 scale: None,
+                animate: None,
             }]),
         );
         page.pack = Some(pack_meta(&["claude", "cursor"]));
@@ -1557,6 +2003,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: "   ".into(),
                 scale: None,
+                animate: None,
             }]),
         );
         page.pack = Some(pack_meta(&[]));
@@ -1573,6 +2020,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: "rules".into(),
                 scale: None,
+                animate: None,
             }]),
         );
         page.pack = Some(pack_meta(&["claude", "notatool"]));
@@ -1590,6 +2038,7 @@ mod tests {
             align: Default::default(),
             id: None,
             scale: None,
+            animate: None,
         }
     }
 
@@ -1629,6 +2078,8 @@ mod tests {
             unlisted: false,
             texture: None,
             glow: None,
+            depth: None,
+            motion: false,
             print_flow: None,
             hub: None,
             freshness: None,
@@ -1679,14 +2130,15 @@ mod tests {
 
     #[test]
     fn card_grid_with_empty_cards_fails() {
-        use crate::types::Connector;
+        use crate::types::CardConnector;
         let page = make_page(
             Shell::Standard,
             Some(vec![Component::CardGrid {
                 cards: vec![],
                 min_width: None,
-                connector: Connector::None,
+                connector: CardConnector::None,
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1708,6 +2160,7 @@ mod tests {
                 filterable: false,
                 summary: None,
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1732,6 +2185,7 @@ mod tests {
                 data: None,
                 series: None,
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1768,6 +2222,7 @@ mod tests {
                     }],
                 }]),
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1789,6 +2244,7 @@ mod tests {
                 target: None,
                 thresholds: std::collections::HashMap::new(),
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("test.yaml", &page);
@@ -1865,6 +2321,7 @@ mod tests {
             error_type: "missing_field".into(),
             message: "needs at least one card".into(),
             suggestion: Some("add a card".into()),
+            severity: SEVERITY_ERROR.into(),
         };
         let json = serde_json::to_string(&err).unwrap();
         assert!(json.contains("\"file\":\"foo.yaml\""));
@@ -1881,6 +2338,7 @@ mod tests {
             error_type: "structural".into(),
             message: "something wrong".into(),
             suggestion: None,
+            severity: SEVERITY_ERROR.into(),
         };
         let json = serde_json::to_string(&err).unwrap();
         assert!(!json.contains("suggestion"));
@@ -1908,6 +2366,7 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: body.into(),
                 scale: None,
+                animate: None,
             }]),
         );
         page.skill = Some(crate::types::SkillMeta {
@@ -1971,9 +2430,114 @@ mod tests {
             Some(vec![Component::Markdown {
                 body: "```agl\nbroken\n```".into(),
                 scale: None,
+                animate: None,
             }]),
         );
         let errors = validate_page("plain.yaml", &page);
         assert!(errors.is_empty(), "unexpected: {errors:?}");
+    }
+
+    fn page_from_yaml(yaml: &str) -> Page {
+        serde_yaml::from_str(yaml).expect("yaml parses")
+    }
+
+    #[test]
+    fn grid_overlapping_children_error() {
+        let page = page_from_yaml(
+            "title: G\nshell: standard\ncomponents:\n  - type: grid\n    columns: 2\n    children:\n      - col: 1\n        row: 1\n        colspan: 2\n        component: { type: markdown, body: a }\n      - col: 2\n        row: 1\n        component: { type: markdown, body: b }\n",
+        );
+        let errors = validate_page("g.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.error_type == "structural" && e.message.contains("overlaps")),
+            "expected overlap error, got {errors:?}"
+        );
+    }
+
+    #[test]
+    fn grid_child_outside_columns_error() {
+        let page = page_from_yaml(
+            "title: G\nshell: standard\ncomponents:\n  - type: grid\n    columns: 2\n    children:\n      - col: 2\n        colspan: 2\n        component: { type: markdown, body: a }\n",
+        );
+        let errors = validate_page("g.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.path.ends_with(".col") && e.error_type == "invalid_value"),
+            "expected out-of-bounds error, got {errors:?}"
+        );
+    }
+
+    #[test]
+    fn grid_auto_flow_children_pass() {
+        let page = page_from_yaml(
+            "title: G\nshell: standard\ncomponents:\n  - type: grid\n    columns: 4\n    children:\n      - component: { type: box, title: A, body: a }\n      - component: { type: box, title: B, body: b }\n      - component: { type: box, title: C, body: c }\n",
+        );
+        let errors = validate_page("g.yaml", &page);
+        assert!(errors.is_empty(), "unexpected: {errors:?}");
+    }
+
+    #[test]
+    fn box_without_body_or_children_error() {
+        let page = page_from_yaml(
+            "title: B\nshell: standard\ncomponents:\n  - type: box\n    title: Empty\n",
+        );
+        let errors = validate_page("b.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("box needs a body")),
+            "expected empty-box error, got {errors:?}"
+        );
+    }
+
+    #[test]
+    fn box_with_nested_grid_passes_and_bad_hex_errors() {
+        let page = page_from_yaml(
+            "title: B\nshell: standard\ncomponents:\n  - type: box\n    title: Band\n    hex: purple\n    components:\n      - type: grid\n        columns: 2\n        children:\n          - component: { type: box, title: A, body: a }\n          - component: { type: box, title: B, body: b }\n",
+        );
+        let errors = validate_page("b.yaml", &page);
+        assert_eq!(errors.len(), 1, "only the hex error expected: {errors:?}");
+        assert!(errors[0].path.ends_with(".hex"));
+    }
+
+    #[test]
+    fn sequence_unknown_ids_error_and_known_ids_pass() {
+        let page = page_from_yaml(
+            "title: S\nshell: standard\ncomponents:\n  - type: grid\n    id: g\n    columns: 2\n    children:\n      - component: { type: box, id: a, title: A, body: a }\n      - component: { type: box, id: b, title: B, body: b }\n  - type: sequence\n    target: g\n    steps:\n      - highlight: [a]\n      - highlight: [b, nope]\n",
+        );
+        let errors = validate_page("s.yaml", &page);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].path.ends_with(".steps[1].highlight[1]"));
+        assert_eq!(errors[0].error_type, "cross_reference");
+
+        let page = page_from_yaml(
+            "title: S\nshell: standard\ncomponents:\n  - type: box\n    id: only\n    title: X\n    body: y\n  - type: sequence\n    target: missing\n    steps:\n      - highlight: [only]\n",
+        );
+        let errors = validate_page("s.yaml", &page);
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".target")),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn grid_nesting_past_three_levels_error() {
+        let inner = "{ type: markdown, body: x }";
+        let mut yaml = inner.to_string();
+        for _ in 0..4 {
+            yaml = format!("{{ type: grid, columns: 1, children: [ {{ component: {yaml} }} ] }}");
+        }
+        let page = page_from_yaml(&format!(
+            "title: G\nshell: standard\ncomponents:\n  - {yaml}\n"
+        ));
+        let errors = validate_page("g.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("nest") && e.message.contains("max is 3")),
+            "expected depth error, got {errors:?}"
+        );
     }
 }

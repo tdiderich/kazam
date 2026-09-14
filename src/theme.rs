@@ -1,4 +1,4 @@
-use crate::types::{Glow, Mode, Texture};
+use crate::types::{Depth, Glow, Mode, Texture};
 use std::collections::HashMap;
 
 /// A theme is a set of named color tokens. Any page rendered with this theme
@@ -259,10 +259,104 @@ pub fn light() -> Theme {
     }
 }
 
-pub fn render_css(theme: &Theme, texture: Texture, glow: Glow) -> String {
+pub fn render_css(theme: &Theme, texture: Texture, glow: Glow, depth: Depth) -> String {
     let mut out = theme.root_block();
     out.push_str(STATIC_CSS);
     out.push_str(&decoration_css(theme, texture, glow));
+    out.push_str(&depth_css(Some(depth)));
+    out
+}
+
+/// Panel components that take the depth treatment.
+const DEPTH_SURFACES: &str =
+    ".c-card, .c-stat, .c-callout, .c-box, .c-ba-card, .c-step, .c-meta-item, \
+     .c-accordion-item, .c-code, .c-table, .c-blockquote, .c-empty-state, .c-definition-list, \
+     .c-event, .c-tree-node, .c-chart, .c-selectable-card";
+
+/// Depth rules. `Some(d)` bakes one level in; `None` emits every level under
+/// a `[data-depth=...]` selector for runtime switching. Both paths reference
+/// CSS custom properties only, so they follow theme/mode switches.
+fn depth_css(baked: Option<Depth>) -> String {
+    fn rules(prefix: &str) -> [(Depth, String); 3] {
+        let sel = |d: Depth| -> String {
+            DEPTH_SURFACES
+                .split(',')
+                .map(|s| {
+                    format!(
+                        "{}{}",
+                        if prefix.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{} ", prefix.replace("{d}", d.name()))
+                        },
+                        s.trim()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let hover = |d: Depth| -> String {
+            [".c-card", ".c-box", ".c-stat", ".c-selectable-card"]
+                .iter()
+                .map(|s| {
+                    format!(
+                        "{}{}:hover",
+                        if prefix.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{} ", prefix.replace("{d}", d.name()))
+                        },
+                        s
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        let flat = format!(
+            "{} {{ box-shadow: none; background-image: none; }}\n",
+            sel(Depth::Flat)
+        );
+        let soft = format!(
+            "{} {{ background-image: linear-gradient(180deg, rgba(var(--text-rgb), 0.035), rgba(var(--text-rgb), 0) 55%); \
+             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), 0 10px 28px -14px rgba(0, 0, 0, 0.45); }}\n",
+            sel(Depth::Soft)
+        );
+        let lifted = format!(
+            "{} {{ background-image: linear-gradient(180deg, rgba(var(--text-rgb), 0.05), rgba(var(--text-rgb), 0) 55%); \
+             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 14px 36px -16px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(var(--accent-rgb), 0.35); \
+             transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.2s; }}\n\
+             {} {{ transform: translateY(-2px); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25), 0 20px 44px -16px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(var(--accent-rgb), 0.55); }}\n",
+            sel(Depth::Lifted),
+            hover(Depth::Lifted)
+        );
+        [
+            (Depth::Flat, flat),
+            (Depth::Soft, soft),
+            (Depth::Lifted, lifted),
+        ]
+    }
+    let mut out = String::from("/* ── Depth ── */\n");
+    match baked {
+        Some(d) => {
+            for (level, css) in rules("") {
+                if level == d {
+                    out.push_str(&css);
+                }
+            }
+        }
+        None => {
+            for (_, css) in rules("[data-depth=\"{d}\"]") {
+                out.push_str(&css);
+            }
+        }
+    }
+    // Shadows and lifts are screen-only. Export and print stay flat.
+    out.push_str(&format!(
+        "@media print {{ {sel} {{ box-shadow: none !important; transform: none !important; background-image: none !important; }} }}\n\
+         .export-root {sel_export} {{ box-shadow: none !important; transform: none !important; background-image: none !important; }}\n\n",
+        sel = DEPTH_SURFACES.split(',').map(|s| s.trim().to_string()).collect::<Vec<_>>().join(", "),
+        sel_export = DEPTH_SURFACES.split(',').map(|s| s.trim().to_string()).collect::<Vec<_>>().join(", .export-root "),
+    ));
     out
 }
 
@@ -392,6 +486,7 @@ pub fn render_switchable_css(theme: &Theme) -> String {
     out.push_str("[data-glow=\"none\"] body::after { display: none; }\n\n");
 
     out.push_str(STATIC_CSS);
+    out.push_str(&depth_css(None));
 
     // ── Print: move texture from ::before (position:fixed doesn't print) to body background, strip glow ──
     out.push_str("@media print { body::before, body::after { display: none !important; } }\n");
@@ -2205,6 +2300,152 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-column > *:last-child { margin-bottom: 0; }
 .c-columns-stretch .c-column > * { flex: 1; }
 
+/* Motion: entrance reveals, only under body.kz-motion (page sets motion: true
+   or a host forces it). Carriers start hidden and transition in when the
+   observer adds .kz-in. Reduced motion, print, and export show everything. */
+.kz-anim { display: block; }
+.kz-motion .kz-anim { opacity: 0; transition: opacity 0.5s ease, transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1); will-change: opacity, transform; }
+.kz-motion .kz-anim[data-animate="fade-up"] { transform: translateY(14px); }
+.kz-motion .kz-anim[data-animate="slide-left"] { transform: translateX(-18px); }
+.kz-motion .kz-anim[data-animate="slide-right"] { transform: translateX(18px); }
+.kz-motion .kz-anim.kz-in { opacity: 1; transform: none; }
+/* Stagger: the carrier shows at once, its direct grid/column/section children step in. */
+.kz-motion .kz-anim[data-animate="stagger"] { opacity: 1; transform: none; }
+.kz-motion .kz-anim[data-animate="stagger"] .c-grid > .c-grid-cell,
+.kz-motion .kz-anim[data-animate="stagger"] .c-columns > .c-column,
+.kz-motion .kz-anim[data-animate="stagger"] .c-card-grid > .c-card,
+.kz-motion .kz-anim[data-animate="stagger"] .c-stat-grid > .c-stat,
+.kz-motion .kz-anim[data-animate="stagger"] > .c-section > *:not(.c-section-header),
+.kz-motion .kz-anim[data-animate="stagger"] > .c-box > *:not(.c-box-h) { opacity: 0; transform: translateY(12px); transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-grid > .c-grid-cell,
+.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-columns > .c-column,
+.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-card-grid > .c-card,
+.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-stat-grid > .c-stat,
+.kz-motion .kz-anim[data-animate="stagger"].kz-in > .c-section > *:not(.c-section-header),
+.kz-motion .kz-anim[data-animate="stagger"].kz-in > .c-box > *:not(.c-box-h) { opacity: 1; transform: none; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(1) { transition-delay: 0ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(2) { transition-delay: 80ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(3) { transition-delay: 160ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(4) { transition-delay: 240ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(5) { transition-delay: 320ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(6) { transition-delay: 400ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(7) { transition-delay: 480ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(8) { transition-delay: 560ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(9) { transition-delay: 640ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(10) { transition-delay: 720ms; }
+.kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(n+11) { transition-delay: 800ms; }
+@media (prefers-reduced-motion: reduce) {
+  .kz-motion .kz-anim, .kz-motion .kz-anim * { opacity: 1 !important; transform: none !important; transition: none !important; animation: none !important; }
+}
+@media print {
+  .kz-anim, .kz-anim * { opacity: 1 !important; transform: none !important; transition: none !important; animation: none !important; }
+}
+.export-root .kz-anim, .export-root .kz-anim * { opacity: 1 !important; transform: none !important; transition: none !important; animation: none !important; }
+/* Stack spacing sees the carrier, not the component; pass it through. */
+.main-content > .kz-anim > *, .deck-inner > .kz-anim > *, .doc-body > .kz-anim > *, .hub-content > .kz-anim > *, .c-section > .kz-anim > *, .tab-panel > .kz-anim > *, .c-grid-cell > .kz-anim > *, .c-box > .kz-anim > * { margin-bottom: 0; }
+
+/* Sequence: walkthrough strip that highlights ids inside a target */
+.c-sequence { border: 1px solid var(--card-border); border-radius: 10px; background: var(--card-bg); padding: 10px 14px 12px; outline: none; }
+.c-sequence:focus-visible { border-color: rgba(var(--accent-rgb), 0.6); }
+.c-seq-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.c-seq-btn { font: inherit; font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--card-border); background: rgba(var(--text-rgb), 0.04); color: var(--snow); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.c-seq-btn:hover:not(:disabled) { border-color: rgba(var(--accent-rgb), 0.6); background: rgba(var(--accent-rgb), 0.08); }
+.c-seq-btn:disabled { opacity: 0.4; cursor: default; }
+.c-seq-reset { margin-left: auto; font-size: 12px; color: var(--muted); }
+.c-seq-count { font-size: 12px; letter-spacing: 0.04em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.c-seq-note { color: var(--light-muted); font-size: 14px; line-height: 1.5; }
+.c-seq-note p { margin: 0 0 6px; }
+.c-seq-note p:last-child { margin-bottom: 0; }
+.seq-active .seq-dim { opacity: 0.32; filter: saturate(0.35); transition: opacity 0.25s ease, filter 0.25s ease; }
+.seq-active .seq-hi { transition: box-shadow 0.25s ease; box-shadow: 0 0 0 2px var(--box-accent, var(--teal)), 0 0 24px -6px var(--box-accent, var(--teal)); }
+.seq-active .seq-hi.c-connector { box-shadow: none; }
+.seq-active .seq-hi.c-connector .c-connector-label { color: var(--snow); }
+@media print { .c-sequence { display: none !important; } .seq-dim { opacity: 1 !important; filter: none !important; } .seq-hi { box-shadow: none !important; } }
+.export-root .c-sequence { display: none !important; }
+
+/* Grid: explicit-placement layout, cells size from the container */
+.c-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  grid-auto-rows: auto;
+  gap: var(--gap, 12px);
+  align-items: stretch;
+}
+.c-grid-cell { min-width: 0; display: flex; flex-direction: column; }
+.c-grid-cell > * { margin-bottom: 0; flex: 1; }
+.c-grid-cell > .kz-wrap > * { margin-bottom: 0; }
+
+/* Box: bordered panel with title row, markdown body, optional children */
+.c-box {
+  --box-accent: var(--teal);
+  border: 1.5px solid var(--box-accent);
+  background: color-mix(in srgb, var(--box-accent) 7%, var(--card-bg));
+  border-radius: 8px;
+  padding: 10px 13px;
+  font-size: 14px;
+  line-height: 1.45;
+  min-width: 0;
+}
+.c-box-border-dashed { border-style: dashed; border-radius: 10px; }
+.c-box-default { --box-accent: var(--teal); }
+.c-box-green { --box-accent: var(--green); }
+.c-box-yellow { --box-accent: var(--yellow); }
+.c-box-red { --box-accent: var(--red); }
+.c-box-teal { --box-accent: var(--teal); }
+.c-box-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.c-box-title { font-size: 15px; font-weight: 600; color: var(--snow); }
+.c-box-tag {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--box-accent);
+  white-space: nowrap;
+}
+.c-box-body { color: var(--light-muted); }
+.c-box-body p { margin: 0 0 6px; }
+.c-box-body p:last-child { margin-bottom: 0; }
+.c-box-body strong { color: var(--snow); font-weight: 600; }
+.c-box-body em { color: var(--muted); font-style: normal; }
+.c-box-body code { color: var(--box-accent); font-size: 0.92em; }
+.c-box > .c-box-body + * , .c-box > .c-box-h + *:not(.c-box-body) { margin-top: 8px; }
+.c-box > .c-grid, .c-box > .c-columns, .c-box > .c-box, .c-box > .c-markdown { margin-bottom: 0; }
+.c-box > .kz-wrap > * { margin-bottom: 0; }
+.c-box > * + *, .c-box > .kz-wrap + .kz-wrap > * { margin-top: 8px; }
+.c-box > .c-box-h + .c-box-body { margin-top: 0; }
+
+/* Connector: a cell holding a line with an arrowhead and an optional label */
+.c-connector {
+  --connector-accent: rgba(var(--text-rgb), 0.4);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.c-connector-down::before {
+  content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1.5px;
+  background: var(--connector-accent); transform: translateX(-50%);
+}
+.c-connector-down::after {
+  content: ""; position: absolute; left: 50%; bottom: -1px; transform: translateX(-50%);
+  border: 5px solid transparent; border-top: 7px solid var(--connector-accent); border-bottom: 0;
+}
+.c-connector-right { min-height: 0; min-width: 24px; height: 100%; }
+.c-connector-right::before {
+  content: ""; position: absolute; top: 50%; left: 0; right: 0; height: 1.5px;
+  background: var(--connector-accent); transform: translateY(-50%);
+}
+.c-connector-right::after {
+  content: ""; position: absolute; top: 50%; right: -1px; transform: translateY(-50%);
+  border: 5px solid transparent; border-left: 7px solid var(--connector-accent); border-right: 0;
+}
+.c-connector-label { position: relative; z-index: 1; background: var(--bg); padding: 0 8px; }
+
 /* Accordion */
 .c-accordion { display: flex; flex-direction: column; gap: 8px; }
 .c-accordion-item {
@@ -3624,6 +3865,7 @@ a.c-queue-label:hover {
 @page deck-page-square { size: 8.5in 8.5in; margin: 0; }
 @page standard-page { size: 10in 5.625in; margin: 0; }
 @page standard-continuous { size: 11in 8.5in; margin: 0; }
+@page standard-letter { size: 8.5in 11in; margin: 0; }
 body.shell-deck.print-slides { page: deck-page; }
 body.shell-deck.print-square { page: deck-page-square; }
 body.shell-standard { page: standard-page; }
@@ -3652,6 +3894,8 @@ body.shell-standard { page: standard-page; }
   body.shell-standard .c-empty-state { break-inside: avoid; page-break-inside: avoid; }
   body.shell-standard .c-card-grid,
   body.shell-standard .c-stat-grid,
+  body.shell-standard .c-grid,
+  body.shell-standard .c-box,
   body.shell-standard .c-split-compare { break-inside: avoid; page-break-inside: avoid; }
   body.shell-standard h1, body.shell-standard h2, body.shell-standard h3 { break-after: avoid; page-break-after: avoid; }
   .c-section-header { break-after: avoid; page-break-after: avoid; }
@@ -3663,6 +3907,39 @@ body.shell-standard { page: standard-page; }
   body.shell-standard .c-section > * { width: 100%; max-width: 9in; margin-left: auto; margin-right: auto; }
   body.shell-standard .c-hero { height: 5.625in; box-sizing: border-box; padding: 0.28in 0.5in !important; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; }
   body.shell-standard .c-chart { break-inside: avoid; page-break-inside: avoid; }
+
+  /* ── Standard letter: portrait pages, one section per page, top-aligned document flow ── */
+  body.shell-standard.print-letter { page: standard-letter !important; }
+  body.shell-standard.print-letter .c-section { break-before: page; page-break-before: always; min-height: 0; height: auto; padding: 0.45in 0.6in !important; display: block; }
+  body.shell-standard.print-letter .c-section > * { max-width: none; margin-left: 0; margin-right: 0; }
+  body.shell-standard.print-letter .c-section > *:not(.c-section-header) { margin-bottom: 12px; }
+  body.shell-standard.print-letter .c-section > .kz-wrap > * { margin-bottom: 12px; }
+  body.shell-standard.print-letter .c-section-header { margin-bottom: 10px; }
+  body.shell-standard.print-letter .main-content > .c-section:first-child,
+  body.shell-standard.print-letter .main-content > .kz-wrap:first-child > .c-section { break-before: auto; page-break-before: auto; }
+  body.shell-standard.print-letter .c-hero + .c-section { break-before: auto; page-break-before: auto; }
+  /* Only top-level sections start a page; nested sections are headings within it. */
+  body.shell-standard.print-letter .c-section .c-section { break-before: auto !important; page-break-before: auto !important; padding: 0 !important; margin-top: 6px; }
+  body.shell-standard.print-letter .c-header { margin-bottom: 6px; }
+  body.shell-standard.print-letter .c-header-title { font-size: 22px; }
+  body.shell-standard.print-letter .c-header-subtitle { font-size: 13px; }
+  /* Flex columns inside a grid fragment badly in Chrome print and jump to a
+     fresh page even when they fit. Block columns paginate normally. */
+  body.shell-standard.print-letter .c-columns { display: table; width: 100%; table-layout: fixed; border-spacing: 16px 0; margin-left: -16px; width: calc(100% + 32px); }
+  body.shell-standard.print-letter .c-column { display: table-cell; vertical-align: top; }
+  body.shell-standard.print-letter .c-column > * { margin-bottom: 8px; }
+  body.shell-standard.print-letter .c-table { font-size: 11px; line-height: 1.4; }
+  body.shell-standard.print-letter .c-table th, body.shell-standard.print-letter .c-table td { padding: 5px 9px; }
+  body.shell-standard.print-letter .c-table-wrap { display: block; }
+  body.shell-standard.print-letter .c-callout { padding: 8px 12px; }
+  body.shell-standard.print-letter .c-box, body.shell-standard.print-letter .c-grid-cell { break-inside: avoid; page-break-inside: avoid; }
+  body.shell-standard.print-letter { font-size: 12px; }
+  body.shell-standard.print-letter .c-box { font-size: 11px; padding: 8px 11px; }
+  body.shell-standard.print-letter .c-box-title { font-size: 12.5px; }
+  body.shell-standard.print-letter .c-box-tag { font-size: 9.5px; }
+  body.shell-standard.print-letter .c-connector { min-height: 20px; font-size: 9.5px; }
+  body.shell-standard.print-letter .c-markdown, body.shell-standard.print-letter .c-callout-body, body.shell-standard.print-letter .c-table { font-size: 12px; }
+  body.shell-standard.print-letter .c-section-heading { font-size: 16px; }
 
   /* ── Standard continuous: letter-size pages, vertically centered sections ── */
   body.shell-standard.print-continuous { page: standard-continuous !important; }
@@ -4173,5 +4450,19 @@ mod tests {
         assert!(css.contains("[data-mode=\"light\"]"));
         assert!(css.contains("[data-theme=\"violet\"]"));
         assert!(css.contains("[data-theme=\"green\"]"));
+        assert!(css.contains("[data-depth=\"soft\"] .c-card"));
+        assert!(css.contains("[data-depth=\"lifted\"] .c-card:hover"));
+    }
+
+    #[test]
+    fn baked_css_emits_only_requested_depth() {
+        let t = Theme::named("dark", Mode::Dark);
+        let soft = render_css(&t, Texture::None, Glow::None, Depth::Soft);
+        assert!(soft.contains("/* ── Depth ── */"));
+        assert!(soft.contains("box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22)"));
+        assert!(!soft.contains("inset 0 1px 0 rgba(var(--accent-rgb), 0.55)"));
+        let flat = render_css(&t, Texture::None, Glow::None, Depth::Flat);
+        assert!(!flat.contains("0 10px 28px"));
+        assert!(flat.contains(".export-root .c-card"));
     }
 }

@@ -44,18 +44,18 @@ components:
 
       - title: Interactive
         badge:
-          label: "3"
+          label: "4"
           color: default
-        description: "table, tabs, accordion"
+        description: "table, tabs, accordion, sequence"
         links:
           - label: Open →
             href: interactive.html
 
       - title: Layout
         badge:
-          label: "11"
+          label: "14"
           color: default
-        description: "section, columns, divider, timeline, event_timeline, tree, priority_queue, venn, steps, progress_bar, empty_state"
+        description: "section, columns, grid, box, connector, divider, timeline, event_timeline, tree, priority_queue, venn, steps, progress_bar, empty_state"
         links:
           - label: Open →
             href: layout.html

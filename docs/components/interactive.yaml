@@ -13,7 +13,7 @@ components:
   - type: header
     title: Interactive components
     eyebrow: Reference
-    subtitle: table, tabs, accordion
+    subtitle: table, tabs, accordion, sequence
 
   # ── table ─────────────────────────────────
   - type: section
@@ -134,6 +134,51 @@ components:
                 components:
                   - type: stat_grid
                     stats: [...]
+
+  # ── sequence ──────────────────────────────
+  - type: section
+    eyebrow: sequence
+    heading: Guided walkthrough of another component
+    components:
+      - type: markdown
+        body: |
+          A strip of steps that points at a `target` component by `id`. Each step lists the `id`s to bring forward; everything else with an `id` inside the target dims, and a box that contains a highlighted cell stays clear so it reads as context. Arrow keys or `[` / `]` step when the strip has focus, Escape or **Show all** clears it. Validation errors when `target` or any `highlight` id is not an explicit `id:` on this page. Hidden in print and export.
+
+      - type: grid
+        id: seq-demo
+        columns: 3
+        gap: 10
+        children:
+          - component: { type: box, id: seq-a, title: Ingest, body: Read the source at one commit. }
+          - component: { type: box, id: seq-b, title: Match, body: Candidates from rules and advisories. }
+          - component: { type: box, id: seq-c, title: Decide, hex: "#7a3f8a", body: An agent reads the path and rules. }
+
+      - type: sequence
+        target: seq-demo
+        steps:
+          - highlight: [seq-a]
+            note: "**Ingest.** One commit, one SBOM."
+          - highlight: [seq-b]
+            note: "**Match.** Recall first, so nothing is missed."
+          - highlight: [seq-c]
+            note: "**Decide.** Precision comes from reading, not from the rule."
+
+      - type: code
+        language: yaml
+        code: |
+          - type: grid
+            id: seq-demo
+            columns: 3
+            children:
+              - component: { type: box, id: seq-a, title: Ingest, body: "..." }
+              - component: { type: box, id: seq-b, title: Match, body: "..." }
+          - type: sequence
+            target: seq-demo
+            steps:
+              - highlight: [seq-a]
+                note: "**Ingest.** One commit, one SBOM."
+              - highlight: [seq-b]
+                note: "**Match.** Recall first."
 
   # ── accordion ─────────────────────────────
   - type: section

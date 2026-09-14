@@ -137,6 +137,45 @@ components:
             variant: secondary
 
   - type: section
+    eyebrow: Step 2b
+    heading: Shape rules, guidance that warns
+    components:
+      - type: markdown
+        body: |
+          Layout components (graph, pipeline, grid, box, chart and friends) carry shape rules:
+          small checks like "past 6 graph nodes, pin a row on every node" or "five capabilities per
+          pipeline stage is the ceiling". `kazam validate` and `kazam build` run them on every
+          page and report **warnings**. Warnings never fail a build; they tell the author, or the
+          agent, what to fix. Errors are reserved for pages that cannot render.
+
+          The rules, a curated example, and use-when notes for each component live in
+          `schema/components.json` and come out of `kazam sdk emit-agents` (the component
+          reference agents read) and `kazam sdk emit-mcp` (tool descriptions and per-component
+          slices for an MCP host). Add a component with guidance and every agent surface updates
+          on the next regenerate.
+
+          Sites can add their own rules in `kazam.yaml`:
+
+      - type: code
+        language: yaml
+        code: |
+          # kazam.yaml
+          shape_rules:
+            - component: markdown
+              warn: words(body) > 300
+              say: Split long prose into a section with a heading, or pull structure into a table.
+            - component: graph
+              warn: nodes > 10
+              say: Our decks cap graphs at 10 nodes. Split it.
+
+      - type: markdown
+        body: |
+          Expressions: `nodes > 6`, `!all(nodes, row)`, `any(nodes, width > 160)`,
+          `words(body) > 120`, `stages[*].capabilities > 5`, `has(context)`, joined with
+          `&&`, `||`, `!`. Array names compare by length. Add `severity: error` to a rule to make
+          it fail the build.
+
+  - type: section
     eyebrow: Step 3
     heading: Add freshness metadata
     components:

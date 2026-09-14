@@ -1,0 +1,7 @@
+# Three to four stats per row. value is the headline, detail the one-line why.
+- type: stat_grid
+  columns: 3
+  stats:
+    - { label: Open findings, value: "1,284", detail: Down 212 this week, trend: down, color: green }
+    - { label: Exploitable, value: "37", detail: 2.9% of open, trend: flat, color: red }
+    - { label: Median time to verdict, value: 41m, detail: Per finding, trend: down, color: teal }

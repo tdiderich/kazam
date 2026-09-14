@@ -13,7 +13,7 @@ components:
   - type: header
     title: Layout components
     eyebrow: Reference
-    subtitle: section, columns, divider, timeline, steps, progress_bar, empty_state
+    subtitle: section, columns, grid, box, connector, divider, timeline, steps, progress_bar, empty_state
 
   # ── section ───────────────────────────────
   - type: section
@@ -123,6 +123,134 @@ components:
                   variant: success
                   title: Center
                   body: Center content
+
+  # ── grid ──────────────────────────────────
+  - type: section
+    eyebrow: grid
+    heading: Explicit-placement grid
+    components:
+      - type: markdown
+        body: |
+          A CSS grid where each child says where it sits. `columns` is required,
+          `rows` and `gap` optional. Children are `{ col, row, colspan, rowspan, component }`
+          with 1-based `col`/`row`. Leave `col`/`row` off to auto-flow in order.
+          Cells size from the container, so a wide grid never pushes text off the page.
+
+          Validation errors on two children claiming the same cell, on a child
+          placed past `columns`/`rows`, and on grids nested more than 3 deep.
+          Any component can be a child, including another `grid` or a `box`.
+
+      - type: grid
+        columns: 3
+        gap: 12
+        children:
+          - col: 1
+            colspan: 3
+            component: { type: box, title: Spans all three columns, body: "`col: 1, colspan: 3`" }
+          - component: { type: box, title: Auto, body: First free cell. }
+          - component: { type: box, title: Auto, body: Next free cell. }
+          - component: { type: box, title: Auto, body: Last one. }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: grid
+            columns: 3
+            gap: 12
+            children:
+              - col: 1
+                colspan: 3
+                component: { type: box, title: Spans all three, body: "..." }
+              - component: { type: box, title: Auto, body: First free cell. }
+
+  # ── box ───────────────────────────────────
+  - type: section
+    eyebrow: box
+    heading: Bordered panel with a title row
+    components:
+      - type: markdown
+        body: |
+          `title` on the left, uppercase `tag` on the right, markdown `body` below,
+          and optional nested `components`. Needs at least one of `body` or
+          `components`. `color` picks a semantic accent, `hex` overrides it with an
+          exact color, `border: dashed` marks a grouping band. Nest a `grid` inside
+          a `box` to get a bordered band of cells.
+
+      - type: grid
+        columns: 2
+        gap: 12
+        children:
+          - component:
+              type: box
+              title: Semantic accent
+              tag: Repeatable
+              color: teal
+              body: "`color: teal`. Bold and _italic_ render, so a dimmer trailing note is one underscore away."
+          - component:
+              type: box
+              title: Exact accent
+              tag: Model-driven
+              hex: "#7a3f8a"
+              body: "`hex: \"#7a3f8a\"`. Border, tag, and fill tint all derive from the one hex."
+          - colspan: 2
+            component:
+              type: box
+              title: A band
+              tag: Nested
+              hex: "#7a3f8a"
+              border: dashed
+              components:
+                - type: grid
+                  columns: 3
+                  gap: 8
+                  children:
+                    - component: { type: box, title: One, body: Inner cell. }
+                    - component: { type: box, title: Two, body: Inner cell. }
+                    - component: { type: box, title: Three, body: Inner cell. }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: box
+            title: A band
+            tag: Nested
+            hex: "#7a3f8a"
+            border: dashed
+            components:
+              - type: grid
+                columns: 3
+                children:
+                  - component: { type: box, title: One, body: Inner cell. }
+
+  # ── connector ─────────────────────────────
+  - type: section
+    eyebrow: connector
+    heading: Arrow between grid rows
+    components:
+      - type: markdown
+        body: |
+          A cell, not an edge. Fills whatever grid cell it sits in with a line and
+          an arrowhead, `direction: down` (default) or `right`. An optional `label`
+          sits on the line with the page background behind it. `color` or `hex`
+          recolor the line. Give it its own short grid row between two boxes.
+
+      - type: grid
+        columns: 1
+        gap: 10
+        children:
+          - component: { type: box, title: Scanner, body: Finds candidates. }
+          - component: { type: connector, label: candidate findings }
+          - component: { type: box, title: Investigation, hex: "#7a3f8a", body: Decides what is real. }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: grid
+            columns: 1
+            children:
+              - component: { type: box, title: Scanner, body: Finds candidates. }
+              - component: { type: connector, label: candidate findings }
+              - component: { type: box, title: Investigation, body: Decides what is real. }
 
   # ── timeline ──────────────────────────────
   - type: section

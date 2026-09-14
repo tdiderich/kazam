@@ -173,19 +173,25 @@ pub fn run(
 
             // Semantic validation - catches structural/value errors serde can't.
             let file_str = rel.to_string_lossy().to_string();
-            let val_errors = crate::validate::validate_page(&file_str, &page);
-            if !val_errors.is_empty() {
-                for e in &val_errors {
-                    let loc = if e.path.is_empty() {
-                        String::new()
-                    } else {
-                        format!(" ({})", e.path)
-                    };
-                    eprintln!("  validation error in {}{}: {}", file_str, loc, e.message);
-                }
+            let val_errors =
+                crate::validate::validate_source(&file_str, &content, &page, &config.shape_rules);
+            let n_errors = val_errors.iter().filter(|e| e.is_error()).count();
+            for e in &val_errors {
+                let loc = if e.path.is_empty() {
+                    String::new()
+                } else {
+                    format!(" ({})", e.path)
+                };
+                let kind = if e.is_error() { "error" } else { "warning" };
+                eprintln!(
+                    "  validation {} in {}{}: {}",
+                    kind, file_str, loc, e.message
+                );
+            }
+            if n_errors > 0 {
                 anyhow::bail!(
                     "{} validation error(s) in {}. Run `kazam validate` for details.",
-                    val_errors.len(),
+                    n_errors,
                     file_str
                 );
             }
@@ -811,6 +817,7 @@ fn generate_health_page(
         ],
         columns: 4,
         scale: None,
+        animate: None,
     });
 
     // 2. ProgressBar: Freshness coverage
@@ -831,6 +838,7 @@ fn generate_health_page(
         target: None,
         thresholds: HashMap::new(),
         scale: None,
+        animate: None,
     });
 
     // 3. Overdue table (if any)
@@ -905,6 +913,7 @@ fn generate_health_page(
             filterable: true,
             summary: None,
             scale: None,
+            animate: None,
         });
     }
 
@@ -975,6 +984,7 @@ fn generate_health_page(
             filterable: true,
             summary: None,
             scale: None,
+            animate: None,
         });
     }
 
@@ -1074,6 +1084,7 @@ fn generate_health_page(
                 filterable: false,
                 summary: None,
                 scale: None,
+                animate: None,
             });
         }
     }
@@ -1095,6 +1106,7 @@ fn generate_health_page(
             ),
             links: None,
             scale: None,
+            animate: None,
         });
     }
 
@@ -1108,6 +1120,8 @@ fn generate_health_page(
         unlisted: true,
         texture: None,
         glow: None,
+        depth: None,
+        motion: false,
         print_flow: None,
         hub: None,
         freshness: None,

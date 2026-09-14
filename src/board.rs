@@ -158,6 +158,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
         ],
         columns: 4,
         scale: None,
+        animate: None,
     };
 
     // Human blocker callout
@@ -204,6 +205,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             body: names.join("\n"),
             links: None,
             scale: None,
+            animate: None,
         });
     }
 
@@ -221,6 +223,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             show_summary: false,
             default_view: TreeDefaultView::Tree,
             scale: None,
+            animate: None,
         }],
     };
 
@@ -254,6 +257,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                     ],
                     columns: 2,
                     scale: None,
+                    animate: None,
                 },
                 Component::Tree {
                     nodes: anat_nodes,
@@ -265,6 +269,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                     show_summary: false,
                     default_view: TreeDefaultView::Tree,
                     scale: None,
+                    animate: None,
                 },
             ],
         }
@@ -277,6 +282,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 body: "Run kazam ctx scan to populate anatomy.".into(),
                 links: None,
                 scale: None,
+                animate: None,
             }],
         }
     };
@@ -293,6 +299,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             filter_by: vec![],
             group_by: None,
             scale: None,
+            animate: None,
         });
     }
     if !learnings.learnings.is_empty() {
@@ -341,10 +348,12 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 filterable: false,
                 summary: None,
                 scale: None,
+                animate: None,
             }],
             align: Align::Left,
             id: None,
             scale: None,
+            animate: None,
         });
     }
     if !bugs.bugs.is_empty() {
@@ -417,10 +426,12 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
                 filterable: false,
                 summary: None,
                 scale: None,
+                animate: None,
             }],
             align: Align::Left,
             id: None,
             scale: None,
+            animate: None,
         });
     }
     if activity_components.is_empty() {
@@ -430,6 +441,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
             body: "No activity yet.".into(),
             links: None,
             scale: None,
+            animate: None,
         });
     }
     let activity_tab = Tab {
@@ -440,6 +452,7 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
     components.push(Component::Tabs {
         tabs: vec![task_tab, anatomy_tab, activity_tab],
         scale: None,
+        animate: None,
     });
 
     Ok(Page {
@@ -452,6 +465,8 @@ fn generate_page(project: &Path, config: &SiteConfig) -> Result<Page> {
         unlisted: true,
         texture: None,
         glow: None,
+        depth: None,
+        motion: false,
         print_flow: None,
         hub: None,
         freshness: None,
@@ -718,6 +733,8 @@ fn board_site_config(project: &Path) -> SiteConfig {
         view_source: Some(false),
         texture: Texture::Dots,
         glow: Glow::Corner,
+        depth: crate::types::Depth::Soft,
+        shape_rules: Vec::new(),
         nav_layout: NavLayout::Top,
         mode: Mode::Dark,
         description: None,
@@ -743,6 +760,8 @@ impl Clone for SiteConfig {
             view_source: self.view_source,
             texture: self.texture,
             glow: self.glow,
+            depth: self.depth,
+            shape_rules: self.shape_rules.clone(),
             nav_layout: self.nav_layout,
             mode: self.mode,
             description: self.description.clone(),

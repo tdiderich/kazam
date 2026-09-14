@@ -148,6 +148,41 @@ fn extract_searchable_text(
                     extract_searchable_text(col, headings, snippets);
                 }
             }
+            Component::Grid { children, .. } => {
+                for child in children {
+                    extract_searchable_text(
+                        std::slice::from_ref(&child.component),
+                        headings,
+                        snippets,
+                    );
+                }
+            }
+            Component::Box {
+                title,
+                body,
+                components,
+                ..
+            } => {
+                if let Some(t) = title {
+                    headings.push(t.clone());
+                }
+                if let Some(b) = body {
+                    push_snippet(snippets, b);
+                }
+                extract_searchable_text(components, headings, snippets);
+            }
+            Component::Connector { label, .. } => {
+                if let Some(l) = label {
+                    push_snippet(snippets, l);
+                }
+            }
+            Component::Sequence { steps, .. } => {
+                for step in steps {
+                    if let Some(n) = &step.note {
+                        push_snippet(snippets, n);
+                    }
+                }
+            }
             Component::SelectableGrid { cards, .. } => {
                 for card in cards {
                     headings.push(card.title.clone());
@@ -358,6 +393,8 @@ mod tests {
             unlisted: false,
             texture: None,
             glow: None,
+            depth: None,
+            motion: false,
             print_flow: None,
             hub: None,
             freshness: None,
@@ -383,6 +420,7 @@ mod tests {
             align: Default::default(),
             id: None,
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Hello World".to_string()));
@@ -397,6 +435,7 @@ mod tests {
         let page = make_page(vec![Component::Markdown {
             body: "# Heading\n**bold** text with [link](http://example.com)".to_string(),
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(!entry.content_snippets.is_empty());
@@ -423,6 +462,7 @@ mod tests {
             ],
             numbered: true,
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Step one".to_string()));
@@ -443,8 +483,10 @@ mod tests {
             components: vec![Component::Markdown {
                 body: "Inner content here".to_string(),
                 scale: None,
+                animate: None,
             }],
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Section Heading".to_string()));
@@ -468,6 +510,7 @@ mod tests {
         let page = make_page(vec![Component::Markdown {
             body: long_text,
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         for snippet in &entry.content_snippets {
@@ -481,6 +524,7 @@ mod tests {
             language: Some("rust".to_string()),
             code: "fn main() { println!(\"secret\"); }".to_string(),
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.content_snippets.is_empty());
@@ -496,9 +540,11 @@ mod tests {
                 components: vec![Component::Markdown {
                     body: "Tab A content".to_string(),
                     scale: None,
+                    animate: None,
                 }],
             }],
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry.headings.contains(&"Tab A".to_string()));
@@ -515,14 +561,17 @@ mod tests {
                 vec![Component::Markdown {
                     body: "Left column".to_string(),
                     scale: None,
+                    animate: None,
                 }],
                 vec![Component::Markdown {
                     body: "Right column".to_string(),
                     scale: None,
+                    animate: None,
                 }],
             ],
             equal_heights: false,
             scale: None,
+            animate: None,
         }]);
         let entry = entry_for("index.html", &page, None);
         assert!(entry
