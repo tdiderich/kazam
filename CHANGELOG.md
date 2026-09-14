@@ -4,6 +4,19 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.1] - 2026-09-14
+
+### Fixed
+- `table.summary` in the React renderer (`kazam sdk emit-react`) now implements the documented `TableSummary { group_by, colors }` shape: rows are counted per distinct value of the `group_by` column and drawn as one colored dot and bar segment per value, matching the HTML renderer and the component reference. The emitted code previously cast `summary` to an array of `{label, value}` dots, so a page authored to the docs passed `kazam validate` and then threw `TypeError: s.reduce is not a function` at render, blanking the page.
+- The React table renderer ignores a `summary` that is not a `{ group_by }` object (an array, a string, an object without `group_by`) and renders the plain table instead of crashing. `columns` and `rows` that are not arrays are treated as empty.
+
+### Added
+- `schema/examples/table.yaml` (the documented table example) now uses `summary`, so downstream render tests cover it.
+- Emitter test `react_field_casts_match_schema_kinds`: every `kind: object` field must be read as an object and every `kind: list` field as an array in the emitted React renderer. Doc/renderer shape drift now fails `cargo test`.
+
+### Changed
+- Dependencies: ureq 2 -> 3 (HTTP call sites moved behind `src/http.rs`), sha2 0.10 -> 0.11, rustls 0.23.45 (RUSTSEC-2026-0285), actions/checkout 7 and actions/deploy-pages 5.0.1 in CI.
+
 ## [1.27.0] - 2026-09-09
 
 ### Added
