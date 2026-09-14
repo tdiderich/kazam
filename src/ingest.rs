@@ -45,12 +45,15 @@ fn resolve_token(cli_token: &Option<String>) -> anyhow::Result<String> {
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 
 fn notion_get(token: &str, url: &str) -> anyhow::Result<serde_json::Value> {
-    let body = ureq::get(url)
-        .set("Authorization", &format!("Bearer {}", token))
-        .set("Notion-Version", "2022-06-28")
-        .set("Content-Type", "application/json")
-        .call()?
-        .into_string()?;
+    let auth = format!("Bearer {}", token);
+    let body = crate::http::get_text(
+        url,
+        &[
+            ("Authorization", &auth),
+            ("Notion-Version", "2022-06-28"),
+            ("Content-Type", "application/json"),
+        ],
+    )?;
     Ok(serde_json::from_str(&body)?)
 }
 
@@ -60,12 +63,16 @@ fn notion_post(
     body: &serde_json::Value,
 ) -> anyhow::Result<serde_json::Value> {
     let body_str = serde_json::to_string(body)?;
-    let resp_body = ureq::post(url)
-        .set("Authorization", &format!("Bearer {}", token))
-        .set("Notion-Version", "2022-06-28")
-        .set("Content-Type", "application/json")
-        .send_string(&body_str)?
-        .into_string()?;
+    let auth = format!("Bearer {}", token);
+    let resp_body = crate::http::post_text(
+        url,
+        &[
+            ("Authorization", &auth),
+            ("Notion-Version", "2022-06-28"),
+            ("Content-Type", "application/json"),
+        ],
+        &body_str,
+    )?;
     Ok(serde_json::from_str(&resp_body)?)
 }
 
@@ -235,10 +242,7 @@ fn extract_page_owner(page: &serde_json::Value) -> String {
 
 /// Download bytes from `url` and save to `dest_path`. Returns the path on success.
 fn download_image(url: &str, dest_path: &Path) -> anyhow::Result<()> {
-    let resp = ureq::get(url).call()?;
-    let mut bytes: Vec<u8> = Vec::new();
-    use std::io::Read;
-    resp.into_reader().read_to_end(&mut bytes)?;
+    let bytes = crate::http::get_bytes(url, &[])?;
     if let Some(parent) = dest_path.parent() {
         std::fs::create_dir_all(parent)?;
     }

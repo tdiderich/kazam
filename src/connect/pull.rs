@@ -40,12 +40,12 @@ fn auth_header(auth: &Auth, env: &ConnectorEnv, host: &HostConfig) -> Result<(St
             if let Some(scope) = scope {
                 body["scope"] = Value::String(scope.clone());
             }
-            let resp_text = ureq::post(&token_url)
-                .set("Content-Type", "application/json")
-                .send_string(&body.to_string())
-                .with_context(|| format!("oauth2 token request failed: {}", token_url))?
-                .into_string()
-                .context("oauth2 token response was not readable")?;
+            let resp_text = crate::http::post_text(
+                &token_url,
+                &[("Content-Type", "application/json")],
+                &body.to_string(),
+            )
+            .with_context(|| format!("oauth2 token request failed: {}", token_url))?;
             let resp: Value =
                 serde_json::from_str(&resp_text).context("oauth2 token response was not JSON")?;
             let token = resp
@@ -187,53 +187,49 @@ pub fn execute_pull(
         }
 
         let url = format!("{}{}", base_url.trim_end_matches('/'), pull.request.path);
-        let mut req = match pull.request.method.to_uppercase().as_str() {
-            "GET" => ureq::get(&url),
-            "POST" => ureq::post(&url),
-            "PUT" => ureq::put(&url),
-            "DELETE" => ureq::delete(&url),
-            other => bail!("unsupported HTTP method '{}' for pull '{}'", other, name),
-        };
-        req = req
-            .set(&auth_name, &auth_value)
-            .set("User-Agent", "kazam-connect");
-        for (k, v) in &params {
-            req = req.query(k, v);
+        let method = pull.request.method.to_uppercase();
+        if !matches!(method.as_str(), "GET" | "POST" | "PUT" | "DELETE") {
+            bail!("unsupported HTTP method '{}' for pull '{}'", method, name);
+        }
+        let resolved_body = body.as_ref().map(|b| replace_last_sync(b, &last_sync));
+        let body_str = resolved_body.as_ref().map(|b| b.to_string());
+
+        let response = crate::http::send(
+            &method,
+            &url,
+            &[
+                (auth_name.as_str(), auth_value.as_str()),
+                ("User-Agent", "kazam-connect"),
+            ],
+            &params,
+            body_str.as_deref(),
+        )
+        .with_context(|| format!("pull '{}' request failed", name))?;
+
+        if response.status == 429 && retries_left > 0 {
+            let wait_secs = response
+                .retry_after
+                .as_deref()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or_else(|| 10 * (1 << (retries_total - retries_left)));
+            eprintln!(
+                "    429 rate limited, waiting {}s ({} retries left)",
+                wait_secs, retries_left
+            );
+            sleep(Duration::from_secs(wait_secs));
+            retries_left -= 1;
+            continue;
+        }
+        if !(200..300).contains(&response.status) {
+            bail!(
+                "pull '{}' failed ({}): {}",
+                name,
+                response.status,
+                response.text
+            );
         }
 
-        let resolved_body = body.as_ref().map(|b| replace_last_sync(b, &last_sync));
-
-        let attempt = if let Some(b) = &resolved_body {
-            req.send_string(&b.to_string())
-        } else {
-            req.call()
-        };
-
-        let response = match attempt {
-            Ok(r) => r,
-            Err(ureq::Error::Status(429, resp)) if retries_left > 0 => {
-                let wait_secs = resp
-                    .header("Retry-After")
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .unwrap_or_else(|| 10 * (1 << (retries_total - retries_left)));
-                eprintln!(
-                    "    429 rate limited, waiting {}s ({} retries left)",
-                    wait_secs, retries_left
-                );
-                sleep(Duration::from_secs(wait_secs));
-                retries_left -= 1;
-                continue;
-            }
-            Err(ureq::Error::Status(code, resp)) => {
-                let detail = resp.into_string().unwrap_or_default();
-                bail!("pull '{}' failed ({}): {}", name, code, detail);
-            }
-            Err(e) => return Err(e).with_context(|| format!("pull '{}' request failed", name)),
-        };
-
-        let response_text = response
-            .into_string()
-            .with_context(|| format!("pull '{}' response was not readable", name))?;
+        let response_text = response.text;
         let json: Value = serde_json::from_str(&response_text)
             .with_context(|| format!("pull '{}' response was not JSON", name))?;
         let mut records = extract_collection(&json, &pull.collect);

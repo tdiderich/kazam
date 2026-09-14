@@ -15,6 +15,7 @@ mod ctx;
 mod dev;
 mod export;
 mod freshness;
+mod http;
 mod icons;
 mod id;
 mod ingest;
