@@ -162,14 +162,8 @@ pub fn init(name: &str, dir: Option<PathBuf>, force: bool) -> Result<()> {
         GITHUB_REPO, entry.path, GITHUB_BRANCH
     );
 
-    let response = ureq::get(&api_url)
-        .set("User-Agent", "kazam")
-        .call()
+    let body = crate::http::get_text(&api_url, &[("User-Agent", "kazam")])
         .with_context(|| format!("failed to fetch registry contents for '{}'", name))?;
-
-    let body = response
-        .into_string()
-        .context("failed to read GitHub API response body")?;
 
     let files: Vec<GitHubContent> =
         serde_json::from_str(&body).context("failed to parse GitHub API response")?;
@@ -186,12 +180,8 @@ pub fn init(name: &str, dir: Option<PathBuf>, force: bool) -> Result<()> {
             None => continue,
         };
 
-        let content = ureq::get(&download_url)
-            .set("User-Agent", "kazam")
-            .call()
-            .with_context(|| format!("failed to download {}", file.name))?
-            .into_string()
-            .with_context(|| format!("failed to read body for {}", file.name))?;
+        let content = crate::http::get_text(&download_url, &[("User-Agent", "kazam")])
+            .with_context(|| format!("failed to download {}", file.name))?;
 
         let out_path = dest.join(&file.name);
         fs::write(&out_path, &content)

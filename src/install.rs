@@ -389,15 +389,23 @@ fn parse_sse_or_json(text: &str) -> Result<serde_json::Value> {
     bail!("response was neither JSON nor an SSE message stream")
 }
 
-fn build_request(endpoint: &str, api_key: Option<&str>) -> ureq::Request {
-    let mut req = ureq::post(endpoint)
-        .set("User-Agent", "kazam")
-        .set("Content-Type", "application/json")
-        .set("Accept", "application/json, text/event-stream");
-    if let Some(key) = api_key {
-        req = req.set("Authorization", &format!("Bearer {}", key));
+/// POST a JSON body to a curata endpoint with the standard kazam headers.
+/// Non-2xx comes back as `http::Error::Status(code, body)`.
+fn post_json(
+    endpoint: &str,
+    api_key: Option<&str>,
+    body: &str,
+) -> Result<String, crate::http::Error> {
+    let auth = api_key.map(|key| format!("Bearer {}", key));
+    let mut headers: Vec<(&str, &str)> = vec![
+        ("User-Agent", "kazam"),
+        ("Content-Type", "application/json"),
+        ("Accept", "application/json, text/event-stream"),
+    ];
+    if let Some(a) = auth.as_deref() {
+        headers.push(("Authorization", a));
     }
-    req
+    crate::http::post_text(endpoint, &headers, body)
 }
 
 /// Fetch via the plain REST shim: POST {base}/api/mcp {"tool","args"}.
@@ -406,10 +414,10 @@ fn fetch_rest(base: &str, slug: &str, api_key: Option<&str>) -> Result<Option<(S
     let endpoint = format!("{}/api/mcp", base);
     let body = serde_json::json!({ "tool": "read_page", "args": { "slug": slug } });
 
-    let response = match build_request(&endpoint, api_key).send_string(&body.to_string()) {
+    let text = match post_json(&endpoint, api_key, &body.to_string()) {
         Ok(r) => r,
-        Err(ureq::Error::Status(404, _)) => return Ok(None),
-        Err(ureq::Error::Status(401, _)) => {
+        Err(crate::http::Error::Status(404, _)) => return Ok(None),
+        Err(crate::http::Error::Status(401, _)) => {
             bail!(
                 "unauthorized fetching '{}' from {} - {}",
                 slug,
@@ -417,16 +425,12 @@ fn fetch_rest(base: &str, slug: &str, api_key: Option<&str>) -> Result<Option<(S
                 AUTH_HINT
             )
         }
-        Err(ureq::Error::Status(code, resp)) => {
-            let detail = resp.into_string().unwrap_or_default();
+        Err(crate::http::Error::Status(code, detail)) => {
             bail!("fetch failed ({}) from {}: {}", code, endpoint, detail)
         }
         Err(e) => return Err(e).with_context(|| format!("failed to reach {}", endpoint)),
     };
 
-    let text = response
-        .into_string()
-        .context("failed to read response body")?;
     // Some deployments route unknown paths to an HTML page instead of a 404
     // status; treat non-JSON as "shim not available" rather than a hard error.
     let parsed: serde_json::Value = match serde_json::from_str(&text) {
@@ -454,9 +458,9 @@ fn fetch_stream(base: &str, slug: &str, api_key: Option<&str>) -> Result<(String
         "params": { "name": "read_page", "arguments": { "slug": slug } }
     });
 
-    let response = match build_request(&endpoint, api_key).send_string(&body.to_string()) {
+    let text = match post_json(&endpoint, api_key, &body.to_string()) {
         Ok(r) => r,
-        Err(ureq::Error::Status(401, _)) => {
+        Err(crate::http::Error::Status(401, _)) => {
             bail!(
                 "unauthorized fetching '{}' from {} - {}",
                 slug,
@@ -464,16 +468,12 @@ fn fetch_stream(base: &str, slug: &str, api_key: Option<&str>) -> Result<(String
                 AUTH_HINT
             )
         }
-        Err(ureq::Error::Status(code, resp)) => {
-            let detail = resp.into_string().unwrap_or_default();
+        Err(crate::http::Error::Status(code, detail)) => {
             bail!("fetch failed ({}) from {}: {}", code, endpoint, detail)
         }
         Err(e) => return Err(e).with_context(|| format!("failed to reach {}", endpoint)),
     };
 
-    let text = response
-        .into_string()
-        .context("failed to read response body")?;
     let message = parse_sse_or_json(&text)?;
 
     if let Some(err) = message.get("error") {
@@ -541,13 +541,12 @@ fn content_hash(yaml: &str) -> String {
 /// page or route absent) so the caller falls back to the authed MCP path.
 fn fetch_raw(base: &str, org: &str, slug: &str) -> Result<Option<String>> {
     let endpoint = format!("{}/p/{}/{}/raw", base, org, slug);
-    match ureq::get(&endpoint).set("User-Agent", "kazam").call() {
-        Ok(resp) => Ok(Some(
-            resp.into_string()
-                .context("failed to read raw response body")?,
-        )),
-        Err(ureq::Error::Status(404, _)) => Ok(None),
-        Err(ureq::Error::Status(code, _)) => bail!("fetch failed ({}) from {}", code, endpoint),
+    match crate::http::get_text(&endpoint, &[("User-Agent", "kazam")]) {
+        Ok(text) => Ok(Some(text)),
+        Err(crate::http::Error::Status(404, _)) => Ok(None),
+        Err(crate::http::Error::Status(code, _)) => {
+            bail!("fetch failed ({}) from {}", code, endpoint)
+        }
         Err(e) => Err(e).with_context(|| format!("failed to reach {}", endpoint)),
     }
 }
@@ -1334,26 +1333,22 @@ fn fetch_rest_list(base: &str, api_key: Option<&str>) -> Result<Option<serde_jso
     let endpoint = format!("{}/api/mcp", base);
     let body = serde_json::json!({ "tool": "list_pages", "args": {} });
 
-    let response = match build_request(&endpoint, api_key).send_string(&body.to_string()) {
+    let text = match post_json(&endpoint, api_key, &body.to_string()) {
         Ok(r) => r,
-        Err(ureq::Error::Status(404, _)) => return Ok(None),
-        Err(ureq::Error::Status(401, _)) => {
+        Err(crate::http::Error::Status(404, _)) => return Ok(None),
+        Err(crate::http::Error::Status(401, _)) => {
             bail!(
                 "unauthorized listing packs from {} - {}",
                 endpoint,
                 AUTH_HINT
             )
         }
-        Err(ureq::Error::Status(code, resp)) => {
-            let detail = resp.into_string().unwrap_or_default();
+        Err(crate::http::Error::Status(code, detail)) => {
             bail!("list failed ({}) from {}: {}", code, endpoint, detail)
         }
         Err(e) => return Err(e).with_context(|| format!("failed to reach {}", endpoint)),
     };
 
-    let text = response
-        .into_string()
-        .context("failed to read response body")?;
     let parsed: serde_json::Value = match serde_json::from_str(&text) {
         Ok(v) => v,
         Err(_) => return Ok(None),
@@ -1379,25 +1374,21 @@ fn fetch_stream_list(base: &str, api_key: Option<&str>) -> Result<serde_json::Va
         "params": { "name": "list_pages", "arguments": {} }
     });
 
-    let response = match build_request(&endpoint, api_key).send_string(&body.to_string()) {
+    let text = match post_json(&endpoint, api_key, &body.to_string()) {
         Ok(r) => r,
-        Err(ureq::Error::Status(401, _)) => {
+        Err(crate::http::Error::Status(401, _)) => {
             bail!(
                 "unauthorized listing packs from {} - {}",
                 endpoint,
                 AUTH_HINT
             )
         }
-        Err(ureq::Error::Status(code, resp)) => {
-            let detail = resp.into_string().unwrap_or_default();
+        Err(crate::http::Error::Status(code, detail)) => {
             bail!("list failed ({}) from {}: {}", code, endpoint, detail)
         }
         Err(e) => return Err(e).with_context(|| format!("failed to reach {}", endpoint)),
     };
 
-    let text = response
-        .into_string()
-        .context("failed to read response body")?;
     let message = parse_sse_or_json(&text)?;
 
     if let Some(err) = message.get("error") {
