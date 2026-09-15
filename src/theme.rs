@@ -2385,6 +2385,10 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   font-size: 14px;
   line-height: 1.45;
   min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .c-box-border-dashed { border-style: dashed; border-radius: 10px; }
 .c-box-default { --box-accent: var(--teal); }
