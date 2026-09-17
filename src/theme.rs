@@ -668,6 +668,32 @@ body.shell-deck .page-content-wrap { flex: 1; display: flex; flex-direction: col
 body.shell-deck .page-detail-content { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0; }
 
 a { color: inherit; text-decoration: none; }
+
+.c-link-ext {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(var(--text-rgb), 0.35);
+  text-underline-offset: 2px;
+}
+.c-link-ext:hover { text-decoration-color: var(--teal); }
+a.c-link-ext img.c-link-ext-favicon {
+  width: 13px;
+  height: 13px;
+  max-width: 13px;
+  flex: none;
+  align-self: center;
+  border-radius: 3px;
+  display: inline-block;
+  margin: 0;
+  vertical-align: middle;
+}
+.c-link-ext-arrow {
+  font-size: 0.75em;
+  opacity: 0.55;
+}
 h1, h2, h3 { font-weight: 600; color: var(--snow); }
 
 .container { max-width: 1200px; margin: 0 auto; padding: 0 40px; }

@@ -956,6 +956,44 @@ function assetSrc(src: string): string {
   return src;
 }
 
+// Anything with an explicit http(s) scheme is external by definition - a
+// curata-internal link is always relative (/pages/<slug>, #anchor). Opens in
+// a new tab, carries the target site's favicon plus a small arrow so the
+// distinction survives even if the favicon 404s or someone is colorblind.
+function renderLink(key: number, href: string, label: React.ReactNode): React.ReactElement {
+  if (!/^https?:\/\//i.test(href)) {
+    return <a key={key} href={href}>{label}</a>;
+  }
+  let host = "";
+  try {
+    host = new URL(href).hostname;
+  } catch {
+    // Malformed href - still an external-looking link, just no favicon to show.
+  }
+  return (
+    <a
+      key={key}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="c-link-ext"
+      title={host ? `Opens ${host} in a new tab` : "Opens in a new tab"}
+    >
+      {host && (
+        <img
+          src={`https://www.google.com/s2/favicons?sz=32&domain=${host}`}
+          alt=""
+          className="c-link-ext-favicon"
+          loading="lazy"
+          onError={(e) => { e.currentTarget.style.display = "none"; }}
+        />
+      )}
+      {label}
+      <span aria-hidden="true" className="c-link-ext-arrow">↗</span>
+    </a>
+  );
+}
+
 function renderInline(text: string): React.ReactNode[] {
   // Underscore emphasis only at word boundaries so snake_case_names survive.
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|(?<![A-Za-z0-9])_(?:[^_\n]|_(?=[A-Za-z0-9]))+_(?![A-Za-z0-9])|\[[^\]]+\]\([^)]+\))/g;
@@ -974,7 +1012,7 @@ function renderInline(text: string): React.ReactNode[] {
       const labelEnd = token.indexOf("](");
       const label = token.slice(1, labelEnd);
       const href = token.slice(labelEnd + 2, -1);
-      parts.push(<a key={key++} href={href}>{label}</a>);
+      parts.push(renderLink(key++, href, label));
     } else {
       // `*text*` or `_text_`, recursing so **bold** inside emphasis renders
       parts.push(<em key={key++}>{renderInline(token.slice(1, -1))}</em>);
