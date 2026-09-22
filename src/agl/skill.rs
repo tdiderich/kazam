@@ -220,10 +220,20 @@ fn render_body(spec: &AglSpec, templates: &[(String, String)]) -> String {
     out
 }
 
+/// The inline Claude Code skill. `allowed-tools:` is `requires:` verbatim,
+/// same as the subagent's `tools:` line: it is the permission gate the
+/// harness enforces, and plugin repos that lint every SKILL.md for a
+/// declaration need it present on compiled skills too. `requires:` empty
+/// means no line at all, never an empty one (that would read as "no tools").
 fn render_claude(spec: &AglSpec, body: &str) -> String {
     let name = resolved_skill_name(spec);
     let description = resolved_description(spec, &name).replace('"', "\\\"");
-    format!("---\nname: {name}\ndescription: \"{description}\"\n---\n\n{PRIMER}\n\n{body}")
+    let mut out = format!("---\nname: {name}\ndescription: \"{description}\"\n");
+    if !spec.requires.is_empty() {
+        out.push_str(&format!("allowed-tools: {}\n", spec.requires.join(", ")));
+    }
+    out.push_str(&format!("---\n\n{PRIMER}\n\n{body}"));
+    out
 }
 
 /// A runtime preflight check, generated from `spec.requires`: before a cold
@@ -802,6 +812,21 @@ mod tests {
         assert!(doc.contains("- GoogleCalendar.get"));
         assert!(doc.contains("- GoogleCalendar.update"));
         assert!(doc.contains("stop immediately"));
+    }
+
+    #[test]
+    fn skill_with_requires_declares_allowed_tools_in_frontmatter() {
+        let parsed = parse(SAMPLE_WITH_REQUIRES).unwrap();
+        let doc = render(&parsed.spec, Target::Claude, &[]);
+        let front = doc.split("---").nth(1).expect("frontmatter");
+        assert!(front.contains("allowed-tools: GoogleCalendar.get, GoogleCalendar.update"));
+    }
+
+    #[test]
+    fn skill_without_requires_omits_allowed_tools_line() {
+        let parsed = parse(SAMPLE).unwrap();
+        let doc = render(&parsed.spec, Target::Claude, &[]);
+        assert!(!doc.contains("allowed-tools:"));
     }
 
     #[test]

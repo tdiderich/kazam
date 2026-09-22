@@ -4,6 +4,11 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.0] - 2026-09-22
+
+### Added
+- `kazam agl skill --target claude` writes `allowed-tools:` in the SKILL.md frontmatter, set to the spec's `requires:` list verbatim, the same way the `--isolated` subagent file writes `tools:`. Plugin repos that require a tool declaration on every skill now accept compiled AGL skills without a hand edit; the Preflight section stays as the runtime check. Specs with no `requires:` get no line at all.
+
 ## [1.27.1] - 2026-09-14
 
 ### Fixed
