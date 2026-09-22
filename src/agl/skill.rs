@@ -465,6 +465,14 @@ fn render_invariant(rule: &InvariantRule) -> String {
             target,
             required_gate,
         } => format!("deny: {action}({target}) without gate({required_gate})"),
+        InvariantRule::DenyWithoutEvaluate {
+            action,
+            target,
+            required_evaluate,
+        } => {
+            format!("deny: {action}({target}) without evaluate({required_evaluate})")
+        }
+        InvariantRule::DenyAlways { action, target } => format!("deny: {action}({target})"),
         InvariantRule::DenyConstraint {
             action,
             target,

@@ -335,11 +335,25 @@ fn resolve_referenced_templates(spec: &ast::AglSpec) -> Result<Vec<(String, Stri
     let templates_dir = home_dir()?.join(".kazam").join("agl").join("templates");
     let mut found = Vec::new();
     for word in skill::referenced_template_names(spec) {
-        let candidate = templates_dir.join(format!("{word}.md"));
-        if candidate.is_file() {
-            let content = std::fs::read_to_string(&candidate)
-                .with_context(|| format!("failed to read {}", candidate.display()))?;
-            found.push((word, content));
+        // `customer_visibility_rules` in an expression names the file
+        // `customer-visibility-rules.md`: identifiers can't carry hyphens, so
+        // the underscore form is how a spec spells a hyphenated template.
+        let hyphenated = word.replace('_', "-");
+        let candidates = if hyphenated == word {
+            vec![word.clone()]
+        } else {
+            vec![word.clone(), hyphenated]
+        };
+        for name in candidates {
+            let candidate = templates_dir.join(format!("{name}.md"));
+            if candidate.is_file() {
+                let content = std::fs::read_to_string(&candidate)
+                    .with_context(|| format!("failed to read {}", candidate.display()))?;
+                if !found.iter().any(|(n, _): &(String, String)| n == &name) {
+                    found.push((name, content));
+                }
+                break;
+            }
         }
     }
     Ok(found)

@@ -4,6 +4,12 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.28.1] - 2026-09-22
+
+### Fixed
+- AGL invariants accept `deny: ACTION(TARGET) without evaluate(NAME)` again (a write pinned behind an evaluate step, not a human gate) and a bare `deny: ACTION(TARGET)` (this skill never does it). Both forms appear in specs compiled by earlier releases; the parser had tightened to `without gate(...)` only, so those specs stopped compiling. The validator warns when the named evaluate never appears in the flow.
+- Template resolution tries the hyphenated spelling of an underscore identifier, so `evaluate(draft vs customer_visibility_rules)` finds `~/.kazam/agl/templates/customer-visibility-rules.md`. Identifiers can't carry hyphens, and compiled skills from earlier releases relied on this.
+
 ## [1.28.0] - 2026-09-22
 
 ### Added

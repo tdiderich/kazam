@@ -71,12 +71,23 @@ pub enum DataType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[allow(clippy::enum_variant_names)]
 pub enum InvariantRule {
     DenyWithoutGate {
         action: String,
         target: String,
         required_gate: String,
     },
+    /// `deny: write(x) without evaluate(rules)`: the write must be preceded by
+    /// an evaluate state whose expression names `rules`. Softer than a gate
+    /// (no human), but it pins a scrub or check step in front of a write.
+    DenyWithoutEvaluate {
+        action: String,
+        target: String,
+        required_evaluate: String,
+    },
+    /// `deny: merge(pull_request)` with no clause: this skill never does it.
+    DenyAlways { action: String, target: String },
     DenyConstraint {
         action: String,
         target: String,

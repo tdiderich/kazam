@@ -135,6 +135,10 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    fn at_kw(&self, kw: &str) -> bool {
+        matches!(self.peek(), Some(TokKind::Ident(s)) if s == kw)
+    }
+
     fn at_punct(&self, kind: &TokKind) -> bool {
         self.peek() == Some(kind)
     }
@@ -359,18 +363,33 @@ fn parse_deny_rule(cur: &mut Cursor) -> Result<InvariantRule, ParseError> {
     cur.expect_punct(&TokKind::LParen, "'('")?;
     let target = cur.expect_ident()?;
     cur.expect_punct(&TokKind::RParen, "')'")?;
+    // Bare `deny: merge(pull_request)`: the next token is the next rule's
+    // `deny` or the block's `}`, not a clause keyword.
+    if cur.at_punct(&TokKind::RBrace) || cur.at_kw("deny") {
+        return Ok(InvariantRule::DenyAlways { action, target });
+    }
     let keyword = cur.expect_ident()?;
     match keyword.as_str() {
         "without" => {
-            cur.expect_kw("gate")?;
+            let kind = cur.expect_ident()?;
             cur.expect_punct(&TokKind::LParen, "'('")?;
-            let required_gate = cur.expect_ident()?;
+            let name = cur.expect_ident()?;
             cur.expect_punct(&TokKind::RParen, "')'")?;
-            Ok(InvariantRule::DenyWithoutGate {
-                action,
-                target,
-                required_gate,
-            })
+            match kind.as_str() {
+                "gate" => Ok(InvariantRule::DenyWithoutGate {
+                    action,
+                    target,
+                    required_gate: name,
+                }),
+                "evaluate" => Ok(InvariantRule::DenyWithoutEvaluate {
+                    action,
+                    target,
+                    required_evaluate: name,
+                }),
+                other => Err(cur.err(format!(
+                    "expected 'gate' or 'evaluate' after 'without', found '{other}'"
+                ))),
+            }
         }
         "where" => {
             let condition = consume_raw_phrase_until_stmt_boundary(cur)?;
@@ -804,6 +823,31 @@ mod tests {
                 "shared/human_approval.agl".to_string(),
                 "shared/other.agl".to_string(),
             ]
+        );
+    }
+
+    #[test]
+    fn invariant_accepts_without_evaluate_and_bare_deny() {
+        let parsed = parse(
+            r#"spec X {
+                in: a: str
+                out: b: str
+                invariant {
+                    deny: write(channel) without evaluate(visibility_rules)
+                    deny: merge(pull_request)
+                }
+                flow {
+                    state A -> evaluate(draft vs visibility_rules) -> TERMINATE("done")
+                }
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.spec.invariants.len(), 2);
+        assert!(
+            matches!(&parsed.spec.invariants[0], InvariantRule::DenyWithoutEvaluate { required_evaluate, .. } if required_evaluate == "visibility_rules")
+        );
+        assert!(
+            matches!(&parsed.spec.invariants[1], InvariantRule::DenyAlways { action, target } if action == "merge" && target == "pull_request")
         );
     }
 

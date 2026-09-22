@@ -659,6 +659,23 @@ fn check_invariant_soundness(
                     }
                 }
             }
+            InvariantRule::DenyWithoutEvaluate {
+                required_evaluate, ..
+            } => {
+                let evaluated = spec.flow.iter().any(|s| {
+                    matches!(&s.action, StateAction::Evaluate { expression } if expression.split_whitespace().any(|w| w == required_evaluate))
+                });
+                if !evaluated {
+                    diags.push(Diagnostic::warning(
+                        "invariant-evaluate-undefined",
+                        format!(
+                            "invariant requires evaluate({required_evaluate}) but no evaluate state names '{required_evaluate}'"
+                        ),
+                        "<spec>",
+                    ));
+                }
+            }
+            InvariantRule::DenyAlways { .. } => {}
             InvariantRule::DenyConstraint {
                 action,
                 target,
