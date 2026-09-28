@@ -203,6 +203,9 @@ pub enum HandoffAction {
     Load,
     /// Print the current snapshot, or one turn in full
     Show {
+        /// Session id (from the snapshot header); defaults to this process's
+        #[arg(long)]
+        session: Option<String>,
         /// Turn number from the snapshot's "Session so far" list
         #[arg(long)]
         turn: Option<usize>,
@@ -274,7 +277,9 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
                 handoff::load_hook();
                 Ok(())
             }
-            HandoffAction::Show { turn } => handoff::show(project, turn),
+            HandoffAction::Show { session, turn } => {
+                handoff::show(project, session.as_deref(), turn)
+            }
         },
         Command::Status { json } => cmd_status(project, json),
         Command::Describe { file, description } => cmd_describe(project, &file, &description),

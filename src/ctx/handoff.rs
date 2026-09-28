@@ -10,9 +10,12 @@
 //! files touched, commits, the uncommitted diff, and kazam's task and
 //! correction stores.
 //!
-//! Snapshots are keyed by the Claude Code process, not the session id: /clear
-//! starts a new session id in the same process, and keying by process keeps
-//! two sessions open in one repo from reloading each other's state.
+//! Snapshots are written per session id (`<sid>.md`, `<sid>.core.md`), so a
+//! new session never overwrites the one it was cleared from. The Claude Code
+//! process gets a small pointer (`pid-N.json`) naming its current session:
+//! /clear starts a new session id in the same process, and looking up by
+//! process keeps two sessions open in one repo from reloading each other's
+//! state.
 //!
 //! Replay A/B (2026-09-28, maze-apps): /clear plus a ~1.1k-token version of
 //! this matched full-context quality at 11.7% of the tokens. The budget here
@@ -316,6 +319,8 @@ pub struct Surroundings {
     pub repos: Vec<RepoState>,
     pub tasks: Vec<String>,
     pub corrections: Vec<String>,
+    /// The subset worth injecting: on touched files, in active repos, general.
+    pub core_corrections: Vec<String>,
     pub learnings: Vec<String>,
 }
 
@@ -361,13 +366,19 @@ fn repo_state(top: &Path, label: String, files: &[String], since: &str) -> RepoS
 fn surroundings(root: &Path, s: &Session) -> Surroundings {
     let since = s.turns.first().map(|t| t.ts.clone()).unwrap_or_default();
     let edited = uniq_recent(s.turns.iter().flat_map(|t| t.edits.clone()));
-    let edited_set: std::collections::HashSet<&str> = edited.iter().map(String::as_str).collect();
+    // Everything the session touched, not just Edit/Write calls: edits made
+    // through Bash or subagents never show up as edits, and a repo worked on
+    // that way would otherwise vanish from the handoff.
+    let touched = touched_paths(root, s);
+    let touched_set: std::collections::HashSet<&str> = touched.iter().map(String::as_str).collect();
 
-    // Group in-project edits by the git repo that owns them.
+    // Group in-project paths by the git repo that owns them; only edits feed
+    // the per-file status and diff.
     let root_top = PathBuf::from(git(root, &["rev-parse", "--show-toplevel"]).trim());
     let mut tops: std::collections::HashMap<PathBuf, PathBuf> = Default::default();
     let mut by_repo: std::collections::BTreeMap<PathBuf, Vec<String>> = Default::default();
-    for e in edited.iter().filter(|e| !e.starts_with('/')) {
+    let edited_set: std::collections::HashSet<&str> = edited.iter().map(String::as_str).collect();
+    for e in touched.iter().filter(|e| !e.starts_with('/')) {
         let abs = root.join(e);
         let dir = abs.parent().unwrap_or(root).to_path_buf();
         let top = tops
@@ -376,7 +387,8 @@ fn surroundings(root: &Path, s: &Session) -> Surroundings {
                 let mut d = dir.clone();
                 // The dir may be gone (file deleted); walk up to one that exists.
                 while !d.is_dir() && d.pop() {}
-                PathBuf::from(git(&d, &["rev-parse", "--show-toplevel"]).trim())
+                let top = PathBuf::from(git(&d, &["rev-parse", "--show-toplevel"]).trim());
+                top.canonicalize().unwrap_or(top)
             })
             .clone();
         if top.as_os_str().is_empty() {
@@ -386,10 +398,24 @@ fn surroundings(root: &Path, s: &Session) -> Surroundings {
             .strip_prefix(&top)
             .map(|p| p.display().to_string())
             .unwrap_or_else(|_| e.clone());
-        by_repo.entry(top).or_default().push(rel);
+        let files = by_repo.entry(top).or_default();
+        if edited_set.contains(e.as_str()) {
+            files.push(rel);
+        }
     }
     if !root_top.as_os_str().is_empty() {
-        by_repo.entry(root_top).or_default();
+        by_repo
+            .entry(root_top.canonicalize().unwrap_or(root_top))
+            .or_default();
+    }
+    // Nested clones (a workspace wrapping several repos): any with commits
+    // since the session started belongs in the handoff, touched or not.
+    if let Ok(rd) = fs::read_dir(root) {
+        for d in rd.flatten().map(|e| e.path()) {
+            if d.join(".git").exists() {
+                by_repo.entry(d.canonicalize().unwrap_or(d)).or_default();
+            }
+        }
     }
     let canon_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let mut repos: Vec<RepoState> = by_repo
@@ -439,25 +465,56 @@ fn surroundings(root: &Path, s: &Session) -> Surroundings {
     tasks.sort_by_key(|t| t.contains(", closed]"));
 
     let mut corrections = vec![];
+    let mut core_corrections = vec![];
     if let Ok(store) =
         crate::workspace::read_yaml::<super::types::CorrectionStore>(&super::corrections_path(root))
     {
-        let fmt = |c: &super::types::Correction, on: bool| {
+        let fmt = |c: &super::types::Correction| {
             format!(
-                "- {}{}: {} -> {}",
-                if on { "[in flight] " } else { "" },
+                "- {}: {} -> {}",
                 c.file_path.as_deref().unwrap_or("general"),
                 one_line(&c.mistake, 160),
                 one_line(&c.correction, 240)
             )
         };
-        let (on_files, rest): (Vec<_>, Vec<_>) = store.corrections.iter().partition(|c| {
-            c.file_path.as_deref().is_some_and(|f| {
-                edited_set.contains(f) || edited_set.iter().any(|e| e.starts_with(f))
-            })
-        });
-        corrections.extend(on_files.iter().rev().take(8).map(|c| fmt(c, true)));
-        corrections.extend(rest.iter().rev().take(5).map(|c| fmt(c, false)));
+        // Repos this session is active in, by their path under the root.
+        let active: Vec<String> = repos
+            .iter()
+            .filter(|r| r.label != ".")
+            .map(|r| format!("{}/", r.label))
+            .collect();
+        let tier = |c: &super::types::Correction| -> u8 {
+            match c.file_path.as_deref().filter(|f| *f != "general") {
+                Some(f)
+                    if touched_set.contains(f) || touched_set.iter().any(|e| e.starts_with(f)) =>
+                {
+                    0
+                }
+                Some(f) if active.iter().any(|a| f.starts_with(a.as_str())) => 1,
+                None => 2,
+                Some(_) => 3,
+            }
+        };
+        let mut ranked: Vec<(u8, &super::types::Correction)> = store
+            .corrections
+            .iter()
+            .rev()
+            .map(|c| (tier(c), c))
+            .collect();
+        ranked.sort_by_key(|(t, _)| *t);
+        let mut per = [0usize; 4];
+        let caps = [8, 4, 3, 3];
+        for (t, c) in ranked {
+            let t = t as usize;
+            if per[t] < caps[t] {
+                per[t] += 1;
+                // Touched file, same repo, and general ones go in the core too.
+                if t < 3 {
+                    core_corrections.push(fmt(c));
+                }
+                corrections.push(fmt(c));
+            }
+        }
     }
 
     let mut learnings = vec![];
@@ -477,8 +534,42 @@ fn surroundings(root: &Path, s: &Session) -> Surroundings {
         repos,
         tasks,
         corrections,
+        core_corrections,
         learnings,
     }
+}
+
+/// Project-relative paths this session touched: edits, reads (range
+/// stripped), and project paths named in Bash commands.
+fn touched_paths(root: &Path, s: &Session) -> Vec<String> {
+    let root_prefix = format!("{}/", root.display());
+    let from_bash = s.turns.iter().flat_map(|t| t.bash.iter()).flat_map(|cmd| {
+        cmd.split(|c: char| c.is_whitespace() || "\"'`;|&()=<>".contains(c))
+            .filter_map(|tok| tok.strip_prefix(&root_prefix))
+            .map(|p| p.trim_end_matches('/').to_string())
+            .filter(|p| !p.is_empty())
+            .collect::<Vec<_>>()
+    });
+    let reads = s
+        .turns
+        .iter()
+        .flat_map(|t| t.reads.iter())
+        .map(|r| match r.rsplit_once(':') {
+            Some((p, range)) if range.chars().all(|c| c.is_ascii_digit() || c == '-') => {
+                p.to_string()
+            }
+            _ => r.clone(),
+        });
+    uniq_recent(
+        s.turns
+            .iter()
+            .flat_map(|t| t.edits.clone())
+            .chain(reads)
+            .chain(from_bash)
+            .filter(|p| !is_scratch(p))
+            .collect::<Vec<_>>()
+            .into_iter(),
+    )
 }
 
 fn session_line(s: &Session, session_id: &str) -> String {
@@ -535,8 +626,9 @@ pub fn render_core(s: &Session, env: &Surroundings, session_id: &str, full: &Pat
          memory and carry on.\n\n\
          **Full snapshot:** `{}` (every prompt since the last compaction, the compaction summary, earlier \
          reports, files, corrections, learnings, the diff). Read it before your first action if the next \
-         request continues this work. Any turn in full: `kazam ctx handoff show --turn N`.\n",
-        full.display()
+         request continues this work. Any turn in full: `kazam ctx handoff show --session {} --turn N`.\n",
+        full.display(),
+        session_id
     );
     let _ = writeln!(head, "{}", session_line(s, session_id));
     let Some(last) = s.turns.last() else {
@@ -558,19 +650,14 @@ pub fn render_core(s: &Session, env: &Surroundings, session_id: &str, full: &Pat
         );
     }
     render_repos(&mut tail, env, 5);
-    let on: Vec<&String> = env
-        .corrections
-        .iter()
-        .filter(|c| c.starts_with("- [in flight]"))
-        .collect();
-    if !on.is_empty() {
+    if !env.core_corrections.is_empty() {
         let _ = writeln!(
             tail,
-            "### Corrections on files in flight (do not repeat)\n{}\n",
-            on.iter().map(|c| c.as_str()).collect::<Vec<_>>().join("\n")
+            "### Standing corrections for this work (do not repeat)\n{}\n",
+            env.core_corrections.join("\n")
         );
     }
-    let tail = cut_bytes(&tail, CORE_MAX_BYTES / 3).to_string();
+    let tail = cut_bytes(&tail, CORE_MAX_BYTES / 2).to_string();
 
     let mut out = head;
     if !last.report.is_empty() {
@@ -781,6 +868,31 @@ fn key() -> String {
         .unwrap_or_else(|| "nopid".into())
 }
 
+/// A session id safe to use as a file name.
+fn sid_key(sid: &str) -> String {
+    sid.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect()
+}
+
+/// Snapshot files older than this are pruned by the Stop hook.
+const KEEP_SECS: u64 = 14 * 24 * 3600;
+
+fn prune(dir: &Path) {
+    let Ok(rd) = fs::read_dir(dir) else { return };
+    for e in rd.flatten() {
+        let old = e
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age.as_secs() > KEEP_SECS);
+        if old && e.file_name() != ".gitignore" {
+            let _ = fs::remove_file(e.path());
+        }
+    }
+}
+
 fn ensure_dir(dir: &Path) {
     let _ = fs::create_dir_all(dir);
     let gi = dir.join(".gitignore");
@@ -868,18 +980,15 @@ pub fn stop_hook() {
 
     let dir = session_dir(&root);
     ensure_dir(&dir);
+    prune(&dir);
     let key = key();
-    let full = dir.join(format!("{key}.md"));
+    let skey = sid_key(sid);
+    let full = dir.join(format!("{skey}.md"));
     let core = render_core(&session, &env, sid, &full);
     let _ = fs::write(&full, &snapshot);
-    let _ = fs::write(dir.join(format!("{key}.core.md")), &core);
-    // latest.md is the keyless fallback; its core points at itself.
-    let latest = dir.join("latest.md");
-    let _ = fs::write(&latest, &snapshot);
-    let _ = fs::write(
-        dir.join("latest.core.md"),
-        render_core(&session, &env, sid, &latest),
-    );
+    let _ = fs::write(dir.join(format!("{skey}.core.md")), &core);
+    // latest.core.md is the keyless fallback.
+    let _ = fs::write(dir.join("latest.core.md"), &core);
 
     // Task boundary: a commit landed (in any repo this session touched) or a
     // kazam task closed since the last turn.
@@ -915,7 +1024,8 @@ pub fn stop_hook() {
         },
     };
     if let Ok(j) = serde_json::to_string(&state) {
-        let _ = fs::write(dir.join(format!("{key}.json")), j);
+        let _ = fs::write(dir.join(format!("{key}.json")), &j);
+        let _ = fs::write(dir.join(format!("{skey}.json")), j);
     }
     if nudge {
         let what = if closed > prev.closed_tasks {
@@ -956,9 +1066,15 @@ pub fn load_hook() {
     };
     let dir = session_dir(&root);
     let key = key();
-    let keyed = dir.join(format!("{key}.core.md"));
-    let (path, how) = if keyed.is_file() {
+    // The process pointer still names the session being cleared from: the
+    // new session hasn't finished a turn yet.
+    let st = read_state(&dir, &key);
+    let keyed = dir.join(format!("{}.core.md", sid_key(&st.session_id)));
+    let legacy = dir.join(format!("{key}.core.md"));
+    let (path, how) = if !st.session_id.is_empty() && keyed.is_file() {
         (keyed, "process")
+    } else if legacy.is_file() {
+        (legacy, "process")
     } else {
         // No process match (ps failed or a new process): only trust a recent
         // latest core, and say where it came from.
@@ -991,11 +1107,11 @@ pub fn load_hook() {
 }
 
 /// `kazam ctx handoff show`: the current snapshot, or one turn in full.
-pub fn show(project: &Path, turn: Option<usize>) -> anyhow::Result<()> {
+pub fn show(project: &Path, session: Option<&str>, turn: Option<usize>) -> anyhow::Result<()> {
     let dir = session_dir(project);
-    let key = key();
+    let key = session.map(sid_key).unwrap_or_else(key);
+    let st = read_state(&dir, &key);
     if let Some(n) = turn {
-        let st = read_state(&dir, &key);
         let st = if st.transcript.is_empty() {
             // Fall back to whichever state file was written last.
             let newest = fs::read_dir(&dir)?
@@ -1037,11 +1153,11 @@ pub fn show(project: &Path, turn: Option<usize>) -> anyhow::Result<()> {
         println!("### report\n{}", t.report);
         return Ok(());
     }
-    let keyed = dir.join(format!("{key}.md"));
-    let path = if keyed.is_file() {
-        keyed
+    let by_sid = dir.join(format!("{}.md", sid_key(&st.session_id)));
+    let path = if !st.session_id.is_empty() && by_sid.is_file() {
+        by_sid
     } else {
-        dir.join("latest.md")
+        dir.join(format!("{key}.md"))
     };
     print!(
         "{}",
@@ -1132,14 +1248,16 @@ mod tests {
             }],
             tasks: vec!["- kz-1 [p1, open] dogfood".into()],
             corrections: vec![
-                "- [in flight] app/render.py: did X -> do Y".into(),
-                "- general: unrelated -> skip".into(),
+                "- app/render.py: did X -> do Y".into(),
+                "- other/x.rs: unrelated -> skip".into(),
             ],
+            core_corrections: vec!["- app/render.py: did X -> do Y".into()],
             ..Default::default()
         };
-        let core = render_core(&s, &env, "sid", Path::new("/r/.kazam/session/pid-1.md"));
+        let core = render_core(&s, &env, "sid-1", Path::new("/r/.kazam/session/sid-1.md"));
         assert!(core.len() <= CORE_MAX_BYTES, "len {}", core.len());
-        assert!(core.contains("`/r/.kazam/session/pid-1.md`"));
+        assert!(core.contains("`/r/.kazam/session/sid-1.md`"));
+        assert!(core.contains("show --session sid-1 --turn N"));
         assert!(core.contains("Last request (turn 2):\n/review the diff"));
         assert!(core.contains("rest of this report in the full snapshot"));
         assert!(core.contains("**kazam** on `research-cochange`"));
@@ -1147,6 +1265,32 @@ mod tests {
         assert!(core.contains("kz-1 [p1, open] dogfood"));
         assert!(core.contains("did X -> do Y"));
         assert!(!core.contains("unrelated"));
+    }
+
+    #[test]
+    fn touched_paths_covers_reads_and_bash_not_just_edits() {
+        let s = Session {
+            turns: vec![Turn {
+                reads: vec!["kazam/src/ctx/handoff.rs:1-240".into()],
+                bash: vec![
+                    "cd /r/kazam && cargo test".into(),
+                    "sed -i '' 's/a/b/' \"/r/kazam/src/workspace.rs\"".into(),
+                    "ls /elsewhere/x".into(),
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let t = touched_paths(Path::new("/r"), &s);
+        assert!(t.contains(&"kazam/src/ctx/handoff.rs".to_string()), "{t:?}");
+        assert!(t.contains(&"kazam".to_string()), "{t:?}");
+        assert!(t.contains(&"kazam/src/workspace.rs".to_string()), "{t:?}");
+        assert!(!t.iter().any(|p| p.contains("elsewhere")), "{t:?}");
+    }
+
+    #[test]
+    fn sid_key_is_filename_safe() {
+        assert_eq!(sid_key("a2a196c6-1944/../x"), "a2a196c6-1944x");
     }
 
     #[test]
