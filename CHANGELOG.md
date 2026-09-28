@@ -4,6 +4,12 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.3] - 2026-09-28
+
+### Fixed
+- `ctx refresh` missed an edit that kept the file's size and landed within the same timestamp tick as the previous scan ("racily clean", the case git's stat cache guards against). The size+mtime fast path now only applies to files whose mtime is at least 2 s older than the previous scan; anything newer is rehashed.
+- `ctx enrich` no longer hangs forever on a wedged model server. Each completion has a 180 s deadline and the backend probe 5 s; after 3 consecutive failures the run stops instead of spending its whole `--max` budget on timeouts. Seen live: two overlapping runs against a single-threaded `mlx_lm.server` left one request waiting 10 hours and blocked every run behind it.
+
 ## [1.29.2] - 2026-09-28
 
 ### Fixed

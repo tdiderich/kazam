@@ -8,6 +8,17 @@ use crate::workspace;
 
 use super::types::{AnatomyStore, DescSource, FileEntry};
 
+/// Files modified this close to the previous scan are rehashed even when
+/// size and mtime match (see the fast path in `scan_with`). Covers coarse
+/// filesystem timestamps (FAT/HFS+ 1-2 s) as well as same-tick edits.
+const RACY_MS: u64 = 2_000;
+
+fn scanned_ms(rfc3339: &str) -> Option<u64> {
+    chrono::DateTime::parse_from_rfc3339(rfc3339)
+        .ok()
+        .and_then(|t| u64::try_from(t.timestamp_millis()).ok())
+}
+
 /// Files above this are indexed by size only: no hash, no outline.
 const MAX_HASH_BYTES: u64 = 2_000_000;
 
@@ -244,8 +255,19 @@ fn scan_with(project: &Path, drain_reads: bool) -> Result<AnatomyStore> {
         // reuse the stored hash and outline without reading the file. Same
         // trade-off as git's stat cache: a tool that rewrites content but
         // restores the old mtime at the same size (cp -p, rsync -t) is missed.
+        //
+        // "Racily clean" guard, as in git: an mtime within RACY_MS of the last
+        // scan can't be trusted, because an edit landing in the same
+        // timestamp tick as that scan leaves size and mtime unchanged. Rehash
+        // those; a file only takes the fast path once it's settled.
         let unchanged = prev.is_some_and(|p| {
-            p.sha.is_some() && p.size == Some(size) && mtime.is_some() && p.mtime_ms == mtime
+            p.sha.is_some()
+                && p.size == Some(size)
+                && mtime.is_some()
+                && p.mtime_ms == mtime
+                && scanned_ms(&p.last_scanned)
+                    .zip(mtime)
+                    .is_some_and(|(scan, m)| m + RACY_MS < scan)
         });
         let (sha, outline) = if unchanged {
             let p = prev.unwrap();

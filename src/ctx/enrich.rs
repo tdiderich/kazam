@@ -23,6 +23,12 @@ const MAX_FILE_TOKENS: u64 = 24_000;
 /// Files past this are data dumps, not worth a description pass.
 const SKIP_ABOVE_TOKENS: u64 = 120_000;
 const SAVE_EVERY: usize = 5;
+/// One file's completion. A 24k-token prompt takes ~10-20 s on a 1.7B model;
+/// anything past this is a wedged server, not a slow one.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(180);
+/// Consecutive failures before a run gives up: the backend is down or stuck,
+/// and hammering it just burns the whole --max budget on timeouts.
+const MAX_CONSECUTIVE_FAILURES: usize = 3;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Enrichment {
@@ -279,10 +285,11 @@ fn describe(opts: &Options, prompt: &str) -> Result<Enrichment> {
         "temperature": 0,
         "chat_template_kwargs": { "enable_thinking": false },
     });
-    let resp = crate::http::post_text(
+    let resp = crate::http::post_text_timeout(
         &opts.endpoint,
         &[("Content-Type", "application/json")],
         &body.to_string(),
+        REQUEST_TIMEOUT,
     )
     .map_err(|e| anyhow::anyhow!("{e}"))?;
     let v: serde_json::Value = serde_json::from_str(&resp).context("parse completion")?;
@@ -371,7 +378,13 @@ pub fn run(project: &Path, opts: &Options) -> Result<Report> {
     if todo.is_empty() || opts.max == 0 {
         return Ok(report);
     }
-    if crate::http::get_text(&models_url(&opts.endpoint), &[]).is_err() {
+    if crate::http::get_text_timeout(
+        &models_url(&opts.endpoint),
+        &[],
+        std::time::Duration::from_secs(5),
+    )
+    .is_err()
+    {
         report.backend = format!("offline: {}", opts.endpoint);
         return Ok(report);
     }
@@ -383,7 +396,15 @@ pub fn run(project: &Path, opts: &Options) -> Result<Report> {
     let by_path: std::collections::HashMap<&str, &super::types::FileEntry> =
         store.files.iter().map(|f| (f.path.as_str(), f)).collect();
     let mut since_save = 0;
+    let mut consecutive_failures = 0;
     for path in todo.iter().take(opts.max) {
+        if consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+            report.backend = format!(
+                "stopped after {MAX_CONSECUTIVE_FAILURES} consecutive failures: {}",
+                opts.endpoint
+            );
+            break;
+        }
         let f = by_path[path.as_str()];
         let Ok(bytes) = std::fs::read(project.join(path)) else {
             report.failed += 1;
@@ -396,6 +417,7 @@ pub fn run(project: &Path, opts: &Options) -> Result<Report> {
         let text = String::from_utf8_lossy(&bytes);
         match describe(opts, &prompt_for(path, &text, &f.outline, f.tokens)) {
             Ok(e) => {
+                consecutive_failures = 0;
                 store_cache(f.sha.as_deref().unwrap_or_default(), &e);
                 report.described += 1;
                 since_save += 1;
@@ -404,7 +426,10 @@ pub fn run(project: &Path, opts: &Options) -> Result<Report> {
                     since_save = 0;
                 }
             }
-            Err(_) => report.failed += 1,
+            Err(_) => {
+                report.failed += 1;
+                consecutive_failures += 1;
+            }
         }
     }
     if since_save > 0 {
