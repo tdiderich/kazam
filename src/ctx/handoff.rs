@@ -1,8 +1,10 @@
 //! Clear handoff: `/clear` as instant compaction.
 //!
-//! The Stop hook rebuilds a ready-to-inject snapshot of the session after every
-//! turn (`handoff stop`), and the SessionStart hook prints it when the session
-//! was cleared (`handoff load`). Clearing costs nothing at clear time because
+//! The Stop hook rebuilds a snapshot of the session after every turn
+//! (`handoff stop`) into a per-session file, plus a short core. On /clear the
+//! SessionStart hook prints only the core (`handoff load`), which points at the
+//! full file: hook output over ~10k chars gets spilled to disk by Claude Code,
+//! so injecting the whole snapshot silently lost most of it. Clearing costs nothing at clear time because
 //! the work already happened, and nothing on either path calls a model: the
 //! snapshot is the user's prompts verbatim, the agent's own final reports,
 //! files touched, commits, the uncommitted diff, and kazam's task and
@@ -22,8 +24,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Approximate token cap for the whole snapshot.
-pub const BUDGET_TOKENS: usize = 15_000;
+/// Approximate token cap for the full snapshot file. Only the core is
+/// injected, so this can run long.
+pub const BUDGET_TOKENS: usize = 25_000;
 /// Nudge once context passes this and a task just wrapped.
 const NUDGE_TOKENS: u64 = 150_000;
 /// A fallback snapshot older than this isn't trusted for a keyless reload.
@@ -263,24 +266,65 @@ fn git(root: &Path, args: &[&str]) -> String {
         .unwrap_or_default()
 }
 
+/// Session-local scratch (Claude's scratchpad, /tmp) isn't worth reloading.
+fn is_scratch(p: &str) -> bool {
+    p.starts_with("/tmp/") || p.starts_with("/private/tmp/") || p.starts_with("/var/folders/")
+}
+
+/// Transcript timestamps are `...Z`; older task records use a space for `T`.
+fn parse_ts(s: &str) -> Option<chrono::DateTime<chrono::FixedOffset>> {
+    let s = s.trim();
+    let fixed = if s.len() > 10 && s.as_bytes()[10] == b' ' {
+        format!("{}T{}", &s[..10], &s[11..])
+    } else {
+        s.to_string()
+    };
+    chrono::DateTime::parse_from_rfc3339(&fixed).ok()
+}
+
+fn cut_bytes(s: &str, max: usize) -> &str {
+    if s.len() <= max {
+        return s;
+    }
+    let mut cut = max;
+    while !s.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    &s[..cut]
+}
+
+/// Git state of one repo this session edited in. Nested repos (a workspace
+/// wrapping several clones) each get their own, so the branch and commits of
+/// the repo actually being worked on aren't hidden behind the wrapper's.
+#[derive(Default)]
+pub struct RepoState {
+    /// Path relative to the project root, `.` for the root itself.
+    pub label: String,
+    pub branch: String,
+    pub commits: String,
+    /// `git status --short` lines for the files this session edited.
+    pub status: String,
+    /// Dirty files in the repo that this session didn't edit.
+    pub other_dirty: usize,
+    pub diff: String,
+    pub head: String,
+}
+
 /// Everything outside the transcript: git state and kazam's stores.
 #[derive(Default)]
 pub struct Surroundings {
-    pub commits: String,
-    pub status: String,
-    pub diff: String,
+    pub repos: Vec<RepoState>,
     pub tasks: Vec<String>,
     pub corrections: Vec<String>,
     pub learnings: Vec<String>,
 }
 
-fn surroundings(root: &Path, s: &Session) -> Surroundings {
-    let since = s.turns.first().map(|t| t.ts.clone()).unwrap_or_default();
+fn repo_state(top: &Path, label: String, files: &[String], since: &str) -> RepoState {
     let commits = if since.is_empty() {
         String::new()
     } else {
         git(
-            root,
+            top,
             &[
                 "log",
                 "--oneline",
@@ -290,46 +334,118 @@ fn surroundings(root: &Path, s: &Session) -> Surroundings {
             ],
         )
     };
-    let status = git(root, &["status", "--short", "--untracked-files=normal"]);
-    // Diffs only for files this session edited: the rest of a dirty tree
-    // isn't this session's work.
-    let edited = uniq_recent(s.turns.iter().flat_map(|t| t.edits.clone()));
+    let all = git(top, &["status", "--short", "--untracked-files=normal"]);
+    let mut status = String::new();
     let mut diff = String::new();
-    if !edited.is_empty() {
+    if !files.is_empty() {
+        let mut args = vec!["status", "--short", "--"];
+        args.extend(files.iter().map(String::as_str));
+        status = git(top, &args);
         let mut args = vec!["diff", "HEAD", "--"];
-        args.extend(edited.iter().map(String::as_str));
-        diff = git(root, &args);
+        args.extend(files.iter().map(String::as_str));
+        diff = git(top, &args);
     }
+    RepoState {
+        label,
+        branch: git(top, &["rev-parse", "--abbrev-ref", "HEAD"])
+            .trim()
+            .to_string(),
+        commits,
+        other_dirty: all.lines().count().saturating_sub(status.lines().count()),
+        status,
+        diff,
+        head: git(top, &["rev-parse", "HEAD"]).trim().to_string(),
+    }
+}
+
+fn surroundings(root: &Path, s: &Session) -> Surroundings {
+    let since = s.turns.first().map(|t| t.ts.clone()).unwrap_or_default();
+    let edited = uniq_recent(s.turns.iter().flat_map(|t| t.edits.clone()));
     let edited_set: std::collections::HashSet<&str> = edited.iter().map(String::as_str).collect();
 
+    // Group in-project edits by the git repo that owns them.
+    let root_top = PathBuf::from(git(root, &["rev-parse", "--show-toplevel"]).trim());
+    let mut tops: std::collections::HashMap<PathBuf, PathBuf> = Default::default();
+    let mut by_repo: std::collections::BTreeMap<PathBuf, Vec<String>> = Default::default();
+    for e in edited.iter().filter(|e| !e.starts_with('/')) {
+        let abs = root.join(e);
+        let dir = abs.parent().unwrap_or(root).to_path_buf();
+        let top = tops
+            .entry(dir.clone())
+            .or_insert_with(|| {
+                let mut d = dir.clone();
+                // The dir may be gone (file deleted); walk up to one that exists.
+                while !d.is_dir() && d.pop() {}
+                PathBuf::from(git(&d, &["rev-parse", "--show-toplevel"]).trim())
+            })
+            .clone();
+        if top.as_os_str().is_empty() {
+            continue;
+        }
+        let rel = abs
+            .strip_prefix(&top)
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| e.clone());
+        by_repo.entry(top).or_default().push(rel);
+    }
+    if !root_top.as_os_str().is_empty() {
+        by_repo.entry(root_top).or_default();
+    }
+    let canon_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let mut repos: Vec<RepoState> = by_repo
+        .iter()
+        .map(|(top, files)| {
+            let ct = top.canonicalize().unwrap_or_else(|_| top.clone());
+            let label = match ct.strip_prefix(&canon_root) {
+                Ok(p) if p.as_os_str().is_empty() => ".".to_string(),
+                Ok(p) => p.display().to_string(),
+                Err(_) => top.display().to_string(),
+            };
+            repo_state(top, label, files, &since)
+        })
+        // A repo with nothing from this session (the wrapper, usually) is noise.
+        .filter(|r| {
+            !r.status.trim().is_empty() || !r.commits.trim().is_empty() || !r.diff.trim().is_empty()
+        })
+        .collect();
+    // Repos this session edited in first, the root last.
+    repos.sort_by_key(|r| r.label == ".");
+
+    // Tasks in flight: claimed, or created/updated during this session.
+    let start = parse_ts(&since);
     let mut tasks = vec![];
     if let Ok(store) = crate::track::store::read_tasks(root) {
-        for t in store
-            .tasks
-            .iter()
-            .filter(|t| t.status == crate::track::types::TaskStatus::Active)
-        {
-            let note = t
-                .note
-                .as_deref()
-                .map(|n| format!("\n  note: {}", one_line(n, 400)))
-                .unwrap_or_default();
+        use crate::track::types::TaskStatus;
+        for t in store.tasks.iter() {
+            let touched = start.zip(parse_ts(&t.updated)).is_some_and(|(a, b)| b >= a);
+            if t.status != TaskStatus::Active && !touched {
+                continue;
+            }
+            let status = t.status.label();
+            let note = match (&t.status, t.close_reason.as_deref(), t.note.as_deref()) {
+                (TaskStatus::Closed, Some(r), _) => format!("\n  closed: {}", one_line(r, 300)),
+                (_, _, Some(n)) => format!("\n  note: {}", one_line(n, 400)),
+                _ => String::new(),
+            };
             tasks.push(format!(
-                "- {} [p{}] {}{note}",
+                "- {} [p{}, {status}] {}{note}",
                 t.id,
                 t.priority,
                 one_line(&t.title, 200)
             ));
         }
     }
+    // Open work first, closed last.
+    tasks.sort_by_key(|t| t.contains(", closed]"));
 
     let mut corrections = vec![];
     if let Ok(store) =
         crate::workspace::read_yaml::<super::types::CorrectionStore>(&super::corrections_path(root))
     {
-        let fmt = |c: &super::types::Correction| {
+        let fmt = |c: &super::types::Correction, on: bool| {
             format!(
-                "- {}: {} -> {}",
+                "- {}{}: {} -> {}",
+                if on { "[in flight] " } else { "" },
                 c.file_path.as_deref().unwrap_or("general"),
                 one_line(&c.mistake, 160),
                 one_line(&c.correction, 240)
@@ -340,8 +456,8 @@ fn surroundings(root: &Path, s: &Session) -> Surroundings {
                 edited_set.contains(f) || edited_set.iter().any(|e| e.starts_with(f))
             })
         });
-        corrections.extend(on_files.iter().rev().take(8).map(|c| fmt(c)));
-        corrections.extend(rest.iter().rev().take(5).map(|c| fmt(c)));
+        corrections.extend(on_files.iter().rev().take(8).map(|c| fmt(c, true)));
+        corrections.extend(rest.iter().rev().take(5).map(|c| fmt(c, false)));
     }
 
     let mut learnings = vec![];
@@ -358,35 +474,135 @@ fn surroundings(root: &Path, s: &Session) -> Surroundings {
         );
     }
     Surroundings {
-        commits,
-        status,
-        diff,
+        repos,
         tasks,
         corrections,
         learnings,
     }
 }
 
-/// Assemble the snapshot, highest-value sections first, each under its own cap,
-/// then the diff takes whatever budget is left.
-pub fn render(s: &Session, env: &Surroundings, session_id: &str, budget_tokens: usize) -> String {
-    let mut out = String::new();
-    let last = s.turns.last();
-    let _ = writeln!(out, "## kazam session handoff (reloaded after /clear)\n");
-    let _ = writeln!(
-        out,
-        "This is the session you were in before /clear, rebuilt by kazam from its transcript, git, and .kazam/. \
-         The user's words are verbatim; reports are your own final messages. Treat it as your memory of the \
-         session and carry on. Full detail of any turn: `kazam ctx handoff show --turn N`.\n"
-    );
-    let _ = writeln!(
-        out,
+fn session_line(s: &Session, session_id: &str) -> String {
+    format!(
         "Session {} · {} turns · last turn {} · context was ~{}k tokens\n",
         session_id,
         s.turns.len(),
-        last.map(|t| t.ts.as_str()).unwrap_or("?"),
+        s.turns.last().map(|t| t.ts.as_str()).unwrap_or("?"),
         s.context_tokens / 1000
+    )
+}
+
+fn render_repos(out: &mut String, env: &Surroundings, max_commits: usize) {
+    if env.repos.is_empty() {
+        return;
+    }
+    let _ = writeln!(out, "### Repos\n");
+    for r in &env.repos {
+        let _ = writeln!(out, "**{}** on `{}`", r.label, r.branch);
+        let commits: Vec<&str> = r.commits.lines().take(max_commits).collect();
+        if !commits.is_empty() {
+            let _ = writeln!(out, "commits this session:\n{}", commits.join("\n"));
+        }
+        if !r.status.trim().is_empty() {
+            let _ = writeln!(
+                out,
+                "uncommitted (this session's files):\n{}",
+                r.status.trim_end()
+            );
+        }
+        if r.other_dirty > 0 {
+            let _ = writeln!(
+                out,
+                "(+{} other dirty files, not this session's)",
+                r.other_dirty
+            );
+        }
+        let _ = writeln!(out);
+    }
+}
+
+/// The part injected on /clear. Held under the hook output limit (Claude Code
+/// spills anything over ~10k chars to a file and shows a 2KB preview), so it
+/// carries only what the next action depends on and points at the full file.
+pub const CORE_MAX_BYTES: usize = 9_000;
+
+pub fn render_core(s: &Session, env: &Surroundings, session_id: &str, full: &Path) -> String {
+    let mut head = String::new();
+    let _ = writeln!(head, "## kazam session handoff (reloaded after /clear)\n");
+    let _ = writeln!(
+        head,
+        "This is the core of the session you were in before /clear, rebuilt by kazam from its transcript, git, \
+         and .kazam/. The user's words are verbatim; the report is your own final message. Treat it as your \
+         memory and carry on.\n\n\
+         **Full snapshot:** `{}` (every prompt since the last compaction, the compaction summary, earlier \
+         reports, files, corrections, learnings, the diff). Read it before your first action if the next \
+         request continues this work. Any turn in full: `kazam ctx handoff show --turn N`.\n",
+        full.display()
     );
+    let _ = writeln!(head, "{}", session_line(s, session_id));
+    let Some(last) = s.turns.last() else {
+        return head;
+    };
+    let _ = writeln!(
+        head,
+        "### Where things stand\n\nLast request (turn {}):\n{}\n",
+        last.n,
+        clip(&last.prompt, 2500)
+    );
+
+    let mut tail = String::new();
+    if !env.tasks.is_empty() {
+        let _ = writeln!(
+            tail,
+            "### kazam tasks in flight\n{}\n",
+            env.tasks.join("\n")
+        );
+    }
+    render_repos(&mut tail, env, 5);
+    let on: Vec<&String> = env
+        .corrections
+        .iter()
+        .filter(|c| c.starts_with("- [in flight]"))
+        .collect();
+    if !on.is_empty() {
+        let _ = writeln!(
+            tail,
+            "### Corrections on files in flight (do not repeat)\n{}\n",
+            on.iter().map(|c| c.as_str()).collect::<Vec<_>>().join("\n")
+        );
+    }
+    let tail = cut_bytes(&tail, CORE_MAX_BYTES / 3).to_string();
+
+    let mut out = head;
+    if !last.report.is_empty() {
+        let room = CORE_MAX_BYTES.saturating_sub(out.len() + tail.len() + 200);
+        let report = last.report.trim();
+        let body = if report.len() > room {
+            format!(
+                "{}\n[…rest of this report in the full snapshot]",
+                cut_bytes(report, room)
+            )
+        } else {
+            report.to_string()
+        };
+        let _ = writeln!(out, "What you reported:\n{body}\n");
+    }
+    out.push_str(&tail);
+    cut_bytes(&out, CORE_MAX_BYTES).to_string()
+}
+
+/// The full snapshot, written to disk and read on demand. Highest-value
+/// sections first, each under its own cap, then the diff takes what's left.
+pub fn render(s: &Session, env: &Surroundings, session_id: &str, budget_tokens: usize) -> String {
+    let mut out = String::new();
+    let last = s.turns.last();
+    let _ = writeln!(out, "## kazam session handoff: full snapshot\n");
+    let _ = writeln!(
+        out,
+        "The session before /clear, rebuilt by kazam from its transcript, git, and .kazam/. The user's words \
+         are verbatim; reports are the agent's own final messages. Any turn in full: \
+         `kazam ctx handoff show --turn N`.\n"
+    );
+    let _ = writeln!(out, "{}", session_line(s, session_id));
 
     if let Some(t) = last {
         let _ = writeln!(out, "### Where things stand\n");
@@ -394,10 +610,10 @@ pub fn render(s: &Session, env: &Surroundings, session_id: &str, budget_tokens: 
             out,
             "Last request (turn {}):\n{}\n",
             t.n,
-            clip(&t.prompt, 3000)
+            clip(&t.prompt, 4000)
         );
         if !t.report.is_empty() {
-            let _ = writeln!(out, "What you reported:\n{}\n", clip(&t.report, 6000));
+            let _ = writeln!(out, "What you reported:\n{}\n", clip(&t.report, 10000));
         }
     }
 
@@ -406,20 +622,20 @@ pub fn render(s: &Session, env: &Surroundings, session_id: &str, budget_tokens: 
         let _ = writeln!(
             out,
             "Before the last compaction (its summary):\n{}\n",
-            clip(sum, 8000)
+            clip(sum, 24000)
         );
     }
     // The summary already covers turns before the compaction.
     let n = s.turns.len();
     for t in s.turns.iter().filter(|t| t.n > s.compacted_through) {
-        let recent = n - t.n < 8;
+        let recent = n - t.n < 12;
         let prompt = if recent {
-            clip(&t.prompt, 1200)
+            clip(&t.prompt, 2000)
         } else {
-            one_line(&t.prompt, 240)
+            one_line(&t.prompt, 300)
         };
         let _ = write!(out, "- turn {}: {}", t.n, prompt.replace('\n', "\n  "));
-        let edits = uniq_recent(t.edits.iter().cloned());
+        let edits = uniq_recent(t.edits.iter().filter(|e| !is_scratch(e)).cloned());
         if !edits.is_empty() {
             let _ = write!(out, "\n  edited: {}", edits.join(", "));
         }
@@ -436,17 +652,27 @@ pub fn render(s: &Session, env: &Surroundings, session_id: &str, budget_tokens: 
         .rev()
         .skip(1)
         .filter(|t| !t.report.is_empty())
-        .take(4)
+        .take(6)
         .collect();
     if !earlier.is_empty() {
         let _ = writeln!(out, "### Earlier reports (newest first)\n");
         for t in earlier {
-            let _ = writeln!(out, "Turn {}:\n{}\n", t.n, clip(&t.report, 1800));
+            let _ = writeln!(out, "Turn {}:\n{}\n", t.n, clip(&t.report, 3000));
         }
     }
 
-    let edited = uniq_recent(s.turns.iter().flat_map(|t| t.edits.clone()));
-    let read = uniq_recent(s.turns.iter().flat_map(|t| t.reads.clone()));
+    let edited = uniq_recent(
+        s.turns
+            .iter()
+            .flat_map(|t| t.edits.clone())
+            .filter(|e| !is_scratch(e)),
+    );
+    let read = uniq_recent(
+        s.turns
+            .iter()
+            .flat_map(|t| t.reads.clone())
+            .filter(|e| !is_scratch(e)),
+    );
     if !edited.is_empty() || !read.is_empty() {
         let _ = writeln!(out, "### Files\n");
         if !edited.is_empty() {
@@ -475,36 +701,27 @@ pub fn render(s: &Session, env: &Surroundings, session_id: &str, budget_tokens: 
     if !env.learnings.is_empty() {
         let _ = writeln!(out, "### Recent learnings\n{}\n", env.learnings.join("\n"));
     }
-    if !env.commits.trim().is_empty() {
-        let _ = writeln!(
-            out,
-            "### Commits since the session started\n{}",
-            env.commits.trim_end()
-        );
-        let _ = writeln!(out);
-    }
-    if !env.status.trim().is_empty() {
-        let lines: Vec<&str> = env.status.lines().take(40).collect();
-        let _ = writeln!(out, "### Working tree\n{}\n", lines.join("\n"));
-    }
+    render_repos(&mut out, env, 25);
 
     // The diff gets whatever budget is left, and the whole thing is held to the
     // cap even if the transcript sections ran long.
+    let diff: String = env
+        .repos
+        .iter()
+        .filter(|r| !r.diff.trim().is_empty())
+        .map(|r| format!("# {}\n{}", r.label, r.diff))
+        .collect();
     let left = budget_tokens
         .saturating_sub(est_tokens(&out))
         .saturating_mul(4);
-    if !env.diff.trim().is_empty() && left > 800 {
-        let d = if env.diff.len() > left {
-            let mut cut = left;
-            while !env.diff.is_char_boundary(cut) {
-                cut -= 1;
-            }
+    if !diff.trim().is_empty() && left > 800 {
+        let d = if diff.len() > left {
             format!(
-                "{}\n[diff truncated; run git diff HEAD for the rest]",
-                &env.diff[..cut]
+                "{}\n[diff truncated; run git diff HEAD in the repo for the rest]",
+                cut_bytes(&diff, left)
             )
         } else {
-            env.diff.clone()
+            diff
         };
         let _ = writeln!(
             out,
@@ -514,11 +731,7 @@ pub fn render(s: &Session, env: &Surroundings, session_id: &str, budget_tokens: 
     }
     let cap = budget_tokens * 4;
     if out.len() > cap {
-        let mut cut = cap;
-        while !out.is_char_boundary(cut) {
-            cut -= 1;
-        }
-        out.truncate(cut);
+        out = cut_bytes(&out, cap).to_string();
         out.push_str("\n[handoff truncated at budget]\n");
     }
     out
@@ -656,12 +869,26 @@ pub fn stop_hook() {
     let dir = session_dir(&root);
     ensure_dir(&dir);
     let key = key();
-    let _ = fs::write(dir.join(format!("{key}.md")), &snapshot);
-    let _ = fs::write(dir.join("latest.md"), &snapshot);
+    let full = dir.join(format!("{key}.md"));
+    let core = render_core(&session, &env, sid, &full);
+    let _ = fs::write(&full, &snapshot);
+    let _ = fs::write(dir.join(format!("{key}.core.md")), &core);
+    // latest.md is the keyless fallback; its core points at itself.
+    let latest = dir.join("latest.md");
+    let _ = fs::write(&latest, &snapshot);
+    let _ = fs::write(
+        dir.join("latest.core.md"),
+        render_core(&session, &env, sid, &latest),
+    );
 
-    // Task boundary: a commit landed or a kazam task closed since the last turn.
+    // Task boundary: a commit landed (in any repo this session touched) or a
+    // kazam task closed since the last turn.
     let prev = read_state(&dir, &key);
-    let head = git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    let mut head = git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    for r in &env.repos {
+        head.push(' ');
+        head.push_str(&r.head);
+    }
     let closed = crate::track::store::read_tasks(&root)
         .map(|s| {
             s.tasks
@@ -704,8 +931,9 @@ pub fn stop_hook() {
             "{}",
             serde_json::json!({
                 "systemMessage": format!(
-                    "kazam: context is ~{}k and {what}. /clear is safe: the next session reloads this one's handoff (~{}k tokens).",
+                    "kazam: context is ~{}k and {what}. /clear is safe: the next session reloads this one's handoff (~{}k core, ~{}k full on demand).",
                     session.context_tokens / 1000,
+                    est_tokens(&core).div_ceil(1000),
                     est_tokens(&snapshot) / 1000
                 )
             })
@@ -713,8 +941,8 @@ pub fn stop_hook() {
     }
 }
 
-/// SessionStart hook: on /clear, print this process's snapshot. Stdout becomes
-/// context. Silent for every other source.
+/// SessionStart hook: on /clear, print this process's core. Stdout becomes
+/// context; the core points at the full snapshot. Silent for every other source.
 pub fn load_hook() {
     if disabled() {
         return;
@@ -728,13 +956,13 @@ pub fn load_hook() {
     };
     let dir = session_dir(&root);
     let key = key();
-    let keyed = dir.join(format!("{key}.md"));
+    let keyed = dir.join(format!("{key}.core.md"));
     let (path, how) = if keyed.is_file() {
         (keyed, "process")
     } else {
         // No process match (ps failed or a new process): only trust a recent
-        // latest.md, and say where it came from.
-        let latest = dir.join("latest.md");
+        // latest core, and say where it came from.
+        let latest = dir.join("latest.core.md");
         let fresh = fs::metadata(&latest)
             .and_then(|m| m.modified())
             .ok()
@@ -755,7 +983,7 @@ pub fn load_hook() {
     log(
         &root,
         &format!(
-            "load\t{}\t{how}\t~{} tokens",
+            "load\t{}\t{how}\t~{} tokens core",
             v["session_id"].as_str().unwrap_or("?"),
             est_tokens(&snapshot)
         ),
@@ -871,7 +1099,11 @@ mod tests {
     fn render_puts_latest_first_and_holds_budget() {
         let s = parse_transcript(&transcript(), Path::new("/r"));
         let env = Surroundings {
-            diff: "+x\n".repeat(50_000),
+            repos: vec![RepoState {
+                label: ".".into(),
+                diff: "+x\n".repeat(50_000),
+                ..Default::default()
+            }],
             corrections: vec!["- app/render.py: did X -> do Y".into()],
             ..Default::default()
         };
@@ -883,5 +1115,44 @@ mod tests {
         assert!(out.contains("Standing corrections"));
         assert!(out.len() <= 3000 * 4 + 64, "len {}", out.len());
         assert!(out.contains("diff truncated") || out.contains("handoff truncated"));
+    }
+
+    #[test]
+    fn core_fits_hook_limit_and_points_at_full() {
+        let mut s = parse_transcript(&transcript(), Path::new("/r"));
+        s.turns.last_mut().unwrap().report = "long report line\n".repeat(5_000);
+        let env = Surroundings {
+            repos: vec![RepoState {
+                label: "kazam".into(),
+                branch: "research-cochange".into(),
+                commits: "1dcde8f feat: handoff\n".into(),
+                status: " M src/ctx/handoff.rs\n".into(),
+                other_dirty: 3,
+                ..Default::default()
+            }],
+            tasks: vec!["- kz-1 [p1, open] dogfood".into()],
+            corrections: vec![
+                "- [in flight] app/render.py: did X -> do Y".into(),
+                "- general: unrelated -> skip".into(),
+            ],
+            ..Default::default()
+        };
+        let core = render_core(&s, &env, "sid", Path::new("/r/.kazam/session/pid-1.md"));
+        assert!(core.len() <= CORE_MAX_BYTES, "len {}", core.len());
+        assert!(core.contains("`/r/.kazam/session/pid-1.md`"));
+        assert!(core.contains("Last request (turn 2):\n/review the diff"));
+        assert!(core.contains("rest of this report in the full snapshot"));
+        assert!(core.contains("**kazam** on `research-cochange`"));
+        assert!(core.contains("(+3 other dirty files"));
+        assert!(core.contains("kz-1 [p1, open] dogfood"));
+        assert!(core.contains("did X -> do Y"));
+        assert!(!core.contains("unrelated"));
+    }
+
+    #[test]
+    fn parse_ts_handles_both_task_formats() {
+        let a = parse_ts("2026-09-28T19:00:00.000Z").unwrap();
+        let b = parse_ts("2026-09-28 14:09:37.970445-05:00").unwrap();
+        assert!(b > a);
     }
 }

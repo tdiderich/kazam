@@ -338,11 +338,13 @@ This works because the `PreCompact` hook writes a `compact boundary` entry to
 exactly the work belonging to the discarded transcript. Nothing is stored
 outside kazam's normal stores, so there is no second source of truth to drift.
 
-**After a `/clear`** the hook prints a session handoff instead: the user's
-prompts verbatim, your own final reports, files touched, commits, the
-uncommitted diff, and tasks and corrections in flight. The Stop hook rebuilds
-it after every turn, so /clear is instant compaction. Carry on from it as your
-own memory; `kazam ctx handoff show --turn N` has any turn in full.
+**After a `/clear`** the hook prints the core of a session handoff instead:
+the last request verbatim, your own final report, tasks in flight, and each
+touched repo's branch and commits. It names a full snapshot file (every prompt
+since compaction, earlier reports, files, corrections, the diff); read it
+before your first action if the next request continues that work. The Stop
+hook rebuilds both after every turn, so /clear is instant compaction.
+`kazam ctx handoff show --turn N` has any turn in full.
 
 ## Before starting work
 - Claim a task: `kazam track claim <ID> --name <your-name>`.

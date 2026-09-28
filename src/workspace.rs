@@ -302,6 +302,13 @@ mod tests {
         let main_path = project.join(".claude/settings.json");
         assert!(local_path.exists());
         assert!(!main_path.exists());
+        let counts = |v: &serde_json::Value| {
+            ["SessionStart", "PreCompact", "PostToolUse", "Stop"]
+                .map(|e| (e, v["hooks"][e].as_array().map_or(0, Vec::len)))
+        };
+        let first: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&local_path).unwrap()).unwrap();
+        let before = counts(&first);
 
         // Re-init without --skunkworks. Should stay skunkworks because
         // config.yaml already says so, and must not fork a second
@@ -318,12 +325,11 @@ mod tests {
 
         let local: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(&local_path).unwrap()).unwrap();
-        for event in ["SessionStart", "PreCompact", "PostToolUse", "Stop"] {
-            assert_eq!(
-                local["hooks"][event].as_array().unwrap().len(),
-                1,
-                "expected exactly one {event} registration after re-init"
-            );
+        // Some events carry more than one kazam hook (SessionStart and Stop
+        // also run the clear handoff); re-init must not add to any of them.
+        for ((event, n), (_, m)) in before.iter().zip(counts(&local)) {
+            assert!(*n >= 1, "expected a {event} registration");
+            assert_eq!(*n, m, "re-init duplicated {event} registrations");
         }
     }
 }
