@@ -4,6 +4,11 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.2] - 2026-09-28
+
+### Fixed
+- `ctx scan` / `ctx refresh` include nested repositories that the parent repo gitignores (a common "each subrepo has its own history" layout). 1.29.1's git-aware listing dropped them, so a workspace root holding several repos indexed only its own few files.
+
 ## [1.29.1] - 2026-09-27
 
 ### Changed
