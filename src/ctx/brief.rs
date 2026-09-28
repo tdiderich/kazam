@@ -22,6 +22,9 @@ const MIN_SCORE: f64 = 10.0;
 /// Without code-shaped words in the prompt, require a much stronger match.
 const MIN_SCORE_NO_CODE_SIGNAL: f64 = 20.0;
 const K: usize = 4;
+/// One-line tier size: neighbors of the top hits, ~25 tokens each.
+const LINES: usize = 6;
+const AGENT_LINES: usize = 8;
 const BUDGET: usize = 700;
 /// Subagents explore more than the main agent's first turn: a wider brief.
 const AGENT_K: usize = 6;
@@ -215,7 +218,7 @@ pub fn decide(prompt: &str, cwd: &Path, session: &str, record: bool) -> Decision
             brief: None,
         };
     };
-    let hits = research::research(&project, prompt, K, BUDGET);
+    let hits = research::research_brief(&project, prompt, K, BUDGET, LINES);
     if let Some(skip) = score_gate(prompt, &hits) {
         return Decision {
             skip: Some(skip),
@@ -236,9 +239,7 @@ pub fn decide(prompt: &str, cwd: &Path, session: &str, record: bool) -> Decision
          line-numbered outlines. Read the cited ranges directly (offset/limit) before \
          searching; ignore this if the task isn't about this code.\n",
     );
-    for h in &hits {
-        brief.push_str(&research::render_hit(h));
-    }
+    brief.push_str(&research::render_hits(&hits));
     Decision {
         skip: None,
         brief: Some(brief),
@@ -268,7 +269,7 @@ fn agent_hook(v: &serde_json::Value, dry_run: bool) {
     let Some(project) = project_root(&cwd) else {
         return skip("NoIndex");
     };
-    let hits = research::research(&project, task, AGENT_K, AGENT_BUDGET);
+    let hits = research::research_brief(&project, task, AGENT_K, AGENT_BUDGET, AGENT_LINES);
     // Subagent prompts are written by the main agent as task descriptions,
     // so the code-signal bar is the normal one.
     if hits.first().map(|h| h.score).unwrap_or(0.0) < MIN_SCORE {
@@ -279,9 +280,7 @@ fn agent_hook(v: &serde_json::Value, dry_run: bool) {
          task, with line-numbered outlines. Start by Reading the cited ranges \
          (offset/limit); search only if they don't cover it.\n",
     );
-    for h in &hits {
-        brief.push_str(&research::render_hit(h));
-    }
+    brief.push_str(&research::render_hits(&hits));
     if dry_run {
         println!(
             "{}",
@@ -411,6 +410,7 @@ mod tests {
     #[test]
     fn weak_match_needs_more_without_code_signal() {
         let hit = |score| Hit {
+            tier: "full",
             path: "a".into(),
             tokens: 1,
             score,

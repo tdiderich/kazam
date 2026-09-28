@@ -72,6 +72,10 @@ pub enum Command {
         /// Approximate token budget for the brief
         #[arg(long, default_value = "2500")]
         budget: usize,
+        /// One-line entries after the full hits: files that change with them
+        /// and the next-ranked files (0 = none)
+        #[arg(long, default_value = "6")]
+        lines: usize,
         /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
@@ -225,9 +229,10 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
             task,
             k,
             budget,
+            lines,
             json,
         } => {
-            let hits = research::research(project, &task, k, budget);
+            let hits = research::research_brief(project, &task, k, budget, lines);
             if json {
                 json_ok(&hits);
             } else {

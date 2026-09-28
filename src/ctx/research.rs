@@ -30,6 +30,9 @@ const SHOW_GOTCHAS: bool = false;
 
 #[derive(Serialize)]
 pub struct Hit {
+    /// "full": description + outline lines. "line": path + short description,
+    /// the cheap tier for the files around the top hits.
+    pub tier: &'static str,
     pub path: String,
     pub tokens: u64,
     pub score: f64,
@@ -122,7 +125,22 @@ const TEST_WEIGHT: f64 = 0.35;
 const COCHANGE_WEIGHT: f64 = 0.6;
 const COCHANGE_SEEDS: usize = 3;
 
-pub fn research(project: &Path, task: &str, k: usize, budget: usize) -> Vec<Hit> {
+/// How strongly a file must co-change with a top hit to be listed as
+/// "usually changes with" in the line tier.
+const LINE_COCHANGE_MIN: f64 = 0.4;
+const LINE_DESC_CHARS: usize = 110;
+
+/// Full-tier hits plus up to `lines` one-line entries: co-change partners of
+/// the top hits first (docs and siblings that usually move with them), then
+/// the next-ranked files. ~25 tokens a line, so the agent sees the
+/// neighborhood without a turn spent exploring it.
+pub fn research_brief(
+    project: &Path,
+    task: &str,
+    k: usize,
+    budget: usize,
+    lines: usize,
+) -> Vec<Hit> {
     let store = scan::load_flat(project);
     let q = tokenize(&clean_query(task));
     if q.is_empty() {
@@ -230,7 +248,9 @@ pub fn research(project: &Path, task: &str, k: usize, budget: usize) -> Vec<Hit>
 
     let mut hits = Vec::new();
     let mut used = 0usize;
-    for (i, score) in scored.into_iter().take(k) {
+    let mut consumed = 0usize;
+    for &(i, score) in scored.iter().take(k) {
+        consumed += 1;
         let f = &store.files[i];
         let matching: Vec<String> = f
             .outline
@@ -263,6 +283,7 @@ pub fn research(project: &Path, task: &str, k: usize, budget: usize) -> Vec<Hit>
             .map(|b| format!("{}: {}", b.id, b.symptom))
             .collect();
         let hit = Hit {
+            tier: "full",
             path: f.path.clone(),
             tokens: f.tokens,
             score: (score * 100.0).round() / 100.0,
@@ -278,10 +299,63 @@ pub fn research(project: &Path, task: &str, k: usize, budget: usize) -> Vec<Hit>
         used += cost;
         hits.push(hit);
     }
+    if lines == 0 || hits.is_empty() {
+        return hits;
+    }
+
+    let taken: std::collections::HashSet<String> = hits.iter().map(|h| h.path.clone()).collect();
+    let mut line_paths: Vec<String> = Vec::new();
+    let cc = super::cochange::load(project);
+    for h in &hits {
+        for (p, w) in cc.get(&h.path).into_iter().flatten() {
+            if *w >= LINE_COCHANGE_MIN && !taken.contains(p) && !line_paths.contains(p) {
+                line_paths.push(p.clone());
+            }
+        }
+    }
+    line_paths.truncate(lines / 2);
+    for &(i, _) in scored.iter().skip(consumed) {
+        if line_paths.len() >= lines {
+            break;
+        }
+        let p = &store.files[i].path;
+        if !taken.contains(p) && !line_paths.contains(p) && !is_test_path(p) {
+            line_paths.push(p.clone());
+        }
+    }
+    let by_path: HashMap<&str, &super::types::FileEntry> =
+        store.files.iter().map(|f| (f.path.as_str(), f)).collect();
+    for p in line_paths {
+        let Some(f) = by_path.get(p.as_str()) else {
+            continue;
+        };
+        let mut desc = f.description.clone().unwrap_or_default();
+        if desc.len() > LINE_DESC_CHARS {
+            let cut = (0..=LINE_DESC_CHARS)
+                .rev()
+                .find(|&n| desc.is_char_boundary(n))
+                .unwrap_or(0);
+            desc.truncate(cut);
+            desc.push_str("...");
+        }
+        hits.push(Hit {
+            tier: "line",
+            path: p,
+            tokens: f.tokens,
+            score: 0.0,
+            description: desc,
+            outline: vec![],
+            gotchas: vec![],
+            open_bugs: vec![],
+        });
+    }
     hits
 }
 
 pub fn render_hit(h: &Hit) -> String {
+    if h.tier == "line" {
+        return format!("- {}  {}\n", h.path, h.description);
+    }
     let mut s = format!("\n## {}  (~{} tok)\n{}\n", h.path, h.tokens, h.description);
     for l in &h.outline {
         s.push_str(&format!("  {l}\n"));
@@ -302,7 +376,19 @@ pub fn render(task: &str, hits: &[Hit]) -> String {
         return s;
     }
     s.push_str("Read the cited line ranges directly (Read with offset/limit); search only if nothing here fits.\n");
+    s.push_str(&render_hits(hits));
+    s
+}
+
+/// Full-tier entries, then the one-line tier under its own heading.
+pub fn render_hits(hits: &[Hit]) -> String {
+    let mut s = String::new();
+    let mut in_lines = false;
     for h in hits {
+        if h.tier == "line" && !in_lines {
+            s.push_str("\n## Also nearby (one line each; open only if needed)\n");
+            in_lines = true;
+        }
         s.push_str(&render_hit(h));
     }
     s
