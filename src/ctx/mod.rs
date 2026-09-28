@@ -1,6 +1,7 @@
 pub mod brief;
 pub mod cochange;
 pub mod enrich;
+pub mod handoff;
 pub mod hooks;
 pub mod outline;
 pub mod research;
@@ -91,6 +92,11 @@ pub enum Command {
         /// subagent's prompt via updatedInput
         #[arg(long)]
         agent: bool,
+    },
+    /// Clear handoff: session snapshot kept by the Stop hook, reloaded on /clear
+    Handoff {
+        #[command(subcommand)]
+        action: HandoffAction,
     },
     /// Show context status summary
     Status {
@@ -189,6 +195,21 @@ pub enum Command {
 }
 
 #[derive(Subcommand)]
+pub enum HandoffAction {
+    /// Stop hook: rebuild this session's snapshot (payload on stdin); nudges
+    /// toward /clear when context is large and a task just wrapped
+    Stop,
+    /// SessionStart hook: on /clear, print the snapshot as context
+    Load,
+    /// Print the current snapshot, or one turn in full
+    Show {
+        /// Turn number from the snapshot's "Session so far" list
+        #[arg(long)]
+        turn: Option<usize>,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum HooksAction {
     /// Install hook scripts and register with agent
     Install {
@@ -244,6 +265,17 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
             brief::run_hook(dry_run, agent);
             Ok(())
         }
+        Command::Handoff { action } => match action {
+            HandoffAction::Stop => {
+                handoff::stop_hook();
+                Ok(())
+            }
+            HandoffAction::Load => {
+                handoff::load_hook();
+                Ok(())
+            }
+            HandoffAction::Show { turn } => handoff::show(project, turn),
+        },
         Command::Status { json } => cmd_status(project, json),
         Command::Describe { file, description } => cmd_describe(project, &file, &description),
         Command::Learn {
@@ -297,7 +329,7 @@ fn anatomy_path(project: &Path) -> std::path::PathBuf {
     crate::workspace::root(project).join("ctx/anatomy.flat.yaml")
 }
 
-fn learnings_path(project: &Path) -> std::path::PathBuf {
+pub(crate) fn learnings_path(project: &Path) -> std::path::PathBuf {
     crate::workspace::root(project).join("ctx/learnings.yaml")
 }
 
@@ -305,7 +337,7 @@ fn bugs_path(project: &Path) -> std::path::PathBuf {
     crate::workspace::root(project).join("ctx/bugs.yaml")
 }
 
-fn corrections_path(project: &Path) -> std::path::PathBuf {
+pub(crate) fn corrections_path(project: &Path) -> std::path::PathBuf {
     crate::workspace::root(project).join("ctx/corrections.yaml")
 }
 
