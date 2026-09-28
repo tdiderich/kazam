@@ -119,6 +119,8 @@ Files are tracked by content hash, so edits, deletes, and renames are detected e
 
 `kazam ctx enrich` fills in descriptions by having a local model read each whole file. It talks to any OpenAI-compatible endpoint (default `http://127.0.0.1:8765`, which is what `mlx_lm.server --model mlx-community/Qwen3-1.7B-4bit --port 8765` serves on Apple Silicon; llama.cpp or Ollama work too via `--endpoint`/`--model`). Results are cached globally by content hash in `~/.kazam/cache/enrich/`, so renames and every worktree reuse them. Descriptions written with `ctx describe` are never replaced. With no endpoint running it's a silent no-op; the SessionStart hook runs it in the background at low priority (`KAZAM_ENRICH=0` turns that off).
 
+With hooks installed, briefs arrive on their own: `kazam ctx brief-hook` runs on each prompt and injects a short brief when the prompt looks like a code task with a strong index match, and on each subagent launch it appends one to the subagent's prompt (subagents never see the workspace rules). Briefs are logged to `.kazam/ctx/briefs.log` for measuring hit rate; `KAZAM_BRIEF=0` turns them off.
+
 Agents read the brief or the summary, drill into what they need. No `find`. No `grep`. No wasted turns.
 
 ### Benchmarks
@@ -665,6 +667,15 @@ Rank files for a task and print a token-budgeted brief with line-cited outlines
 | `--k` | `8` | Max files in the brief |
 | `--budget` | `2500` | Approximate token budget for the brief |
 | `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx brief-hook`
+
+UserPromptSubmit hook: read the hook payload on stdin and, when the prompt looks like a code task with a strong index match, print a research brief as additionalContext
+
+| Flag | Default | Description |
+|---|---|---|
+| `--dry-run` |  | Print the gate decision instead of the hook output |
+| `--agent` |  | PreToolUse mode for the Agent tool: append the brief to the subagent's prompt via updatedInput |
 
 ##### `kazam ctx status`
 

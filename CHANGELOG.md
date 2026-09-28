@@ -4,6 +4,17 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.0] - 2026-09-28
+
+### Added
+- `kazam ctx brief-hook`: automatic research briefs. As a UserPromptSubmit hook it runs `ctx research` on the prompt and injects the top files (description + matching outline lines, ~470 tokens) as `additionalContext`, so the agent starts from the index with no extra turn. The gate errs toward silence: notifications, slash commands, compaction summaries, prompts under 6 typed words, and writing tasks never fire; pasted blocks and shell output are stripped before ranking; prompts without code-shaped words need a much stronger match; the same brief isn't repeated within a session. Replayed over 1,685 real prompts from 30 days of sessions it fires on 17%.
+- `kazam ctx brief-hook --agent`: as a PreToolUse hook on the Agent tool it appends a wider brief (up to 6 files) to the subagent's prompt via `updatedInput`. Subagents never see the workspace rules, so this is how explore subagents start from the index.
+- Every brief is logged to `.kazam/ctx/briefs.log` (session, kind, files, top score) so its hit rate can be measured against session transcripts. `--dry-run` prints the gate decision and writes nothing.
+- `ctx hooks install` registers both hooks. `KAZAM_BRIEF=0` turns them off.
+
+### Changed
+- `ctx research` stems terms (`writes`/`write`, `hooks`/`hook`), so inflected questions match symbol names.
+
 ## [1.29.3] - 2026-09-28
 
 ### Fixed

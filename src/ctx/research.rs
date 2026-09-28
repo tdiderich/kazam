@@ -54,8 +54,34 @@ pub fn tokenize(s: &str) -> Vec<String> {
         .to_lowercase()
         .split(|c: char| !c.is_ascii_alphanumeric())
         .filter(|t| t.len() > 1 && !STOP.contains(t))
-        .map(String::from)
+        .map(stem)
         .collect()
+}
+
+/// Crude suffix stripping so "writes"/"writing"/"written" meet "write" and
+/// "hooks" meets "hook". Applied to both queries and documents, so it only
+/// has to be consistent, not linguistically right.
+fn stem(t: &str) -> String {
+    let n = t.len();
+    if n > 6 && t.ends_with("ing") {
+        return t[..n - 3].to_string();
+    }
+    if n > 5 && t.ends_with("ed") {
+        return t[..n - 2].to_string();
+    }
+    // "es" only after a sibilant ("classes", "matches"); otherwise "writes"
+    // would lose its e and miss "write".
+    if n > 5
+        && ["ses", "xes", "zes", "ches", "shes"]
+            .iter()
+            .any(|s| t.ends_with(s))
+    {
+        return t[..n - 2].to_string();
+    }
+    if n > 4 && t.ends_with('s') && !t.ends_with("ss") {
+        return t[..n - 1].to_string();
+    }
+    t.to_string()
 }
 
 pub fn research(project: &Path, task: &str, k: usize, budget: usize) -> Vec<Hit> {
@@ -210,7 +236,8 @@ mod tests {
     fn tokenize_splits_camel_snake_and_drops_stopwords() {
         assert_eq!(
             tokenize("Where is writeLayered in ctx/scan_rs?"),
-            vec!["write", "layered", "ctx", "scan", "rs"]
+            vec!["write", "layer", "ctx", "scan", "rs"]
         );
+        assert_eq!(tokenize("writes hooks"), tokenize("write hook"));
     }
 }

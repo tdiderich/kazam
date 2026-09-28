@@ -4,6 +4,16 @@ use std::path::Path;
 
 // NOTE: r####"..."#### - the script emits markdown headings ("## ", "### "),
 // so anything shorter than four hashes terminates the literal early.
+/// Every hook event kazam registers, for install, uninstall, and status.
+const KAZAM_HOOK_EVENTS: [&str; 6] = [
+    "SessionStart",
+    "PreCompact",
+    "PostToolUse",
+    "Stop",
+    "UserPromptSubmit",
+    "PreToolUse",
+];
+
 const SESSION_START_SH: &str = r####"#!/bin/bash
 # kazam workspace - session start hook
 #
@@ -477,7 +487,7 @@ fn strip_kazam_hooks_from_settings(settings_path: &Path) -> Result<()> {
     let mut changed = false;
     if let Some(obj) = settings.as_object_mut() {
         if let Some(hooks_obj) = obj.get_mut("hooks").and_then(|h| h.as_object_mut()) {
-            for event in ["SessionStart", "PreCompact", "PostToolUse", "Stop"] {
+            for event in KAZAM_HOOK_EVENTS {
                 if let Some(arr) = hooks_obj.get_mut(event).and_then(|v| v.as_array_mut()) {
                     let before = arr.len();
                     arr.retain(|item| !is_kazam_hook_entry(item));
@@ -610,7 +620,7 @@ pub fn uninstall(project: &Path) -> Result<()> {
             if let Some(obj) = settings.as_object_mut() {
                 if let Some(hooks) = obj.get_mut("hooks") {
                     if let Some(hooks_obj) = hooks.as_object_mut() {
-                        for event in ["SessionStart", "PreCompact", "PostToolUse", "Stop"] {
+                        for event in KAZAM_HOOK_EVENTS {
                             if let Some(arr) =
                                 hooks_obj.get_mut(event).and_then(|v| v.as_array_mut())
                             {
@@ -808,6 +818,32 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
                     "type": "command",
                     "command": format!("bash {hooks_abs}/stop.sh"),
                     "description": "kazam-workspace: rescan anatomy on session end"
+                }]
+            }),
+        ),
+        // Research briefs, gated in `ctx brief-hook` (code-shaped prompts with a
+        // strong index match only). KAZAM_BRIEF=0 turns both off.
+        (
+            "UserPromptSubmit",
+            serde_json::json!({
+                "matcher": "",
+                "hooks": [{
+                    "type": "command",
+                    "command": "kazam ctx brief-hook",
+                    "description": "kazam-workspace: research brief for code-task prompts",
+                    "timeout": 5
+                }]
+            }),
+        ),
+        (
+            "PreToolUse",
+            serde_json::json!({
+                "matcher": "Agent|Task",
+                "hooks": [{
+                    "type": "command",
+                    "command": "kazam ctx brief-hook --agent",
+                    "description": "kazam-workspace: research brief appended to subagent prompts",
+                    "timeout": 5
                 }]
             }),
         ),
