@@ -77,6 +77,7 @@ pub enum Skip {
     NoIndex,
     WeakMatch,
     SameAsLast,
+    LowConfidence,
 }
 
 /// The part of a prompt the user actually typed. Pasted blobs, shell
@@ -177,7 +178,7 @@ fn same_as_last(project: &Path, session: &str, hits: &[Hit]) -> bool {
 /// One JSON line per brief in `ctx/briefs.log`: session and briefed paths.
 /// Joined later against the session transcript to measure whether the agent
 /// actually read what it was briefed on (the hit rate), without an A/B.
-fn log_fire(project: &Path, session: &str, kind: &str, hits: &[Hit]) {
+fn log_fire(project: &Path, session: &str, kind: &str, hits: &[Hit], c: &research::Confidence) {
     use std::io::Write;
     let line = serde_json::json!({
         "ts": chrono::Local::now().to_rfc3339(),
@@ -185,6 +186,8 @@ fn log_fire(project: &Path, session: &str, kind: &str, hits: &[Hit]) {
         "kind": kind,
         "files": hits.iter().map(|h| h.path.as_str()).collect::<Vec<_>>(),
         "top_score": hits.first().map(|h| h.score),
+        "confidence": c.score,
+        "level": c.level,
     });
     let log = crate::workspace::root(project).join("ctx/briefs.log");
     if let Ok(mut f) = std::fs::OpenOptions::new()
@@ -199,6 +202,7 @@ fn log_fire(project: &Path, session: &str, kind: &str, hits: &[Hit]) {
 pub struct Decision {
     pub skip: Option<Skip>,
     pub brief: Option<String>,
+    pub confidence: Option<f64>,
 }
 
 /// `record`: write the fire to briefs.log and the per-session dedupe marker.
@@ -208,6 +212,7 @@ pub fn decide(prompt: &str, cwd: &Path, session: &str, record: bool) -> Decision
         return Decision {
             skip: Some(skip),
             brief: None,
+            confidence: None,
         };
     }
     // Rank on what the user typed, not on pasted output.
@@ -216,33 +221,47 @@ pub fn decide(prompt: &str, cwd: &Path, session: &str, record: bool) -> Decision
         return Decision {
             skip: Some(Skip::NoIndex),
             brief: None,
+            confidence: None,
         };
     };
-    let hits = research::research_brief(&project, prompt, K, BUDGET, LINES);
-    if let Some(skip) = score_gate(prompt, &hits) {
+    let brief_r = research::research_brief(&project, prompt, K, BUDGET, LINES);
+    let hits = &brief_r.hits;
+    if let Some(skip) = score_gate(prompt, hits) {
         return Decision {
             skip: Some(skip),
             brief: None,
+            confidence: Some(brief_r.confidence.score),
         };
     }
-    if record && same_as_last(&project, session, &hits) {
+    // A low-confidence brief is a guess; a wrong brief costs more than none.
+    if brief_r.confidence.level == "low" {
+        return Decision {
+            skip: Some(Skip::LowConfidence),
+            brief: None,
+            confidence: Some(brief_r.confidence.score),
+        };
+    }
+    if record && same_as_last(&project, session, hits) {
         return Decision {
             skip: Some(Skip::SameAsLast),
             brief: None,
+            confidence: Some(brief_r.confidence.score),
         };
     }
     if record {
-        log_fire(&project, session, "prompt", &hits);
+        log_fire(&project, session, "prompt", hits, &brief_r.confidence);
     }
     let mut brief = String::from(
         "[kazam brief] Files the index ranks as most relevant to this prompt, with \
          line-numbered outlines. Read the cited ranges directly (offset/limit) before \
          searching; ignore this if the task isn't about this code.\n",
     );
-    brief.push_str(&research::render_hits(&hits));
+    brief.push_str(&research::render_confidence(&brief_r.confidence));
+    brief.push_str(&research::render_hits(hits));
     Decision {
         skip: None,
         brief: Some(brief),
+        confidence: Some(brief_r.confidence.score),
     }
 }
 
@@ -269,18 +288,23 @@ fn agent_hook(v: &serde_json::Value, dry_run: bool) {
     let Some(project) = project_root(&cwd) else {
         return skip("NoIndex");
     };
-    let hits = research::research_brief(&project, task, AGENT_K, AGENT_BUDGET, AGENT_LINES);
+    let brief_r = research::research_brief(&project, task, AGENT_K, AGENT_BUDGET, AGENT_LINES);
+    let hits = &brief_r.hits;
     // Subagent prompts are written by the main agent as task descriptions,
     // so the code-signal bar is the normal one.
     if hits.first().map(|h| h.score).unwrap_or(0.0) < MIN_SCORE {
         return skip("WeakMatch");
+    }
+    if brief_r.confidence.level == "low" {
+        return skip("LowConfidence");
     }
     let mut brief = String::from(
         "\n\n[kazam brief] The project index ranks these files as most relevant to this \
          task, with line-numbered outlines. Start by Reading the cited ranges \
          (offset/limit); search only if they don't cover it.\n",
     );
-    brief.push_str(&research::render_hits(&hits));
+    brief.push_str(&research::render_confidence(&brief_r.confidence));
+    brief.push_str(&research::render_hits(hits));
     if dry_run {
         println!(
             "{}",
@@ -292,7 +316,8 @@ fn agent_hook(v: &serde_json::Value, dry_run: bool) {
         &project,
         v["session_id"].as_str().unwrap_or_default(),
         "agent",
-        &hits,
+        hits,
+        &brief_r.confidence,
     );
     let mut updated = input.clone();
     updated["prompt"] = serde_json::Value::String(format!("{task}{brief}"));
@@ -339,6 +364,7 @@ pub fn run_hook(dry_run: bool, agent: bool) {
                 "fire": d.brief.is_some(),
                 "skip": d.skip.map(|s| format!("{s:?}")),
                 "chars": d.brief.as_ref().map(|b| b.len()),
+                "confidence": d.confidence,
             })
         );
         return;

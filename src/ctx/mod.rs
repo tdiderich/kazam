@@ -232,11 +232,11 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
             lines,
             json,
         } => {
-            let hits = research::research_brief(project, &task, k, budget, lines);
+            let brief = research::research_brief(project, &task, k, budget, lines);
             if json {
-                json_ok(&hits);
+                json_ok(&brief);
             } else {
-                print!("{}", research::render(&task, &hits));
+                print!("{}", research::render(&task, &brief));
             }
             Ok(())
         }
