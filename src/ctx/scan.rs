@@ -124,6 +124,36 @@ fn git_files(dir: &Path, depth: usize) -> Option<Vec<std::path::PathBuf>> {
         }
         files.push(p);
     }
+    // Subrepos are often gitignored in the parent ("each has its own
+    // history"). `--directory` collapses ignored dirs to one entry each, so
+    // this stays cheap even with node_modules around; keep the ones that are
+    // repositories and list them like any nested repo.
+    if depth < 2 {
+        if let Ok(ignored) = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args([
+                "ls-files",
+                "-o",
+                "-i",
+                "--exclude-standard",
+                "--directory",
+                "-z",
+            ])
+            .output()
+        {
+            for rel in ignored.stdout.split(|&b| b == 0).filter(|r| !r.is_empty()) {
+                let rel = String::from_utf8_lossy(rel);
+                if !rel.ends_with('/') || rel.split('/').any(|seg| SKIP_DIRS.contains(&seg)) {
+                    continue;
+                }
+                let sub = dir.join(rel.as_ref());
+                if let Some(inner) = git_files(&sub, depth + 1) {
+                    files.extend(inner);
+                }
+            }
+        }
+    }
     Some(files)
 }
 
@@ -1002,7 +1032,11 @@ mod tests {
                 .unwrap()
         };
         git(dir.path(), &["init", "-q"]);
-        fs::write(dir.path().join(".gitignore"), "out/\n").unwrap();
+        fs::write(dir.path().join(".gitignore"), "out/\nignored-sub/\n").unwrap();
+        let ignored_sub = dir.path().join("ignored-sub");
+        fs::create_dir_all(&ignored_sub).unwrap();
+        git(&ignored_sub, &["init", "-q"]);
+        fs::write(ignored_sub.join("core.rs"), "fn core() {}\n").unwrap();
         fs::create_dir_all(dir.path().join("out")).unwrap();
         fs::write(dir.path().join("out/gen.rs"), "fn generated() {}\n").unwrap();
         let nested = dir.path().join("sub");
@@ -1017,6 +1051,10 @@ mod tests {
         );
         assert!(paths.contains(&"sub/lib.rs"), "nested repo: {paths:?}");
         assert!(!paths.contains(&"out/gen.rs"), "gitignored: {paths:?}");
+        assert!(
+            paths.contains(&"ignored-sub/core.rs"),
+            "gitignored subrepo is still a repo: {paths:?}"
+        );
     }
 
     #[test]
