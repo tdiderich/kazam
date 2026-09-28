@@ -1,5 +1,6 @@
 #!/bin/bash
-# kazam workspace — pre-compact hook
+# kazam-scaffold-version: 1.28.1
+# kazam workspace - pre-compact hook
 #
 # Fires immediately before /compact (manual) and before auto-compaction.
 # PreCompact stdout is not reliably injected into the compacted context, so

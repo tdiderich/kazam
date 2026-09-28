@@ -1,4 +1,7 @@
+pub mod enrich;
 pub mod hooks;
+pub mod outline;
+pub mod research;
 pub mod scan;
 pub mod types;
 
@@ -24,6 +27,45 @@ pub enum Command {
         /// Report drift without writing changes
         #[arg(long)]
         check: bool,
+        /// Machine-readable JSON output
+        #[arg(long)]
+        json: bool,
+    },
+    /// Refresh the anatomy: hash-based change, delete, and rename detection,
+    /// per-file outlines, and a diff appended to ctx/changes.log
+    Refresh {
+        /// Machine-readable JSON output
+        #[arg(long)]
+        json: bool,
+    },
+    /// Describe files with a local model (whole file, cached globally by content hash)
+    Enrich {
+        /// Model calls per run; cached descriptions always apply (0 = cache only)
+        #[arg(long, default_value = "25")]
+        max: usize,
+        /// Detach and run at low priority, logging to .kazam/ctx/enrich.log
+        #[arg(long)]
+        background: bool,
+        /// OpenAI-compatible chat completions endpoint (mlx_lm.server by default)
+        #[arg(long, default_value = enrich::DEFAULT_ENDPOINT)]
+        endpoint: String,
+        /// Model name sent to the endpoint
+        #[arg(long, default_value = enrich::DEFAULT_MODEL)]
+        model: String,
+        /// Machine-readable JSON output
+        #[arg(long)]
+        json: bool,
+    },
+    /// Rank files for a task and print a token-budgeted brief with line-cited outlines
+    Research {
+        /// What you're trying to do, in plain words
+        task: String,
+        /// Max files in the brief
+        #[arg(long, default_value = "8")]
+        k: usize,
+        /// Approximate token budget for the brief
+        #[arg(long, default_value = "2500")]
+        budget: usize,
         /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
@@ -142,6 +184,37 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
     match cmd {
         Command::Init { scan, skunkworks } => cmd_init(project, scan, skunkworks),
         Command::Scan { check, json } => cmd_scan(project, check, json),
+        Command::Refresh { json } => cmd_refresh(project, json),
+        Command::Enrich {
+            max,
+            background,
+            endpoint,
+            model,
+            json,
+        } => cmd_enrich(
+            project,
+            enrich::Options {
+                max,
+                endpoint,
+                model,
+            },
+            background,
+            json,
+        ),
+        Command::Research {
+            task,
+            k,
+            budget,
+            json,
+        } => {
+            let hits = research::research(project, &task, k, budget);
+            if json {
+                json_ok(&hits);
+            } else {
+                print!("{}", research::render(&task, &hits));
+            }
+            Ok(())
+        }
         Command::Status { json } => cmd_status(project, json),
         Command::Describe { file, description } => cmd_describe(project, &file, &description),
         Command::Learn {
@@ -274,6 +347,49 @@ fn cmd_scan(project: &Path, check: bool, json: bool) -> Result<()> {
     Ok(())
 }
 
+fn cmd_refresh(project: &Path, json: bool) -> Result<()> {
+    crate::workspace::ensure(project)?;
+    let (store, diff) = scan::refresh(project)?;
+    if json {
+        json_ok(&serde_json::json!({ "files": store.files.len(), "diff": diff }));
+        return Ok(());
+    }
+    println!("  ✓ refreshed {} files", store.files.len());
+    for (label, list) in [
+        ("+", &diff.added),
+        ("~", &diff.changed),
+        ("-", &diff.deleted),
+    ] {
+        for f in list.iter() {
+            println!("    {label} {f}");
+        }
+    }
+    for (from, to) in &diff.renamed {
+        println!("    > {from} -> {to}");
+    }
+    Ok(())
+}
+
+fn cmd_enrich(project: &Path, opts: enrich::Options, background: bool, json: bool) -> Result<()> {
+    if background {
+        enrich::spawn_background(project, &opts)?;
+        if !json {
+            println!("  ✓ enrich started in background (log: .kazam/ctx/enrich.log)");
+        }
+        return Ok(());
+    }
+    let report = enrich::run(project, &opts)?;
+    if json {
+        json_ok(&report);
+    } else {
+        println!(
+            "  ✓ enrich: {} from cache, {} described, {} failed, {} remaining ({})",
+            report.from_cache, report.described, report.failed, report.remaining, report.backend
+        );
+    }
+    Ok(())
+}
+
 fn cmd_status(project: &Path, json: bool) -> Result<()> {
     let anatomy: AnatomyStore =
         crate::workspace::read_yaml(&anatomy_path(project)).unwrap_or(AnatomyStore {
@@ -334,6 +450,7 @@ fn cmd_describe(project: &Path, file: &str, description: &str) -> Result<()> {
     let entry = store.files.iter_mut().find(|f| f.path == file);
     if let Some(entry) = entry {
         entry.description = Some(description.to_string());
+        entry.desc_source = Some(DescSource::Agent);
         crate::workspace::write_yaml(&path, &store)?;
 
         // Also update the per-directory anatomy TSV file if one exists

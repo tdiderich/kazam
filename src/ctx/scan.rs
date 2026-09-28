@@ -1,11 +1,15 @@
 use anyhow::{Context, Result};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::workspace;
 
-use super::types::{AnatomyStore, FileEntry};
+use super::types::{AnatomyStore, DescSource, FileEntry};
+
+/// Files above this are indexed by size only: no hash, no outline.
+const MAX_HASH_BYTES: u64 = 2_000_000;
 
 const SKIP_DIRS: &[&str] = &[
     ".kazam",
@@ -59,6 +63,27 @@ fn drain_reads_log(project: &Path) -> HashMap<String, (u32, String)> {
 }
 
 pub fn scan(project: &Path) -> Result<AnatomyStore> {
+    scan_with(project, true)
+}
+
+/// Content fingerprint: first 20 hex chars of sha256. Short enough for YAML,
+/// long enough that collisions within one repo are not a practical concern.
+pub fn content_sha(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest.iter().take(10).map(|b| format!("{b:02x}")).collect()
+}
+
+fn mtime_ms(meta: &std::fs::Metadata) -> Option<u64> {
+    meta.modified()
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| d.as_millis() as u64)
+}
+
+/// `drain_reads`: fold and truncate `ctx/reads.log`. Only callers that write
+/// the resulting store may drain, or the read counts are lost.
+fn scan_with(project: &Path, drain_reads: bool) -> Result<AnatomyStore> {
     // The flat store lives at anatomy.flat.yaml (used by board + check + describe).
     // anatomy.yaml is the agent-facing layered summary written by write_layered().
     let flat_path = workspace::root(project).join("ctx/anatomy.flat.yaml");
@@ -87,7 +112,11 @@ pub fn scan(project: &Path) -> Result<AnatomyStore> {
         .collect();
 
     // Reads recorded by the hook since the last scan, folded in below.
-    let pending_reads = drain_reads_log(project);
+    let pending_reads = if drain_reads {
+        drain_reads_log(project)
+    } else {
+        HashMap::new()
+    };
 
     let mut files: Vec<FileEntry> = Vec::new();
     let now = chrono::Local::now().to_rfc3339();
@@ -95,6 +124,10 @@ pub fn scan(project: &Path) -> Result<AnatomyStore> {
     for entry in WalkDir::new(project)
         .into_iter()
         .filter_entry(|e| {
+            // The root is the project itself, even when its own name is dotted.
+            if e.depth() == 0 {
+                return true;
+            }
             let name = e.file_name().to_str().unwrap_or("");
             if name.starts_with('.') && name != "." {
                 return false;
@@ -123,14 +156,57 @@ pub fn scan(project: &Path) -> Result<AnatomyStore> {
             .to_string_lossy()
             .to_string();
 
-        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        let meta = entry.metadata().ok();
+        let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+        let mtime = meta.as_ref().and_then(mtime_ms);
         let tokens = size / 4;
+        let prev = existing_by_path.get(rel.as_str()).copied();
 
-        // Preserve agent-enriched description if it exists
-        let description = existing_by_path
-            .get(rel.as_str())
-            .and_then(|f| f.description.clone())
-            .or_else(|| heuristic_description(&rel, ext));
+        // Fast path: same size and mtime as last scan means same content, so
+        // reuse the stored hash and outline without reading the file. Same
+        // trade-off as git's stat cache: a tool that rewrites content but
+        // restores the old mtime at the same size (cp -p, rsync -t) is missed.
+        let unchanged = prev.is_some_and(|p| {
+            p.sha.is_some() && p.size == Some(size) && mtime.is_some() && p.mtime_ms == mtime
+        });
+        let (sha, outline) = if unchanged {
+            let p = prev.unwrap();
+            (p.sha.clone(), p.outline.clone())
+        } else if size <= MAX_HASH_BYTES {
+            match std::fs::read(entry.path()) {
+                Ok(bytes) if !bytes.iter().take(4096).any(|&b| b == 0) => {
+                    let text = String::from_utf8_lossy(&bytes);
+                    (
+                        Some(content_sha(&bytes)),
+                        super::outline::outline(&ext.to_ascii_lowercase(), &text),
+                    )
+                }
+                _ => (None, vec![]),
+            }
+        } else {
+            (None, vec![])
+        };
+
+        // Preserve agent- or model-written descriptions. Legacy entries have no
+        // desc_source: a description that isn't the heuristic one came from an
+        // agent via `ctx describe`.
+        let heuristic = heuristic_description(&rel, ext);
+        let (description, desc_source) = match prev.and_then(|f| f.description.clone()) {
+            Some(d) => {
+                let src = prev.and_then(|f| f.desc_source).unwrap_or(
+                    if heuristic.as_deref() == Some(d.as_str()) {
+                        DescSource::Heuristic
+                    } else {
+                        DescSource::Agent
+                    },
+                );
+                (Some(d), Some(src))
+            }
+            None => {
+                let src = heuristic.as_ref().map(|_| DescSource::Heuristic);
+                (heuristic, src)
+            }
+        };
 
         let carried_reads = existing_by_path
             .get(rel.as_str())
@@ -159,6 +235,11 @@ pub fn scan(project: &Path) -> Result<AnatomyStore> {
             reads,
             last_read,
             last_scanned: now.clone(),
+            sha,
+            size: Some(size),
+            mtime_ms: mtime,
+            outline,
+            desc_source,
         });
     }
 
@@ -389,44 +470,220 @@ pub fn check(project: &Path) -> Result<ScanDiff> {
             })
         }
     };
-    let current = scan(project)?;
+    let current = scan_with(project, false)?;
+    Ok(diff(&stored, &current).into_scan_diff())
+}
 
-    let stored_set: std::collections::HashMap<&str, &FileEntry> =
+/// Path-level diff between two stores. A file counts as changed when both
+/// sides have a sha and they differ, or (legacy entries) when the token
+/// estimate moved. An added path whose sha matches a deleted path is a rename.
+pub fn diff(stored: &AnatomyStore, current: &AnatomyStore) -> RefreshDiff {
+    let stored_set: HashMap<&str, &FileEntry> =
         stored.files.iter().map(|f| (f.path.as_str(), f)).collect();
-    let current_set: std::collections::HashMap<&str, &FileEntry> =
+    let current_set: HashMap<&str, &FileEntry> =
         current.files.iter().map(|f| (f.path.as_str(), f)).collect();
 
-    let new_files: Vec<String> = current
+    let mut added: Vec<String> = current
         .files
         .iter()
         .filter(|f| !stored_set.contains_key(f.path.as_str()))
         .map(|f| f.path.clone())
         .collect();
-
-    let deleted_files: Vec<String> = stored
+    let mut deleted: Vec<String> = stored
         .files
         .iter()
         .filter(|f| !current_set.contains_key(f.path.as_str()))
         .map(|f| f.path.clone())
         .collect();
-
-    let changed_files: Vec<String> = current
+    let changed: Vec<String> = current
         .files
         .iter()
         .filter(|f| {
             stored_set
                 .get(f.path.as_str())
-                .map(|s| s.tokens != f.tokens)
-                .unwrap_or(false)
+                .is_some_and(|s| match (&s.sha, &f.sha) {
+                    (Some(a), Some(b)) => a != b,
+                    _ => s.tokens != f.tokens,
+                })
         })
         .map(|f| f.path.clone())
         .collect();
 
-    Ok(ScanDiff {
-        new_files,
-        deleted_files,
-        changed_files,
+    // Pair only when a sha is unique among deleted files and across the
+    // current tree. Duplicate content (boilerplate, empty files) would
+    // otherwise invent renames.
+    let mut deleted_by_sha: HashMap<&str, Vec<&str>> = HashMap::new();
+    for p in &deleted {
+        if let Some(sha) = stored_set[p.as_str()].sha.as_deref() {
+            deleted_by_sha.entry(sha).or_default().push(p.as_str());
+        }
+    }
+    // Counted over the whole current tree, not just the added files: content
+    // that still exists elsewhere is boilerplate, and pairing it means nothing.
+    let mut added_by_sha: HashMap<&str, Vec<&str>> = HashMap::new();
+    for f in &current.files {
+        if let Some(sha) = f.sha.as_deref() {
+            added_by_sha.entry(sha).or_default().push(f.path.as_str());
+        }
+    }
+    let mut renamed: Vec<(String, String)> = Vec::new();
+    for p in &added {
+        let Some(sha) = current_set[p.as_str()].sha.as_deref() else {
+            continue;
+        };
+        if let (Some([from]), Some([_])) = (
+            deleted_by_sha.get(sha).map(Vec::as_slice),
+            added_by_sha.get(sha).map(Vec::as_slice),
+        ) {
+            renamed.push((from.to_string(), p.clone()));
+        }
+    }
+    added.retain(|p| !renamed.iter().any(|(_, to)| to == p));
+    deleted.retain(|p| !renamed.iter().any(|(from, _)| from == p));
+
+    RefreshDiff {
+        added,
+        changed,
+        deleted,
+        renamed,
+    }
+}
+
+#[derive(serde::Serialize, Default, Debug, PartialEq)]
+pub struct RefreshDiff {
+    pub added: Vec<String>,
+    pub changed: Vec<String>,
+    pub deleted: Vec<String>,
+    /// (from, to)
+    pub renamed: Vec<(String, String)>,
+}
+
+impl RefreshDiff {
+    pub fn is_empty(&self) -> bool {
+        self.added.is_empty()
+            && self.changed.is_empty()
+            && self.deleted.is_empty()
+            && self.renamed.is_empty()
+    }
+
+    /// Legacy `scan --check` shape: renames show as delete + add.
+    fn into_scan_diff(self) -> ScanDiff {
+        let mut new_files = self.added;
+        let mut deleted_files = self.deleted;
+        for (from, to) in self.renamed {
+            deleted_files.push(from);
+            new_files.push(to);
+        }
+        ScanDiff {
+            new_files,
+            deleted_files,
+            changed_files: self.changed,
+        }
+    }
+}
+
+/// Load the stored flat anatomy, or an empty one.
+pub fn load_flat(project: &Path) -> AnatomyStore {
+    let flat_path = workspace::root(project).join("ctx/anatomy.flat.yaml");
+    workspace::read_yaml(&flat_path).unwrap_or(AnatomyStore {
+        scanned: String::new(),
+        files: vec![],
     })
+}
+
+/// Scan, diff against the stored anatomy, write flat + layered stores, and
+/// append a non-empty diff to `ctx/changes.log` (one JSON object per line).
+pub fn refresh(project: &Path) -> Result<(AnatomyStore, RefreshDiff)> {
+    let _lock = StoreLock::acquire(project);
+    let stored = load_flat(project);
+    let mut current = scan_with(project, true)?;
+    let d = diff(&stored, &current);
+    carry_renamed(&stored, &mut current, &d.renamed);
+    let flat_path = workspace::root(project).join("ctx/anatomy.flat.yaml");
+    workspace::write_yaml(&flat_path, &current)?;
+    write_layered(project, &current)?;
+    if !d.is_empty() && !stored.files.is_empty() {
+        use std::io::Write;
+        let log = workspace::root(project).join("ctx/changes.log");
+        let line = serde_json::json!({ "ts": current.scanned, "diff": &d });
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log)
+        {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+    Ok((current, d))
+}
+
+/// A renamed file keeps its description, its source, and its read history.
+/// `scan_with` matches prior entries by path, so without this a rename would
+/// drop an agent-written description for a fresh heuristic one.
+/// (A file renamed *and* edited can't be paired and starts over.)
+fn carry_renamed(stored: &AnatomyStore, current: &mut AnatomyStore, renamed: &[(String, String)]) {
+    for (from, to) in renamed {
+        let Some(old) = stored.files.iter().find(|f| &f.path == from) else {
+            continue;
+        };
+        if let Some(new) = current.files.iter_mut().find(|f| &f.path == to) {
+            if old.description.is_some() && old.desc_source != Some(DescSource::Heuristic) {
+                new.description = old.description.clone();
+                new.desc_source = old.desc_source;
+            }
+            new.reads = new.reads.saturating_add(old.reads);
+            if new.last_read.is_none() {
+                new.last_read = old.last_read.clone();
+            }
+        }
+    }
+}
+
+/// Exclusive lock over the anatomy store's read-modify-write. `refresh` and
+/// `enrich` both rewrite `anatomy.flat.yaml` whole, so without it one can
+/// silently overwrite the other's changes. Held for milliseconds; a lock
+/// file older than STALE is a crashed holder and gets broken.
+pub struct StoreLock(Option<std::path::PathBuf>);
+
+impl StoreLock {
+    const STALE: std::time::Duration = std::time::Duration::from_secs(30);
+    const WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+
+    pub fn acquire(project: &Path) -> Self {
+        let path = workspace::root(project).join("ctx/anatomy.lock");
+        let start = std::time::Instant::now();
+        loop {
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(_) => return StoreLock(Some(path)),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    let stale = std::fs::metadata(&path)
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|t| t.elapsed().ok())
+                        .is_some_and(|age| age > Self::STALE);
+                    if stale || start.elapsed() > Self::WAIT {
+                        let _ = std::fs::remove_file(&path);
+                        continue;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                // No .kazam/ctx yet, read-only fs: proceed unlocked rather than fail a hook.
+                Err(_) => return StoreLock(None),
+            }
+        }
+    }
+}
+
+impl Drop for StoreLock {
+    fn drop(&mut self) {
+        if let Some(p) = &self.0 {
+            let _ = std::fs::remove_file(p);
+        }
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -520,4 +777,188 @@ fn path_aware_description(path: &str, filename: &str, ext: &str) -> Option<Strin
         _ => return None,
     };
     Some(label)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn project() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        workspace::ensure(dir.path()).unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::write(dir.path().join("src/a.rs"), "pub fn alpha() {}\n").unwrap();
+        fs::write(dir.path().join("src/b.rs"), "struct Beta;\n").unwrap();
+        fs::write(dir.path().join("README.md"), "# Readme\n").unwrap();
+        dir
+    }
+
+    #[test]
+    fn refresh_hashes_and_outlines() {
+        let dir = project();
+        let (store, diff) = refresh(dir.path()).unwrap();
+        assert_eq!(diff.added.len(), 3);
+        let a = store.files.iter().find(|f| f.path == "src/a.rs").unwrap();
+        assert_eq!(a.sha.as_deref().map(str::len), Some(20));
+        assert_eq!(a.outline, vec!["L1 fn alpha"]);
+        assert_eq!(a.desc_source, Some(DescSource::Heuristic));
+    }
+
+    #[test]
+    fn refresh_detects_same_size_edit_delete_and_rename() {
+        let dir = project();
+        refresh(dir.path()).unwrap();
+        // Same byte length: the old token-count check would have missed this.
+        fs::write(dir.path().join("src/a.rs"), "pub fn omega() {}\n").unwrap();
+        fs::remove_file(dir.path().join("README.md")).unwrap();
+        fs::rename(dir.path().join("src/b.rs"), dir.path().join("src/beta.rs")).unwrap();
+        let (_, diff) = refresh(dir.path()).unwrap();
+        assert_eq!(diff.changed, vec!["src/a.rs"]);
+        assert_eq!(diff.deleted, vec!["README.md"]);
+        assert_eq!(
+            diff.renamed,
+            vec![("src/b.rs".to_string(), "src/beta.rs".to_string())]
+        );
+        assert!(diff.added.is_empty());
+        let log = fs::read_to_string(workspace::root(dir.path()).join("ctx/changes.log")).unwrap();
+        assert_eq!(log.lines().count(), 1);
+    }
+
+    #[test]
+    fn warm_refresh_is_empty_and_keeps_agent_descriptions() {
+        let dir = project();
+        let (mut store, _) = refresh(dir.path()).unwrap();
+        let a = store
+            .files
+            .iter_mut()
+            .find(|f| f.path == "src/a.rs")
+            .unwrap();
+        a.description = Some("hand written".into());
+        a.desc_source = Some(DescSource::Agent);
+        workspace::write_yaml(
+            &workspace::root(dir.path()).join("ctx/anatomy.flat.yaml"),
+            &store,
+        )
+        .unwrap();
+        let (store, diff) = refresh(dir.path()).unwrap();
+        assert!(diff.is_empty());
+        let a = store.files.iter().find(|f| f.path == "src/a.rs").unwrap();
+        assert_eq!(a.description.as_deref(), Some("hand written"));
+        assert_eq!(a.desc_source, Some(DescSource::Agent));
+    }
+
+    #[test]
+    fn legacy_custom_description_counts_as_agent() {
+        let dir = project();
+        let (mut store, _) = refresh(dir.path()).unwrap();
+        for f in store.files.iter_mut() {
+            f.desc_source = None;
+            f.sha = None;
+            if f.path == "src/b.rs" {
+                f.description = Some("from ctx describe".into());
+            }
+        }
+        workspace::write_yaml(
+            &workspace::root(dir.path()).join("ctx/anatomy.flat.yaml"),
+            &store,
+        )
+        .unwrap();
+        let (store, _) = refresh(dir.path()).unwrap();
+        let src = |p: &str| {
+            store
+                .files
+                .iter()
+                .find(|f| f.path == p)
+                .unwrap()
+                .desc_source
+        };
+        assert_eq!(src("src/b.rs"), Some(DescSource::Agent));
+        assert_eq!(src("src/a.rs"), Some(DescSource::Heuristic));
+    }
+
+    #[test]
+    fn rename_keeps_agent_description_and_reads() {
+        let dir = project();
+        let (mut store, _) = refresh(dir.path()).unwrap();
+        let b = store
+            .files
+            .iter_mut()
+            .find(|f| f.path == "src/b.rs")
+            .unwrap();
+        b.description = Some("the beta struct".into());
+        b.desc_source = Some(DescSource::Agent);
+        b.reads = 4;
+        workspace::write_yaml(
+            &workspace::root(dir.path()).join("ctx/anatomy.flat.yaml"),
+            &store,
+        )
+        .unwrap();
+        fs::rename(dir.path().join("src/b.rs"), dir.path().join("src/beta.rs")).unwrap();
+        let (store, diff) = refresh(dir.path()).unwrap();
+        assert_eq!(diff.renamed.len(), 1);
+        let beta = store
+            .files
+            .iter()
+            .find(|f| f.path == "src/beta.rs")
+            .unwrap();
+        assert_eq!(beta.description.as_deref(), Some("the beta struct"));
+        assert_eq!(beta.desc_source, Some(DescSource::Agent));
+        assert_eq!(beta.reads, 4);
+    }
+
+    #[test]
+    fn duplicate_content_is_not_a_rename() {
+        let dir = project();
+        fs::write(dir.path().join("src/c.rs"), "struct Beta;\n").unwrap();
+        refresh(dir.path()).unwrap();
+        // b.rs and c.rs share a sha; delete one, add an unrelated same-content file.
+        fs::remove_file(dir.path().join("src/b.rs")).unwrap();
+        fs::write(dir.path().join("src/d.rs"), "struct Beta;\n").unwrap();
+        let (_, diff) = refresh(dir.path()).unwrap();
+        assert!(diff.renamed.is_empty());
+        assert_eq!(diff.deleted, vec!["src/b.rs"]);
+        assert_eq!(diff.added, vec!["src/d.rs"]);
+    }
+
+    #[test]
+    fn store_lock_serializes_and_breaks_when_released() {
+        let dir = project();
+        let lock_path = workspace::root(dir.path()).join("ctx/anatomy.lock");
+        {
+            let _held = StoreLock::acquire(dir.path());
+            assert!(lock_path.exists());
+            let t = std::time::Instant::now();
+            let p = dir.path().to_path_buf();
+            let waiter = std::thread::spawn(move || {
+                let _l = StoreLock::acquire(&p);
+                std::time::Instant::now()
+            });
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            drop(_held);
+            let got = waiter.join().unwrap();
+            assert!(got.duration_since(t) >= std::time::Duration::from_millis(150));
+        }
+        assert!(!lock_path.exists());
+    }
+
+    #[test]
+    fn check_does_not_drain_reads_log() {
+        let dir = project();
+        refresh(dir.path()).unwrap();
+        let log = workspace::root(dir.path()).join("ctx/reads.log");
+        fs::write(&log, "src/a.rs\t2026-09-27T10:00:00Z\n").unwrap();
+        check(dir.path()).unwrap();
+        assert!(!fs::read_to_string(&log).unwrap().is_empty());
+        let (store, _) = refresh(dir.path()).unwrap();
+        assert_eq!(
+            store
+                .files
+                .iter()
+                .find(|f| f.path == "src/a.rs")
+                .unwrap()
+                .reads,
+            1
+        );
+    }
 }
