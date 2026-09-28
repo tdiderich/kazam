@@ -322,6 +322,9 @@ pub struct Surroundings {
     /// The subset worth injecting: on touched files, in active repos, general.
     pub core_corrections: Vec<String>,
     pub learnings: Vec<String>,
+    /// `kazam save` entries from this session, and recent decisions from any.
+    pub saves: Vec<String>,
+    pub decisions: Vec<String>,
 }
 
 fn repo_state(top: &Path, label: String, files: &[String], since: &str) -> RepoState {
@@ -363,7 +366,7 @@ fn repo_state(top: &Path, label: String, files: &[String], since: &str) -> RepoS
     }
 }
 
-fn surroundings(root: &Path, s: &Session) -> Surroundings {
+fn surroundings(root: &Path, s: &Session, sid: &str) -> Surroundings {
     let since = s.turns.first().map(|t| t.ts.clone()).unwrap_or_default();
     let edited = uniq_recent(s.turns.iter().flat_map(|t| t.edits.clone()));
     // Everything the session touched, not just Edit/Write calls: edits made
@@ -530,12 +533,23 @@ fn surroundings(root: &Path, s: &Session) -> Surroundings {
                 .map(|l| format!("- [{}] {}", l.category.label(), one_line(&l.text, 240))),
         );
     }
+    let all_saves = super::save::read_saves(root);
+    let saves = all_saves
+        .iter()
+        .filter(|v| v.session == sid)
+        .rev()
+        .take(8)
+        .map(super::save::fmt_save)
+        .collect();
+    let decisions = super::save::recent_decisions(&all_saves, 8);
     Surroundings {
         repos,
         tasks,
         corrections,
         core_corrections,
         learnings,
+        saves,
+        decisions,
     }
 }
 
@@ -642,6 +656,20 @@ pub fn render_core(s: &Session, env: &Surroundings, session_id: &str, full: &Pat
     );
 
     let mut tail = String::new();
+    if !env.saves.is_empty() {
+        let _ = writeln!(
+            tail,
+            "### Saved this session (kazam save)\n{}\n",
+            env.saves.join("\n")
+        );
+    }
+    if !env.decisions.is_empty() {
+        let _ = writeln!(
+            tail,
+            "### Decisions (newest first)\n{}\n",
+            env.decisions.join("\n")
+        );
+    }
     if !env.tasks.is_empty() {
         let _ = writeln!(
             tail,
@@ -775,6 +803,20 @@ pub fn render(s: &Session, env: &Surroundings, session_id: &str, budget_tokens: 
         let _ = writeln!(out);
     }
 
+    if !env.saves.is_empty() {
+        let _ = writeln!(
+            out,
+            "### Saved this session (kazam save)\n{}\n",
+            env.saves.join("\n")
+        );
+    }
+    if !env.decisions.is_empty() {
+        let _ = writeln!(
+            out,
+            "### Decisions (newest first)\n{}\n",
+            env.decisions.join("\n")
+        );
+    }
     if !env.tasks.is_empty() {
         let _ = writeln!(out, "### kazam tasks in flight\n{}\n", env.tasks.join("\n"));
     }
@@ -908,6 +950,16 @@ fn read_state(dir: &Path, key: &str) -> State {
         .unwrap_or_default()
 }
 
+/// This process's current session id, from its pointer file.
+pub fn current_session(project: &Path) -> Option<String> {
+    claude_pid()?;
+    Some(read_state(&session_dir(project), &key()).session_id).filter(|s| !s.is_empty())
+}
+
+pub fn log_line(root: &Path, line: &str) {
+    log(root, line)
+}
+
 fn log(root: &Path, line: &str) {
     use std::io::Write;
     let p = crate::workspace::root(root).join("ctx/handoff.log");
@@ -975,7 +1027,7 @@ pub fn stop_hook() {
     {
         last.report = m.trim().to_string();
     }
-    let env = surroundings(&root, &session);
+    let env = surroundings(&root, &session, sid);
     let snapshot = render(&session, &env, sid, BUDGET_TOKENS);
 
     let dir = session_dir(&root);
@@ -1058,12 +1110,18 @@ pub fn load_hook() {
         return;
     }
     let v = read_stdin();
-    if v["source"].as_str() != Some("clear") {
-        return;
-    }
     let Some(root) = project_root(&cwd_of(&v)) else {
         return;
     };
+    // A fresh session gets a one-line-per-session teaser; the agent pulls the
+    // handoff with `kazam load` only if the work continues.
+    if v["source"].as_str() == Some("startup") {
+        let _ = super::save::load(&root, None, false, true, false);
+        return;
+    }
+    if v["source"].as_str() != Some("clear") {
+        return;
+    }
     let dir = session_dir(&root);
     let key = key();
     // The process pointer still names the session being cleared from: the

@@ -96,6 +96,7 @@ pub fn apply_skunkworks(project: &Path) -> Result<()> {
         ".kazam/",
         ".claude/rules/kazam-workspace.md",
         ".claude/agents/kazam-scout.md",
+        ".claude/skills/kazam-handoff/",
     ];
     use std::io::Write;
     let needs: Vec<&str> = entries
@@ -145,6 +146,7 @@ pub fn disable_skunkworks(project: &Path) -> Result<()> {
             ".kazam",
             ".claude/rules/kazam-workspace.md",
             ".claude/agents/kazam-scout.md",
+            ".claude/skills/kazam-handoff/",
         ];
         let filtered: Vec<&str> = content
             .lines()

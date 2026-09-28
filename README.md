@@ -813,6 +813,33 @@ Remove all hooks
 
 Show hook installation status
 
+#### `kazam save`
+
+Save intent, next step, or decisions for the next agent (any agent)
+
+- `note` - What this session did or where it stands
+
+| Flag | Default | Description |
+|---|---|---|
+| `--next` |  | The next step |
+| `--decision` |  | A decision made, e.g. "X over Y: why" (repeatable) |
+| `--agent` |  | Agent name (default: detected from the environment) |
+| `--session` |  | Session id to file this under (default: this Claude Code session, if any) |
+| `--dir, -d` | `.` | Project directory (default: current directory) |
+
+#### `kazam load`
+
+Load where the last session left off: saved notes, decisions, handoff core
+
+- `target` - Session id or prefix (default: newest)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--list` |  | List recent sessions and saves |
+| `--brief` |  | Session-start teaser: one line per recent session |
+| `--full` |  | Print the full snapshot instead of the core |
+| `--dir, -d` | `.` | Project directory (default: current directory) |
+
 #### `kazam board`
 
 Live dashboard - renders .kazam/ state as a visual board

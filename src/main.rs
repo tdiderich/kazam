@@ -199,6 +199,43 @@ enum Command {
         #[arg(short, long, default_value = ".", global = true)]
         dir: PathBuf,
     },
+    /// Save intent, next step, or decisions for the next agent (any agent).
+    Save {
+        /// What this session did or where it stands
+        note: Option<String>,
+        /// The next step
+        #[arg(long)]
+        next: Option<String>,
+        /// A decision made, e.g. "X over Y: why" (repeatable)
+        #[arg(long = "decision")]
+        decisions: Vec<String>,
+        /// Agent name (default: detected from the environment)
+        #[arg(long)]
+        agent: Option<String>,
+        /// Session id to file this under (default: this Claude Code session, if any)
+        #[arg(long)]
+        session: Option<String>,
+        /// Project directory (default: current directory)
+        #[arg(short, long, default_value = ".")]
+        dir: PathBuf,
+    },
+    /// Load where the last session left off: saved notes, decisions, handoff core.
+    Load {
+        /// Session id or prefix (default: newest)
+        target: Option<String>,
+        /// List recent sessions and saves
+        #[arg(long)]
+        list: bool,
+        /// Session-start teaser: one line per recent session
+        #[arg(long)]
+        brief: bool,
+        /// Print the full snapshot instead of the core
+        #[arg(long)]
+        full: bool,
+        /// Project directory (default: current directory)
+        #[arg(short, long, default_value = ".")]
+        dir: PathBuf,
+    },
     /// Live dashboard - renders .kazam/ state as a visual board.
     Board {
         /// Project directory (default: current directory)
@@ -594,6 +631,21 @@ fn main() -> Result<()> {
         Command::Connect { command, dir } => connect::run(command, &dir),
         Command::Track { command, dir } => track::run(command, &dir),
         Command::Ctx { command, dir } => ctx::run(command, &dir),
+        Command::Save {
+            note,
+            next,
+            decisions,
+            agent,
+            session,
+            dir,
+        } => ctx::save::save(&dir, note, next, decisions, agent, session),
+        Command::Load {
+            target,
+            list,
+            brief,
+            full,
+            dir,
+        } => ctx::save::load(&dir, target.as_deref(), list, brief, full),
         Command::Board { dir, port } => board::run(&dir, port),
         Command::Export { command } => match command {
             ExportCommand::Pdf {
