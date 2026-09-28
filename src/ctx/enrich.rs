@@ -19,7 +19,14 @@ use crate::workspace;
 
 pub const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:8765/v1/chat/completions";
 pub const DEFAULT_MODEL: &str = "mlx-community/Qwen3-1.7B-4bit";
-const MAX_FILE_TOKENS: u64 = 24_000;
+/// In anatomy units (bytes / 4). Real tokens run ~1.4x that on code, so this
+/// keeps a whole-file prompt around 17k tokens, inside a small model's 32k
+/// context. Bigger files send outline + head instead. At 24_000 the largest
+/// files overflowed the context and the server rejected them.
+const MAX_FILE_TOKENS: u64 = 12_000;
+/// A file whose describe fails this many times (model rejected it, or the
+/// reply had no JSON) stops being queued, until its content changes.
+const MAX_FILE_FAILURES: u32 = 2;
 /// Files past this are data dumps, not worth a description pass.
 const SKIP_ABOVE_TOKENS: u64 = 120_000;
 const SAVE_EVERY: usize = 5;
@@ -64,6 +71,24 @@ pub fn cache_dir() -> Option<PathBuf> {
 pub fn cached(sha: &str) -> Option<Enrichment> {
     let p = cache_dir()?.join(format!("{sha}.json"));
     serde_json::from_str(&std::fs::read_to_string(p).ok()?).ok()
+}
+
+fn fail_path(sha: &str) -> Option<PathBuf> {
+    Some(cache_dir()?.join(format!("{sha}.fail")))
+}
+
+fn failures(sha: &str) -> u32 {
+    fail_path(sha)
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+fn record_failure(sha: &str) {
+    if let Some(p) = fail_path(sha) {
+        let _ = std::fs::create_dir_all(p.parent().unwrap());
+        let _ = std::fs::write(p, (failures(sha) + 1).to_string());
+    }
 }
 
 fn store_cache(sha: &str, e: &Enrichment) {
@@ -196,6 +221,7 @@ fn apply_cache(store: &mut AnatomyStore) -> (usize, Vec<String>) {
                     applied += 1;
                 }
             }
+            None if failures(&sha) >= MAX_FILE_FAILURES => {}
             None => todo.push((f.reads, f.tokens, f.path.clone())),
         }
     }
@@ -241,6 +267,32 @@ fn prompt_for(path: &str, text: &str, outline: &[String], tokens: u64) -> String
     )
 }
 
+/// Double any backslash that doesn't start a valid JSON escape.
+fn repair_escapes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 8);
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.peek() {
+                Some('"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u') => {
+                    out.push(c);
+                    out.push(chars.next().unwrap());
+                }
+                _ => out.push_str("\\\\"),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn description_only(s: &str) -> Option<String> {
+    let rx = regex::Regex::new(r#""description"\s*:\s*"((?:[^"\\]|\\.)*)""#).ok()?;
+    let d = rx.captures(s)?.get(1)?.as_str().replace("\\\"", "\"");
+    (!d.trim().is_empty()).then_some(d)
+}
+
 /// Pull the first `{...}` object out of a completion, tolerating `<think>`
 /// blocks and code fences around it.
 fn parse_completion(content: &str) -> Option<Enrichment> {
@@ -259,7 +311,19 @@ fn parse_completion(content: &str) -> Option<Enrichment> {
         #[serde(default)]
         gotchas: Vec<String>,
     }
-    let raw: Raw = serde_json::from_str(&content[start..=end]).ok()?;
+    let obj = &content[start..=end];
+    // Small models describing shell or regex code emit invalid JSON escapes
+    // (`\x`, `\'`). Repair them before giving up, then fall back to pulling
+    // just the description string out.
+    let raw: Raw = serde_json::from_str(obj)
+        .or_else(|_| serde_json::from_str(&repair_escapes(obj)))
+        .ok()
+        .or_else(|| {
+            description_only(obj).map(|d| Raw {
+                description: d,
+                gotchas: vec![],
+            })
+        })?;
     let description = raw.description.trim().replace(['\n', '\t'], " ");
     if description.is_empty() {
         return None;
@@ -277,7 +341,15 @@ fn parse_completion(content: &str) -> Option<Enrichment> {
     })
 }
 
-fn describe(opts: &Options, prompt: &str) -> Result<Enrichment> {
+/// Why a describe failed: the backend (down, wedged, timed out) or this one
+/// file (rejected by the model, unusable reply). Only backend failures count
+/// toward stopping the run; file failures get marked and skipped.
+enum Failure {
+    Backend,
+    File,
+}
+
+fn describe(opts: &Options, prompt: &str) -> std::result::Result<Enrichment, Failure> {
     let body = serde_json::json!({
         "model": opts.model,
         "messages": [{ "role": "user", "content": prompt }],
@@ -291,12 +363,16 @@ fn describe(opts: &Options, prompt: &str) -> Result<Enrichment> {
         &body.to_string(),
         REQUEST_TIMEOUT,
     )
-    .map_err(|e| anyhow::anyhow!("{e}"))?;
-    let v: serde_json::Value = serde_json::from_str(&resp).context("parse completion")?;
+    .map_err(|e| match e {
+        // 4xx: the server refused this request (context overflow, bad input).
+        crate::http::Error::Status(code, _) if (400..500).contains(&code) => Failure::File,
+        _ => Failure::Backend,
+    })?;
+    let v: serde_json::Value = serde_json::from_str(&resp).map_err(|_| Failure::File)?;
     let content = v["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or_default();
-    let mut e = parse_completion(content).context("no JSON object in completion")?;
+    let mut e = parse_completion(content).ok_or(Failure::File)?;
     e.model = opts.model.clone();
     Ok(e)
 }
@@ -426,9 +502,14 @@ pub fn run(project: &Path, opts: &Options) -> Result<Report> {
                     since_save = 0;
                 }
             }
-            Err(_) => {
+            Err(Failure::Backend) => {
                 report.failed += 1;
                 consecutive_failures += 1;
+            }
+            Err(Failure::File) => {
+                report.failed += 1;
+                consecutive_failures = 0;
+                record_failure(f.sha.as_deref().unwrap_or_default());
             }
         }
     }
@@ -484,6 +565,19 @@ mod tests {
         let e = parse_completion(c).unwrap();
         assert_eq!(e.description, "Scans files.");
         assert_eq!(e.gotchas, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn repairs_invalid_escapes_from_small_models() {
+        let c = "{\"description\": \"Checks for em dashes.\", \"gotchas\": [\"uses grep -n $'\\xe2\\x80\\x94' which\"]}";
+        let e = parse_completion(c).unwrap();
+        assert_eq!(e.description, "Checks for em dashes.");
+        assert_eq!(e.gotchas.len(), 1);
+        let broken = "{\"description\": \"Parses \\\"quoted\\\" args.\", \"gotchas\": [oops}";
+        assert_eq!(
+            parse_completion(broken).unwrap().description,
+            "Parses \"quoted\" args."
+        );
     }
 
     #[test]

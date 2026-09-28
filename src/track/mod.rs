@@ -1,5 +1,5 @@
 mod graph;
-mod store;
+pub mod store;
 pub mod types;
 
 use anyhow::{bail, Context, Result};

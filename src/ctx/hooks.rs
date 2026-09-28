@@ -338,6 +338,14 @@ This works because the `PreCompact` hook writes a `compact boundary` entry to
 exactly the work belonging to the discarded transcript. Nothing is stored
 outside kazam's normal stores, so there is no second source of truth to drift.
 
+**After a `/clear`** the hook prints the core of a session handoff instead:
+the last request verbatim, your own final report, tasks in flight, and each
+touched repo's branch and commits. It names a full snapshot file (every prompt
+since compaction, earlier reports, files, corrections, the diff); read it
+before your first action if the next request continues that work. The Stop
+hook rebuilds both after every turn, so /clear is instant compaction.
+`kazam ctx handoff show --turn N` has any turn in full.
+
 ## Before starting work
 - Claim a task: `kazam track claim <ID> --name <your-name>`.
 - **MANDATORY: before fixing any error**, run `kazam ctx bugs --file <path>`
@@ -821,6 +829,32 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
                 }]
             }),
         ),
+        // Clear handoff: snapshot every turn, reload on /clear. KAZAM_HANDOFF=0
+        // turns both off.
+        (
+            "Stop",
+            serde_json::json!({
+                "matcher": "",
+                "hooks": [{
+                    "type": "command",
+                    "command": "kazam ctx handoff stop",
+                    "description": "kazam-workspace: session snapshot for /clear, nudge when a task wraps",
+                    "timeout": 10
+                }]
+            }),
+        ),
+        (
+            "SessionStart",
+            serde_json::json!({
+                "matcher": "clear",
+                "hooks": [{
+                    "type": "command",
+                    "command": "kazam ctx handoff load",
+                    "description": "kazam-workspace: reload the session snapshot after /clear",
+                    "timeout": 10
+                }]
+            }),
+        ),
         // Research briefs, gated in `ctx brief-hook` (code-shaped prompts with a
         // strong index match only). KAZAM_BRIEF=0 turns both off.
         (
@@ -849,17 +883,21 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
         ),
     ];
 
+    // Remove existing kazam entries (by description prefix) once per event
+    // before adding, so events with two kazam entries (Stop, SessionStart)
+    // keep both and re-installs don't duplicate.
+    for (event, _) in &kazam_hooks {
+        if let Some(arr) = hooks.get_mut(*event).and_then(|v| v.as_array_mut()) {
+            arr.retain(|item| !is_kazam_hook_entry(item));
+        }
+    }
     for (event, entry) in kazam_hooks {
-        let arr = hooks
+        hooks
             .entry(event)
             .or_insert(serde_json::json!([]))
             .as_array_mut()
-            .unwrap();
-
-        // Remove any existing kazam entries (by description prefix) to avoid duplicates.
-        arr.retain(|item| !is_kazam_hook_entry(item));
-
-        arr.push(entry);
+            .unwrap()
+            .push(entry);
     }
 
     let json = serde_json::to_string_pretty(&settings)?;
@@ -891,11 +929,18 @@ mod tests {
 
         let main: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(&main_path).unwrap()).unwrap();
-        for event in ["SessionStart", "PreCompact", "PostToolUse", "Stop"] {
+        // Stop and SessionStart each carry two kazam entries: the workspace
+        // script and the clear handoff.
+        for (event, n) in [
+            ("SessionStart", 2),
+            ("PreCompact", 1),
+            ("PostToolUse", 1),
+            ("Stop", 2),
+        ] {
             assert_eq!(
                 main["hooks"][event].as_array().unwrap().len(),
-                1,
-                "expected exactly one {event} registration"
+                n,
+                "expected exactly {n} {event} registrations"
             );
         }
 

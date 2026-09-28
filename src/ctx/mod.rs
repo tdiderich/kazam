@@ -1,5 +1,7 @@
 pub mod brief;
+pub mod cochange;
 pub mod enrich;
+pub mod handoff;
 pub mod hooks;
 pub mod outline;
 pub mod research;
@@ -71,6 +73,10 @@ pub enum Command {
         /// Approximate token budget for the brief
         #[arg(long, default_value = "2500")]
         budget: usize,
+        /// One-line entries after the full hits: files that change with them
+        /// and the next-ranked files (0 = none)
+        #[arg(long, default_value = "6")]
+        lines: usize,
         /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
@@ -86,6 +92,11 @@ pub enum Command {
         /// subagent's prompt via updatedInput
         #[arg(long)]
         agent: bool,
+    },
+    /// Clear handoff: session snapshot kept by the Stop hook, reloaded on /clear
+    Handoff {
+        #[command(subcommand)]
+        action: HandoffAction,
     },
     /// Show context status summary
     Status {
@@ -184,6 +195,24 @@ pub enum Command {
 }
 
 #[derive(Subcommand)]
+pub enum HandoffAction {
+    /// Stop hook: rebuild this session's snapshot (payload on stdin); nudges
+    /// toward /clear when context is large and a task just wrapped
+    Stop,
+    /// SessionStart hook: on /clear, print the snapshot as context
+    Load,
+    /// Print the current snapshot, or one turn in full
+    Show {
+        /// Session id (from the snapshot header); defaults to this process's
+        #[arg(long)]
+        session: Option<String>,
+        /// Turn number from the snapshot's "Session so far" list
+        #[arg(long)]
+        turn: Option<usize>,
+    },
+}
+
+#[derive(Subcommand)]
 pub enum HooksAction {
     /// Install hook scripts and register with agent
     Install {
@@ -224,13 +253,14 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
             task,
             k,
             budget,
+            lines,
             json,
         } => {
-            let hits = research::research(project, &task, k, budget);
+            let brief = research::research_brief(project, &task, k, budget, lines);
             if json {
-                json_ok(&hits);
+                json_ok(&brief);
             } else {
-                print!("{}", research::render(&task, &hits));
+                print!("{}", research::render(&task, &brief));
             }
             Ok(())
         }
@@ -238,6 +268,19 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
             brief::run_hook(dry_run, agent);
             Ok(())
         }
+        Command::Handoff { action } => match action {
+            HandoffAction::Stop => {
+                handoff::stop_hook();
+                Ok(())
+            }
+            HandoffAction::Load => {
+                handoff::load_hook();
+                Ok(())
+            }
+            HandoffAction::Show { session, turn } => {
+                handoff::show(project, session.as_deref(), turn)
+            }
+        },
         Command::Status { json } => cmd_status(project, json),
         Command::Describe { file, description } => cmd_describe(project, &file, &description),
         Command::Learn {
@@ -291,7 +334,7 @@ fn anatomy_path(project: &Path) -> std::path::PathBuf {
     crate::workspace::root(project).join("ctx/anatomy.flat.yaml")
 }
 
-fn learnings_path(project: &Path) -> std::path::PathBuf {
+pub(crate) fn learnings_path(project: &Path) -> std::path::PathBuf {
     crate::workspace::root(project).join("ctx/learnings.yaml")
 }
 
@@ -299,7 +342,7 @@ fn bugs_path(project: &Path) -> std::path::PathBuf {
     crate::workspace::root(project).join("ctx/bugs.yaml")
 }
 
-fn corrections_path(project: &Path) -> std::path::PathBuf {
+pub(crate) fn corrections_path(project: &Path) -> std::path::PathBuf {
     crate::workspace::root(project).join("ctx/corrections.yaml")
 }
 
