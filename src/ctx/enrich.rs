@@ -267,6 +267,32 @@ fn prompt_for(path: &str, text: &str, outline: &[String], tokens: u64) -> String
     )
 }
 
+/// Double any backslash that doesn't start a valid JSON escape.
+fn repair_escapes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 8);
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.peek() {
+                Some('"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' | 'u') => {
+                    out.push(c);
+                    out.push(chars.next().unwrap());
+                }
+                _ => out.push_str("\\\\"),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+fn description_only(s: &str) -> Option<String> {
+    let rx = regex::Regex::new(r#""description"\s*:\s*"((?:[^"\\]|\\.)*)""#).ok()?;
+    let d = rx.captures(s)?.get(1)?.as_str().replace("\\\"", "\"");
+    (!d.trim().is_empty()).then_some(d)
+}
+
 /// Pull the first `{...}` object out of a completion, tolerating `<think>`
 /// blocks and code fences around it.
 fn parse_completion(content: &str) -> Option<Enrichment> {
@@ -285,7 +311,19 @@ fn parse_completion(content: &str) -> Option<Enrichment> {
         #[serde(default)]
         gotchas: Vec<String>,
     }
-    let raw: Raw = serde_json::from_str(&content[start..=end]).ok()?;
+    let obj = &content[start..=end];
+    // Small models describing shell or regex code emit invalid JSON escapes
+    // (`\x`, `\'`). Repair them before giving up, then fall back to pulling
+    // just the description string out.
+    let raw: Raw = serde_json::from_str(obj)
+        .or_else(|_| serde_json::from_str(&repair_escapes(obj)))
+        .ok()
+        .or_else(|| {
+            description_only(obj).map(|d| Raw {
+                description: d,
+                gotchas: vec![],
+            })
+        })?;
     let description = raw.description.trim().replace(['\n', '\t'], " ");
     if description.is_empty() {
         return None;
@@ -527,6 +565,19 @@ mod tests {
         let e = parse_completion(c).unwrap();
         assert_eq!(e.description, "Scans files.");
         assert_eq!(e.gotchas, vec!["a", "b"]);
+    }
+
+    #[test]
+    fn repairs_invalid_escapes_from_small_models() {
+        let c = "{\"description\": \"Checks for em dashes.\", \"gotchas\": [\"uses grep -n $'\\xe2\\x80\\x94' which\"]}";
+        let e = parse_completion(c).unwrap();
+        assert_eq!(e.description, "Checks for em dashes.");
+        assert_eq!(e.gotchas.len(), 1);
+        let broken = "{\"description\": \"Parses \\\"quoted\\\" args.\", \"gotchas\": [oops}";
+        assert_eq!(
+            parse_completion(broken).unwrap().description,
+            "Parses \"quoted\" args."
+        );
     }
 
     #[test]
