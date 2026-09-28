@@ -1,3 +1,4 @@
+pub mod brief;
 pub mod enrich;
 pub mod hooks;
 pub mod outline;
@@ -73,6 +74,18 @@ pub enum Command {
         /// Machine-readable JSON output
         #[arg(long)]
         json: bool,
+    },
+    /// UserPromptSubmit hook: read the hook payload on stdin and, when the
+    /// prompt looks like a code task with a strong index match, print a
+    /// research brief as additionalContext
+    BriefHook {
+        /// Print the gate decision instead of the hook output
+        #[arg(long)]
+        dry_run: bool,
+        /// PreToolUse mode for the Agent tool: append the brief to the
+        /// subagent's prompt via updatedInput
+        #[arg(long)]
+        agent: bool,
     },
     /// Show context status summary
     Status {
@@ -219,6 +232,10 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
             } else {
                 print!("{}", research::render(&task, &hits));
             }
+            Ok(())
+        }
+        Command::BriefHook { dry_run, agent } => {
+            brief::run_hook(dry_run, agent);
             Ok(())
         }
         Command::Status { json } => cmd_status(project, json),

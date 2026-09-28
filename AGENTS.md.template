@@ -857,6 +857,7 @@ kazam track log [--limit N] [--json]
 ```bash
 kazam ctx research "task" [--k N] [--budget TOKENS] [--json]  # ranked, line-cited brief for a task
 kazam ctx refresh [--json]                 # hash-based rescan: added/changed/deleted/renamed
+kazam ctx brief-hook [--agent] [--dry-run] # hook: auto research brief on prompts / subagent launches
 kazam ctx enrich [--max N] [--background]  # local-model file descriptions (OpenAI-compatible endpoint)
 kazam ctx scan [--check] [--json]          # rescan anatomy (--check = diff only)
 kazam ctx status [--json]                  # file count, token total, learning count
