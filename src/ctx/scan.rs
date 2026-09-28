@@ -81,6 +81,72 @@ fn mtime_ms(meta: &std::fs::Metadata) -> Option<u64> {
         .map(|d| d.as_millis() as u64)
 }
 
+/// Files to index. In a git repo: tracked plus untracked-but-not-ignored
+/// (`git ls-files -co --exclude-standard`), so ignored build output, caches,
+/// and vendored installs stay out. Nested repos (their own `.git`) show up
+/// as a single directory entry and are listed recursively the same way.
+/// Outside git, or if git fails, walk the tree with the SKIP_DIRS filter.
+fn candidate_files(project: &Path) -> Vec<std::path::PathBuf> {
+    match git_files(project, 0) {
+        Some(files) => files,
+        None => walk_files(project),
+    }
+}
+
+fn git_files(dir: &Path, depth: usize) -> Option<Vec<std::path::PathBuf>> {
+    if !dir.join(".git").exists() {
+        return None;
+    }
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["ls-files", "-co", "--exclude-standard", "-z"])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let mut files = Vec::new();
+    for rel in out.stdout.split(|&b| b == 0).filter(|r| !r.is_empty()) {
+        let rel = String::from_utf8_lossy(rel);
+        if rel.split('/').any(|seg| SKIP_DIRS.contains(&seg)) {
+            continue;
+        }
+        let p = dir.join(rel.as_ref());
+        if rel.ends_with('/') {
+            // A nested repository: git reports it as one entry.
+            if depth < 2 {
+                if let Some(inner) = git_files(&p, depth + 1) {
+                    files.extend(inner);
+                }
+            }
+            continue;
+        }
+        files.push(p);
+    }
+    Some(files)
+}
+
+fn walk_files(project: &Path) -> Vec<std::path::PathBuf> {
+    WalkDir::new(project)
+        .into_iter()
+        .filter_entry(|e| {
+            // The root is the project itself, even when its own name is dotted.
+            if e.depth() == 0 {
+                return true;
+            }
+            let name = e.file_name().to_str().unwrap_or("");
+            if name.starts_with('.') && name != "." {
+                return false;
+            }
+            !SKIP_DIRS.contains(&name)
+        })
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .map(|e| e.into_path())
+        .collect()
+}
+
 /// `drain_reads`: fold and truncate `ctx/reads.log`. Only callers that write
 /// the resulting store may drain, or the read counts are lost.
 fn scan_with(project: &Path, drain_reads: bool) -> Result<AnatomyStore> {
@@ -121,42 +187,24 @@ fn scan_with(project: &Path, drain_reads: bool) -> Result<AnatomyStore> {
     let mut files: Vec<FileEntry> = Vec::new();
     let now = chrono::Local::now().to_rfc3339();
 
-    for entry in WalkDir::new(project)
-        .into_iter()
-        .filter_entry(|e| {
-            // The root is the project itself, even when its own name is dotted.
-            if e.depth() == 0 {
-                return true;
-            }
-            let name = e.file_name().to_str().unwrap_or("");
-            if name.starts_with('.') && name != "." {
-                return false;
-            }
-            !SKIP_DIRS.contains(&name)
-        })
-        .filter_map(|e| e.ok())
-    {
-        if !entry.file_type().is_file() {
+    for path in candidate_files(project) {
+        let Ok(meta) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if !meta.is_file() {
             continue;
         }
-
-        let ext = entry
-            .path()
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
         if BINARY_EXTS.contains(&ext) {
             continue;
         }
-
-        let rel = entry
-            .path()
+        let rel = path
             .strip_prefix(project)
-            .unwrap_or(entry.path())
+            .unwrap_or(&path)
             .to_string_lossy()
             .to_string();
 
-        let meta = entry.metadata().ok();
+        let meta = Some(meta);
         let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
         let mtime = meta.as_ref().and_then(mtime_ms);
         let tokens = size / 4;
@@ -173,7 +221,7 @@ fn scan_with(project: &Path, drain_reads: bool) -> Result<AnatomyStore> {
             let p = prev.unwrap();
             (p.sha.clone(), p.outline.clone())
         } else if size <= MAX_HASH_BYTES {
-            match std::fs::read(entry.path()) {
+            match std::fs::read(&path) {
                 Ok(bytes) if !bytes.iter().take(4096).any(|&b| b == 0) => {
                     let text = String::from_utf8_lossy(&bytes);
                     (
@@ -940,6 +988,35 @@ mod tests {
             assert!(got.duration_since(t) >= std::time::Duration::from_millis(150));
         }
         assert!(!lock_path.exists());
+    }
+
+    #[test]
+    fn git_repo_skips_ignored_files_and_includes_nested_repos() {
+        let dir = project();
+        let git = |d: &std::path::Path, args: &[&str]| {
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(d)
+                .args(args)
+                .output()
+                .unwrap()
+        };
+        git(dir.path(), &["init", "-q"]);
+        fs::write(dir.path().join(".gitignore"), "out/\n").unwrap();
+        fs::create_dir_all(dir.path().join("out")).unwrap();
+        fs::write(dir.path().join("out/gen.rs"), "fn generated() {}\n").unwrap();
+        let nested = dir.path().join("sub");
+        fs::create_dir_all(&nested).unwrap();
+        git(&nested, &["init", "-q"]);
+        fs::write(nested.join("lib.rs"), "fn nested() {}\n").unwrap();
+        let (store, _) = refresh(dir.path()).unwrap();
+        let paths: Vec<&str> = store.files.iter().map(|f| f.path.as_str()).collect();
+        assert!(
+            paths.contains(&"src/a.rs"),
+            "untracked, not ignored: {paths:?}"
+        );
+        assert!(paths.contains(&"sub/lib.rs"), "nested repo: {paths:?}");
+        assert!(!paths.contains(&"out/gen.rs"), "gitignored: {paths:?}");
     }
 
     #[test]

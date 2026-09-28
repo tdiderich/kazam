@@ -4,6 +4,13 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.1] - 2026-09-27
+
+### Changed
+- `ctx enrich` describes source and docs by default: code, markdown, YAML/TOML config, SQL, Terraform, protobuf, plus `Dockerfile`, `Makefile`, `package.json`, `tsconfig.json`. Tests, fixtures, snapshots, migrations, build/dist/generated/vendored output, data JSON, `.pyi`/`.d.ts` stubs, lockfiles, and maps are indexed and outlined but get no model pass. `--all` restores describing every text file. Across 30 local repos this halved the queue (24,397 to 12,111 files).
+- `ctx enrich` queues most-read files first, then files changed in the last 90 days, then the rest, so the index gets useful fastest on large repos.
+- `ctx scan` / `ctx refresh` list files with `git ls-files -co --exclude-standard` inside a git repo: tracked plus untracked-but-not-ignored, so gitignored build output and caches stay out of the anatomy. Nested repositories are listed the same way. Outside git it walks the tree as before.
+
 ## [1.29.0] - 2026-09-27
 
 ### Added
