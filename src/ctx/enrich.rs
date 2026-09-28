@@ -35,6 +35,8 @@ pub struct Enrichment {
 
 pub struct Options {
     pub max: usize,
+    /// Bypass the default source-and-docs policy.
+    pub all: bool,
     pub endpoint: String,
     pub model: String,
 }
@@ -67,6 +69,95 @@ fn store_cache(sha: &str, e: &Enrichment) {
     }
 }
 
+/// Extensions worth a model description by default: source, docs, config.
+const ENRICH_EXTS: &[&str] = &[
+    "rs", "py", "ts", "tsx", "js", "jsx", "mjs", "cjs", "go", "java", "kt", "swift", "rb", "php",
+    "c", "h", "cc", "cpp", "hpp", "cs", "scala", "ex", "exs", "sh", "bash", "zsh", "sql", "tf",
+    "proto", "graphql", "prisma", "md", "mdx", "yaml", "yml", "toml", "agl",
+];
+/// Extensionless or data-format files still worth describing.
+const ENRICH_NAMES: &[&str] = &[
+    "Dockerfile",
+    "Makefile",
+    "Justfile",
+    "package.json",
+    "tsconfig.json",
+    ".mcp.json",
+];
+/// Path segments whose files are tests, fixtures, or generated/vendored
+/// output: indexed and outlined, but not worth a model pass by default.
+const SKIP_SEGMENTS: &[&str] = &[
+    "test",
+    "tests",
+    "__tests__",
+    "spec",
+    "fixtures",
+    "testdata",
+    "snapshots",
+    "__snapshots__",
+    "vendor",
+    "dist",
+    "build",
+    "generated",
+    "static",
+    "assets",
+    "public",
+    "migrations",
+];
+
+/// Default enrichment policy: source and docs, not tests, data, or build
+/// output. `--all` bypasses it (lockfiles and minified files stay skipped).
+fn wanted(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    if ENRICH_NAMES.contains(&name) {
+        return true;
+    }
+    let mut dirs = path.split('/').collect::<Vec<_>>();
+    dirs.pop();
+    if dirs.iter().any(|d| SKIP_SEGMENTS.contains(d)) {
+        return false;
+    }
+    let is_test_file = name.starts_with("test_")
+        || [
+            "_test.go",
+            "_test.py",
+            ".test.ts",
+            ".test.tsx",
+            ".test.js",
+            ".spec.ts",
+            ".spec.tsx",
+            ".spec.js",
+            ".d.ts",
+        ]
+        .iter()
+        .any(|suf| name.ends_with(suf));
+    if is_test_file {
+        return false;
+    }
+    let ext = name.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
+    ENRICH_EXTS.contains(&ext.to_ascii_lowercase().as_str())
+}
+
+/// Paths changed in the last 90 days, used to order the queue. Empty
+/// outside git.
+fn recently_changed(project: &Path) -> std::collections::HashSet<String> {
+    std::process::Command::new("git")
+        .arg("-C")
+        .arg(project)
+        .args(["log", "--since=90.days", "--name-only", "--pretty=format:"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .filter(|l| !l.is_empty())
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn skip_path(path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path);
     name.ends_with(".lock")
@@ -80,6 +171,7 @@ fn skip_path(path: &str) -> bool {
 fn apply_cache(store: &mut AnatomyStore) -> (usize, Vec<String>) {
     let mut applied = 0;
     let mut todo: Vec<(u32, u64, String)> = Vec::new();
+    // `todo` is every uncached candidate; `run` narrows it with the policy.
     for f in store.files.iter_mut() {
         if f.desc_source == Some(DescSource::Agent) || skip_path(&f.path) {
             continue;
@@ -101,7 +193,7 @@ fn apply_cache(store: &mut AnatomyStore) -> (usize, Vec<String>) {
             None => todo.push((f.reads, f.tokens, f.path.clone())),
         }
     }
-    // Most-read first, then cheapest: the index gets useful fastest.
+    // Most-read first, then cheapest. `run` re-orders by recency on top.
     todo.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
     (applied, todo.into_iter().map(|t| t.2).collect())
 }
@@ -264,11 +356,17 @@ pub fn run(project: &Path, opts: &Options) -> Result<Report> {
     };
     // Cache hits first: free, and they work with the backend offline.
     let mut store = scan::load_flat(project);
-    let (applied, todo) = apply_cache(&mut store);
+    let (applied, mut todo) = apply_cache(&mut store);
     report.from_cache = applied;
     if applied > 0 {
         save(project)?;
     }
+    if !opts.all {
+        todo.retain(|p| wanted(p));
+    }
+    // Stable sort keeps most-read-first within each group: recent work first.
+    let recent = recently_changed(project);
+    todo.sort_by_key(|p| !recent.contains(p));
     report.remaining = todo.len();
     if todo.is_empty() || opts.max == 0 {
         return Ok(report);
@@ -334,6 +432,7 @@ pub fn spawn_background(project: &Path, opts: &Options) -> Result<()> {
         .arg(exe)
         .args(["ctx", "enrich", "--json", "--max"])
         .arg(opts.max.to_string())
+        .args(if opts.all { &["--all"][..] } else { &[][..] })
         .args([
             "--endpoint",
             &opts.endpoint,
@@ -374,6 +473,22 @@ mod tests {
             models_url("http://127.0.0.1:8765/v1/chat/completions"),
             "http://127.0.0.1:8765/v1/models"
         );
+    }
+
+    #[test]
+    fn policy_keeps_source_and_docs_only() {
+        assert!(wanted("src/ctx/scan.rs"));
+        assert!(wanted("docs/guide.md"));
+        assert!(wanted("deploy/Dockerfile"));
+        assert!(wanted("web/package.json"));
+        assert!(!wanted("data/customers.json"));
+        assert!(!wanted("tests/test_scan.py"));
+        assert!(!wanted("pkg/scan_test.go"));
+        assert!(!wanted("web/src/app.test.tsx"));
+        assert!(!wanted("web/dist/bundle.js"));
+        assert!(!wanted("types/index.d.ts"));
+        assert!(!wanted("stubs/boto3.pyi"));
+        assert!(!wanted("db/migrations/0001_init.sql"));
     }
 
     #[test]

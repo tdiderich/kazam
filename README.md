@@ -649,6 +649,7 @@ Describe files with a local model (whole file, cached globally by content hash)
 |---|---|---|
 | `--max` | `25` | Model calls per run; cached descriptions always apply (0 = cache only) |
 | `--background` |  | Detach and run at low priority, logging to .kazam/ctx/enrich.log |
+| `--all` |  | Describe every text file, not just source and docs (default skips tests, fixtures, data, and build output) |
 | `--endpoint` | `http://127.0.0.1:8765/v1/chat/completions` | OpenAI-compatible chat completions endpoint (mlx_lm.server by default) |
 | `--model` | `mlx-community/Qwen3-1.7B-4bit` | Model name sent to the endpoint |
 | `--json` |  | Machine-readable JSON output |

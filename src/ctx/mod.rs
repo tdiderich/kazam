@@ -46,6 +46,10 @@ pub enum Command {
         /// Detach and run at low priority, logging to .kazam/ctx/enrich.log
         #[arg(long)]
         background: bool,
+        /// Describe every text file, not just source and docs (default skips
+        /// tests, fixtures, data, and build output)
+        #[arg(long)]
+        all: bool,
         /// OpenAI-compatible chat completions endpoint (mlx_lm.server by default)
         #[arg(long, default_value = enrich::DEFAULT_ENDPOINT)]
         endpoint: String,
@@ -188,6 +192,7 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
         Command::Enrich {
             max,
             background,
+            all,
             endpoint,
             model,
             json,
@@ -195,6 +200,7 @@ pub fn run(cmd: Command, project: &Path) -> Result<()> {
             project,
             enrich::Options {
                 max,
+                all,
                 endpoint,
                 model,
             },
