@@ -344,7 +344,17 @@ touched repo's branch and commits. It names a full snapshot file (every prompt
 since compaction, earlier reports, files, corrections, the diff); read it
 before your first action if the next request continues that work. The Stop
 hook rebuilds both after every turn, so /clear is instant compaction.
-`kazam ctx handoff show --turn N` has any turn in full.
+`kazam ctx handoff show --session <id> --turn N` has any turn in full.
+
+**On a fresh session** the hook prints a one-line resume notice per recent
+session. If the user's first message continues that work, run `kazam load`
+(newest) or `kazam load <id>` before acting; otherwise ignore it. `kazam load`
+works from any agent, not just Claude Code.
+
+**Before handing off** (the user is switching agents, stepping away, or about to
+/clear), or when a real choice lands mid-work, record what a transcript can't
+carry: `kazam save "where things stand" --next "next step" --decision "X over
+Y: why"`. Decisions only when something was actually chosen between options.
 
 ## Before starting work
 - Claim a task: `kazam track claim <ID> --name <your-name>`.
@@ -376,11 +386,37 @@ kazam ctx learn "lesson" --category correction
 kazam ctx bug "symptom" --file <path>
 kazam ctx correction "mistake" "fix" --file <path>  # record a correction
 kazam ctx corrections --json   # view past corrections
+kazam save "note" --next "..." --decision "X over Y: why"  # for the next agent
+kazam load [<id>] [--list] [--full]  # pick up where a session left off
 ```
 
 ## Direct YAML editing
 You may edit `.kazam/track/tasks.yaml` or `.kazam/ctx/*.yaml` directly.
 The board (`kazam board`) auto-refreshes on any `.kazam/*.yaml` change.
+"#;
+
+const HANDOFF_SKILL: &str = r#"---
+name: kazam-handoff
+description: Hand this session off to the next agent (any agent, or this one after /clear). Saves where things stand, the next step, and decisions made, then says how to pick it up. Use when the user says "handoff", "save context", "I'm switching to Cursor/Codex", "pick this up later", or before a /clear mid-task.
+---
+
+# kazam-handoff
+
+1. Write one `kazam save` covering what a transcript can't carry:
+   - the note: where things stand, in one or two sentences, naming the branch or files
+   - `--next`: the very next step, concrete enough to start without asking
+   - `--decision "X over Y: why"`: once per real choice made this session, with the
+     option rejected. Skip if nothing was chosen between alternatives.
+
+   ```
+   kazam save "load/save built on handoff-load-save, tests pass"      --next "wire the AGENTS.md line"      --decision "pull (kazam load) over per-agent hooks: every agent has a shell"
+   ```
+
+2. Tell the user, in one line, how to resume: in any agent, in this repo, say
+   "continue" or run `kazam load`. (`kazam load --list` shows every session.)
+
+Don't restate the whole session in the save: the Stop hook's snapshot already has
+the prompts, files, commits and diff. The save is for intent and choices.
 "#;
 
 const SCOUT_AGENT: &str = r#"---
@@ -581,6 +617,11 @@ pub fn install(project: &Path, agent: &str, skunkworks: bool) -> Result<()> {
 
     fs::write(rules_dir.join("kazam-workspace.md"), &rules).context("write workspace rules")?;
 
+    // The /kazam-handoff skill: save, then say how to pick it up anywhere.
+    let skill_dir = project.join(".claude").join("skills").join("kazam-handoff");
+    fs::create_dir_all(&skill_dir).context("create .claude/skills/kazam-handoff")?;
+    fs::write(skill_dir.join("SKILL.md"), HANDOFF_SKILL).context("write kazam-handoff skill")?;
+
     // Write the scout agent definition (anatomy-first repository explorer)
     let agents_dir = project.join(".claude").join("agents");
     fs::create_dir_all(&agents_dir).context("create .claude/agents")?;
@@ -597,6 +638,7 @@ pub fn install(project: &Path, agent: &str, skunkworks: bool) -> Result<()> {
     }
     println!("  ✓ workspace rules written to .claude/rules/kazam-workspace.md");
     println!("  ✓ scout agent written to .claude/agents/kazam-scout.md");
+    println!("  ✓ handoff skill written to .claude/skills/kazam-handoff/SKILL.md");
     if override_path.exists() {
         println!("  ✓ team overrides applied from .kazam/ctx/rules-override.md");
     }
@@ -618,6 +660,11 @@ pub fn uninstall(project: &Path) -> Result<()> {
     let scout_file = project.join(".claude/agents/kazam-scout.md");
     if scout_file.exists() {
         fs::remove_file(&scout_file).context("remove kazam-scout agent")?;
+    }
+
+    let skill_dir = project.join(".claude/skills/kazam-handoff");
+    if skill_dir.exists() {
+        fs::remove_dir_all(&skill_dir).context("remove kazam-handoff skill")?;
     }
 
     // Remove only kazam entries from .claude/settings.json, preserve everything else
@@ -846,11 +893,11 @@ fn install_claude_hooks(project: &Path, skunkworks: bool) -> Result<()> {
         (
             "SessionStart",
             serde_json::json!({
-                "matcher": "clear",
+                "matcher": "",
                 "hooks": [{
                     "type": "command",
                     "command": "kazam ctx handoff load",
-                    "description": "kazam-workspace: reload the session snapshot after /clear",
+                    "description": "kazam-workspace: reload the session snapshot after /clear, resume teaser on startup",
                     "timeout": 10
                 }]
             }),

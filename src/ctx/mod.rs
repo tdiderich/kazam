@@ -5,6 +5,7 @@ pub mod handoff;
 pub mod hooks;
 pub mod outline;
 pub mod research;
+pub mod save;
 pub mod scan;
 pub mod types;
 
