@@ -107,6 +107,43 @@ pub fn post_text(url: &str, headers: Headers, body: &str) -> Result<String, Erro
     text_of(post_builder(url, headers).send(body)?)
 }
 
+/// `post_text` with a whole-request deadline (connect, send, and body read).
+/// For local model servers that can wedge: without it a stuck request blocks
+/// the caller forever.
+pub fn post_text_timeout(
+    url: &str,
+    headers: Headers,
+    body: &str,
+    timeout: std::time::Duration,
+) -> Result<String, Error> {
+    let mut req = ureq::post(url)
+        .config()
+        .http_status_as_error(false)
+        .timeout_global(Some(timeout))
+        .build();
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    text_of(req.send(body)?)
+}
+
+/// `get_text` with a whole-request deadline.
+pub fn get_text_timeout(
+    url: &str,
+    headers: Headers,
+    timeout: std::time::Duration,
+) -> Result<String, Error> {
+    let mut req = ureq::get(url)
+        .config()
+        .http_status_as_error(false)
+        .timeout_global(Some(timeout))
+        .build();
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    text_of(req.call()?)
+}
+
 /// A response with its status kept, for callers that decide per-status
 /// (retry on 429, read an error body) rather than treating non-2xx as failure.
 pub struct Response {
