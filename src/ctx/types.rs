@@ -18,6 +18,30 @@ pub struct FileEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_read: Option<String>,
     pub last_scanned: String,
+    /// Truncated sha256 of the content. Drives change and rename detection,
+    /// and keys the global enrichment cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    /// Modification time in ms since the epoch. With `size`, lets a rescan
+    /// reuse the stored sha without reading the file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mtime_ms: Option<u64>,
+    /// Deterministic outline: `L<line> <kind> <name>` per top-level symbol.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outline: Vec<String>,
+    /// Who wrote `description`. Model enrichment never overwrites `Agent`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desc_source: Option<DescSource>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum DescSource {
+    Heuristic,
+    Agent,
+    Model,
 }
 
 #[derive(Serialize, Deserialize)]

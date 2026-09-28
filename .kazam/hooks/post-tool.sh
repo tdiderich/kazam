@@ -1,5 +1,6 @@
 #!/bin/bash
-# kazam workspace — post-tool hook
+# kazam-scaffold-version: 1.28.1
+# kazam workspace - post-tool hook
 #
 # Runs after Read / Write / Edit. Claude Code delivers the tool payload as JSON
 # on STDIN. An earlier version of this hook read a $KAZAM_TOOL_INPUT env var
@@ -32,7 +33,7 @@ fi
 # Normalize to a project-relative path so it matches anatomy entries.
 ROOT=$(pwd -P)
 case "$FILE" in "$ROOT"/*) FILE="${FILE#"$ROOT"/}" ;; esac
-# Still absolute means the file lives outside the project — not our business.
+# Still absolute means the file lives outside the project - not our business.
 case "$FILE" in /*) exit 0 ;; esac
 
 case "$TOOL" in

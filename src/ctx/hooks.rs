@@ -27,13 +27,21 @@ fi
 cd "$(dirname "$0")/../.." || exit 0
 
 INPUT=$(cat 2>/dev/null || echo '{}')
-DRIFT=$(kazam ctx scan --check --json 2>/dev/null)
+# refresh writes the anatomy (hash-based change/delete/rename detection) and
+# reports what moved since the last refresh. Warm runs take tens of ms.
+DRIFT=$(kazam ctx refresh --json 2>/dev/null)
 READY=$(kazam track ready --json 2>/dev/null)
+# Model descriptions for new/changed files, detached at low priority. Cached
+# descriptions apply instantly; a missing backend is a silent no-op.
+# KAZAM_ENRICH=0 turns it off.
+if [ "${KAZAM_ENRICH:-1}" != "0" ]; then
+  kazam ctx enrich --background --json >/dev/null 2>&1 || true
+fi
 
 # jq drives the compact-recovery payload. Without it, degrade to plain
 # orientation rather than failing the hook.
 if ! command -v jq >/dev/null 2>&1; then
-  HAS_DRIFT=$(echo "$DRIFT" | grep -c '"new_files":\[\|"deleted_files":\[\|"changed_files":\[' 2>/dev/null || true)
+  HAS_DRIFT=$(echo "$DRIFT" | grep -c '"added":\["\|"changed":\["\|"deleted":\["\|"renamed":\[\[' 2>/dev/null || true)
   HAS_READY=$(echo "$READY" | grep -c '"data":\[{' 2>/dev/null || true)
   [ "$HAS_DRIFT" != "0" ] && echo "$DRIFT"
   [ "$HAS_READY" != "0" ] && echo "$READY"
@@ -42,13 +50,18 @@ fi
 
 SOURCE=$(printf '%s' "$INPUT" | jq -r '.source // ""' 2>/dev/null || echo "")
 N_DRIFT=$(printf '%s' "$DRIFT" | jq -r \
-  '[(.data.changed_files // []), (.data.new_files // []), (.data.deleted_files // [])] | add | length' 2>/dev/null)
+  '[(.data.diff.changed // []), (.data.diff.added // []), (.data.diff.deleted // []), (.data.diff.renamed // [])] | add | length' 2>/dev/null)
 N_READY=$(printf '%s' "$READY" | jq -r '(.data // []) | length' 2>/dev/null)
 
 # ---------------------------------------------------------------- normal start
 if [ "$SOURCE" != "compact" ]; then
-  [ "${N_DRIFT:-0}" != "0" ] && echo "$DRIFT"
-  [ "${N_READY:-0}" != "0" ] && echo "$READY"
+  [ "${N_DRIFT:-0}" != "0" ] && printf '%s' "$DRIFT" | jq -c '{anatomy_refreshed: .data.diff}' 2>/dev/null
+  # One line per task, top 5: the full JSON with notes cost ~1.8k tokens a
+  # session. `kazam track ready --json` has the rest when it's needed.
+  if [ "${N_READY:-0}" != "0" ]; then
+    echo "kazam ready tasks (${N_READY}):"
+    printf '%s' "$READY" | jq -r '(.data // [])[0:5][] | "- \(.id) [p\(.priority)] \(.title | .[0:90])"' 2>/dev/null
+  fi
   exit 0
 fi
 
@@ -114,9 +127,10 @@ fi
 if [ "${N_DRIFT:-0}" != "0" ]; then
   echo "### Uncommitted file drift (${N_DRIFT} files)"
   printf '%s' "$DRIFT" | jq -r '
-    [(.data.new_files // [] | map("new     " + .)),
-     (.data.changed_files // [] | map("changed " + .)),
-     (.data.deleted_files // [] | map("deleted " + .))] | add | .[0:25][] | "- " + .' 2>/dev/null
+    [(.data.diff.added // [] | map("new     " + .)),
+     (.data.diff.changed // [] | map("changed " + .)),
+     (.data.diff.deleted // [] | map("deleted " + .)),
+     (.data.diff.renamed // [] | map("renamed " + .[0] + " -> " + .[1]))] | add | .[0:25][] | "- " + .' 2>/dev/null
   echo
 fi
 
@@ -265,6 +279,11 @@ State lives in `.kazam/` as YAML files.
 **Before you `grep`, `find`, `ls`, or spawn a subagent to explore, read the
 anatomy index.** This is not optional. The index exists so you don't waste
 tokens scanning the filesystem.
+
+**Step 0 - Ask for a brief:** `kazam ctx research "<what you're doing>"`
+returns the most relevant files with model-written descriptions and
+line-numbered outlines. Read the cited ranges (offset/limit) directly. Fall
+back to the steps below only if nothing in the brief fits.
 
 **Step 1 - Read the summary:**
 `.kazam/ctx/anatomy.tsv` - compact index with root files and directory rollups

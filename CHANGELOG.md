@@ -4,6 +4,23 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.29.0] - 2026-09-27
+
+### Added
+- `kazam ctx refresh`: content-hash anatomy. Every file gets a truncated sha256 (size+mtime fast path skips re-reading unchanged files), so same-size edits, deletes, and renames are detected exactly; a rename keeps the file's description and read history. Each diff is appended to `.kazam/ctx/changes.log`. Files also get a deterministic outline (`L<line> <kind> <name>` per symbol or heading, regex per language).
+- `kazam ctx research "<task>"`: BM25 over path, description, and outline; prints a token-budgeted brief of the most relevant files with the matching outline lines and any open bugs, so agents Read cited line ranges instead of grepping. `--json`, `--k`, `--budget`.
+- `kazam ctx enrich`: whole-file descriptions from a local model over any OpenAI-compatible chat endpoint (default `mlx_lm.server` on `127.0.0.1:8765`). Cached globally by content hash in `~/.kazam/cache/enrich/`, so renames and worktrees reuse them. Agent-written descriptions (`ctx describe`) are never replaced. `--max` caps model calls per run, `--background` detaches at low priority, a lock keeps runs from overlapping, and a missing endpoint is a silent no-op.
+- Anatomy entries carry `sha`, `size`, `mtime_ms`, `outline`, and `desc_source` (heuristic / agent / model). All optional; existing stores load unchanged.
+
+### Changed
+- The SessionStart hook runs `ctx refresh` (writes the anatomy) instead of a read-only drift check, starts `ctx enrich --background` (`KAZAM_ENRICH=0` disables it), reports renames, and prints ready tasks as one line each (top 5) instead of the full JSON with notes (~1.8k tokens down to ~170). Re-run `kazam ctx hooks install` to pick it up.
+- Workspace rules add "Step 0: `kazam ctx research`" ahead of reading the anatomy summary. In an A/B on 6 lookup tasks (Sonnet), the rules nudge alone cut turns 19% and input tokens 15%.
+- `scan --check` compares content hashes when both sides have one, instead of token counts.
+
+### Fixed
+- `scan --check` drained `ctx/reads.log` without saving, so read counts were lost on every SessionStart and Stop drift check.
+- `ctx scan` indexed nothing when the project root's own directory name starts with `.`.
+
 ## [1.28.1] - 2026-09-22
 
 ### Fixed

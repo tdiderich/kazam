@@ -108,12 +108,18 @@ kazam board
 
 ### Anatomy - persistent codebase context
 
-`kazam ctx scan` builds a two-tier index:
+`kazam ctx refresh` builds a two-tier index:
 
 - **Summary** (`.kazam/ctx/anatomy.tsv`) - root files + directory rollups with file counts, token estimates, and descriptions
 - **Detail** (`.kazam/ctx/anatomy/<dir>.tsv`) - individual files per directory
 
-Agents read the summary, drill into what they need. No `find`. No `grep`. No wasted turns.
+Files are tracked by content hash, so edits, deletes, and renames are detected exactly (renames keep their descriptions), and each file carries a line-numbered outline. The SessionStart hook refreshes on every session; warm runs take tens of milliseconds.
+
+`kazam ctx research "<task>"` turns the index into a token-budgeted brief: the files most likely relevant to the task, their descriptions, and the outline lines that match, so the agent Reads exact line ranges instead of spending turns on grep.
+
+`kazam ctx enrich` fills in descriptions by having a local model read each whole file. It talks to any OpenAI-compatible endpoint (default `http://127.0.0.1:8765`, which is what `mlx_lm.server --model mlx-community/Qwen3-1.7B-4bit --port 8765` serves on Apple Silicon; llama.cpp or Ollama work too via `--endpoint`/`--model`). Results are cached globally by content hash in `~/.kazam/cache/enrich/`, so renames and every worktree reuse them. Descriptions written with `ctx describe` are never replaced. With no endpoint running it's a silent no-op; the SessionStart hook runs it in the background at low priority (`KAZAM_ENRICH=0` turns that off).
+
+Agents read the brief or the summary, drill into what they need. No `find`. No `grep`. No wasted turns.
 
 ### Benchmarks
 
@@ -625,6 +631,38 @@ Scan project files and update anatomy
 | Flag | Default | Description |
 |---|---|---|
 | `--check` |  | Report drift without writing changes |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx refresh`
+
+Refresh the anatomy: hash-based change, delete, and rename detection, per-file outlines, and a diff appended to ctx/changes.log
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx enrich`
+
+Describe files with a local model (whole file, cached globally by content hash)
+
+| Flag | Default | Description |
+|---|---|---|
+| `--max` | `25` | Model calls per run; cached descriptions always apply (0 = cache only) |
+| `--background` |  | Detach and run at low priority, logging to .kazam/ctx/enrich.log |
+| `--endpoint` | `http://127.0.0.1:8765/v1/chat/completions` | OpenAI-compatible chat completions endpoint (mlx_lm.server by default) |
+| `--model` | `mlx-community/Qwen3-1.7B-4bit` | Model name sent to the endpoint |
+| `--json` |  | Machine-readable JSON output |
+
+##### `kazam ctx research`
+
+Rank files for a task and print a token-budgeted brief with line-cited outlines
+
+- `task` - What you're trying to do, in plain words
+
+| Flag | Default | Description |
+|---|---|---|
+| `--k` | `8` | Max files in the brief |
+| `--budget` | `2500` | Approximate token budget for the brief |
 | `--json` |  | Machine-readable JSON output |
 
 ##### `kazam ctx status`
