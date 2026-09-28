@@ -4,6 +4,15 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.30.1] - 2026-09-28
+
+### Changed
+- `ctx research` expands strong hits with their git co-change partners: files that changed in the same commits as a top hit (last 1,500 non-merge commits, bulk commits of 13+ files skipped) get a share of its score. The graph is cached in `.kazam/ctx/cochange.json` per HEAD.
+- `ctx research` ranks test, spec, fixture, and story files at 0.35x, since they match task words well but rarely hold the change.
+- `ctx research` drops URLs, HTML tags, markdown heading markers, co-author/sign-off trailers, and PR numbers from the query before ranking.
+
+Measured on 90 real multi-file commits (commit message as the task, changed files as ground truth, co-change built only from older history): right file in the top 4 went 83% -> 90% (kazam), 50% -> 53% (maze-apps), 53% -> 70% (atlas_universe); MRR 0.40 -> 0.58 on atlas_universe. p50 latency 62 ms / 109 ms / 512 ms. Harness: `scripts/ctx-measure/research_eval.py` in the kazam-curata workspace.
+
 ## [1.30.0] - 2026-09-28
 
 ### Added

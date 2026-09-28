@@ -84,9 +84,47 @@ fn stem(t: &str) -> String {
     t.to_string()
 }
 
+/// Drop what isn't the request: URLs, HTML tags, markdown heading markers,
+/// co-author/sign-off trailers, and PR/issue numbers. They're common in
+/// pasted commit messages and PR text and only add noise terms.
+fn clean_query(task: &str) -> String {
+    static R: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let rx = R.get_or_init(|| {
+        regex::Regex::new(
+            r"(?mi)https?://\S+|<[^>]+>|^#+\s*|^(co-authored-by|signed-off-by|claude-session):.*$|\(#\d+\)|#\d+",
+        )
+        .unwrap()
+    });
+    rx.replace_all(task, " ").into_owned()
+}
+
+/// Test files match task words well (their names describe behavior) but are
+/// rarely where the change goes; rank them below source.
+fn is_test_path(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    path.split('/')
+        .any(|seg| matches!(seg, "test" | "tests" | "__tests__" | "spec" | "fixtures"))
+        || name.starts_with("test_")
+        || [
+            "_test.go",
+            "_test.py",
+            ".test.ts",
+            ".test.tsx",
+            ".spec.ts",
+            ".spec.tsx",
+            ".stories.tsx",
+        ]
+        .iter()
+        .any(|s| name.ends_with(s))
+}
+const TEST_WEIGHT: f64 = 0.35;
+/// How much a strong hit lends to files that historically change with it.
+const COCHANGE_WEIGHT: f64 = 0.6;
+const COCHANGE_SEEDS: usize = 3;
+
 pub fn research(project: &Path, task: &str, k: usize, budget: usize) -> Vec<Hit> {
     let store = scan::load_flat(project);
-    let q = tokenize(task);
+    let q = tokenize(&clean_query(task));
     if q.is_empty() {
         return vec![];
     }
@@ -142,7 +180,49 @@ pub fn research(project: &Path, task: &str, k: usize, budget: usize) -> Vec<Hit>
             (s > 0.0).then_some((i, s))
         })
         .collect();
+    for (i, sc) in scored.iter_mut() {
+        if is_test_path(&store.files[*i].path) {
+            *sc *= TEST_WEIGHT;
+        }
+    }
     scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Co-change expansion: tasks usually touch a file *and* the files that
+    // move with it (workflow + activities, handler + route). Seed from the top
+    // non-test hits and lend each partner a share of the seed's score scaled
+    // by how often they changed together.
+    let cc = super::cochange::load(project);
+    if !cc.is_empty() {
+        let index: HashMap<&str, usize> = store
+            .files
+            .iter()
+            .enumerate()
+            .map(|(i, f)| (f.path.as_str(), i))
+            .collect();
+        let mut bonus: HashMap<usize, f64> = HashMap::new();
+        for &(i, sc) in scored
+            .iter()
+            .filter(|(i, _)| !is_test_path(&store.files[*i].path))
+            .take(COCHANGE_SEEDS)
+        {
+            if let Some(partners) = cc.get(&store.files[i].path) {
+                for (p, w) in partners {
+                    if let Some(&j) = index.get(p.as_str()) {
+                        if !is_test_path(p) {
+                            *bonus.entry(j).or_default() += sc * COCHANGE_WEIGHT * w;
+                        }
+                    }
+                }
+            }
+        }
+        for (i, sc) in scored.iter_mut() {
+            if let Some(b) = bonus.remove(i) {
+                *sc += b;
+            }
+        }
+        scored.extend(bonus);
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    }
 
     let bugs: BugStore =
         crate::workspace::read_yaml(&crate::workspace::root(project).join("ctx/bugs.yaml"))
