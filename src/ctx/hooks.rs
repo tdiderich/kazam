@@ -338,10 +338,12 @@ This works because the `PreCompact` hook writes a `compact boundary` entry to
 exactly the work belonging to the discarded transcript. Nothing is stored
 outside kazam's normal stores, so there is no second source of truth to drift.
 
-**After a `/clear`** the hook prints the core of a session handoff instead:
-the last request verbatim, your own final report, tasks in flight, and each
-touched repo's branch and commits. It names a full snapshot file (every prompt
-since compaction, earlier reports, files, corrections, the diff); read it
+**After a `/clear`** the hook prints the core of a session handoff instead,
+rebuilt at that moment: the last request verbatim, your own final report (and
+the question it ended on, if the user hasn't answered it), background work with
+its status checked now, open tasks, and each repo's branch and commits as of
+now. It names a full snapshot file (every prompt since compaction, earlier
+reports, files, corrections, the diff) and lists what's only in there; read it
 before your first action if the next request continues that work. The Stop
 hook rebuilds both after every turn, so /clear is instant compaction.
 `kazam ctx handoff show --session <id> --turn N` has any turn in full.
@@ -622,6 +624,16 @@ pub fn install(project: &Path, agent: &str, skunkworks: bool) -> Result<()> {
     fs::create_dir_all(&skill_dir).context("create .claude/skills/kazam-handoff")?;
     fs::write(skill_dir.join("SKILL.md"), HANDOFF_SKILL).context("write kazam-handoff skill")?;
 
+    // Other agents (Cursor, Codex, Gemini) read AGENTS.md, not .claude/.
+    // Skunkworks stays out of tracked files.
+    if !skunkworks {
+        let agents_md = project.join("AGENTS.md");
+        if agent != "claude" || agents_md.exists() {
+            upsert_agents_block(&agents_md)?;
+            println!("  ✓ handoff pointer written to AGENTS.md");
+        }
+    }
+
     // Write the scout agent definition (anatomy-first repository explorer)
     let agents_dir = project.join(".claude").join("agents");
     fs::create_dir_all(&agents_dir).context("create .claude/agents")?;
@@ -645,7 +657,60 @@ pub fn install(project: &Path, agent: &str, skunkworks: bool) -> Result<()> {
     Ok(())
 }
 
+const AGENTS_BLOCK_START: &str = "<!-- kazam:handoff -->";
+const AGENTS_BLOCK_END: &str = "<!-- /kazam:handoff -->";
+const AGENTS_BLOCK: &str = "## Picking up earlier work (kazam)
+
+This repo records agent sessions with kazam. If the user's request continues
+earlier work (\"continue\", \"keep going\", \"pick up where we left off\"), run
+`kazam load` first: it prints where the last session left off, with its last
+request and report, each repo's branch and commits as of now, background work
+and whether it's still running, open tasks, and decisions. `kazam load --list`
+shows every session. Before you stop or hand off, record what a transcript
+can't carry: `kazam save \"where things stand\" --next \"next step\" --decision
+\"X over Y: why\"`.";
+
+/// Add or replace kazam's block in AGENTS.md, leaving the rest alone.
+fn upsert_agents_block(path: &Path) -> Result<()> {
+    let text = fs::read_to_string(path).unwrap_or_default();
+    let block = format!("{AGENTS_BLOCK_START}\n{AGENTS_BLOCK}\n{AGENTS_BLOCK_END}");
+    let out = match (text.find(AGENTS_BLOCK_START), text.find(AGENTS_BLOCK_END)) {
+        (Some(a), Some(b)) if b > a => {
+            format!(
+                "{}{block}{}",
+                &text[..a],
+                &text[b + AGENTS_BLOCK_END.len()..]
+            )
+        }
+        _ if text.trim().is_empty() => format!("{block}\n"),
+        _ => format!("{}\n\n{block}\n", text.trim_end()),
+    };
+    fs::write(path, out).with_context(|| format!("write {}", path.display()))
+}
+
+fn remove_agents_block(path: &Path) -> Result<()> {
+    let Ok(text) = fs::read_to_string(path) else {
+        return Ok(());
+    };
+    if let (Some(a), Some(b)) = (text.find(AGENTS_BLOCK_START), text.find(AGENTS_BLOCK_END)) {
+        if b > a {
+            let rest = format!(
+                "{}{}",
+                text[..a].trim_end(),
+                &text[b + AGENTS_BLOCK_END.len()..]
+            );
+            if rest.trim().is_empty() {
+                fs::remove_file(path)?;
+            } else {
+                fs::write(path, format!("{}\n", rest.trim_end()))?;
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn uninstall(project: &Path) -> Result<()> {
+    remove_agents_block(&project.join("AGENTS.md"))?;
     let hooks_dir = crate::workspace::root(project).join("hooks");
     if hooks_dir.exists() {
         fs::remove_dir_all(&hooks_dir).context("remove hooks dir")?;
