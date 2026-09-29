@@ -299,8 +299,19 @@ pub fn load(
 
     // The snapshot core already carries this session's saves and recent
     // decisions as of its last Stop; only print what it doesn't have.
+    // Rebuilt now when the transcript is still there, so git state and
+    // background work are current, not as of the session's last turn.
     let snap_text = snap
-        .map(|s| fs::read_to_string(if full { &s.full } else { &s.core }).unwrap_or_default())
+        .map(|s| match super::handoff::rebuild(project, &s.sid) {
+            Some((core, whole)) => {
+                if full {
+                    whole
+                } else {
+                    core
+                }
+            }
+            None => fs::read_to_string(if full { &s.full } else { &s.core }).unwrap_or_default(),
+        })
         .unwrap_or_default();
     let unseen = |v: &&Save| !snap_text.contains(&fmt_save(v));
     let session_saves: Vec<&Save> = match snap {
