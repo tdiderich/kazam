@@ -393,6 +393,7 @@ fn cmd_import(project: &Path, file: &str, dry_run: bool, json: bool) -> Result<(
             updated: ts.clone(),
             closed: None,
             close_reason: None,
+            extra: Default::default(),
         };
 
         if is_epic {
@@ -460,6 +461,7 @@ fn cmd_add(
         updated: ts.clone(),
         closed: None,
         close_reason: None,
+        extra: Default::default(),
     };
 
     let mut s = store::read_tasks(project)?;

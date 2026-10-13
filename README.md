@@ -666,6 +666,7 @@ Rank files for a task and print a token-budgeted brief with line-cited outlines
 |---|---|---|
 | `--k` | `8` | Max files in the brief |
 | `--budget` | `2500` | Approximate token budget for the brief |
+| `--lines` | `6` | One-line entries after the full hits: files that change with them and the next-ranked files (0 = none) |
 | `--json` |  | Machine-readable JSON output |
 
 ##### `kazam ctx brief-hook`
@@ -676,6 +677,27 @@ UserPromptSubmit hook: read the hook payload on stdin and, when the prompt looks
 |---|---|---|
 | `--dry-run` |  | Print the gate decision instead of the hook output |
 | `--agent` |  | PreToolUse mode for the Agent tool: append the brief to the subagent's prompt via updatedInput |
+
+##### `kazam ctx handoff`
+
+Clear handoff: session snapshot kept by the Stop hook, reloaded on /clear
+
+###### `kazam ctx handoff stop`
+
+Stop hook: rebuild this session's snapshot (payload on stdin); nudges toward /clear when context is large and a task just wrapped
+
+###### `kazam ctx handoff load`
+
+SessionStart hook: on /clear, print the snapshot as context
+
+###### `kazam ctx handoff show`
+
+Print the current snapshot, or one turn in full
+
+| Flag | Default | Description |
+|---|---|---|
+| `--session` |  | Session id (from the snapshot header); defaults to this process's |
+| `--turn` |  | Turn number from the snapshot's "Session so far" list |
 
 ##### `kazam ctx status`
 
