@@ -142,6 +142,7 @@ mod tests {
             updated: String::new(),
             closed: None,
             close_reason: None,
+            extra: Default::default(),
         }
     }
 
