@@ -26,9 +26,9 @@ components:
 
       - title: Grids
         badge:
-          label: "6"
+          label: "7"
           color: default
-        description: "card_grid, stat_grid, selectable_grid, before_after, avatar_group, definition_list"
+        description: "card_grid, stat_grid, tier_summary, selectable_grid, before_after, avatar_group, definition_list"
         links:
           - label: Open →
             href: grids.html
@@ -53,9 +53,9 @@ components:
 
       - title: Layout
         badge:
-          label: "14"
+          label: "15"
           color: default
-        description: "section, columns, grid, box, connector, divider, timeline, event_timeline, tree, priority_queue, venn, steps, progress_bar, empty_state"
+        description: "section, columns, grid, box, connector, divider, timeline, journey_track, event_timeline, tree, priority_queue, venn, steps, progress_bar, empty_state"
         links:
           - label: Open →
             href: layout.html

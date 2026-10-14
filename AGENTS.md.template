@@ -383,6 +383,31 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         color: green
   ```
 
+- **tier_summary** - one card per health tier: big count, share bar, click to list the accounts
+  ```yaml
+  - type: tier_summary
+    count_label: accounts        # default "accounts"
+    share_label: ARR share       # default "Share"; bars show when any tier has share
+    tiers:
+      - label: Outstanding
+        count: "6"
+        share: 8.4               # 0-100, shown as given (8.4%)
+        color: teal              # default | green | yellow | red | teal
+        detail: Cohere Health    # optional muted line
+        accounts:                # optional; clicking the card opens a panel
+          - name: Cohere Health
+            value: $71K          # ARR
+            renewal: 2027-03-03  # ISO; rows sort soonest first
+            detail: Adopted
+            href: ./cohere
+      - label: Poor
+        count: "0"               # 0 = hollow swatch
+        share: 0
+        color: red
+  ```
+  2-6 tiers. `active: true` gives a card the accent border. A tier with `href`
+  links instead of expanding. `?tier=<label>` in the URL opens that tier on load.
+
 - **selectable_grid** - interactive phase tracker / click-to-focus cards
   ```yaml
   - type: selectable_grid
@@ -625,6 +650,28 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       - name: Planning
         status: completed        # completed | active | upcoming
   ```
+
+- **journey_track** - one account's journey: stages on a line, detours, touchpoints
+  ```yaml
+  - type: journey_track
+    title: Journey
+    start: 2025-11-03            # optional; defaults to the earliest date
+    end: 2026-12-31              # optional; defaults to the latest date
+    stages:
+      - { label: Onboarding, date: 2025-11-03 }          # status: completed (default) | upcoming
+      - { label: Operationalizing, date: 2026-01-12 }
+      - { label: Adopted, date: 2026-05-20 }
+    detours:                     # temporary stages drawn as an arc off the line
+      - { label: Save, from: 2026-03-01, to: 2026-04-02, color: yellow }
+    current: { label: Renewal, date: 2026-10-01, temporary: true }
+    touchpoints:
+      - { label: Kickoff, date: 2025-11-05 }
+      - { label: Renewal review, date: 2026-09-30, status: upcoming }
+  ```
+  Dated mode when every stage, touchpoint, `current` and detour `from` has a date:
+  x is linear in time. Leave any date out and everything is evenly spaced in list
+  order; detours then take `after: <0-based stage index>` instead of from/to.
+  Up to 8 stages and 12 touchpoints. Dates must be ISO `YYYY-MM-DD`.
 
 - **event_timeline** - vertical event history with severity filter
   ```yaml

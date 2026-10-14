@@ -13,7 +13,7 @@ components:
   - type: header
     title: Grid components
     eyebrow: Reference
-    subtitle: card_grid, stat_grid, selectable_grid, before_after, split_compare, avatar_group, definition_list, role_map
+    subtitle: card_grid, stat_grid, tier_summary, selectable_grid, before_after, split_compare, avatar_group, definition_list, role_map
 
   # ── card_grid ─────────────────────────────
   - type: section
@@ -346,6 +346,70 @@ components:
                 definition: Annual contract value.
               - term: SLA
                 definition: Service level agreement.
+
+  # ── tier_summary ───────────────────────────
+  - type: section
+    eyebrow: tier_summary
+    heading: Tier summary
+    components:
+      - type: markdown
+        body: |
+          One card per tier, side by side: a swatch, the tier label, a big count, and an
+          optional share bar (`share` is 0-100 and shows as given, so 8.4 stays 8.4%).
+          A count of `0` gets a hollow swatch. `active: true` gives a card the accent border.
+
+          Give a tier `accounts` and the card becomes a button: clicking it opens a panel
+          under the row listing each account with its ARR and renewal date, soonest first.
+          Renewals under 90 days out get a "in N days" note. `?tier=<label>` in the URL
+          opens a tier on load. A tier with `href` links instead of expanding.
+
+      - type: tier_summary
+        id: portfolio-tiers
+        count_label: accounts
+        share_label: ARR share
+        tiers:
+          - label: Outstanding
+            count: "6"
+            share: 31.2
+            color: teal
+            accounts:
+              - { name: Cohere Health, value: $71K, renewal: 2027-03-03, detail: Adopted }
+              - { name: Larkspur, value: $95K, renewal: 2026-11-02, detail: Renewal }
+          - label: Good
+            count: "11"
+            share: 58.4
+            color: green
+          - label: Okay
+            count: "5"
+            share: 8.4
+            color: yellow
+          - label: Poor
+            count: "0"
+            share: 0
+            color: red
+
+      - type: code
+        language: yaml
+        code: |
+          - type: tier_summary
+            count_label: accounts      # default "accounts"
+            share_label: ARR share     # default "Share"; bars show when any tier has share
+            tiers:
+              - label: Outstanding
+                count: "6"
+                value: $71K ARR        # optional small figure under the count
+                share: 8.4             # optional, 0-100
+                detail: Cohere Health  # optional muted line
+                color: teal            # default | green | yellow | red | teal
+                href: ./tier-outstanding   # optional; card links, never expands
+                active: false
+                accounts:              # optional; card opens a panel
+                  - name: Cohere Health
+                    value: $71K
+                    renewal: 2027-03-03
+                    detail: Adopted
+                    href: ./cohere
+                    color: teal        # defaults to the tier color
 
   # ── role_map ───────────────────────────────
   - type: section

@@ -1,0 +1,84 @@
+title: Customer HUD Demo
+shell: standard
+
+components:
+  - type: header
+    title: Customer HUD
+    eyebrow: Component demo
+    subtitle: tier_summary and journey_track
+
+  - type: tier_summary
+    id: portfolio-tiers
+    share_label: ARR share
+    tiers:
+      - label: Outstanding
+        count: 6
+        share: 31.2
+        color: teal
+        accounts:
+          - { name: Cohere Health, value: $71K, renewal: 2026-12-01, detail: Adopted, href: ./cohere }
+          - { name: Brightline, value: $240K, renewal: 2027-03-03, detail: Adopted }
+          - { name: Larkspur, value: $95K, renewal: 2026-11-02, detail: Renewal }
+      - label: Good
+        count: "11"
+        share: 58.4
+        color: green
+        active: true
+      - label: Okay
+        count: "5"
+        share: 8.4
+        color: yellow
+        detail: Alloy, Contentful, DTCC and 2 more
+      - label: Poor
+        count: "0"
+        share: 0
+        color: red
+  - type: header
+    eyebrow: Account view / Overall good
+    title: Ostra Health
+  - type: journey_track
+    title: Journey (dated)
+    start: 2025-11-01
+    end: 2026-11-15
+    stages:
+      - { label: Onboarding, date: 2025-11-03 }
+      - { label: Operationalizing, date: 2026-02-12 }
+      - { label: Adopted, date: 2026-06-20 }
+    detours:
+      - { label: Save, from: 2026-03-20, to: 2026-05-20, color: teal }
+    current: { label: Renewal, date: 2026-10-01, temporary: true }
+    touchpoints:
+      - { label: Kickoff, date: 2025-11-25 }
+      - { label: Config review, date: 2026-02-25 }
+      - { label: Exec call, date: 2026-07-10 }
+      - { label: Renewal review, date: 2026-10-20, status: upcoming }
+  - type: journey_track
+    title: Journey (undated)
+    stages:
+      - { label: Onboarding }
+      - { label: Operationalizing }
+      - { label: Adopted }
+      - { label: Expansion, status: upcoming }
+    detours:
+      - { label: Save, after: 1, color: yellow }
+    current: { label: Renewal, color: green }
+    touchpoints:
+      - { label: Kickoff }
+      - { label: Config review }
+      - { label: QBR }
+  - type: journey_track
+    title: Journey (dense touchpoints)
+    stages:
+      - { label: Onboarding, date: 2026-01-05 }
+      - { label: Operationalizing, date: 2026-01-30 }
+      - { label: Adopted, date: 2026-03-01 }
+    touchpoints:
+      - { label: Kickoff, date: 2026-01-06 }
+      - { label: Tech call, date: 2026-01-09 }
+      - { label: Config review, date: 2026-01-13 }
+      - { label: Office hours, date: 2026-01-15 }
+      - { label: Exec sponsor intro, date: 2026-01-20 }
+      - { label: Training, date: 2026-01-22 }
+      - { label: Weekly sync, date: 2026-02-02 }
+      - { label: Renewal review, date: 2026-03-20, status: upcoming }
+    end: 2026-04-01
