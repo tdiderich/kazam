@@ -13,7 +13,7 @@ components:
   - type: header
     title: Grid components
     eyebrow: Reference
-    subtitle: card_grid, stat_grid, selectable_grid, before_after, split_compare, avatar_group, definition_list, role_map
+    subtitle: card_grid, stat_grid, tier_summary, health_breakdown, selectable_grid, before_after, split_compare, avatar_group, definition_list, role_map
 
   # ── card_grid ─────────────────────────────
   - type: section
@@ -346,6 +346,94 @@ components:
                 definition: Annual contract value.
               - term: SLA
                 definition: Service level agreement.
+
+  # ── tier_summary ───────────────────────────
+  - type: section
+    eyebrow: tier_summary
+    heading: Tier summary
+    components:
+      - type: markdown
+        body: |
+          One card per tier, side by side: a swatch, the tier label, a big count, and an
+          optional share bar (`share` is 0-100 and shows as given, so 8.4 stays 8.4%).
+          A count of `0` gets a hollow swatch. `active: true` gives a card the accent border.
+          Leave `color` off and tiers take accent shades by position: solid, 62%, 32%, then hollow.
+
+          Give a tier `accounts` and the card becomes a button: clicking it opens a panel
+          under the row listing each account with its ARR and renewal date, soonest first.
+          Renewals under 90 days out get a "in N days" note. `?tier=<label>` in the URL
+          opens a tier on load (`?tier.<id>=` when the component has an `id`). A tier with
+          `href` links instead of expanding. Without JS, and in print, every panel shows.
+
+      - type: tier_summary
+        id: portfolio-tiers
+        count_label: accounts
+        share_label: ARR
+        tiers:
+          - label: Outstanding
+            count: "6"
+            value: $406K
+            share: 31.2
+            accounts:
+              - { name: Cohere Health, value: $71K, share: 5.5, renewal: 2027-03-03, detail: Adopted }
+              - { name: Larkspur, value: $95K, share: 7.3, renewal: 2026-11-02, detail: Renewal }
+          - { label: Good, count: "11", value: $759K, share: 58.4 }
+          - { label: Okay, count: "5", value: $109K, share: 8.4 }
+          - { label: Poor, count: "2", value: $26K, share: 2.0 }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: tier_summary
+            count_label: accounts      # default "accounts"
+            share_label: ARR           # unit after the dollars; without value it labels the bar
+            tiers:
+              - label: Outstanding
+                count: "6"
+                value: $406K           # optional; leads the share row as "$406K ARR"
+                share: 31.2            # optional, 0-100
+                detail: Cohere Health  # optional muted line
+                color: teal            # optional; unset = accent shade by position
+                href: ./tier-outstanding   # optional; card links, never expands
+                active: false
+                accounts:              # optional; card opens a panel
+                  - name: Cohere Health
+                    value: $71K
+                    share: 5.5           # optional % of total ARR
+                    renewal: 2027-03-03
+                    detail: Adopted
+                    href: ./cohere
+                    color: teal        # defaults to the tier color
+
+  # ── health_breakdown ───────────────────────
+  - type: section
+    eyebrow: health_breakdown
+    heading: Health breakdown
+    components:
+      - type: markdown
+        body: |
+          One card per health dimension: the label, the tier it lands in (swatch plus
+          mono name), and the rule behind it. `value` shows before the detail.
+          Color with `color:` (semantic) or `shade:` 1-4 (accent solid, 62%, 32%, hollow).
+
+      - type: health_breakdown
+        id: account-health
+        items:
+          - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
+          - { label: License utilization, tier: Okay, shade: 3, detail: "20 to 35% of assets investigated, 30 days" }
+          - { label: User activity, tier: Good, shade: 2, detail: "Portal stickiness 0.5 or more, seen this week" }
+          - { label: Sentiment, tier: Good, shade: 2, detail: "Positive relationship, responsive" }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: health_breakdown
+            id: account-health
+            items:
+              - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
+              - { label: License utilization, tier: Okay, shade: 3, detail: "20 to 35% of assets investigated, 30 days" }
+              - { label: User activity, tier: Good, shade: 2, detail: "Portal stickiness 0.5 or more, seen this week" }
+              - { label: Sentiment, tier: Good, shade: 2, detail: "Positive relationship, responsive" }
 
   # ── role_map ───────────────────────────────
   - type: section

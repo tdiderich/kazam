@@ -695,6 +695,10 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::Code { code, .. } => 2 + (code.lines().count() as u32 / 3),
         Component::Image { .. } | Component::Embed { .. } => 4,
         Component::Gauge { items, .. } => 2 + items.len() as u32,
+        Component::TierSummary { .. } => 4,
+        Component::JourneyTrack { .. } => 4,
+        Component::HealthBreakdown { items, .. } => 1 + items.len() as u32,
+        Component::NextSteps { steps, .. } => 1 + steps.len() as u32,
         Component::RuleList { items, .. } => 1 + items.len() as u32,
         Component::Tree { .. } => 4,
         Component::PriorityQueue { items, .. } => 2 + items.len() as u32,
@@ -749,7 +753,11 @@ fn collect_ids(components: &[Component], out: &mut Vec<String>) {
             | Component::Section { id: Some(id), .. }
             | Component::Grid { id: Some(id), .. }
             | Component::Box { id: Some(id), .. }
-            | Component::Sequence { id: Some(id), .. } => out.push(id.trim().to_string()),
+            | Component::Sequence { id: Some(id), .. }
+            | Component::TierSummary { id: Some(id), .. }
+            | Component::JourneyTrack { id: Some(id), .. }
+            | Component::HealthBreakdown { id: Some(id), .. }
+            | Component::NextSteps { id: Some(id), .. } => out.push(id.trim().to_string()),
             _ => {}
         }
         match c {
@@ -1766,6 +1774,357 @@ fn validate_component(
                 ));
             }
         }
+
+        Component::TierSummary { tiers, .. } => {
+            if tiers.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.tiers", path),
+                    "missing_field",
+                    "tier_summary requires at least one tier",
+                    Some("Add tiers with label: and count:.".into()),
+                ));
+            }
+            let mut labels: Vec<String> = Vec::new();
+            for (ti, t) in tiers.iter().enumerate() {
+                let tp = format!("{}.tiers[{}]", path, ti);
+                let k = t.label.trim().to_lowercase();
+                if labels.contains(&k) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.label", tp),
+                        "invalid_value",
+                        format!("tier label '{}' is used twice", t.label),
+                        Some("Tier labels must be unique; ?tier= opens by label.".into()),
+                    ));
+                }
+                labels.push(k);
+                check_href(file, &format!("{}.href", tp), t.href.as_deref(), errors);
+                check_share(file, &format!("{}.share", tp), t.share, errors);
+                for (ai, a) in t.accounts.iter().enumerate() {
+                    let ap = format!("{}.accounts[{}]", tp, ai);
+                    check_href(file, &format!("{}.href", ap), a.href.as_deref(), errors);
+                    check_share(file, &format!("{}.share", ap), a.share, errors);
+                    if let Some(r) = &a.renewal {
+                        check_iso_date(
+                            file,
+                            &format!("{}.tiers[{}].accounts[{}].renewal", path, ti, ai),
+                            r,
+                            errors,
+                        );
+                    }
+                }
+            }
+        }
+
+        Component::HealthBreakdown { items, .. } => {
+            if items.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.items", path),
+                    "missing_field",
+                    "health_breakdown requires at least one item",
+                    Some("Add items with label:, tier: and detail:.".into()),
+                ));
+            }
+            for (i, it) in items.iter().enumerate() {
+                check_shade(
+                    file,
+                    &format!("{}.items[{}].shade", path, i),
+                    it.shade,
+                    errors,
+                );
+            }
+        }
+
+        Component::NextSteps {
+            steps,
+            accounts,
+            owners,
+            ..
+        } => {
+            let mut seen: Vec<String> = Vec::new();
+            for (i, o) in owners.iter().enumerate() {
+                let k = o.trim().to_lowercase();
+                if seen.contains(&k) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.owners[{}]", path, i),
+                        "invalid_value",
+                        format!("owner '{}' is listed twice", o),
+                        Some("List each owner once.".into()),
+                    ));
+                }
+                seen.push(k);
+            }
+            let mut ids: Vec<&str> = Vec::new();
+            for (i, a) in accounts.iter().enumerate() {
+                if ids.contains(&a.id.as_str()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.accounts[{}].id", path, i),
+                        "invalid_value",
+                        format!("account id '{}' is used twice", a.id),
+                        Some("Give each account a unique id.".into()),
+                    ));
+                }
+                if a.id.is_empty() || a.id.contains(|c: char| c == ',' || c.is_whitespace()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.accounts[{}].id", path, i),
+                        "invalid_value",
+                        format!(
+                            "account id '{}' must not be empty or contain commas or spaces",
+                            a.id
+                        ),
+                        Some(
+                            "Use a slug like ostra-health; ?account= lists ids with commas.".into(),
+                        ),
+                    ));
+                }
+                ids.push(a.id.as_str());
+                check_shade(
+                    file,
+                    &format!("{}.accounts[{}].shade", path, i),
+                    a.shade,
+                    errors,
+                );
+                check_href(
+                    file,
+                    &format!("{}.accounts[{}].href", path, i),
+                    a.href.as_deref(),
+                    errors,
+                );
+                check_owner(
+                    file,
+                    &format!("{}.accounts[{}].owner", path, i),
+                    a.owner.as_deref(),
+                    &seen,
+                    errors,
+                );
+            }
+            for (i, s) in steps.iter().enumerate() {
+                if s.account.is_some() && accounts.is_empty() {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.steps[{}].account", path, i),
+                        "cross_reference",
+                        "step names an account but next_steps has no accounts",
+                        Some("Add accounts:, or drop account: from the step.".into()),
+                    ));
+                }
+                check_href(
+                    file,
+                    &format!("{}.steps[{}].href", path, i),
+                    s.href.as_deref(),
+                    errors,
+                );
+                check_owner(
+                    file,
+                    &format!("{}.steps[{}].owner", path, i),
+                    s.owner.as_deref(),
+                    &seen,
+                    errors,
+                );
+                if let (Some(a), false) = (&s.account, accounts.is_empty()) {
+                    if !ids.contains(&a.as_str()) {
+                        errors.push(ValidationError::new(
+                            file,
+                            format!("{}.steps[{}].account", path, i),
+                            "cross_reference",
+                            format!("step account '{}' matches no accounts id", a),
+                            Some(format!("Use one of: {}.", ids.join(", "))),
+                        ));
+                    }
+                }
+                if let Some(d) = &s.due {
+                    check_iso_date(file, &format!("{}.steps[{}].due", path, i), d, errors);
+                }
+            }
+        }
+
+        Component::JourneyTrack {
+            stages,
+            detours,
+            current,
+            touchpoints,
+            history,
+            start,
+            end,
+            ..
+        } => {
+            if stages.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.stages", path),
+                    "missing_field",
+                    "journey_track requires at least one stage",
+                    Some("Add stages with label: and an optional date:.".into()),
+                ));
+            }
+            let mut dates: Vec<(String, &str)> = Vec::new();
+            for (k, v) in [("start", start), ("end", end)] {
+                if let Some(d) = v {
+                    dates.push((format!("{}.{}", path, k), d));
+                }
+            }
+            for (i, s) in stages.iter().enumerate() {
+                if let Some(d) = &s.date {
+                    dates.push((format!("{}.stages[{}].date", path, i), d));
+                }
+            }
+            for (i, d) in detours.iter().enumerate() {
+                for (k, v) in [("from", &d.from), ("to", &d.to)] {
+                    if let Some(x) = v {
+                        dates.push((format!("{}.detours[{}].{}", path, i, k), x));
+                    }
+                }
+                if d.from.is_none() && d.after.is_none() {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.detours[{}]", path, i),
+                        "missing_field",
+                        "detour needs from: (dated) or after: (undated)",
+                        Some("Give from:/to: ISO dates, or after: <0-based stage index>.".into()),
+                    ));
+                }
+            }
+            if let Some(c) = current {
+                if let Some(d) = &c.date {
+                    dates.push((format!("{}.current.date", path), d));
+                }
+            }
+            for (i, t) in touchpoints.iter().enumerate() {
+                if let Some(d) = &t.date {
+                    dates.push((format!("{}.touchpoints[{}].date", path, i), d));
+                }
+            }
+            if let Some(h) = history {
+                for (i, e) in h.events.iter().enumerate() {
+                    dates.push((format!("{}.history.events[{}].date", path, i), &e.date));
+                }
+                if h.events.len() > 200 {
+                    errors.push(ValidationError::warning(
+                        file,
+                        format!("{}.history.events", path),
+                        "shape",
+                        format!("journey history has {} events", h.events.len()),
+                        Some(
+                            "Keep the log under 200 events; trim the oldest cadence notes.".into(),
+                        ),
+                    ));
+                }
+            }
+            for (p, d) in &dates {
+                check_iso_date(file, p, d, errors);
+            }
+            let has_date = |d: &Option<String>| d.is_some();
+            let flags: Vec<bool> = stages
+                .iter()
+                .map(|x| has_date(&x.date))
+                .chain(touchpoints.iter().map(|x| has_date(&x.date)))
+                .chain(current.iter().map(|x| has_date(&x.date)))
+                .chain(detours.iter().map(|x| has_date(&x.from)))
+                .collect();
+            if flags.iter().any(|f| *f) && !flags.iter().all(|f| *f) {
+                errors.push(ValidationError::warning(
+                    file,
+                    path,
+                    "shape",
+                    "journey_track mixes dated and undated elements, so it falls back to even spacing",
+                    Some("Date every stage, touchpoint, current and detour from:, or none of them.".into()),
+                ));
+            }
+            let s = start.as_deref().and_then(crate::freshness::parse_iso_date);
+            let e = end.as_deref().and_then(crate::freshness::parse_iso_date);
+            if let (Some(s), Some(e)) = (s, e) {
+                if s > e {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.start", path),
+                        "invalid_value",
+                        "journey_track start is after end",
+                        Some("Swap start: and end:, or drop one.".into()),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn check_href(file: &str, path: &str, href: Option<&str>, errors: &mut Vec<ValidationError>) {
+    if let Some(h) = href {
+        if !crate::types::safe_href_scheme(h) {
+            errors.push(ValidationError::new(
+                file,
+                path,
+                "invalid_value",
+                format!("href '{}' uses a scheme that is not allowed", h),
+                Some("Use http(s), mailto, tel, #anchor, /path or a relative path.".into()),
+            ));
+        }
+    }
+}
+
+fn check_share(file: &str, path: &str, share: Option<f64>, errors: &mut Vec<ValidationError>) {
+    if let Some(v) = share {
+        if !v.is_finite() || !(0.0..=100.0).contains(&v) {
+            errors.push(ValidationError::new(
+                file,
+                path,
+                "invalid_value",
+                format!("share must be a number from 0 to 100, got {}", v),
+                Some("share is a percentage, like 8.4.".into()),
+            ));
+        }
+    }
+}
+
+/// When `owners` is set, every owner used must be one of them (case-insensitive).
+fn check_owner(
+    file: &str,
+    path: &str,
+    owner: Option<&str>,
+    owners: &[String],
+    errors: &mut Vec<ValidationError>,
+) {
+    if let Some(o) = owner {
+        if !owners.is_empty() && !owners.contains(&o.trim().to_lowercase()) {
+            errors.push(ValidationError::new(
+                file,
+                path,
+                "cross_reference",
+                format!("owner '{}' is not in owners", o),
+                Some("Add it to owners:, or fix the spelling.".into()),
+            ));
+        }
+    }
+}
+
+fn check_shade(file: &str, path: &str, shade: Option<u8>, errors: &mut Vec<ValidationError>) {
+    if let Some(n) = shade {
+        if !(1..=4).contains(&n) {
+            errors.push(ValidationError::new(
+                file,
+                path,
+                "invalid_value",
+                format!("shade must be 1-4, got {}", n),
+                Some("1 = solid accent, 2 = 62%, 3 = 32%, 4 = hollow.".into()),
+            ));
+        }
+    }
+}
+
+fn check_iso_date(file: &str, path: &str, value: &str, errors: &mut Vec<ValidationError>) {
+    let v = value.trim();
+    if crate::freshness::parse_iso_date(v.get(..10).unwrap_or(v)).is_none() || v.len() < 10 {
+        errors.push(ValidationError::new(
+            file,
+            path,
+            "format",
+            format!("'{}' is not an ISO date", value),
+            Some("Use YYYY-MM-DD, like 2026-03-01.".into()),
+        ));
     }
 }
 
@@ -2520,6 +2879,131 @@ mod tests {
             errors.iter().any(|e| e.path.ends_with(".target")),
             "{errors:?}"
         );
+    }
+
+    #[test]
+    fn journey_track_rejects_bad_dates_and_reversed_range() {
+        let page = page_from_yaml(
+            "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    start: 2026-12-01\n    end: 2026-01-01\n    stages:\n      - { label: Onboarding, date: 2026-13-40 }\n    detours:\n      - { label: Save }\n",
+        );
+        let errors = validate_page("j.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.path.ends_with(".stages[0].date") && e.error_type == "format"),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.path.ends_with(".start") && e.error_type == "invalid_value"),
+            "{errors:?}"
+        );
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".detours[0]")),
+            "{errors:?}"
+        );
+
+        let page = page_from_yaml(
+            "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages: []\n",
+        );
+        let errors = validate_page("j.yaml", &page);
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".stages")),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn tier_summary_needs_tiers_and_iso_renewals() {
+        let page = page_from_yaml(
+            "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers:\n      - label: Good\n        count: 3\n        accounts:\n          - { name: A, renewal: soon }\n",
+        );
+        let errors = validate_page("t.yaml", &page);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].path.ends_with(".accounts[0].renewal"));
+
+        let page = page_from_yaml(
+            "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers: []\n",
+        );
+        assert!(!validate_page("t.yaml", &page).is_empty());
+    }
+
+    #[test]
+    fn next_steps_checks_account_refs_owners_and_history_dates() {
+        let page = page_from_yaml(
+            "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    owners: [Tyler, tyler]\n    accounts:\n      - { id: a, name: A }\n    steps:\n      - { label: X, account: b, due: soon }\n",
+        );
+        let errors = validate_page("n.yaml", &page);
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".owners[1]")),
+            "{errors:?}"
+        );
+        assert!(errors.iter().any(|e| e.path.ends_with(".steps[0].account") && e.error_type == "cross_reference"), "{errors:?}");
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".steps[0].due")),
+            "{errors:?}"
+        );
+
+        let page = page_from_yaml(
+            "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages:\n      - { label: A }\n    history:\n      events:\n        - { date: last week, label: X }\n",
+        );
+        let errors = validate_page("j.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.path.ends_with(".history.events[0].date")),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn hud_review_rules_reject_bad_hrefs_shares_ids_and_owners() {
+        let page = page_from_yaml(
+            "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers:\n      - { label: A, count: 1, share: 140, href: \"javascript:x\" }\n      - { label: a, count: 2, share: .nan, accounts: [{ name: N, href: \"data:text/html,x\" }] }\n",
+        );
+        let errors = validate_page("t.yaml", &page);
+        for want in [
+            ".tiers[0].href",
+            ".tiers[0].share",
+            ".tiers[1].label",
+            ".tiers[1].share",
+            ".tiers[1].accounts[0].href",
+        ] {
+            assert!(
+                errors.iter().any(|e| e.path.ends_with(want)),
+                "{want}: {errors:?}"
+            );
+        }
+        let page = page_from_yaml(
+            "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    owners: [Tyler]\n    accounts:\n      - { id: \"a b\", name: A, owner: Will }\n    steps:\n      - { label: X, account: \"a b\", owner: Sam, href: \"vbscript:x\" }\n  - type: next_steps\n    steps:\n      - { label: Y, account: zed }\n",
+        );
+        let errors = validate_page("n.yaml", &page);
+        for want in [
+            ".accounts[0].id",
+            ".accounts[0].owner",
+            ".steps[0].owner",
+            ".steps[0].href",
+            "components[1].steps[0].account",
+        ] {
+            assert!(
+                errors.iter().any(|e| e.path.ends_with(want)),
+                "{want}: {errors:?}"
+            );
+        }
+        let page = page_from_yaml(
+            "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages:\n      - { label: A, date: 2026-01-01 }\n      - { label: B }\n",
+        );
+        let errors = validate_page("j.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| !e.is_error() && e.message.contains("mixes dated")),
+            "{errors:?}"
+        );
+        assert!(crate::types::safe_href_scheme("https://x.dev/a:b"));
+        assert!(crate::types::safe_href_scheme("../page.html?x=1:2"));
+        assert!(!crate::types::safe_href_scheme(" JavaScript:alert(1)"));
     }
 
     #[test]

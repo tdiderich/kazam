@@ -209,6 +209,30 @@
       "now",
       "next",
       "later"
+    ],
+    "JourneyStatus": [
+      "completed",
+      "upcoming"
+    ],
+    "StepStatus": [
+      "overdue",
+      "due",
+      "upcoming",
+      "done"
+    ],
+    "HistoryKind": [
+      "stage",
+      "cadence",
+      "call",
+      "note"
+    ],
+    "NextOrder": [
+      "auto",
+      "as_written"
+    ],
+    "JourneyView": [
+      "timeline",
+      "details"
     ]
   },
   "types": {
@@ -1592,6 +1616,308 @@
         "required": false,
         "kind": "bool"
       }
+    },
+    "Tier": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "count": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "value": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "share": {
+        "type": "number",
+        "required": false,
+        "kind": "number"
+      },
+      "detail": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      },
+      "href": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      },
+      "active": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
+      },
+      "accounts": {
+        "type": "TierAccount[]",
+        "required": false,
+        "kind": "list"
+      }
+    },
+    "TierAccount": {
+      "name": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "value": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "share": {
+        "type": "number",
+        "required": false,
+        "kind": "number"
+      },
+      "renewal": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "detail": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "href": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "JourneyStage": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "date": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "status": {
+        "type": "JourneyStatus",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "JourneyDetour": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "from": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "to": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "after": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "JourneyCurrent": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "date": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "temporary": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "JourneyTouchpoint": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "date": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "status": {
+        "type": "JourneyStatus",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "HealthItem": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "tier": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      },
+      "shade": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "value": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "detail": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      }
+    },
+    "NextStep": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "detail": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "account": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      },
+      "due": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "status": {
+        "type": "StepStatus",
+        "required": false,
+        "kind": "enum"
+      },
+      "owner": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "href": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      }
+    },
+    "NextAccount": {
+      "id": {
+        "type": "string",
+        "required": true,
+        "kind": "id"
+      },
+      "name": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "stage": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      },
+      "shade": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "owner": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "href": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      }
+    },
+    "JourneyHistory": {
+      "events": {
+        "type": "HistoryEvent[]",
+        "required": false,
+        "kind": "list"
+      }
+    },
+    "HistoryEvent": {
+      "date": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "detail": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "kind": {
+        "type": "HistoryKind",
+        "required": false,
+        "kind": "enum"
+      }
     }
   },
   "components": {
@@ -2626,6 +2952,129 @@
         "required": false,
         "kind": "text"
       }
+    },
+    "tier_summary": {
+      "tiers": {
+        "type": "Tier[]",
+        "required": true,
+        "kind": "list"
+      },
+      "count_label": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "share_label": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
+    },
+    "journey_track": {
+      "stages": {
+        "type": "JourneyStage[]",
+        "required": true,
+        "kind": "list"
+      },
+      "detours": {
+        "type": "JourneyDetour[]",
+        "required": false,
+        "kind": "list"
+      },
+      "current": {
+        "type": "JourneyCurrent",
+        "required": false,
+        "kind": "object"
+      },
+      "touchpoints": {
+        "type": "JourneyTouchpoint[]",
+        "required": false,
+        "kind": "list"
+      },
+      "history": {
+        "type": "JourneyHistory",
+        "required": false,
+        "kind": "object"
+      },
+      "default_view": {
+        "type": "JourneyView",
+        "required": false,
+        "kind": "enum"
+      },
+      "title": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "start": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "end": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "end_label": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
+    },
+    "health_breakdown": {
+      "items": {
+        "type": "HealthItem[]",
+        "required": true,
+        "kind": "list"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
+    },
+    "next_steps": {
+      "steps": {
+        "type": "NextStep[]",
+        "required": false,
+        "kind": "list"
+      },
+      "accounts": {
+        "type": "NextAccount[]",
+        "required": false,
+        "kind": "list"
+      },
+      "owners": {
+        "type": "string[]",
+        "required": false,
+        "kind": "list"
+      },
+      "order": {
+        "type": "NextOrder",
+        "required": false,
+        "kind": "enum"
+      },
+      "title": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
     }
   },
   "guidance": {
@@ -2882,6 +3331,66 @@
         {
           "warn": "columns > 4",
           "say": "More than 4 columns collapses on any normal width. Use grid for diagrams or a table for data."
+        }
+      ]
+    },
+    "tier_summary": {
+      "use_when": "A portfolio split by health or segment: one card per tier with a count, an optional share bar, and the accounts behind it.",
+      "avoid_when": "Unrelated metrics (use stat_grid). More than six buckets (use table or chart).",
+      "example": "tier_summary",
+      "rules": [
+        {
+          "warn": "tiers < 2",
+          "say": "A tier summary compares tiers. Use stat_grid for a single number."
+        },
+        {
+          "warn": "tiers > 6",
+          "say": "More than 6 tiers stops reading as a row. Merge tiers or use a table."
+        }
+      ]
+    },
+    "journey_track": {
+      "use_when": "One account's path through lifecycle stages, with temporary stages (Save, Renewal) as detours and touchpoints underneath.",
+      "avoid_when": "Many accounts at once (use table). A dated event log with summaries (use event_timeline).",
+      "example": "journey_track",
+      "rules": [
+        {
+          "warn": "stages > 8",
+          "say": "More than 8 stages crowds the line. Keep the main stages and move the rest to touchpoints."
+        },
+        {
+          "warn": "touchpoints > 12",
+          "say": "More than 12 touchpoints overlap. Keep the ones that changed the journey."
+        }
+      ]
+    },
+    "health_breakdown": {
+      "use_when": "One account's health split by dimension: a card per dimension with its tier and the rule behind it.",
+      "avoid_when": "Many accounts (use table). Raw metrics without a tier (use stat_grid).",
+      "example": "health_breakdown",
+      "rules": [
+        {
+          "warn": "items > 8",
+          "say": "More than 8 dimensions stops scanning. Keep the ones that drive the overall tier."
+        },
+        {
+          "warn": "any(items, words(detail) > 14)",
+          "say": "Detail is one line. Keep it under 14 words."
+        }
+      ]
+    },
+    "next_steps": {
+      "use_when": "What to do next: to-do cards from the journey rules, or one expandable row per account with its open and overdue counts.",
+      "avoid_when": "A long backlog with dates and groups (use priority_queue).",
+      "example": "next_steps",
+      "rules": [
+        {
+          "warn": "steps > 12",
+          "say": "More than 12 steps is a backlog. Use priority_queue."
+        },
+        {
+          "warn": "accounts > 10",
+          "say": "More than 10 account rows is a long list. Filter by owner or split by team."
         }
       ]
     }

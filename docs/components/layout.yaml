@@ -13,7 +13,7 @@ components:
   - type: header
     title: Layout components
     eyebrow: Reference
-    subtitle: section, columns, grid, box, connector, divider, timeline, steps, progress_bar, empty_state
+    subtitle: section, columns, grid, box, connector, divider, timeline, journey_track, next_steps, steps, progress_bar, empty_state
 
   # ── section ───────────────────────────────
   - type: section
@@ -468,6 +468,125 @@ components:
                   - label: Blocks coverage
                     color: red
                     emphasis: true
+
+  # ── journey_track ─────────────────────────
+  - type: section
+    eyebrow: journey_track
+    heading: Journey track
+    components:
+      - type: markdown
+        body: |
+          One account's journey. Main stages sit on one line, temporary stages (Save,
+          Renewal) leave the line as a detour arc, and touchpoints sit in a band below.
+          The `current` marker pulses (off under reduced motion).
+
+          **Dated mode**: when every stage, touchpoint, `current` and detour `from` has an
+          ISO date, x is linear in time from `start` (default: earliest date) to `end`
+          (default: latest). **Even mode**: if any date is missing, stages are spaced
+          evenly in list order (`current` takes the last slot), detours use
+          `after: <0-based stage index>`, and touchpoints are spaced evenly.
+          Labels that would collide drop to a second (third, fourth) row.
+
+          Dated mode also adds time cues: each stage label gets the time spent in it
+          ("14w", detours included), the current marker shows "13d so far", and with
+          `end` a tick closes the axis with "Renews in 32d" (`end_label` changes the
+          word, like "Contract ends"). Hover or focus any dot, detour or the end tick
+          for the exact date and how long ago it was. Live counts are computed in the
+          browser, so a static page never shows a stale number.
+
+          Keep `touchpoints` to milestones. Dense cadence calls go in `history`. With it,
+          the header gets a Timeline | Details switcher (the same control as venn's), and
+          Details swaps the track for the log, newest first. `kind: stage` gets an accent
+          dot; cadence, call and note stay muted. `default_view: details` opens on the log.
+
+      - type: journey_track
+        id: account-journey
+        title: Journey
+        start: 2025-11-01
+        end: 2026-11-15
+        stages:
+          - { label: Onboarding, date: 2025-11-03 }
+          - { label: Operationalizing, date: 2026-02-12 }
+          - { label: Adopted, date: 2026-06-20 }
+        detours:
+          - { label: Save, from: 2026-03-20, to: 2026-05-20 }
+        current: { label: Renewal, date: 2026-10-01, temporary: true }
+        touchpoints:
+          - { label: Kickoff, date: 2025-11-25 }
+          - { label: Config review, date: 2026-02-25 }
+          - { label: Exec call, date: 2026-07-10 }
+          - { label: Renewal review, date: 2026-10-20, status: upcoming }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: journey_track
+            title: Journey
+            start: 2025-11-03          # optional; dated mode only
+            end: 2026-12-31            # optional; dated mode only, adds the end tick
+            end_label: Renews          # optional; "Contract ends" reads "Contract ends in 79d"
+            stages:
+              - { label: Onboarding, date: 2025-11-03 }             # status: completed (default) | upcoming
+              - { label: Operationalizing, date: 2026-01-12 }
+            detours:
+              - { label: Save, from: 2026-03-01, to: 2026-04-02, color: yellow }
+              # even mode: - { label: Save, after: 1 }
+            current: { label: Renewal, date: 2026-10-01, temporary: true, color: teal }
+            touchpoints:
+              - { label: Kickoff, date: 2025-11-05 }
+              - { label: Renewal review, date: 2026-09-30, status: upcoming }
+            default_view: timeline     # timeline (default) | details; needs history
+            history:                   # optional; the Details view, newest first
+              events:
+                - { date: 2025-11-12, label: Weekly cadence started, kind: cadence }   # stage | cadence | call | note
+                - { date: 2026-01-20, label: Cadence switched to biweekly, detail: "Config done" }
+
+  # ── next_steps ────────────────────────────
+  - type: section
+    eyebrow: next_steps
+    heading: Next steps
+    components:
+      - type: markdown
+        body: |
+          To-do cards: hollow circle, label, muted detail, optional due date
+          (`status: overdue` turns it red, `done` fills the circle).
+
+          Give it `accounts` and it becomes one row per account: name, stage, and
+          "N open · N overdue" (or "nothing due"). Click a row to open its steps under it;
+          several can be open. Rows sort overdue first, then by soonest due, then nothing
+          due (`order: as_written` keeps yours). A step detail that starts with
+          "<account name>: " drops that prefix inside its row. `?account=<id>` opens a row
+          on load, `owners` adds filter chips (`?owner=<name>`), and both write back to
+          the URL. Steps follow their account's owner, or their own `owner:`; items with
+          no owner stay visible under any filter. With an explicit `id`, the params are
+          namespaced (`?owner.<id>=`, `?account.<id>=`) so two boards on one page don't
+          fight; the bare names still work as a fallback.
+
+      - type: next_steps
+        id: owner-next
+        title: From the journey rules
+        owners: [Tyler, Will]
+        accounts:
+          - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler }
+          - { id: brightline, name: Brightline, stage: Adopted, shade: 1, owner: Tyler }
+          - { id: ostra, name: Ostra Health, stage: Renewal, shade: 2, owner: Will }
+        steps:
+          - { label: Book the renewal review, detail: "Ostra Health: contract ends in 120 days", account: ostra, due: 2026-10-24 }
+          - { label: Schedule the exec roadmap call, detail: "Brightline: Adopted, one every 90 days", account: brightline, due: 2026-11-04 }
+          - { label: Move past onboarding, detail: "Larkspur: day 52 of a 45 day target", account: larkspur, due: 2026-10-17, status: overdue }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: next_steps
+            title: From the journey rules   # optional eyebrow
+            owners: [Tyler, Will]           # optional; filter chips
+            order: auto                     # auto (default) | as_written
+            accounts:                       # optional; one expandable row each
+              - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler, href: ./larkspur }
+            steps:
+              - { label: Move past onboarding, detail: "Larkspur: day 52 of 45", account: larkspur, due: 2026-10-17, status: overdue }
+              - { label: Write the QBR deck, owner: Will, status: upcoming }   # overdue | due | upcoming | done
 
   # ── venn ──────────────────────────────────
   - type: section

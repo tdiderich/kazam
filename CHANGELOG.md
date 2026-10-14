@@ -4,6 +4,20 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.31.0] - 2026-10-14
+
+### Added
+- `tier_summary` component: one card per health tier with a swatch, big count, optional share bar (8.4 stays 8.4%) and detail line. Tiers with `accounts` open a panel listing each account's ARR and renewal date, soonest first, with an "in N days" note under 90 days. `?tier=<label>` opens a tier on load. Static and React renderers match.
+- `journey_track` component: one account's journey with main stages on a line, temporary stages as detour arcs, a pulsing current marker, and a touchpoint band. Dated mode is linear in time; leave a date out and it spaces evenly in list order. Colliding labels drop to extra rows (a second pass covers half-width columns). Optional `history` adds a Details view (newest-first log for dense cadence calls) behind a Timeline | Details switcher styled like venn's; `default_view` picks the first view. In dated mode it adds rough time cues: time in each stage, "N so far" on the current marker, an end tick ("Renews in 32d", `end_label` to rename), relative times in Details, and styled date tooltips on hover and focus.
+- `health_breakdown` component: one card per health dimension with a tier swatch, mono tier name, optional value and the rule behind it.
+- `next_steps` component: to-do cards with due dates and status. With `accounts` it renders one expandable row per account ("N open · N overdue" or "nothing due"), sorted overdue first, then soonest due (`order: as_written` to opt out); `?account=<id>` opens a row and `owners` adds filter chips with `?owner=<name>`.
+- `tier_summary` cards lead the share row with the tier's dollars (`value`, with `share_label` as a small unit) and the share on the right; the accounts panel shows the tier total and each account's `share`.
+- HUD components only emit http(s), mailto, tel, anchor and path links (validate rejects other schemes), keep panels readable without JS and in print, give unnamed instances unique ids, and namespace URL params by component `id`.
+- `tier_summary` tiers without a `color` take accent shades by position (solid, 62%, 32%, hollow). `health_breakdown` and `next_steps` take the same shades through `shade: 1-4`.
+
+### Security
+- Bump `rustls` to 0.23.46 for RUSTSEC-2026-0346, -0347, -0348 and -0349.
+
 ## [1.30.1] - 2026-09-28
 
 ### Changed

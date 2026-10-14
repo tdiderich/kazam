@@ -17,6 +17,9 @@ pub fn get(name: &str) -> Option<&'static str> {
         "queue_filter" => Some(QUEUE_FILTER),
         "motion" => Some(MOTION),
         "sequence" => Some(SEQUENCE),
+        "tier_summary" => Some(TIER_SUMMARY),
+        "next_steps" => Some(NEXT_STEPS),
+        "journey_track" => Some(JOURNEY_TRACK),
         _ => None,
     }
 }
@@ -941,5 +944,218 @@ document.querySelectorAll('[data-sequence]').forEach(function (root) {
     else if (e.key === 'Escape') { off(); }
   });
   if (prev) prev.disabled = true;
+});
+"#;
+
+const TIER_SUMMARY: &str = r#"
+document.querySelectorAll('[data-tier-summary]').forEach(function (root) {
+  var ns = root.getAttribute('data-kz-param');
+  function param(p, k) { return (ns && p.get(k + '.' + ns)) || p.get(k) || ''; }
+  var btns = Array.prototype.slice.call(root.querySelectorAll('[data-tier-toggle]'));
+  var panels = Array.prototype.slice.call(root.querySelectorAll('[data-tier-panel]'));
+  function open(i) {
+    btns.forEach(function (b) {
+      var on = b.getAttribute('data-tier-toggle') === String(i);
+      b.setAttribute('aria-expanded', on ? 'true' : 'false');
+      b.classList.toggle('is-open', on);
+    });
+    panels.forEach(function (p) { p.hidden = p.getAttribute('data-tier-panel') !== String(i); });
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      open(b.getAttribute('aria-expanded') === 'true' ? -1 : b.getAttribute('data-tier-toggle'));
+    });
+  });
+  var now = new Date();
+  var today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  root.querySelectorAll('[data-renewal]').forEach(function (row) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(row.getAttribute('data-renewal') || '');
+    if (!m) return;
+    var days = Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - today) / 86400000);
+    if (days < 0 || days >= 90) return;
+    row.classList.add('is-soon');
+    var soon = row.querySelector('[data-tier-soon]');
+    if (soon) { soon.textContent = days === 0 ? 'today' : 'in ' + days + (days === 1 ? ' day' : ' days'); soon.hidden = false; }
+  });
+  // Panels ship open for no-JS and print; collapse them, then honor ?tier=.
+  var want = param(new URLSearchParams(location.search), 'tier').trim().toLowerCase();
+  var hit = btns.filter(function (b) { return want && (b.getAttribute('data-tier-label') || '').trim().toLowerCase() === want; })[0];
+  open(hit ? hit.getAttribute('data-tier-toggle') : -1);
+});
+"#;
+
+const JOURNEY_TRACK: &str = r#"
+(function () {
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var now = new Date();
+  var today = Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+  function day(iso) {
+    var m = /^(-?\d+)-(\d+)-(\d+)$/.exec((iso || '').slice(0, 10));
+    return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : null;
+  }
+  function span(d) {
+    d = Math.max(0, d);
+    return d < 60 ? d + 'd' : d < 120 ? Math.round(d / 7) + 'w' : Math.round(d / 30.44) + 'mo';
+  }
+  function longDate(iso) {
+    var p = (iso || '').slice(0, 10).split('-');
+    var mi = parseInt(p[1], 10);
+    return mi >= 1 && mi <= 12 ? MONTHS[mi - 1] + ' ' + parseInt(p[2], 10) + ', ' + p[0] : iso;
+  }
+  function relLong(d) {
+    var n = Math.abs(d);
+    if (d === 0) return 'today';
+    var unit = n === 1 ? ' day' : ' days';
+    return d > 0 ? n + unit + ' ago' : 'in ' + n + unit;
+  }
+  function relShort(d) { return d === 0 ? 'today' : d > 0 ? span(d) + ' ago' : 'in ' + span(-d); }
+  document.querySelectorAll('[data-journey]').forEach(function (root) {
+    root.querySelectorAll('[data-jt-since]').forEach(function (el) {
+      var d = day(el.getAttribute('data-jt-since'));
+      if (d === null || today < d) return;
+      el.textContent = span(today - d) + ' so far';
+      el.hidden = false;
+    });
+    root.querySelectorAll('[data-jt-until]').forEach(function (el) {
+      var d = day(el.getAttribute('data-jt-until'));
+      if (d === null) return;
+      el.textContent = d >= today
+        ? el.getAttribute('data-jt-end') + ' in ' + (d - today) + 'd'
+        : el.getAttribute('data-jt-end-past') + ' ' + (today - d) + 'd ago';
+    });
+    root.querySelectorAll('[data-jt-rel]').forEach(function (el) {
+      var d = day(el.getAttribute('data-jt-rel'));
+      if (d === null) return;
+      el.textContent = relShort(today - d);
+      el.hidden = false;
+      var row = el.closest('li');
+      if (row) row.title = longDate(el.getAttribute('data-jt-rel')) + ' · ' + relShort(today - d);
+    });
+    var tip = root.querySelector('.c-jt-tip');
+    function showTip(el) {
+      if (!tip) return;
+      var from = el.getAttribute('data-jt-tip'), to = el.getAttribute('data-jt-tip-to');
+      var d = day(from);
+      tip.innerHTML = '';
+      var name = document.createElement('span');
+      name.className = 'c-jt-tip-name';
+      name.textContent = el.getAttribute('data-jt-tip-name') || '';
+      var when = document.createElement('span');
+      when.className = 'c-jt-tip-date';
+      when.textContent = longDate(from) + (to ? ' to ' + longDate(to) : '') + (d === null ? '' : ' · ' + relLong(today - d));
+      tip.appendChild(name);
+      tip.appendChild(when);
+      tip.hidden = false;
+      var r = root.getBoundingClientRect(), t = el.getBoundingClientRect();
+      var w = tip.offsetWidth, h = tip.offsetHeight;
+      var x = Math.min(Math.max(4, t.left + t.width / 2 - r.left - w / 2), Math.max(4, r.width - w - 4));
+      var y = t.top - r.top - h - 8;
+      if (y < 0) y = t.bottom - r.top + 8;
+      tip.style.left = x + 'px';
+      tip.style.top = y + 'px';
+    }
+    function hideTip() { if (tip) tip.hidden = true; }
+    root.querySelectorAll('[data-jt-tip]').forEach(function (el) {
+      el.removeAttribute('title');
+      el.addEventListener('mouseenter', function () { showTip(el); });
+      el.addEventListener('focus', function () { showTip(el); });
+      el.addEventListener('mouseleave', hideTip);
+      el.addEventListener('blur', hideTip);
+    });
+    var buttons = root.querySelectorAll('button[data-jt-view]');
+    var panels = root.querySelectorAll('[data-jt-panel]');
+    var details = root.querySelector('.c-jt-details');
+    function fade() {
+      if (!details) return;
+      details.classList.toggle('has-more', details.scrollTop + details.clientHeight < details.scrollHeight - 2);
+    }
+    function show(view) {
+      buttons.forEach(function (b) {
+        var on = b.getAttribute('data-jt-view') === view;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      panels.forEach(function (p) { p.hidden = p.getAttribute('data-jt-panel') !== view; });
+      hideTip();
+      fade();
+    }
+    if (details) {
+      details.addEventListener('scroll', fade, { passive: true });
+      window.addEventListener('resize', fade);
+    }
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () { show(b.getAttribute('data-jt-view')); });
+    });
+    // Both views ship visible for no-JS and print; show one.
+    if (panels.length) show(root.getAttribute('data-default-view') === 'details' ? 'details' : 'timeline');
+  });
+})();
+"#;
+
+const NEXT_STEPS: &str = r#"
+document.querySelectorAll('[data-next-steps]').forEach(function (root) {
+  var ns = root.getAttribute('data-kz-param');
+  function key(k) { return ns ? k + '.' + ns : k; }
+  var params = new URLSearchParams(location.search);
+  function param(k) { return (ns && params.get(k + '.' + ns)) || params.get(k) || ''; }
+  var chips = Array.prototype.slice.call(root.querySelectorAll('[data-owner-chip]'));
+  var rows = Array.prototype.slice.call(root.querySelectorAll('[data-acct-toggle]'));
+  function writeUrl(k, value) {
+    try {
+      var u = new URL(location.href);
+      if (ns) u.searchParams.delete(k);
+      if (value) u.searchParams.set(key(k), value); else u.searchParams.delete(key(k));
+      history.replaceState(history.state, '', u.toString());
+    } catch (e) {}
+  }
+  function setOpen(btn, on) {
+    var item = btn.closest('[data-acct]');
+    var pid = btn.getAttribute('aria-controls');
+    var panel = null;
+    root.querySelectorAll('.c-next-acct-steps').forEach(function (p) { if (p.id === pid) panel = p; });
+    btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    if (item) item.classList.toggle('is-open', on);
+    if (panel) panel.hidden = !on;
+  }
+  function syncAccounts() {
+    var open = rows.filter(function (b) { return b.getAttribute('aria-expanded') === 'true'; })
+      .sort(function (a, b) { return +a.getAttribute('data-acct-i') - +b.getAttribute('data-acct-i'); })
+      .map(function (b) { return b.getAttribute('data-acct-toggle'); });
+    writeUrl('account', open.join(','));
+  }
+  rows.forEach(function (b) {
+    b.addEventListener('click', function () {
+      setOpen(b, b.getAttribute('aria-expanded') !== 'true');
+      syncAccounts();
+    });
+  });
+  function setOwner(owner, write) {
+    var k = (owner || '').trim().toLowerCase();
+    chips.forEach(function (c) {
+      var on = (c.getAttribute('data-owner-chip') || '').trim().toLowerCase() === k;
+      c.classList.toggle('is-active', on);
+      c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    root.querySelectorAll('[data-owner]').forEach(function (el) {
+      var o = (el.getAttribute('data-owner') || '').trim().toLowerCase();
+      el.hidden = !!k && o !== k;
+    });
+    if (write) writeUrl('owner', owner);
+  }
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () { setOwner(c.getAttribute('data-owner-chip'), true); });
+  });
+  var want = param('owner').trim().toLowerCase();
+  var match = chips.filter(function (c) { return want && (c.getAttribute('data-owner-chip') || '').trim().toLowerCase() === want; })[0];
+  if (match) setOwner(match.getAttribute('data-owner-chip'), false);
+  // Rows ship expanded for no-JS and print; collapse all but ?account=.
+  var ids = param('account').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  var first = null;
+  rows.forEach(function (b) {
+    var on = ids.indexOf(b.getAttribute('data-acct-toggle')) >= 0;
+    setOpen(b, on);
+    if (on && !first) first = b;
+  });
+  if (first && first.scrollIntoView) first.scrollIntoView({ block: 'center' });
 });
 "#;

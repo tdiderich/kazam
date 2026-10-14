@@ -1,87 +1,271 @@
-scanned: 2026-08-25T12:56:38.447989-05:00
+scanned: 2026-10-14T13:32:37.701854-05:00
 files:
 - path: agenda/acme.yaml
   description: YAML configuration/data
   tokens: 352
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 0d75b099048b5630373a
+  size: 1410
+  mtime_ms: 1791995031886
+  outline:
+  - L1 title
+  - L2 shell
+  - L3 eyebrow
+  - L4 subtitle
+  - L6 components
+  desc_source: heuristic
 - path: customers/acme.yaml
   description: YAML configuration/data
   tokens: 351
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: af35c2a6a695b83accb6
+  size: 1404
+  mtime_ms: 1791995031887
+  outline:
+  - L1 title
+  - L2 shell
+  - L4 components
+  desc_source: heuristic
 - path: customers/beta.yaml
   description: YAML configuration/data
   tokens: 402
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 3999cae7200f86e76269
+  size: 1611
+  mtime_ms: 1791995031887
+  outline:
+  - L1 title
+  - L2 shell
+  - L4 components
+  desc_source: heuristic
 - path: customers/gamma.yaml
   description: YAML configuration/data
   tokens: 291
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: d00f08c8bbefc4ab0a6b
+  size: 1166
+  mtime_ms: 1791995031887
+  outline:
+  - L1 title
+  - L2 shell
+  - L4 components
+  desc_source: heuristic
 - path: demo/charts.yaml
   description: YAML configuration/data
   tokens: 840
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 88f53ee42c0c58718a66
+  size: 3363
+  mtime_ms: 1791995031888
+  outline:
+  - L1 title
+  - L2 shell
+  - L4 components
+  desc_source: heuristic
+- path: demo/customer-hud.yaml
+  description: YAML configuration/data
+  tokens: 1438
+  reads: 0
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: d68035abf32d998f6562
+  size: 5754
+  mtime_ms: 1791998469584
+  outline:
+  - L1 title
+  - L2 shell
+  - L3 components
+  desc_source: heuristic
+- path: demo/maze-code-analysis.yaml
+  description: YAML configuration/data
+  tokens: 2713
+  reads: 0
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: fedf2d9804085bebba2d
+  size: 10855
+  mtime_ms: 1791995031888
+  outline:
+  - L1 title
+  - L2 shell
+  - L3 print_flow
+  - L4 motion
+  - L6 components
+  desc_source: heuristic
 - path: demo/primitives.yaml
   description: YAML configuration/data
   tokens: 1247
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 21398e7763569a9766f4
+  size: 4990
+  mtime_ms: 1791995031889
+  outline:
+  - L1 title
+  - L2 shell
+  - L4 components
+  desc_source: heuristic
 - path: demo/priority-queue.yaml
   description: YAML configuration/data
   tokens: 1292
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 7c008e631b08982b3cef
+  size: 5169
+  mtime_ms: 1791995031889
+  outline:
+  - L1 title
+  - L2 shell
+  - L4 components
+  desc_source: heuristic
 - path: deployment-phases.yaml
   description: YAML configuration/data
   tokens: 290
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: fbf675b94ed0b4348716
+  size: 1161
+  mtime_ms: 1791995031889
+  outline:
+  - L1 title
+  - L2 shell
+  - L4 components
+  desc_source: heuristic
 - path: index.yaml
   description: YAML configuration/data
   tokens: 232
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: f552185ef88f429d59da
+  size: 931
+  mtime_ms: 1791995031890
+  outline:
+  - L1 title
+  - L2 shell
+  - L4 components
+  desc_source: heuristic
 - path: kazam.yaml
   description: YAML configuration/data
   tokens: 50
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: c26074aaaaaabd8c58e9
+  size: 201
+  mtime_ms: 1791995031890
+  outline:
+  - L1 name
+  - L2 theme
+  - L3 nav
+  desc_source: heuristic
 - path: prompts/add.yaml
   description: YAML configuration/data
   tokens: 510
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 0486989f98ca765a5e25
+  size: 2040
+  mtime_ms: 1791995031890
+  outline:
+  - L1 name
+  - L2 description
+  - L3 model
+  - L4 system_prompt
+  - L45 tools
+  - L51 tags
+  desc_source: heuristic
 - path: prompts/audit.yaml
   description: YAML configuration/data
   tokens: 430
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 6cd5f2ba6fba436453c9
+  size: 1722
+  mtime_ms: 1791995031891
+  outline:
+  - L1 name
+  - L2 description
+  - L3 model
+  - L4 system_prompt
+  - L47 tools
+  - L52 tags
+  desc_source: heuristic
 - path: prompts/migrate.yaml
   description: YAML configuration/data
   tokens: 508
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 66611333ba731693cba7
+  size: 2034
+  mtime_ms: 1791995031891
+  outline:
+  - L1 name
+  - L2 description
+  - L3 model
+  - L4 system_prompt
+  - L44 tools
+  - L50 tags
+  desc_source: heuristic
 - path: prompts/refresh.yaml
   description: YAML configuration/data
   tokens: 466
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: fc70653af34befcbf981
+  size: 1865
+  mtime_ms: 1791995031891
+  outline:
+  - L1 name
+  - L2 description
+  - L3 model
+  - L4 system_prompt
+  - L38 tools
+  - L44 tags
+  desc_source: heuristic
 - path: prompts/reviewer.yaml
   description: YAML configuration/data
   tokens: 169
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 41f5ee8347f364c55afb
+  size: 679
+  mtime_ms: 1791995031892
+  outline:
+  - L1 name
+  - L2 description
+  - L3 system_prompt
+  - L16 tools
+  - L20 tags
+  desc_source: heuristic
 - path: prompts/writer.yaml
   description: YAML configuration/data
   tokens: 108
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: 6c2e861c7a4658c3f82e
+  size: 435
+  mtime_ms: 1791995031892
+  outline:
+  - L1 name
+  - L2 description
+  - L3 system_prompt
+  - L8 tools
+  - L13 tags
+  desc_source: heuristic
 - path: qbr/acme.yaml
   description: YAML configuration/data
   tokens: 477
   reads: 0
-  last_scanned: 2026-08-25T12:56:38.447989-05:00
+  last_scanned: 2026-10-14T13:32:37.701854-05:00
+  sha: fc7981e897ab984ccd5b
+  size: 1910
+  mtime_ms: 1791995031892
+  outline:
+  - L1 title
+  - L2 shell
+  - L3 eyebrow
+  - L4 subtitle
+  - L6 slides
+  desc_source: heuristic

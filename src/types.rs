@@ -1111,6 +1111,89 @@ pub enum Component {
         #[serde(default)]
         animate: Option<Animate>,
     },
+    /// One card per health tier, side by side: swatch + label, a big count,
+    /// an optional share bar. A tier with `accounts` opens a panel listing
+    /// them (ARR + renewal) when clicked.
+    TierSummary {
+        tiers: Vec<Tier>,
+        #[serde(default)]
+        count_label: Option<String>,
+        #[serde(default)]
+        share_label: Option<String>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
+    /// One card per health dimension: label, tier swatch + name, detail.
+    HealthBreakdown {
+        items: Vec<HealthItem>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
+    /// To-do cards. With `accounts`, one row per account that expands to
+    /// its steps. `owners` adds filter chips.
+    NextSteps {
+        #[serde(default)]
+        steps: Vec<NextStep>,
+        #[serde(default)]
+        accounts: Vec<NextAccount>,
+        #[serde(default)]
+        owners: Vec<String>,
+        /// Account row order: `auto` (overdue first, then soonest due) or
+        /// `as_written`.
+        #[serde(default)]
+        order: NextOrder,
+        #[serde(default)]
+        title: Option<String>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
+    /// One account's journey: main stages on a horizontal line, temporary
+    /// stages as detour arcs, touchpoints as dots in a band below. Dated
+    /// when every element has a date (x is linear in time), else evenly
+    /// spaced in list order.
+    JourneyTrack {
+        stages: Vec<JourneyStage>,
+        #[serde(default)]
+        detours: Vec<JourneyDetour>,
+        #[serde(default)]
+        current: Option<JourneyCurrent>,
+        #[serde(default)]
+        touchpoints: Vec<JourneyTouchpoint>,
+        /// Verbose log shown by the Details view toggle.
+        #[serde(default)]
+        history: Option<JourneyHistory>,
+        /// Which view shows first when `history` is given.
+        #[serde(default)]
+        default_view: JourneyView,
+        #[serde(default)]
+        title: Option<String>,
+        #[serde(default)]
+        start: Option<String>,
+        #[serde(default)]
+        end: Option<String>,
+        /// Word for the end of the axis: "Renews" (default) or, say,
+        /// "Contract ends". Shown as "Renews in 79d".
+        #[serde(default)]
+        end_label: Option<String>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
 }
 
 impl Component {
@@ -1170,7 +1253,11 @@ impl Component {
             | Component::OrgChart { scale, .. }
             | Component::Aside { scale, .. }
             | Component::RuleList { scale, .. }
-            | Component::Gauge { scale, .. } => *scale,
+            | Component::Gauge { scale, .. }
+            | Component::TierSummary { scale, .. }
+            | Component::HealthBreakdown { scale, .. }
+            | Component::NextSteps { scale, .. }
+            | Component::JourneyTrack { scale, .. } => *scale,
         }
     }
 
@@ -1230,7 +1317,11 @@ impl Component {
             | Component::OrgChart { animate, .. }
             | Component::Aside { animate, .. }
             | Component::RuleList { animate, .. }
-            | Component::Gauge { animate, .. } => *animate,
+            | Component::Gauge { animate, .. }
+            | Component::TierSummary { animate, .. }
+            | Component::HealthBreakdown { animate, .. }
+            | Component::NextSteps { animate, .. }
+            | Component::JourneyTrack { animate, .. } => *animate,
         }
     }
 }
@@ -1306,11 +1397,286 @@ pub(crate) fn valid_hex_color(s: &str) -> bool {
     matches!(rest.len(), 3 | 6 | 8) && rest.chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// True for hrefs that are safe to emit: http(s), mailto, tel, `#`
+/// anchors, `/` site paths and relative paths. Anything else with a
+/// scheme (`javascript:`, `data:`, `vbscript:`) is rejected.
+pub(crate) fn safe_href_scheme(href: &str) -> bool {
+    let h = href.trim();
+    let end = h.find(['/', '?', '#']).unwrap_or(h.len());
+    match h[..end].find(':') {
+        None => true,
+        Some(i) => matches!(
+            h[..i].to_ascii_lowercase().as_str(),
+            "http" | "https" | "mailto" | "tel"
+        ),
+    }
+}
+
 /// Resolves an optional `hex` override against a semantic color, dropping
 /// invalid overrides silently.
 pub(crate) fn resolve_hex(hex: Option<&str>, color: SemColor) -> &str {
     hex.filter(|h| valid_hex_color(h))
         .unwrap_or_else(|| color.hex())
+}
+
+/// A YAML scalar read as text: `count: 6` and `count: "6"` both work.
+fn string_or_number<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    let v = serde_yaml::Value::deserialize(d)?;
+    match v {
+        serde_yaml::Value::String(s) => Ok(s),
+        serde_yaml::Value::Number(n) => Ok(n.to_string()),
+        serde_yaml::Value::Bool(b) => Ok(b.to_string()),
+        _ => Err(serde::de::Error::custom("expected a string or number")),
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct Tier {
+    pub label: String,
+    #[serde(deserialize_with = "string_or_number")]
+    pub count: String,
+    /// Tier dollars, like `$406K`; leads the share row.
+    #[serde(default)]
+    pub value: Option<String>,
+    /// 0-100 bar width. Shown as given: 8.4 stays 8.4%.
+    #[serde(default)]
+    pub share: Option<f64>,
+    #[serde(default)]
+    pub detail: Option<String>,
+    /// Unset = accent shade by position (solid, 62%, 32%, hollow).
+    #[serde(default)]
+    pub color: Option<SemColor>,
+    /// Whole card links here. A linked card never expands.
+    #[serde(default)]
+    pub href: Option<String>,
+    #[serde(default)]
+    pub active: bool,
+    /// Accounts in the tier; clicking the card opens a panel listing them.
+    #[serde(default)]
+    pub accounts: Vec<TierAccount>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct TierAccount {
+    pub name: String,
+    /// ARR, as text: `$71K`.
+    #[serde(default)]
+    pub value: Option<String>,
+    /// Share of total ARR, 0-100; shown after the dollars.
+    #[serde(default)]
+    pub share: Option<f64>,
+    /// ISO renewal date. Rows sort by it, soonest first.
+    #[serde(default)]
+    pub renewal: Option<String>,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub href: Option<String>,
+    /// Swatch color; defaults to the tier's.
+    #[serde(default)]
+    pub color: Option<SemColor>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct HealthItem {
+    pub label: String,
+    /// Tier name shown on the right, like `Outstanding`.
+    #[serde(default)]
+    pub tier: Option<String>,
+    #[serde(default)]
+    pub color: Option<SemColor>,
+    /// Accent shade 1-4 (solid, 62%, 32%, hollow) when no `color`.
+    #[serde(default)]
+    pub shade: Option<u8>,
+    /// Figure shown before the detail, like `52.84%`.
+    #[serde(default, deserialize_with = "opt_string_or_number")]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StepStatus {
+    Overdue,
+    Due,
+    Upcoming,
+    Done,
+}
+
+impl StepStatus {
+    pub fn class(&self) -> &'static str {
+        match self {
+            StepStatus::Overdue => "is-overdue",
+            StepStatus::Due => "is-due",
+            StepStatus::Upcoming => "is-upcoming",
+            StepStatus::Done => "is-done",
+        }
+    }
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NextOrder {
+    #[default]
+    Auto,
+    AsWritten,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct NextStep {
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    /// Id of an entry in `accounts` (board mode).
+    #[serde(default)]
+    pub account: Option<String>,
+    /// ISO due date, shown right-aligned.
+    #[serde(default)]
+    pub due: Option<String>,
+    #[serde(default)]
+    pub status: Option<StepStatus>,
+    /// Owner for the filter when the step has no account.
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub href: Option<String>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct NextAccount {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub stage: Option<String>,
+    #[serde(default)]
+    pub color: Option<SemColor>,
+    #[serde(default)]
+    pub shade: Option<u8>,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub href: Option<String>,
+}
+
+fn opt_string_or_number<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<String>, D::Error> {
+    let v = Option::<serde_yaml::Value>::deserialize(d)?;
+    match v {
+        None | Some(serde_yaml::Value::Null) => Ok(None),
+        Some(serde_yaml::Value::String(s)) => Ok(Some(s)),
+        Some(serde_yaml::Value::Number(n)) => Ok(Some(n.to_string())),
+        Some(serde_yaml::Value::Bool(b)) => Ok(Some(b.to_string())),
+        _ => Err(serde::de::Error::custom("expected a string or number")),
+    }
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JourneyStatus {
+    #[default]
+    Completed,
+    Upcoming,
+}
+
+impl JourneyStatus {
+    pub fn class(&self) -> &'static str {
+        match self {
+            JourneyStatus::Completed => "is-completed",
+            JourneyStatus::Upcoming => "is-upcoming",
+        }
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct JourneyStage {
+    pub label: String,
+    #[serde(default)]
+    pub date: Option<String>,
+    #[serde(default)]
+    pub status: JourneyStatus,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct JourneyDetour {
+    pub label: String,
+    /// Dated mode: ISO date the detour starts.
+    #[serde(default)]
+    pub from: Option<String>,
+    /// Dated mode: ISO date it ends. Missing = a short arc after `from`.
+    #[serde(default)]
+    pub to: Option<String>,
+    /// Undated mode: 0-based index of the stage the detour follows.
+    #[serde(default)]
+    pub after: Option<usize>,
+    #[serde(default)]
+    pub color: SemColor,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct JourneyCurrent {
+    pub label: String,
+    #[serde(default)]
+    pub date: Option<String>,
+    /// A temporary stage (Save, Renewal): label drawn above the line.
+    #[serde(default)]
+    pub temporary: bool,
+    #[serde(default)]
+    pub color: SemColor,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct JourneyHistory {
+    #[serde(default)]
+    pub events: Vec<HistoryEvent>,
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JourneyView {
+    #[default]
+    Timeline,
+    Details,
+}
+
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HistoryKind {
+    Stage,
+    Cadence,
+    Call,
+    Note,
+}
+
+impl HistoryKind {
+    pub fn class(&self) -> &'static str {
+        match self {
+            HistoryKind::Stage => "is-stage",
+            HistoryKind::Cadence => "is-cadence",
+            HistoryKind::Call => "is-call",
+            HistoryKind::Note => "is-note",
+        }
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct HistoryEvent {
+    pub date: String,
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub kind: Option<HistoryKind>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct JourneyTouchpoint {
+    pub label: String,
+    #[serde(default)]
+    pub date: Option<String>,
+    #[serde(default)]
+    pub status: JourneyStatus,
 }
 
 #[derive(Deserialize)]

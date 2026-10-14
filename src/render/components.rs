@@ -1,6 +1,6 @@
 use pulldown_cmark::{html as md_html, Event, Options, Parser as MdParser, Tag};
 
-use super::{charts, esc, resolve_href, slug, Rendered};
+use super::{charts, esc, resolve_href, safe_href, slug, Rendered};
 use crate::icons;
 use crate::types::*;
 
@@ -324,6 +324,63 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             *show_counts,
             *filterable,
             title.as_deref(),
+        ),
+        Component::TierSummary {
+            tiers,
+            count_label,
+            share_label,
+            id,
+            ..
+        } => tier_summary(
+            tiers,
+            count_label.as_deref(),
+            share_label.as_deref(),
+            id.as_deref(),
+            base,
+        ),
+        Component::HealthBreakdown { items, id, .. } => health_breakdown(items, id.as_deref()),
+        Component::NextSteps {
+            steps,
+            accounts,
+            owners,
+            order,
+            title,
+            id,
+            ..
+        } => next_steps(
+            steps,
+            accounts,
+            owners,
+            *order,
+            title.as_deref(),
+            id.as_deref(),
+            base,
+        ),
+        Component::JourneyTrack {
+            stages,
+            detours,
+            current,
+            touchpoints,
+            history,
+            default_view,
+            title,
+            start,
+            end,
+            end_label,
+            id,
+            ..
+        } => journey_track(
+            stages,
+            detours,
+            current.as_ref(),
+            touchpoints,
+            history.as_ref(),
+            *default_view,
+            title.as_deref(),
+            start,
+            end,
+            end_label.as_deref(),
+            id.as_deref(),
         ),
     };
     apply_motion(apply_scale(rendered, c.scale()), c.animate())
@@ -3524,6 +3581,1203 @@ fn render_org_chart(
     Rendered::new(html)
 }
 
+// ── Tier Summary ──────────────────────────────────
+
+/// `Mar 3, 2027` from an ISO date; the raw text when it doesn't parse.
+fn fmt_long_date(iso: &str) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let s = iso.trim();
+    let s = s.get(..10).unwrap_or(s);
+    let mut p = s.split('-');
+    let (Some(y), Some(m), Some(d)) = (p.next(), p.next(), p.next()) else {
+        return iso.to_string();
+    };
+    match (m.parse::<usize>(), d.parse::<u32>()) {
+        (Ok(m), Ok(d)) if (1..=12).contains(&m) => format!("{} {}, {}", MONTHS[m - 1], d, y),
+        _ => iso.to_string(),
+    }
+}
+
+/// Accounts sorted by renewal date, soonest first; undated ones last.
+fn sorted_accounts(accounts: &[TierAccount]) -> Vec<&TierAccount> {
+    let mut v: Vec<&TierAccount> = accounts.iter().collect();
+    v.sort_by_key(|a| a.renewal.as_deref().and_then(jt_day).unwrap_or(i64::MAX));
+    v
+}
+
+/// Color class for a tier: its explicit color, or an accent shade by
+/// position (tier 1 solid, 2 at 62%, 3 at 32%, 4+ hollow).
+fn tier_color_class(color: Option<SemColor>, index: usize) -> String {
+    match color {
+        Some(c) => format!("c-tier-{}", sem_color_class(c)),
+        None => format!("c-tier-pos-{}", (index + 1).min(4)),
+    }
+}
+
+fn tier_summary(
+    tiers: &[Tier],
+    count_label: Option<&str>,
+    share_label: Option<&str>,
+    id: Option<&str>,
+    base: &str,
+) -> Rendered {
+    let count_label = count_label.unwrap_or("accounts");
+    // With a dollar value the label becomes a small unit suffix ("$406K ARR"),
+    // and only when the author set one.
+    let unit_label = share_label;
+    let share_label = share_label.unwrap_or("Share");
+    let any_share = tiers.iter().any(|t| t.share.is_some());
+    let link = |t: &Tier| t.href.as_deref().and_then(|h| safe_href(h, base));
+    let expands = |t: &Tier| link(t).is_none() && !t.accounts.is_empty();
+    let any_panel = tiers.iter().any(expands);
+    let prefix = hud_prefix(id, "tier-summary");
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let mut h = format!(
+        r#"<div{} class="c-tier-summary" data-tier-summary{}><div class="c-tier-row" data-kz-list="tiers" data-n="{}" style="--tier-n: {}">"#,
+        id_attr,
+        hud_param_attr(id),
+        tiers.len(),
+        tiers.len().max(1)
+    );
+    for (i, t) in tiers.iter().enumerate() {
+        let expandable = expands(t);
+        let mut cls = format!("c-tier {}", tier_color_class(t.color, i));
+        if t.active {
+            cls.push_str(" is-active");
+        }
+        if t.count.trim() == "0" {
+            cls.push_str(" is-empty");
+        }
+        if expandable {
+            cls.push_str(" is-expandable");
+        }
+        let (open, close) = if let Some(href) = link(t) {
+            (
+                format!(r#"<a class="{}" href="{}">"#, cls, esc(&href)),
+                "</a>",
+            )
+        } else if expandable {
+            (
+                format!(
+                    r#"<button type="button" class="{}" aria-expanded="false" aria-controls="{}-panel-{}" data-tier-toggle="{}" data-tier-label="{}">"#,
+                    cls,
+                    esc(&prefix),
+                    i,
+                    i,
+                    esc(&t.label)
+                ),
+                "</button>",
+            )
+        } else {
+            (format!(r#"<div class="{}">"#, cls), "</div>")
+        };
+        h.push_str(&open);
+        h.push_str(&format!(
+            r#"<span class="c-tier-head"><span class="c-tier-swatch"></span><span class="c-tier-label">{}</span>"#,
+            esc(&t.label)
+        ));
+        if expandable {
+            h.push_str(r#"<span class="c-tier-chevron" aria-hidden="true"></span>"#);
+        }
+        h.push_str("</span>");
+        h.push_str(&format!(
+            r#"<span class="c-tier-count">{}</span><span class="c-tier-count-label">{}</span>"#,
+            esc(&t.count),
+            esc(count_label)
+        ));
+        if t.value.is_some() || any_share {
+            h.push_str(&tier_money_row(t, any_share, share_label, unit_label));
+        }
+        if let Some(d) = &t.detail {
+            h.push_str(&format!(r#"<span class="c-tier-detail">{}</span>"#, esc(d)));
+        }
+        h.push_str(close);
+    }
+    h.push_str("</div>");
+    for (i, t) in tiers.iter().enumerate() {
+        if expands(t) {
+            h.push_str(&tier_panel(t, i, &prefix, base));
+        }
+    }
+    h.push_str("</div>");
+    let r = Rendered::new(h);
+    if any_panel {
+        r.with_script("tier_summary")
+    } else {
+        r
+    }
+}
+
+/// The row under the count: dollars lead with the share on the right, or
+/// (no `value`) the share label and number. The bar sits under it.
+fn tier_money_row(t: &Tier, any_share: bool, share_label: &str, unit: Option<&str>) -> String {
+    let mut h = String::from(r#"<span class="c-tier-share"><span class="c-tier-share-head">"#);
+    match &t.value {
+        Some(v) => {
+            h.push_str(&format!(r#"<span class="c-tier-money">{}"#, esc(v)));
+            if let Some(u) = unit {
+                h.push_str(&format!(
+                    r#"<span class="c-tier-money-unit">{}</span>"#,
+                    esc(u)
+                ));
+            }
+            h.push_str("</span>");
+        }
+        None => h.push_str(&format!(
+            r#"<span class="c-tier-share-label">{}</span>"#,
+            esc(share_label)
+        )),
+    }
+    if let Some(s) = hud_share(t.share) {
+        h.push_str(&format!(r#"<span class="c-tier-share-num">{}%</span>"#, s));
+    }
+    h.push_str("</span>");
+    if any_share {
+        let width = hud_share(t.share).unwrap_or(0.0);
+        h.push_str(&format!(
+            r#"<span class="c-tier-track"><span class="c-tier-fill{}" style="width: {}%"></span></span>"#,
+            if width <= 0.0 { " is-zero" } else { "" },
+            width
+        ));
+    }
+    h.push_str("</span>");
+    h
+}
+
+fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
+    let n = t.accounts.len();
+    let mut h = format!(
+        r#"<div class="c-tier-panel {}" id="{}-panel-{}" data-tier-panel="{}"><div class="c-tier-panel-head"><span class="c-tier-swatch"></span><span class="c-tier-panel-title">{}</span><span class="c-tier-panel-count">{} {}{}</span></div><ul class="c-tier-accounts">"#,
+        tier_color_class(t.color, i),
+        esc(prefix),
+        i,
+        i,
+        esc(&t.label),
+        n,
+        if n == 1 { "account" } else { "accounts" },
+        t.value
+            .as_deref()
+            .map(|v| format!(" · {}", esc(v)))
+            .unwrap_or_default()
+    );
+    for a in sorted_accounts(&t.accounts) {
+        let color = match a.color {
+            Some(c) => format!("c-tier-{}", sem_color_class(c)),
+            None => tier_color_class(t.color, i),
+        };
+        let renewal_attr = a
+            .renewal
+            .as_deref()
+            .map(|r| format!(r#" data-renewal="{}""#, esc(r.trim())))
+            .unwrap_or_default();
+        h.push_str(&format!(
+            r#"<li class="c-tier-acct {}"{}><span class="c-tier-acct-main"><span class="c-tier-swatch"></span><span class="c-tier-acct-text">"#,
+            color,
+            renewal_attr
+        ));
+        match a.href.as_deref().and_then(|h| safe_href(h, base)) {
+            Some(href) => h.push_str(&format!(
+                r#"<a class="c-tier-acct-name" href="{}">{}</a>"#,
+                esc(&href),
+                esc(&a.name)
+            )),
+            None => h.push_str(&format!(
+                r#"<span class="c-tier-acct-name">{}</span>"#,
+                esc(&a.name)
+            )),
+        }
+        if let Some(d) = &a.detail {
+            h.push_str(&format!(
+                r#"<span class="c-tier-acct-detail">{}</span>"#,
+                esc(d)
+            ));
+        }
+        h.push_str(r#"</span></span><span class="c-tier-acct-side">"#);
+        if let Some(v) = &a.value {
+            h.push_str(&format!(r#"<span class="c-tier-acct-value">{}"#, esc(v)));
+            if let Some(sh) = hud_share(a.share) {
+                h.push_str(&format!(
+                    r#"<span class="c-tier-acct-share"> · {}%</span>"#,
+                    sh
+                ));
+            }
+            h.push_str("</span>");
+        }
+        if let Some(r) = &a.renewal {
+            h.push_str(&format!(
+                r#"<span class="c-tier-acct-renewal">Renews {}<span class="c-tier-acct-soon" data-tier-soon hidden></span></span>"#,
+                esc(&fmt_long_date(r))
+            ));
+        }
+        h.push_str("</span></li>");
+    }
+    h.push_str("</ul></div>");
+    h
+}
+
+// ── HUD color helper ──────────────────────────────
+
+/// `c-hud-<color>` for an explicit color, else `c-hud-shade-<1..4>`
+/// (accent solid, 62%, 32%, hollow). Default is shade 1.
+fn hud_color_class(color: Option<SemColor>, shade: Option<u8>) -> String {
+    match color {
+        Some(c) => format!("c-hud-{}", sem_color_class(c)),
+        None => format!("c-hud-shade-{}", shade.unwrap_or(1).clamp(1, 4)),
+    }
+}
+
+/// `Oct 17` from an ISO date; the raw text when it doesn't parse.
+fn fmt_short_date(iso: &str) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let s = iso.trim();
+    let s = s.get(..10).unwrap_or(s);
+    let mut p = s.split('-');
+    let (Some(_), Some(m), Some(d)) = (p.next(), p.next(), p.next()) else {
+        return iso.to_string();
+    };
+    match (m.parse::<usize>(), d.parse::<u32>()) {
+        (Ok(m), Ok(d)) if (1..=12).contains(&m) => format!("{} {}", MONTHS[m - 1], d),
+        _ => iso.to_string(),
+    }
+}
+
+// ── Health Breakdown ──────────────────────────────
+
+fn health_breakdown(items: &[HealthItem], id: Option<&str>) -> Rendered {
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let mut h = format!(r#"<div{} class="c-health" data-kz-list="items">"#, id_attr);
+    for it in items {
+        h.push_str(&format!(
+            r#"<div class="c-health-item {}"><div class="c-health-main"><div class="c-health-label">{}</div>"#,
+            hud_color_class(it.color, it.shade),
+            esc(&it.label)
+        ));
+        if it.value.is_some() || it.detail.is_some() {
+            h.push_str(r#"<div class="c-health-detail">"#);
+            if let Some(v) = &it.value {
+                h.push_str(&format!(
+                    r#"<span class="c-health-value">{}</span>"#,
+                    esc(v)
+                ));
+            }
+            if let Some(d) = &it.detail {
+                h.push_str(&format!(r#"<span class="c-health-text">{}</span>"#, esc(d)));
+            }
+            h.push_str("</div>");
+        }
+        h.push_str("</div>");
+        if let Some(t) = &it.tier {
+            h.push_str(&format!(
+                r#"<div class="c-health-tier"><span class="c-hud-swatch"></span><span class="c-health-tier-name">{}</span></div>"#,
+                esc(t)
+            ));
+        }
+        h.push_str("</div>");
+    }
+    h.push_str("</div>");
+    Rendered::new(h)
+}
+
+// ── Next Steps ────────────────────────────────────
+
+fn next_step_owner<'a>(step: &'a NextStep, accounts: &'a [NextAccount]) -> Option<&'a str> {
+    match step
+        .account
+        .as_deref()
+        .and_then(|a| accounts.iter().find(|x| x.id == a))
+    {
+        Some(acct) => acct.owner.as_deref().or(step.owner.as_deref()),
+        None => step.owner.as_deref(),
+    }
+}
+
+fn owner_attr(owner: Option<&str>) -> String {
+    owner
+        .map(|o| format!(r#" data-owner="{}""#, esc(o)))
+        .unwrap_or_default()
+}
+
+fn next_link(cls: &str, label: &str, href: Option<&str>, base: &str) -> String {
+    match href.and_then(|h| safe_href(h, base)) {
+        Some(h) => format!(
+            r#"<a class="{}" href="{}">{}</a>"#,
+            cls,
+            esc(&h),
+            esc(label)
+        ),
+        None => format!(r#"<span class="{}">{}</span>"#, cls, esc(label)),
+    }
+}
+
+fn next_steps(
+    steps: &[NextStep],
+    accounts: &[NextAccount],
+    owners: &[String],
+    order: NextOrder,
+    title: Option<&str>,
+    id: Option<&str>,
+    base: &str,
+) -> Rendered {
+    let board = !accounts.is_empty();
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let today = hud_today();
+    let mut h = format!(
+        r#"<div{} class="c-next{}" data-next-steps{}>"#,
+        id_attr,
+        if board { " is-board" } else { "" },
+        hud_param_attr(id)
+    );
+    if !owners.is_empty() {
+        h.push_str(r#"<div class="c-next-chips" role="group" aria-label="Filter by owner"><button type="button" class="c-next-chip is-active" data-owner-chip="" aria-pressed="true">Owner: All</button>"#);
+        for o in owners {
+            h.push_str(&format!(
+                r#"<button type="button" class="c-next-chip" data-owner-chip="{}" aria-pressed="false">Owner: {}</button>"#,
+                esc(o),
+                esc(o)
+            ));
+        }
+        h.push_str("</div>");
+    }
+    if let Some(t) = title {
+        h.push_str(&format!(r#"<div class="c-next-title">{}</div>"#, esc(t)));
+    }
+    if board {
+        let prefix = hud_prefix(id, "next-steps");
+        h.push_str(r#"<ul class="c-next-accounts" data-kz-list="accounts">"#);
+        for (i, a) in next_account_order(accounts, steps, order, today) {
+            h.push_str(&next_account_row(
+                a, i, steps, accounts, &prefix, today, base,
+            ));
+        }
+        h.push_str("</ul>");
+        let loose: Vec<&NextStep> = steps
+            .iter()
+            .filter(|s| {
+                s.account
+                    .as_deref()
+                    .is_none_or(|a| !accounts.iter().any(|x| x.id == a))
+            })
+            .collect();
+        if !loose.is_empty() {
+            h.push_str(r#"<ul class="c-next-steps c-next-loose" data-kz-list="steps">"#);
+            for s in loose {
+                h.push_str(&next_step_card(s, None, accounts, today, base));
+            }
+            h.push_str("</ul>");
+        }
+    } else {
+        h.push_str(r#"<ul class="c-next-steps" data-kz-list="steps">"#);
+        if steps.is_empty() {
+            h.push_str(r#"<li class="c-next-empty">Nothing due.</li>"#);
+        }
+        for s in steps {
+            h.push_str(&next_step_card(s, None, accounts, today, base));
+        }
+        h.push_str("</ul>");
+    }
+    h.push_str("</div>");
+    let r = Rendered::new(h);
+    if board || !owners.is_empty() {
+        r.with_script("next_steps")
+    } else {
+        r
+    }
+}
+
+fn next_step_card(
+    s: &NextStep,
+    account_name: Option<&str>,
+    accounts: &[NextAccount],
+    today: Option<i64>,
+    base: &str,
+) -> String {
+    let status = match s.status {
+        Some(x) => format!(" {}", x.class()),
+        None if step_overdue(s, today) => " is-overdue".to_string(),
+        None => String::new(),
+    };
+    let mut h = format!(
+        r#"<li class="c-next-step{}"{}><span class="c-next-dot"></span><span class="c-next-text">{}"#,
+        status,
+        owner_attr(next_step_owner(s, accounts)),
+        next_link("c-next-label", &s.label, s.href.as_deref(), base)
+    );
+    if let Some(d) = &s.detail {
+        h.push_str(&format!(
+            r#"<span class="c-next-detail">{}</span>"#,
+            esc(strip_account_prefix(d, account_name))
+        ));
+    }
+    h.push_str("</span>");
+    if let Some(d) = &s.due {
+        h.push_str(&format!(
+            r#"<span class="c-next-due">{}</span>"#,
+            esc(&fmt_short_date(d))
+        ));
+    }
+    h.push_str("</li>");
+    h
+}
+
+/// Inside its own account row, "Larkspur: day 52" reads as "day 52".
+fn strip_account_prefix<'a>(detail: &'a str, account_name: Option<&str>) -> &'a str {
+    account_name
+        .and_then(|n| detail.strip_prefix(n))
+        .and_then(|rest| rest.strip_prefix(": "))
+        .unwrap_or(detail)
+}
+
+/// Open (not done) steps, overdue count, and soonest due day for an account.
+/// Overdue by status, or (no status given) by a due date before today.
+fn step_overdue(s: &NextStep, today: Option<i64>) -> bool {
+    match s.status {
+        Some(st) => st == StepStatus::Overdue,
+        None => matches!(
+            (s.due.as_deref().and_then(jt_day), today),
+            (Some(d), Some(t)) if d < t
+        ),
+    }
+}
+
+fn next_account_summary(
+    id: &str,
+    steps: &[NextStep],
+    today: Option<i64>,
+) -> (usize, usize, Option<i64>) {
+    let mine = steps
+        .iter()
+        .filter(|s| s.account.as_deref() == Some(id) && s.status != Some(StepStatus::Done));
+    let mut open = 0;
+    let mut overdue = 0;
+    let mut soonest: Option<i64> = None;
+    for s in mine {
+        open += 1;
+        if step_overdue(s, today) {
+            overdue += 1;
+        }
+        if let Some(d) = s.due.as_deref().and_then(jt_day) {
+            soonest = Some(soonest.map_or(d, |x| x.min(d)));
+        }
+    }
+    (open, overdue, soonest)
+}
+
+/// Default order: accounts with an overdue step, then the rest with open
+/// steps, each by soonest due date; then accounts with nothing due. Names
+/// break ties (case-insensitive). `as_written` keeps the authored order.
+fn next_account_order<'a>(
+    accounts: &'a [NextAccount],
+    steps: &[NextStep],
+    order: NextOrder,
+    today: Option<i64>,
+) -> Vec<(usize, &'a NextAccount)> {
+    let mut v: Vec<(usize, &NextAccount)> = accounts.iter().enumerate().collect();
+    if order == NextOrder::AsWritten {
+        return v;
+    }
+    v.sort_by_key(|(_, a)| {
+        let (open, overdue, soonest) = next_account_summary(&a.id, steps, today);
+        let group = if overdue > 0 {
+            0
+        } else if open > 0 {
+            1
+        } else {
+            2
+        };
+        let due = if group == 2 {
+            0
+        } else {
+            soonest.unwrap_or(i64::MAX)
+        };
+        (group, due, a.name.to_lowercase())
+    });
+    v
+}
+
+fn next_account_row(
+    a: &NextAccount,
+    index: usize,
+    steps: &[NextStep],
+    accounts: &[NextAccount],
+    prefix: &str,
+    today: Option<i64>,
+    base: &str,
+) -> String {
+    let (open, overdue, _) = next_account_summary(&a.id, steps, today);
+    let panel = format!("{}-acct-{}", prefix, a.id);
+    // Expanded in the static markup so no-JS and print read everything;
+    // the script collapses rows on load.
+    let mut h = format!(
+        r#"<li class="c-next-acct-item" data-acct="{}"{}><button type="button" class="c-next-acct {}" aria-expanded="true" aria-controls="{}" data-acct-toggle="{}" data-acct-i="{}"><span class="c-next-chevron" aria-hidden="true"></span><span class="c-hud-swatch"></span><span class="c-next-acct-name">{}</span>"#,
+        esc(&a.id),
+        owner_attr(a.owner.as_deref()),
+        hud_color_class(a.color, a.shade),
+        esc(&panel),
+        esc(&a.id),
+        index,
+        esc(&a.name)
+    );
+    if let Some(st) = &a.stage {
+        h.push_str(&format!(
+            r#"<span class="c-next-acct-stage">{}</span>"#,
+            esc(st)
+        ));
+    }
+    if open == 0 {
+        h.push_str(r#"<span class="c-next-acct-sum is-clear">nothing due</span>"#);
+    } else {
+        h.push_str(&format!(r#"<span class="c-next-acct-sum">{} open"#, open));
+        if overdue > 0 {
+            h.push_str(&format!(
+                r#"<span class="c-next-acct-overdue"> · {} overdue</span>"#,
+                overdue
+            ));
+        }
+        h.push_str("</span>");
+    }
+    h.push_str(&format!(
+        r#"</button><div class="c-next-acct-steps" id="{}"><ul class="c-next-steps">"#,
+        esc(&panel)
+    ));
+    let mine: Vec<&NextStep> = steps
+        .iter()
+        .filter(|s| s.account.as_deref() == Some(a.id.as_str()))
+        .collect();
+    if mine.is_empty() {
+        h.push_str(r#"<li class="c-next-empty">Nothing due.</li>"#);
+    }
+    for s in mine {
+        h.push_str(&next_step_card(s, Some(&a.name), accounts, today, base));
+    }
+    h.push_str("</ul>");
+    if let Some(href) = a.href.as_deref().and_then(|h| safe_href(h, base)) {
+        h.push_str(&format!(
+            r#"<a class="c-next-acct-link" href="{}">Open account</a>"#,
+            esc(&href)
+        ));
+    }
+    h.push_str("</div></li>");
+    h
+}
+
+// ── Journey Track ─────────────────────────────────
+//
+// Layout math is mirrored line for line in the React renderer (sdk.rs,
+// `journeyLayout`); change both together.
+
+/// Rail width (px) the label-collision pass assumes: about curata's column.
+const JT_RAIL_W: f64 = 640.0;
+/// Narrow pass for a half-width column; CSS switches below a 560px track.
+const JT_RAIL_W_NARROW: f64 = 380.0;
+/// How far (px) a centered label may run past the rail before it flips to
+/// start/end alignment.
+const JT_EDGE: f64 = 24.0;
+const JT_GAP: f64 = 10.0;
+const JT_MAX_ROWS: usize = 4;
+const JT_STAGE_CHAR_W: f64 = 8.0;
+const JT_TP_CHAR_W: f64 = 7.0;
+const JT_MONO_CHAR_W: f64 = 10.0;
+
+struct JourneyLayout {
+    /// Every element has a date: x is linear in time.
+    dated: bool,
+    /// x of `end` in dated mode.
+    end: Option<f64>,
+    stages: Vec<f64>,
+    detours: Vec<(f64, f64)>,
+    current: Option<f64>,
+    touchpoints: Vec<f64>,
+    done: f64,
+}
+
+fn jt_date(s: &Option<String>) -> Option<i64> {
+    s.as_deref().and_then(jt_day)
+}
+
+/// Days since epoch for an ISO date, ignoring any time part.
+fn jt_day(d: &str) -> Option<i64> {
+    let t = d.trim();
+    crate::freshness::parse_iso_date(t.get(..10).unwrap_or(t))
+}
+
+/// Today as days since epoch (honors `KAZAM_TODAY`), for build-time rules.
+fn hud_today() -> Option<i64> {
+    crate::freshness::parse_iso_date(&crate::freshness::today_iso())
+}
+
+/// A finite share clamped to 0-100, or None.
+fn hud_share(v: Option<f64>) -> Option<f64> {
+    v.filter(|x| x.is_finite()).map(|x| x.clamp(0.0, 100.0))
+}
+
+/// Per-page unique prefix for ids when the author gave none.
+fn hud_prefix(id: Option<&str>, base: &str) -> String {
+    match id.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(i) => i.to_string(),
+        None => slug::resolve(None, Some(base)).unwrap_or_else(|| base.to_string()),
+    }
+}
+
+/// `data-kz-param` names the URL params `owner.<id>` etc. when the
+/// component has an explicit id; bare params still work as a fallback.
+fn hud_param_attr(id: Option<&str>) -> String {
+    id.map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|i| format!(r#" data-kz-param="{}""#, esc(i)))
+        .unwrap_or_default()
+}
+
+fn journey_layout(
+    stages: &[JourneyStage],
+    detours: &[JourneyDetour],
+    current: Option<&JourneyCurrent>,
+    touchpoints: &[JourneyTouchpoint],
+    start: &Option<String>,
+    end: &Option<String>,
+) -> JourneyLayout {
+    let dated = stages.iter().all(|s| jt_date(&s.date).is_some())
+        && touchpoints.iter().all(|t| jt_date(&t.date).is_some())
+        && current.is_none_or(|c| jt_date(&c.date).is_some())
+        && detours.iter().all(|d| jt_date(&d.from).is_some());
+    let (stage_x, detour_x, current_x, tp_x, end_x) = if dated {
+        let mut all: Vec<i64> = Vec::new();
+        all.extend(stages.iter().filter_map(|s| jt_date(&s.date)));
+        all.extend(touchpoints.iter().filter_map(|t| jt_date(&t.date)));
+        all.extend(current.and_then(|c| jt_date(&c.date)));
+        for d in detours {
+            all.extend(jt_date(&d.from));
+            all.extend(jt_date(&d.to));
+        }
+        let lo = jt_date(start).unwrap_or_else(|| all.iter().copied().min().unwrap_or(0));
+        let mut hi = jt_date(end).unwrap_or_else(|| all.iter().copied().max().unwrap_or(lo));
+        if hi <= lo {
+            hi = lo + 1;
+        }
+        let f = |d: i64| ((d - lo) as f64 / (hi - lo) as f64).clamp(0.0, 1.0);
+        (
+            stages
+                .iter()
+                .map(|s| f(jt_date(&s.date).unwrap_or(lo)))
+                .collect::<Vec<_>>(),
+            detours
+                .iter()
+                .map(|d| {
+                    let a = f(jt_date(&d.from).unwrap_or(lo));
+                    let b = jt_date(&d.to).map(f).unwrap_or(a + 0.06);
+                    let (a, b) = if b < a { (b, a) } else { (a, b) };
+                    let b = b.max(a + 0.03).min(1.0);
+                    (a, b)
+                })
+                .collect::<Vec<_>>(),
+            current.map(|c| f(jt_date(&c.date).unwrap_or(hi))),
+            touchpoints
+                .iter()
+                .map(|t| f(jt_date(&t.date).unwrap_or(lo)))
+                .collect::<Vec<_>>(),
+            jt_date(end).map(f),
+        )
+    } else {
+        let n = stages.len();
+        let slots = n + usize::from(current.is_some());
+        let pos = |i: usize| {
+            if slots <= 1 {
+                0.5
+            } else {
+                i as f64 / (slots - 1) as f64
+            }
+        };
+        let detour_x = detours
+            .iter()
+            .map(|d| {
+                let k = d.after.unwrap_or(0).min(n.saturating_sub(1));
+                let xa = pos(k);
+                let xb = if k + 1 < slots { pos(k + 1) } else { 1.0 };
+                let gap = xb - xa;
+                if gap <= 0.0 {
+                    ((xa - 0.12).max(0.0), xa)
+                } else {
+                    (xa + 0.18 * gap, xa + 0.72 * gap)
+                }
+            })
+            .collect::<Vec<_>>();
+        let m = touchpoints.len();
+        (
+            (0..n).map(pos).collect::<Vec<_>>(),
+            detour_x,
+            current.map(|_| pos(n)),
+            (0..m)
+                .map(|i| (i as f64 + 0.5) / m as f64)
+                .collect::<Vec<_>>(),
+            None,
+        )
+    };
+    let done = current_x.unwrap_or_else(|| {
+        stages
+            .iter()
+            .zip(&stage_x)
+            .filter(|(s, _)| s.status == JourneyStatus::Completed)
+            .map(|(_, x)| *x)
+            .fold(0.0, f64::max)
+    });
+    JourneyLayout {
+        dated,
+        end: end_x,
+        stages: stage_x,
+        detours: detour_x,
+        current: current_x,
+        touchpoints: tp_x,
+        done,
+    }
+}
+
+/// Row (0-based) and alignment for each label so neighbours don't overlap
+/// at `JT_RAIL_W`. Returns the per-label placement and the rows used.
+fn jt_place_labels(items: &[(f64, &str)], char_w: f64) -> (Vec<(usize, &'static str)>, usize) {
+    jt_place_labels_at(items, char_w, JT_RAIL_W)
+}
+
+/// Same pass at an explicit rail width (the narrow pass uses `JT_RAIL_W_NARROW`).
+fn jt_place_labels_at(
+    items: &[(f64, &str)],
+    char_w: f64,
+    rail_w: f64,
+) -> (Vec<(usize, &'static str)>, usize) {
+    let mut order: Vec<usize> = (0..items.len()).collect();
+    order.sort_by(|a, b| items[*a].0.total_cmp(&items[*b].0).then(a.cmp(b)));
+    let mut ends = [f64::NEG_INFINITY; JT_MAX_ROWS];
+    let mut out = vec![(0usize, "center"); items.len()];
+    let mut rows = 0;
+    for i in order {
+        let (x, label) = items[i];
+        let c = x * rail_w;
+        let w = label.chars().count() as f64 * char_w + 6.0;
+        let (l, r, align) = if c - w / 2.0 < -JT_EDGE {
+            (c - 10.0, c - 10.0 + w, "start")
+        } else if c + w / 2.0 > rail_w + JT_EDGE {
+            (c + 10.0 - w, c + 10.0, "end")
+        } else {
+            (c - w / 2.0, c + w / 2.0, "center")
+        };
+        let mut row = None;
+        for (ri, end) in ends.iter().enumerate() {
+            if l >= end + JT_GAP {
+                row = Some(ri);
+                break;
+            }
+        }
+        let row = row.unwrap_or_else(|| {
+            let mut best = 0;
+            for ri in 1..JT_MAX_ROWS {
+                if ends[ri] < ends[best] {
+                    best = ri;
+                }
+            }
+            best
+        });
+        ends[row] = r;
+        rows = rows.max(row + 1);
+        out[i] = (row, align);
+    }
+    (out, rows)
+}
+
+fn jt_pct(x: f64) -> String {
+    format!("{:.2}", x * 100.0)
+}
+
+/// Rough span for a duration: whole days under 60, weeks under 120 days,
+/// then months. Mirrored by `jtSpan` in the React renderer and the inline
+/// script.
+fn jt_span(days: i64) -> String {
+    let d = days.max(0);
+    if d < 60 {
+        format!("{}d", d)
+    } else if d < 120 {
+        format!("{}w", (d as f64 / 7.0).round() as i64)
+    } else {
+        format!("{}mo", (d as f64 / 30.44).round() as i64)
+    }
+}
+
+/// Past form of the end label: "Renews" reads "Renewed", "Contract ends"
+/// reads "Contract ended"; anything else is kept as written.
+fn jt_past(label: &str) -> String {
+    if label == "Renews" {
+        "Renewed".into()
+    } else if let Some(stem) = label.strip_suffix(" ends") {
+        format!("{} ended", stem)
+    } else {
+        label.to_string()
+    }
+}
+
+fn jt_iso(s: &str) -> &str {
+    let t = s.trim();
+    t.get(..10).unwrap_or(t)
+}
+
+/// Focusable tooltip target: the styled tooltip reads the data attributes;
+/// title/aria-label carry the exact date for no-JS and assistive tech.
+fn jt_tip(name: &str, from: &str, to: Option<&str>) -> String {
+    let when = match to {
+        Some(t) => format!("{} to {}", fmt_long_date(from), fmt_long_date(t)),
+        None => fmt_long_date(from),
+    };
+    format!(
+        r#" tabindex="0" data-jt-tip="{}"{} data-jt-tip-name="{}" title="{} · {}" aria-label="{}, {}""#,
+        esc(jt_iso(from)),
+        to.map(|t| format!(r#" data-jt-tip-to="{}""#, esc(jt_iso(t))))
+            .unwrap_or_default(),
+        esc(name),
+        esc(name),
+        esc(&when),
+        esc(name),
+        esc(&when)
+    )
+}
+
+/// Days from each stage's date to the next stage's (or the current
+/// marker's) date. Dated mode only; detours count inside their stage.
+fn jt_stage_spans(stages: &[JourneyStage], current: Option<&JourneyCurrent>) -> Vec<Option<i64>> {
+    let next_dates: Vec<Option<i64>> = (0..stages.len())
+        .map(|i| match stages.get(i + 1) {
+            Some(n) => jt_date(&n.date),
+            None => current.and_then(|c| jt_date(&c.date)),
+        })
+        .collect();
+    stages
+        .iter()
+        .zip(next_dates)
+        .map(|(s, next)| match (jt_date(&s.date), next) {
+            (Some(a), Some(b)) if b >= a => Some(b - a),
+            _ => None,
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn journey_track(
+    stages: &[JourneyStage],
+    detours: &[JourneyDetour],
+    current: Option<&JourneyCurrent>,
+    touchpoints: &[JourneyTouchpoint],
+    history: Option<&JourneyHistory>,
+    default_view: JourneyView,
+    title: Option<&str>,
+    start: &Option<String>,
+    end: &Option<String>,
+    end_label: Option<&str>,
+    id: Option<&str>,
+) -> Rendered {
+    let lay = journey_layout(stages, detours, current, touchpoints, start, end);
+    let dated = lay.dated;
+    let end_iso = end.as_deref().filter(|_| dated && lay.end.is_some());
+    let end_label = end_label.unwrap_or("Renews");
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let above = !detours.is_empty() || current.is_some_and(|c| c.temporary);
+    let hist = history.filter(|x| !x.events.is_empty());
+    let scripted = hist.is_some() || dated;
+    let mut h = format!(
+        r#"<div{} class="c-journey{}"{}{}>"#,
+        id_attr,
+        if dated { " is-dated" } else { "" },
+        if scripted { " data-journey" } else { "" },
+        if hist.is_some() && default_view == JourneyView::Details {
+            r#" data-default-view="details""#
+        } else {
+            ""
+        }
+    );
+    if title.is_some() || hist.is_some() {
+        h.push_str(r#"<div class="c-jt-head">"#);
+        if let Some(t) = title {
+            h.push_str(&format!(r#"<div class="c-jt-title">{}</div>"#, esc(t)));
+        }
+        if let Some(hs) = hist {
+            // Same control as venn's view switcher, with text labels.
+            h.push_str(&format!(
+                concat!(
+                    r#"<div class="c-venn-toggle c-jt-toggle" role="group" aria-label="Journey view switcher">"#,
+                    r#"<button type="button" class="active" data-jt-view="timeline" aria-pressed="true">Timeline</button>"#,
+                    r#"<button type="button" data-jt-view="details" aria-pressed="false">Details<span class="c-jt-toggle-count">{}</span></button>"#,
+                    r#"</div>"#
+                ),
+                hs.events.len()
+            ));
+        }
+        h.push_str("</div>");
+    }
+    if hist.is_some() {
+        h.push_str(r#"<div class="c-jt-panel" data-jt-panel="timeline">"#);
+    }
+    h.push_str(&format!(
+        r#"<div class="c-jt-track{}"><div class="c-jt-line"></div><div class="c-jt-rail"><div class="c-jt-done" style="width: calc({}% + 16px)"></div><div class="c-jt-detours" data-kz-list="detours">"#,
+        if above { " has-above" } else { "" },
+        jt_pct(lay.done)
+    ));
+    for (d, (a, b)) in detours.iter().zip(&lay.detours) {
+        let tip = match (&d.from, dated) {
+            (Some(f), true) => jt_tip(&d.label, f, d.to.as_deref()),
+            _ => String::new(),
+        };
+        h.push_str(&format!(
+            r#"<div class="c-jt-detour c-jt-c-{}" style="left: {}%; width: {}%"{}><svg viewBox="0 0 100 64" preserveAspectRatio="none" aria-hidden="true"><path d="M0 64 A50 62 0 0 1 100 64" vector-effect="non-scaling-stroke"/></svg><span class="c-jt-detour-label">{}</span></div>"#,
+            sem_color_class(d.color),
+            jt_pct(*a),
+            jt_pct(b - a),
+            tip,
+            esc(&d.label)
+        ));
+    }
+    h.push_str("</div>");
+    for (s, x) in stages.iter().zip(&lay.stages) {
+        let tip = match (&s.date, dated) {
+            (Some(d), true) => jt_tip(&s.label, d, None),
+            _ => format!(r#" title="{}""#, esc(&s.label)),
+        };
+        h.push_str(&format!(
+            r#"<span class="c-jt-stage {}" style="left: {}%"{}></span>"#,
+            s.status.class(),
+            jt_pct(*x),
+            tip
+        ));
+    }
+    if let Some(e) = end_iso {
+        h.push_str(&format!(
+            r#"<span class="c-jt-end" style="left: 100%"{}></span>"#,
+            jt_tip(end_label, e, None)
+        ));
+    }
+    if let (Some(c), Some(x)) = (current, lay.current) {
+        let tip = match (&c.date, dated) {
+            (Some(d), true) => jt_tip(&c.label, d, None),
+            _ => format!(r#" title="{}""#, esc(&c.label)),
+        };
+        h.push_str(&format!(
+            r#"<span class="c-jt-current c-jt-c-{}" style="left: {}%"{}></span>"#,
+            sem_color_class(c.color),
+            jt_pct(x),
+            tip
+        ));
+        if c.temporary {
+            let (places, _) = jt_place_labels(&[(x, c.label.as_str())], JT_MONO_CHAR_W);
+            let (narrow, _) =
+                jt_place_labels_at(&[(x, c.label.as_str())], JT_MONO_CHAR_W, JT_RAIL_W_NARROW);
+            h.push_str(&format!(
+                r#"<span class="c-jt-current-label c-jt-c-{}" data-align="{}" data-align-n="{}" style="left: {}%">{}{}</span>"#,
+                sem_color_class(c.color),
+                places[0].1,
+                narrow[0].1,
+                jt_pct(x),
+                esc(&c.label),
+                jt_since(c, dated)
+            ));
+        }
+    }
+    h.push_str("</div></div>");
+
+    // Stage labels, a non-temporary current, and the end label share one
+    // collision pass. The end label's text is filled in the browser, so the
+    // pass sizes it for its longest form.
+    let mut items: Vec<(f64, String)> = stages
+        .iter()
+        .zip(&lay.stages)
+        .map(|(s, x)| (*x, s.label.clone()))
+        .collect();
+    let current_below = match (current, lay.current) {
+        (Some(c), Some(x)) if !c.temporary => {
+            items.push((x, c.label.clone()));
+            true
+        }
+        _ => false,
+    };
+    // Sized for the longer of the static text and the live "... in 999d".
+    let end_at = end_iso.map(|e| {
+        let live = format!("{} in 999d", jt_past(end_label));
+        let fixed = format!("{} {}", end_label, fmt_long_date(e));
+        items.push((
+            1.0,
+            if fixed.len() > live.len() {
+                fixed
+            } else {
+                live
+            },
+        ));
+        items.len() - 1
+    });
+    let refs: Vec<(f64, &str)> = items.iter().map(|(x, l)| (*x, l.as_str())).collect();
+    let (places, rows) = jt_place_labels(&refs, JT_STAGE_CHAR_W);
+    let (narrow, rows_n) = jt_place_labels_at(&refs, JT_STAGE_CHAR_W, JT_RAIL_W_NARROW);
+    let spans = if dated {
+        jt_stage_spans(stages, current)
+    } else {
+        vec![None; stages.len()]
+    };
+    h.push_str(&format!(
+        r#"<div class="c-jt-stage-labels" data-kz-list="stages" style="--jt-rows: {}; --jt-rows-n: {}">"#,
+        rows.max(1),
+        rows_n.max(1)
+    ));
+    let place = |i: usize| {
+        let (row, align) = places[i];
+        let (row_n, align_n) = narrow[i];
+        format!(
+            r#" data-align="{}" data-align-n="{}" style="left: {}%; --jt-row: {}; --jt-row-n: {}""#,
+            align,
+            align_n,
+            jt_pct(refs[i].0),
+            row,
+            row_n
+        )
+    };
+    for (i, s) in stages.iter().enumerate() {
+        let span = spans[i]
+            .map(|d| format!(r#"<span class="c-jt-span">{}</span>"#, jt_span(d)))
+            .unwrap_or_default();
+        h.push_str(&format!(
+            r#"<span class="c-jt-label {}"{}>{}{}</span>"#,
+            s.status.class(),
+            place(i),
+            esc(&s.label),
+            span
+        ));
+    }
+    if current_below {
+        if let Some(c) = current {
+            h.push_str(&format!(
+                r#"<span class="c-jt-label is-current c-jt-c-{}"{}>{}{}</span>"#,
+                sem_color_class(c.color),
+                place(stages.len()),
+                esc(&c.label),
+                jt_since(c, dated)
+            ));
+        }
+    }
+    if let (Some(i), Some(e)) = (end_at, end_iso) {
+        h.push_str(&format!(
+            r#"<span class="c-jt-label c-jt-end-label"{} data-jt-until="{}" data-jt-end="{}" data-jt-end-past="{}">{} {}</span>"#,
+            place(i),
+            esc(jt_iso(e)),
+            esc(end_label),
+            esc(&jt_past(end_label)),
+            esc(end_label),
+            esc(&fmt_long_date(e))
+        ));
+    }
+    h.push_str("</div>");
+
+    if !touchpoints.is_empty() {
+        let items: Vec<(f64, &str)> = touchpoints
+            .iter()
+            .zip(&lay.touchpoints)
+            .map(|(t, x)| (*x, t.label.as_str()))
+            .collect();
+        let (places, rows) = jt_place_labels(&items, JT_TP_CHAR_W);
+        let (narrow, rows_n) = jt_place_labels_at(&items, JT_TP_CHAR_W, JT_RAIL_W_NARROW);
+        h.push_str(&format!(
+            r#"<div class="c-jt-tp-head">Touchpoints</div><div class="c-jt-tps" data-kz-list="touchpoints" style="--jt-rows: {}; --jt-rows-n: {}">"#,
+            rows.max(1),
+            rows_n.max(1)
+        ));
+        for (i, t) in touchpoints.iter().enumerate() {
+            let (row, align) = places[i];
+            let (row_n, align_n) = narrow[i];
+            let x = jt_pct(lay.touchpoints[i]);
+            let tip = match (&t.date, dated) {
+                (Some(d), true) => jt_tip(&t.label, d, None),
+                _ => String::new(),
+            };
+            h.push_str(&format!(
+                r#"<span class="c-jt-tp {}" style="left: {}%"{}></span><span class="c-jt-tp-label" data-align="{}" data-align-n="{}" style="left: {}%; --jt-row: {}; --jt-row-n: {}">{}</span>"#,
+                t.status.class(),
+                x,
+                tip,
+                align,
+                align_n,
+                x,
+                row,
+                row_n,
+                esc(&t.label)
+            ));
+        }
+        h.push_str("</div>");
+    }
+    if let Some(hs) = hist {
+        h.push_str("</div>");
+        h.push_str(&journey_history(hs));
+    }
+    if dated {
+        h.push_str(r#"<div class="c-jt-tip" role="tooltip" hidden></div>"#);
+    }
+    h.push_str("</div>");
+    let r = Rendered::new(h);
+    if scripted {
+        r.with_script("journey_track")
+    } else {
+        r
+    }
+}
+
+/// "13d so far" slot under the current label, filled in the browser.
+fn jt_since(c: &JourneyCurrent, dated: bool) -> String {
+    match (&c.date, dated) {
+        (Some(d), true) => format!(
+            r#"<span class="c-jt-span c-jt-since" data-jt-since="{}" hidden></span>"#,
+            esc(jt_iso(d))
+        ),
+        _ => String::new(),
+    }
+}
+
+/// The Details view: the history log, newest first. Hidden until the
+/// toggle (or `default_view: details`, applied by the script) shows it.
+fn journey_history(hist: &JourneyHistory) -> String {
+    let mut events: Vec<&HistoryEvent> = hist.events.iter().collect();
+    events.sort_by_key(|e| std::cmp::Reverse(jt_date(&Some(e.date.clone())).unwrap_or(i64::MIN)));
+    let mut h = String::from(
+        r#"<div class="c-jt-panel c-jt-details" data-jt-panel="details"><ol class="c-jt-history-list" data-kz-list="history.events">"#,
+    );
+    for e in events {
+        let kind = e
+            .kind
+            .map(|k| format!(" {}", k.class()))
+            .unwrap_or_default();
+        let d = e.date.as_str();
+        // date | dot | label + detail | relative (filled in the browser).
+        h.push_str(&format!(
+            r#"<li class="c-jt-hist{}" title="{}"><span class="c-jt-hist-date">{}</span><span class="c-jt-hist-dot"></span><span class="c-jt-hist-text"><span class="c-jt-hist-label">{}</span>"#,
+            kind,
+            esc(&fmt_long_date(d)),
+            esc(&fmt_long_date(d)),
+            esc(&e.label)
+        ));
+        if let Some(det) = &e.detail {
+            h.push_str(&format!(
+                r#" <span class="c-jt-hist-detail">{}</span>"#,
+                esc(det)
+            ));
+        }
+        h.push_str(&format!(
+            r#"</span><span class="c-jt-hist-rel" data-jt-rel="{}" hidden></span></li>"#,
+            esc(jt_iso(d))
+        ));
+    }
+    h.push_str("</ol></div>");
+    h
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3795,5 +5049,100 @@ mod tests {
             queue_has_drift(&it, today, &two_week_end, &eight_week_end),
             "should detect drift"
         );
+    }
+
+    #[test]
+    fn journey_layout_is_linear_in_dated_mode_and_even_otherwise() {
+        let st = |l: &str, d: Option<&str>| JourneyStage {
+            label: l.into(),
+            date: d.map(String::from),
+            status: JourneyStatus::Completed,
+        };
+        let stages = vec![
+            st("A", Some("2026-01-01")),
+            st("B", Some("2026-01-11")),
+            st("C", Some("2026-01-21")),
+        ];
+        let lay = journey_layout(&stages, &[], None, &[], &None, &None);
+        assert_eq!(lay.stages, vec![0.0, 0.5, 1.0]);
+        assert_eq!(lay.done, 1.0);
+
+        let stages = vec![st("A", None), st("B", None), st("C", None)];
+        let cur = JourneyCurrent {
+            label: "Renewal".into(),
+            date: None,
+            temporary: true,
+            color: SemColor::Teal,
+        };
+        let det = JourneyDetour {
+            label: "Save".into(),
+            from: None,
+            to: None,
+            after: Some(1),
+            color: SemColor::Yellow,
+        };
+        let lay = journey_layout(&stages, &[det], Some(&cur), &[], &None, &None);
+        assert_eq!(lay.current, Some(1.0));
+        let (a, b) = lay.detours[0];
+        assert!(a > lay.stages[1] && b < lay.stages[2], "{a} {b}");
+    }
+
+    #[test]
+    fn journey_labels_that_collide_take_another_row() {
+        let (places, rows) =
+            jt_place_labels(&[(0.5, "Config review"), (0.51, "Exec call")], JT_TP_CHAR_W);
+        assert_eq!(rows, 2);
+        assert_ne!(places[0].0, places[1].0);
+        let (places, rows) = jt_place_labels(&[(0.0, "Onboarding"), (1.0, "Renewal")], 8.0);
+        assert_eq!(rows, 1);
+        assert_eq!(places[0].1, "start");
+        assert_eq!(places[1].1, "end");
+    }
+
+    #[test]
+    fn journey_span_formats_days_then_weeks_then_months() {
+        assert_eq!(jt_span(0), "0d");
+        assert_eq!(jt_span(59), "59d");
+        assert_eq!(jt_span(60), "9w");
+        assert_eq!(jt_span(119), "17w");
+        assert_eq!(jt_span(120), "4mo");
+        assert_eq!(jt_span(152), "5mo");
+        assert_eq!(jt_span(-3), "0d");
+        assert_eq!(jt_past("Renews"), "Renewed");
+        assert_eq!(jt_past("Contract ends"), "Contract ended");
+        assert_eq!(jt_past("Expires"), "Expires");
+    }
+
+    #[test]
+    fn journey_stage_spans_run_to_the_next_stage_or_current() {
+        let st = |d: &str| JourneyStage {
+            label: "S".into(),
+            date: Some(d.into()),
+            status: JourneyStatus::Completed,
+        };
+        let cur = JourneyCurrent {
+            label: "Renewal".into(),
+            date: Some("2026-03-12".into()),
+            temporary: true,
+            color: SemColor::Teal,
+        };
+        let spans = jt_stage_spans(&[st("2026-01-01"), st("2026-02-10")], Some(&cur));
+        assert_eq!(spans, vec![Some(40), Some(30)]);
+        assert_eq!(jt_stage_spans(&[st("2026-01-01")], None), vec![None]);
+    }
+
+    #[test]
+    fn hud_unsafe_hrefs_render_as_plain_text() {
+        let yaml = "type: tier_summary\ntiers:\n  - { label: A, count: 1, href: \"javascript:alert(1)\" }\n  - { label: B, count: 1, accounts: [{ name: N, href: \"data:text/html,x\" }] }\n";
+        let comp: Component = serde_yaml::from_str(yaml).unwrap();
+        let Component::TierSummary { tiers, .. } = &comp else {
+            panic!("expected TierSummary")
+        };
+        let r = tier_summary(tiers, None, None, Some("t"), "");
+        assert!(!r.html.contains("javascript:"), "{}", r.html);
+        assert!(!r.html.contains("data:text"), "{}", r.html);
+        assert!(r
+            .html
+            .contains(r#"<span class="c-tier-acct-name">N</span>"#));
     }
 }

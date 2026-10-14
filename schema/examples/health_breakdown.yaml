@@ -1,0 +1,7 @@
+- type: health_breakdown
+  id: account-health
+  items:
+    - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
+    - { label: License utilization, tier: Okay, shade: 3, detail: "20 to 35% of assets investigated, 30 days" }
+    - { label: User activity, tier: Good, shade: 2, detail: "Portal stickiness 0.5 or more, seen this week" }
+    - { label: Sentiment, tier: Good, shade: 2, detail: "Positive relationship, responsive" }

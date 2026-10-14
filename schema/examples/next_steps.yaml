@@ -1,0 +1,12 @@
+- type: next_steps
+  id: owner-next
+  title: From the journey rules
+  owners: [Tyler, Will]
+  accounts:
+    - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler }
+    - { id: brightline, name: Brightline, stage: Adopted, shade: 1, owner: Tyler }
+    - { id: ostra, name: Ostra Health, stage: Renewal, shade: 2, owner: Will }
+  steps:
+    - { label: Book the renewal review, detail: "Ostra Health: contract ends in 120 days", account: ostra, due: 2026-10-24 }
+    - { label: Schedule the exec roadmap call, detail: "Brightline: Adopted, one every 90 days", account: brightline, due: 2026-11-04 }
+    - { label: Move past onboarding, detail: "Larkspur: day 52 of a 45 day target", account: larkspur, due: 2026-10-17, status: overdue }

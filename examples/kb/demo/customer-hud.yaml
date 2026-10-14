@@ -1,0 +1,99 @@
+title: Customer HUD Demo
+shell: standard
+components:
+  - type: section
+    eyebrow: Portfolio / CEO and CRO
+    heading: Every account, by health
+    components:
+      - type: tier_summary
+        id: portfolio-tiers
+        share_label: ARR
+        tiers:
+          - label: Outstanding
+            count: 6
+            value: $406K
+            share: 31.2
+            accounts:
+              - { name: Cohere Health, value: $71K, share: 5.5, renewal: 2026-12-01, detail: Adopted }
+              - { name: Brightline, value: $240K, share: 18.4, renewal: 2027-03-03, detail: Adopted }
+              - { name: Larkspur, value: $95K, share: 7.3, renewal: 2026-11-02, detail: Renewal }
+          - { label: Good, count: "11", value: $759K, share: 58.4 }
+          - { label: Okay, count: "5", value: $109K, share: 8.4, detail: "Alloy, Contentful, DTCC and 2 more" }
+          - { label: Poor, count: "2", value: $26K, share: 2.0 }
+
+  - type: section
+    eyebrow: Owner / AE and TSE
+    heading: My accounts, and what is next
+    components:
+      - type: next_steps
+        id: owner-next
+        title: From the journey rules
+        owners: [Tyler, Will]
+        accounts:
+          - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler, href: ./larkspur }
+          - { id: brightline, name: Brightline, stage: Adopted, shade: 1, owner: Tyler }
+          - { id: ostra, name: Ostra Health, stage: Renewal, shade: 2, owner: Will, href: ./ostra }
+          - { id: northfield, name: Northfield, stage: Operationalizing, shade: 2, owner: Will }
+          - { id: cohere, name: Cohere Health, stage: Adopted, shade: 1, owner: Tyler }
+        steps:
+          - { label: Book the renewal review, detail: "Ostra Health: contract ends in 120 days", account: ostra, due: 2026-10-24 }
+          - { label: Schedule the exec roadmap call, detail: "Brightline: Adopted, one every 90 days", account: brightline, due: 2026-11-04 }
+          - { label: Move past onboarding, detail: "Larkspur: day 52 of a 45 day target", account: larkspur, due: 2026-10-17, status: overdue }
+          - { label: Confirm SSO rollout, detail: "Larkspur: IT owner named last week", account: larkspur, due: 2026-10-28 }
+          - { label: Send the Q3 value recap, account: ostra, due: 2026-10-10, status: overdue }
+          - { label: Kickoff deck, account: northfield, status: done }
+
+  - type: section
+    eyebrow: "Account view / Overall: good"
+    heading: Ostra Health
+    components:
+      - type: columns
+        columns:
+          - - type: health_breakdown
+              id: account-health
+              items:
+                - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
+                - { label: License utilization, tier: Okay, shade: 3, value: "28.4%", detail: "of assets investigated, 30 days" }
+                - { label: User activity, tier: Good, shade: 2, detail: "Portal stickiness 0.5 or more, seen this week" }
+                - { label: Sentiment, tier: Good, shade: 2, detail: "Positive relationship, responsive" }
+          - - type: journey_track
+              title: Journey
+              start: 2025-11-01
+              end: 2026-11-15
+              stages:
+                - { label: Onboarding, date: 2025-11-03 }
+                - { label: Operationalizing, date: 2026-02-12 }
+                - { label: Adopted, date: 2026-06-20 }
+              detours:
+                - { label: Save, from: 2026-03-20, to: 2026-05-20 }
+              current: { label: Renewal, date: 2026-10-01, temporary: true }
+              touchpoints:
+                - { label: Kickoff, date: 2025-11-25 }
+                - { label: Config review, date: 2026-02-25 }
+                - { label: Exec call, date: 2026-07-10 }
+                - { label: Renewal review, date: 2026-10-20, status: upcoming }
+              history:
+                events:
+                  - { date: 2025-11-03, label: Entered Onboarding, kind: stage }
+                  - { date: 2025-11-05, label: Kickoff, kind: call }
+                  - { date: 2025-11-12, label: Weekly cadence started, kind: cadence }
+                  - { date: 2025-12-02, label: Connectors live, detail: "AWS and Okta", kind: note }
+                  - { date: 2026-01-08, label: Config review prep, kind: call }
+                  - { date: 2026-01-20, label: Cadence switched to biweekly, detail: "Config done, fewer open items", kind: cadence }
+                  - { date: 2026-02-12, label: Entered Operationalizing, kind: stage }
+                  - { date: 2026-02-25, label: Config review, kind: call }
+                  - { date: 2026-03-20, label: Entered Save, detail: "Champion left, usage dipped", kind: stage }
+                  - { date: 2026-03-24, label: Cadence back to weekly, detail: "Save plan agreed", kind: cadence }
+                  - { date: 2026-04-15, label: New champion named, kind: note }
+                  - { date: 2026-05-20, label: Left Save, kind: stage }
+                  - { date: 2026-06-20, label: Entered Adopted, kind: stage }
+                  - { date: 2026-07-01, label: Cadence switched to monthly, kind: cadence }
+                  - { date: 2026-07-10, label: Exec call, kind: call }
+                  - { date: 2026-10-01, label: Entered Renewal, kind: stage }
+      - type: next_steps
+        id: account-next
+        title: Next steps
+        steps:
+          - { label: Book the renewal review, detail: "Contract ends in 120 days", due: 2026-10-24, status: due }
+          - { label: Send the Q3 value recap, detail: "Noise reduction and license numbers", due: 2026-10-10, status: overdue }
+          - { label: Confirm the new champion, detail: "Intro call done in April", status: done }

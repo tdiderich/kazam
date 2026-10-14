@@ -383,6 +383,45 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         color: green
   ```
 
+- **tier_summary** - one card per health tier: big count, share bar, click to list the accounts
+  ```yaml
+  - type: tier_summary
+    count_label: accounts        # default "accounts"
+    share_label: ARR             # unit after value ("$406K ARR"); labels the bar when no value
+    tiers:
+      - label: Outstanding
+        count: "6"
+        value: $406K             # tier dollars, lead the row; share sits right of them
+        share: 31.2              # 0-100, shown as given (31.2%)
+        color: teal              # optional; unset = accent shade by position (solid, 62%, 32%, hollow)
+        detail: Cohere Health    # optional muted line
+        accounts:                # optional; clicking the card opens a panel
+          - name: Cohere Health
+            value: $71K          # ARR
+            share: 5.5           # optional % of total ARR, shown after the dollars
+            renewal: 2027-03-03  # ISO; rows sort soonest first
+            detail: Adopted
+            href: ./cohere
+      - label: Poor
+        count: "0"               # 0 = hollow swatch
+        share: 0
+        color: red
+  ```
+  2-6 tiers. `active: true` gives a card the accent border. A tier with `href`
+  links instead of expanding. `?tier=<label>` in the URL opens that tier on load
+  (`?tier.<id>=` when the component has an `id`). Links accept http(s), mailto,
+  tel, #anchors and paths only.
+
+- **health_breakdown** - one account's health, one card per dimension
+  ```yaml
+  - type: health_breakdown
+    items:
+      - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
+      - { label: License utilization, tier: Okay, shade: 3, value: "28.4%", detail: of assets investigated }
+  ```
+  `shade` 1-4 is the accent at full, 62%, 32%, and hollow (matches tier_summary
+  positions); `color:` (semantic palette) wins over it.
+
 - **selectable_grid** - interactive phase tracker / click-to-focus cards
   ```yaml
   - type: selectable_grid
@@ -625,6 +664,52 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       - name: Planning
         status: completed        # completed | active | upcoming
   ```
+
+- **journey_track** - one account's journey: stages on a line, detours, touchpoints
+  ```yaml
+  - type: journey_track
+    title: Journey
+    start: 2025-11-03            # optional; defaults to the earliest date
+    end: 2026-12-31              # optional; defaults to the latest date
+    end_label: Renews            # optional; end tick reads "Renews in 79d"
+    stages:
+      - { label: Onboarding, date: 2025-11-03 }          # status: completed (default) | upcoming
+      - { label: Operationalizing, date: 2026-01-12 }
+      - { label: Adopted, date: 2026-05-20 }
+    detours:                     # temporary stages drawn as an arc off the line
+      - { label: Save, from: 2026-03-01, to: 2026-04-02, color: yellow }
+    current: { label: Renewal, date: 2026-10-01, temporary: true }
+    touchpoints:
+      - { label: Kickoff, date: 2025-11-05 }
+      - { label: Renewal review, date: 2026-09-30, status: upcoming }
+  ```
+  Dated mode when every stage, touchpoint, `current` and detour `from` has a date:
+  x is linear in time. Leave any date out and everything is evenly spaced in list
+  order; detours then take `after: <0-based stage index>` instead of from/to.
+  Up to 8 stages and 12 touchpoints. Dates must be ISO `YYYY-MM-DD`.
+  Dated mode adds time in each stage ("14w"), "13d so far" on the current marker,
+  an end tick when `end` is set, and date tooltips on hover; live counts run in the browser.
+  Keep touchpoints to milestones; put dense cadence calls in `history:`
+  (`events: [{ date, label, detail?, kind? }]`, kind = stage | cadence | call | note).
+  With it the header gets a Timeline | Details switcher; Details shows the log,
+  newest first. `default_view: details` opens there.
+
+- **next_steps** - to-do cards; with `accounts`, one expandable row per account
+  ```yaml
+  - type: next_steps
+    title: From the journey rules
+    owners: [Tyler, Will]          # optional filter chips; ?owner=<name> picks one
+    order: auto                    # auto: overdue, then soonest due, then nothing due | as_written
+    accounts:                      # optional; rows show "N open · N overdue", click to expand
+      - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler }
+    steps:
+      - { label: Move past onboarding, detail: "Larkspur: day 52 of 45", account: larkspur, due: 2026-10-17, status: overdue }
+  ```
+  `status`: overdue | due | upcoming | done. `account` must match an accounts `id`.
+  Steps without an account use their own `owner:` for the filter. `?account=<id>`
+  opens a row on load. A detail starting "<account name>: " drops that prefix in its row.
+  With an explicit `id`, params are namespaced (`?owner.<id>=`, `?account.<id>=`).
+  Account ids are slugs (no commas or spaces); owners used must be listed in `owners`.
 
 - **event_timeline** - vertical event history with severity filter
   ```yaml
