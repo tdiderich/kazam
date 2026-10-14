@@ -343,6 +343,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             steps,
             accounts,
             owners,
+            order,
             title,
             id,
             ..
@@ -350,6 +351,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             steps,
             accounts,
             owners,
+            *order,
             title.as_deref(),
             id.as_deref(),
             base,
@@ -360,6 +362,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             current,
             touchpoints,
             history,
+            default_view,
             title,
             start,
             end,
@@ -371,6 +374,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             current.as_ref(),
             touchpoints,
             history.as_ref(),
+            *default_view,
             title.as_deref(),
             start,
             end,
@@ -3623,6 +3627,9 @@ fn tier_summary(
     base: &str,
 ) -> Rendered {
     let count_label = count_label.unwrap_or("accounts");
+    // With a dollar value the label becomes a small unit suffix ("$406K ARR"),
+    // and only when the author set one.
+    let unit_label = share_label;
     let share_label = share_label.unwrap_or("Share");
     let any_share = tiers.iter().any(|t| t.share.is_some());
     let any_panel = tiers
@@ -3686,24 +3693,8 @@ fn tier_summary(
             esc(&t.count),
             esc(count_label)
         ));
-        if let Some(v) = &t.value {
-            h.push_str(&format!(r#"<span class="c-tier-value">{}</span>"#, esc(v)));
-        }
-        if any_share {
-            let share = t.share.unwrap_or(0.0);
-            let width = share.clamp(0.0, 100.0);
-            h.push_str(&format!(
-                r#"<span class="c-tier-share"><span class="c-tier-share-head"><span class="c-tier-share-label">{}</span>"#,
-                esc(share_label)
-            ));
-            if let Some(s) = t.share {
-                h.push_str(&format!(r#"<span class="c-tier-share-num">{}%</span>"#, s));
-            }
-            h.push_str(&format!(
-                r#"</span><span class="c-tier-track"><span class="c-tier-fill{}" style="width: {}%"></span></span></span>"#,
-                if width <= 0.0 { " is-zero" } else { "" },
-                width
-            ));
+        if t.value.is_some() || any_share {
+            h.push_str(&tier_money_row(t, any_share, share_label, unit_label));
         }
         if let Some(d) = &t.detail {
             h.push_str(&format!(r#"<span class="c-tier-detail">{}</span>"#, esc(d)));
@@ -3726,17 +3717,57 @@ fn tier_summary(
     }
 }
 
+/// The row under the count: dollars lead with the share on the right, or
+/// (no `value`) the share label and number. The bar sits under it.
+fn tier_money_row(t: &Tier, any_share: bool, share_label: &str, unit: Option<&str>) -> String {
+    let mut h = String::from(r#"<span class="c-tier-share"><span class="c-tier-share-head">"#);
+    match &t.value {
+        Some(v) => {
+            h.push_str(&format!(r#"<span class="c-tier-money">{}"#, esc(v)));
+            if let Some(u) = unit {
+                h.push_str(&format!(
+                    r#"<span class="c-tier-money-unit">{}</span>"#,
+                    esc(u)
+                ));
+            }
+            h.push_str("</span>");
+        }
+        None => h.push_str(&format!(
+            r#"<span class="c-tier-share-label">{}</span>"#,
+            esc(share_label)
+        )),
+    }
+    if let Some(s) = t.share {
+        h.push_str(&format!(r#"<span class="c-tier-share-num">{}%</span>"#, s));
+    }
+    h.push_str("</span>");
+    if any_share {
+        let width = t.share.unwrap_or(0.0).clamp(0.0, 100.0);
+        h.push_str(&format!(
+            r#"<span class="c-tier-track"><span class="c-tier-fill{}" style="width: {}%"></span></span>"#,
+            if width <= 0.0 { " is-zero" } else { "" },
+            width
+        ));
+    }
+    h.push_str("</span>");
+    h
+}
+
 fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
     let n = t.accounts.len();
     let mut h = format!(
-        r#"<div class="c-tier-panel {}" id="{}-panel-{}" data-tier-panel="{}" hidden><div class="c-tier-panel-head"><span class="c-tier-swatch"></span><span class="c-tier-panel-title">{}</span><span class="c-tier-panel-count">{} {}</span></div><ul class="c-tier-accounts">"#,
+        r#"<div class="c-tier-panel {}" id="{}-panel-{}" data-tier-panel="{}" hidden><div class="c-tier-panel-head"><span class="c-tier-swatch"></span><span class="c-tier-panel-title">{}</span><span class="c-tier-panel-count">{} {}{}</span></div><ul class="c-tier-accounts">"#,
         tier_color_class(t.color, i),
         esc(prefix),
         i,
         i,
         esc(&t.label),
         n,
-        if n == 1 { "account" } else { "accounts" }
+        if n == 1 { "account" } else { "accounts" },
+        t.value
+            .as_deref()
+            .map(|v| format!(" · {}", esc(v)))
+            .unwrap_or_default()
     );
     for a in sorted_accounts(&t.accounts) {
         let color = match a.color {
@@ -3772,10 +3803,14 @@ fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
         }
         h.push_str(r#"</span></span><span class="c-tier-acct-side">"#);
         if let Some(v) = &a.value {
-            h.push_str(&format!(
-                r#"<span class="c-tier-acct-value">{}</span>"#,
-                esc(v)
-            ));
+            h.push_str(&format!(r#"<span class="c-tier-acct-value">{}"#, esc(v)));
+            if let Some(sh) = a.share {
+                h.push_str(&format!(
+                    r#"<span class="c-tier-acct-share"> · {}%</span>"#,
+                    sh
+                ));
+            }
+            h.push_str("</span>");
         }
         if let Some(r) = &a.renewal {
             h.push_str(&format!(
@@ -3891,6 +3926,7 @@ fn next_steps(
     steps: &[NextStep],
     accounts: &[NextAccount],
     owners: &[String],
+    order: NextOrder,
     title: Option<&str>,
     id: Option<&str>,
     base: &str,
@@ -3904,82 +3940,51 @@ fn next_steps(
         id_attr,
         if board { " is-board" } else { "" }
     );
-    let mut chips = String::new();
     if !owners.is_empty() {
-        chips.push_str(r#"<div class="c-next-chips" role="group" aria-label="Filter by owner"><button type="button" class="c-next-chip is-active" data-owner-chip="" aria-pressed="true">Owner: All</button>"#);
+        h.push_str(r#"<div class="c-next-chips" role="group" aria-label="Filter by owner"><button type="button" class="c-next-chip is-active" data-owner-chip="" aria-pressed="true">Owner: All</button>"#);
         for o in owners {
-            chips.push_str(&format!(
+            h.push_str(&format!(
                 r#"<button type="button" class="c-next-chip" data-owner-chip="{}" aria-pressed="false">Owner: {}</button>"#,
                 esc(o),
                 esc(o)
             ));
         }
-        chips.push_str("</div>");
+        h.push_str("</div>");
     }
-    let title_html = title
-        .map(|t| format!(r#"<div class="c-next-title">{}</div>"#, esc(t)))
-        .unwrap_or_default();
+    if let Some(t) = title {
+        h.push_str(&format!(r#"<div class="c-next-title">{}</div>"#, esc(t)));
+    }
     if board {
-        h.push_str(&format!(
-            r#"<div class="c-next-body"><div class="c-next-head-left">{}</div><div class="c-next-head-right">{}</div><ul class="c-next-accounts" data-kz-list="accounts">"#,
-            chips, title_html
-        ));
-        for a in accounts {
-            h.push_str(&format!(
-                r#"<li class="c-next-acct {}" data-acct="{}"{} tabindex="0"><span class="c-hud-swatch"></span>{}"#,
-                hud_color_class(a.color, a.shade),
-                esc(&a.id),
-                owner_attr(a.owner.as_deref()),
-                next_link("c-next-acct-name", &a.name, a.href.as_deref(), base)
-            ));
-            if let Some(st) = &a.stage {
-                h.push_str(&format!(
-                    r#"<span class="c-next-acct-stage">{}</span>"#,
-                    esc(st)
-                ));
-            }
-            h.push_str("</li>");
+        let prefix = id.unwrap_or("next");
+        h.push_str(r#"<ul class="c-next-accounts" data-kz-list="accounts">"#);
+        for a in next_account_order(accounts, steps, order) {
+            h.push_str(&next_account_row(a, steps, prefix, base));
         }
         h.push_str("</ul>");
+        let loose: Vec<&NextStep> = steps
+            .iter()
+            .filter(|s| {
+                s.account
+                    .as_deref()
+                    .is_none_or(|a| !accounts.iter().any(|x| x.id == a))
+            })
+            .collect();
+        if !loose.is_empty() {
+            h.push_str(r#"<ul class="c-next-steps c-next-loose" data-kz-list="steps">"#);
+            for s in loose {
+                h.push_str(&next_step_card(s, None, accounts, base));
+            }
+            h.push_str("</ul>");
+        }
     } else {
-        h.push_str(&chips);
-        h.push_str(&title_html);
-    }
-    h.push_str(r#"<ul class="c-next-steps" data-kz-list="steps">"#);
-    if steps.is_empty() {
-        h.push_str(r#"<li class="c-next-empty">Nothing due.</li>"#);
-    }
-    for s in steps {
-        let status = s
-            .status
-            .map(|x| format!(" {}", x.class()))
-            .unwrap_or_default();
-        let acct = match (&s.account, board) {
-            (Some(a), true) => format!(r#" data-acct="{}" tabindex="0""#, esc(a)),
-            _ => String::new(),
-        };
-        h.push_str(&format!(
-            r#"<li class="c-next-step{}"{}{}><span class="c-next-dot"></span><span class="c-next-text">{}"#,
-            status,
-            acct,
-            owner_attr(next_step_owner(s, accounts)),
-            next_link("c-next-label", &s.label, s.href.as_deref(), base)
-        ));
-        if let Some(d) = &s.detail {
-            h.push_str(&format!(r#"<span class="c-next-detail">{}</span>"#, esc(d)));
+        h.push_str(r#"<ul class="c-next-steps" data-kz-list="steps">"#);
+        if steps.is_empty() {
+            h.push_str(r#"<li class="c-next-empty">Nothing due.</li>"#);
         }
-        h.push_str("</span>");
-        if let Some(d) = &s.due {
-            h.push_str(&format!(
-                r#"<span class="c-next-due">{}</span>"#,
-                esc(&fmt_short_date(d))
-            ));
+        for s in steps {
+            h.push_str(&next_step_card(s, None, accounts, base));
         }
-        h.push_str("</li>");
-    }
-    h.push_str("</ul>");
-    if board {
-        h.push_str(r#"<svg class="c-next-wires" aria-hidden="true"></svg></div>"#);
+        h.push_str("</ul>");
     }
     h.push_str("</div>");
     let r = Rendered::new(h);
@@ -3988,6 +3993,153 @@ fn next_steps(
     } else {
         r
     }
+}
+
+fn next_step_card(
+    s: &NextStep,
+    account_name: Option<&str>,
+    accounts: &[NextAccount],
+    base: &str,
+) -> String {
+    let status = s
+        .status
+        .map(|x| format!(" {}", x.class()))
+        .unwrap_or_default();
+    let mut h = format!(
+        r#"<li class="c-next-step{}"{}><span class="c-next-dot"></span><span class="c-next-text">{}"#,
+        status,
+        owner_attr(next_step_owner(s, accounts)),
+        next_link("c-next-label", &s.label, s.href.as_deref(), base)
+    );
+    if let Some(d) = &s.detail {
+        h.push_str(&format!(
+            r#"<span class="c-next-detail">{}</span>"#,
+            esc(strip_account_prefix(d, account_name))
+        ));
+    }
+    h.push_str("</span>");
+    if let Some(d) = &s.due {
+        h.push_str(&format!(
+            r#"<span class="c-next-due">{}</span>"#,
+            esc(&fmt_short_date(d))
+        ));
+    }
+    h.push_str("</li>");
+    h
+}
+
+/// Inside its own account row, "Larkspur: day 52" reads as "day 52".
+fn strip_account_prefix<'a>(detail: &'a str, account_name: Option<&str>) -> &'a str {
+    account_name
+        .and_then(|n| detail.strip_prefix(n))
+        .and_then(|rest| rest.strip_prefix(": "))
+        .unwrap_or(detail)
+}
+
+/// Open (not done) steps, overdue count, and soonest due day for an account.
+fn next_account_summary(id: &str, steps: &[NextStep]) -> (usize, usize, Option<i64>) {
+    let mine = steps
+        .iter()
+        .filter(|s| s.account.as_deref() == Some(id) && s.status != Some(StepStatus::Done));
+    let mut open = 0;
+    let mut overdue = 0;
+    let mut soonest: Option<i64> = None;
+    for s in mine {
+        open += 1;
+        if s.status == Some(StepStatus::Overdue) {
+            overdue += 1;
+        }
+        if let Some(d) = s.due.as_deref().and_then(|d| jt_date(&Some(d.to_string()))) {
+            soonest = Some(soonest.map_or(d, |x| x.min(d)));
+        }
+    }
+    (open, overdue, soonest)
+}
+
+/// Default order: accounts with an overdue step, then the rest with open
+/// steps, each by soonest due date; then accounts with nothing due. Names
+/// break ties (case-insensitive). `as_written` keeps the authored order.
+fn next_account_order<'a>(
+    accounts: &'a [NextAccount],
+    steps: &[NextStep],
+    order: NextOrder,
+) -> Vec<&'a NextAccount> {
+    let mut v: Vec<&NextAccount> = accounts.iter().collect();
+    if order == NextOrder::AsWritten {
+        return v;
+    }
+    v.sort_by_key(|a| {
+        let (open, overdue, soonest) = next_account_summary(&a.id, steps);
+        let group = if overdue > 0 {
+            0
+        } else if open > 0 {
+            1
+        } else {
+            2
+        };
+        let due = if group == 2 {
+            0
+        } else {
+            soonest.unwrap_or(i64::MAX)
+        };
+        (group, due, a.name.to_lowercase())
+    });
+    v
+}
+
+fn next_account_row(a: &NextAccount, steps: &[NextStep], prefix: &str, base: &str) -> String {
+    let (open, overdue, _) = next_account_summary(&a.id, steps);
+    let panel = format!("{}-acct-{}", prefix, a.id);
+    let mut h = format!(
+        r#"<li class="c-next-acct-item" data-acct="{}"{}><button type="button" class="c-next-acct {}" aria-expanded="false" aria-controls="{}" data-acct-toggle="{}"><span class="c-next-chevron" aria-hidden="true"></span><span class="c-hud-swatch"></span><span class="c-next-acct-name">{}</span>"#,
+        esc(&a.id),
+        owner_attr(a.owner.as_deref()),
+        hud_color_class(a.color, a.shade),
+        esc(&panel),
+        esc(&a.id),
+        esc(&a.name)
+    );
+    if let Some(st) = &a.stage {
+        h.push_str(&format!(
+            r#"<span class="c-next-acct-stage">{}</span>"#,
+            esc(st)
+        ));
+    }
+    if open == 0 {
+        h.push_str(r#"<span class="c-next-acct-sum is-clear">nothing due</span>"#);
+    } else {
+        h.push_str(&format!(r#"<span class="c-next-acct-sum">{} open"#, open));
+        if overdue > 0 {
+            h.push_str(&format!(
+                r#"<span class="c-next-acct-overdue"> · {} overdue</span>"#,
+                overdue
+            ));
+        }
+        h.push_str("</span>");
+    }
+    h.push_str(&format!(
+        r#"</button><div class="c-next-acct-steps" id="{}" hidden><ul class="c-next-steps">"#,
+        esc(&panel)
+    ));
+    let mine: Vec<&NextStep> = steps
+        .iter()
+        .filter(|s| s.account.as_deref() == Some(a.id.as_str()))
+        .collect();
+    if mine.is_empty() {
+        h.push_str(r#"<li class="c-next-empty">Nothing due.</li>"#);
+    }
+    for s in mine {
+        h.push_str(&next_step_card(s, Some(&a.name), &[], base));
+    }
+    h.push_str("</ul>");
+    if let Some(href) = &a.href {
+        h.push_str(&format!(
+            r#"<a class="c-next-acct-link" href="{}">Open account</a>"#,
+            esc(&resolve_href(href, base))
+        ));
+    }
+    h.push_str("</div></li>");
+    h
 }
 
 // ── Journey Track ─────────────────────────────────
@@ -4182,6 +4334,7 @@ fn journey_track(
     current: Option<&JourneyCurrent>,
     touchpoints: &[JourneyTouchpoint],
     history: Option<&JourneyHistory>,
+    default_view: JourneyView,
     title: Option<&str>,
     start: &Option<String>,
     end: &Option<String>,
@@ -4192,9 +4345,37 @@ fn journey_track(
         .map(|i| format!(r#" id="{}""#, esc(i)))
         .unwrap_or_default();
     let above = !detours.is_empty() || current.is_some_and(|c| c.temporary);
-    let mut h = format!(r#"<div{} class="c-journey">"#, id_attr);
-    if let Some(t) = title {
-        h.push_str(&format!(r#"<div class="c-jt-title">{}</div>"#, esc(t)));
+    let hist = history.filter(|x| !x.events.is_empty());
+    let mut h = format!(
+        r#"<div{} class="c-journey"{}>"#,
+        id_attr,
+        match (hist, default_view) {
+            (Some(_), JourneyView::Details) => r#" data-journey data-default-view="details""#,
+            (Some(_), JourneyView::Timeline) => " data-journey",
+            (None, _) => "",
+        }
+    );
+    if title.is_some() || hist.is_some() {
+        h.push_str(r#"<div class="c-jt-head">"#);
+        if let Some(t) = title {
+            h.push_str(&format!(r#"<div class="c-jt-title">{}</div>"#, esc(t)));
+        }
+        if let Some(hs) = hist {
+            // Same control as venn's view switcher, with text labels.
+            h.push_str(&format!(
+                concat!(
+                    r#"<div class="c-venn-toggle c-jt-toggle" role="group" aria-label="Journey view switcher">"#,
+                    r#"<button type="button" class="active" data-jt-view="timeline" aria-pressed="true">Timeline</button>"#,
+                    r#"<button type="button" data-jt-view="details" aria-pressed="false">Details<span class="c-jt-toggle-count">{}</span></button>"#,
+                    r#"</div>"#
+                ),
+                hs.events.len()
+            ));
+        }
+        h.push_str("</div>");
+    }
+    if hist.is_some() {
+        h.push_str(r#"<div class="c-jt-panel" data-jt-panel="timeline">"#);
     }
     h.push_str(&format!(
         r#"<div class="c-jt-track{}"><div class="c-jt-line"></div><div class="c-jt-rail"><div class="c-jt-done" style="width: calc({}% + 16px)"></div><div class="c-jt-detours" data-kz-list="detours">"#,
@@ -4325,21 +4506,26 @@ fn journey_track(
         }
         h.push_str("</div>");
     }
-    if let Some(hist) = history.filter(|x| !x.events.is_empty()) {
-        h.push_str(&journey_history(hist));
+    if let Some(hs) = hist {
+        h.push_str("</div>");
+        h.push_str(&journey_history(hs));
     }
     h.push_str("</div>");
-    Rendered::new(h)
+    let r = Rendered::new(h);
+    if hist.is_some() {
+        r.with_script("journey_track")
+    } else {
+        r
+    }
 }
 
-/// Collapsed `<details>` log under the track, newest first.
+/// The Details view: the history log, newest first. Hidden until the
+/// toggle (or `default_view: details`, applied by the script) shows it.
 fn journey_history(hist: &JourneyHistory) -> String {
     let mut events: Vec<&HistoryEvent> = hist.events.iter().collect();
     events.sort_by_key(|e| std::cmp::Reverse(jt_date(&Some(e.date.clone())).unwrap_or(i64::MIN)));
-    let mut h = format!(
-        r#"<details class="c-jt-history"><summary class="c-jt-history-toggle"><span class="c-jt-history-title">{} ({})</span><span class="c-jt-history-chevron" aria-hidden="true"></span></summary><ol class="c-jt-history-list" data-kz-list="history.events">"#,
-        esc(hist.title.as_deref().unwrap_or("Full history")),
-        hist.events.len()
+    let mut h = String::from(
+        r#"<div class="c-jt-panel c-jt-details" data-jt-panel="details" hidden><ol class="c-jt-history-list" data-kz-list="history.events">"#,
     );
     for e in events {
         let kind = e
@@ -4361,7 +4547,7 @@ fn journey_history(hist: &JourneyHistory) -> String {
         }
         h.push_str("</span></li>");
     }
-    h.push_str("</ol></details>");
+    h.push_str("</ol></div>");
     h
 }
 

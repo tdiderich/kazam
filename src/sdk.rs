@@ -2455,99 +2455,141 @@ function kzShortDate(iso: string): string {
   return `${months[mi - 1]} ${di}`;
 }
 
-const useKzLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+type JtHistory = { events?: Array<{ date?: unknown; label: string; detail?: string; kind?: string }> };
 
-/** Collapsed journey log; same markup as the static <details>. */
-function JourneyHistoryView({ history }: { history: { title?: string; events?: Array<{ date?: unknown; label: string; detail?: string; kind?: string }> } }) {
-  const [open, setOpen] = React.useState(false);
-  const events = history.events || [];
+/** journey_track shell: title plus the Timeline | Details switcher (venn's control). */
+function JourneyFrame({ id, title, history, defaultView, children }: { id: string; title?: string; history?: JtHistory; defaultView?: string; children: React.ReactNode }) {
+  const events = history?.events || [];
+  const hasHistory = events.length > 0;
+  const [view, setView] = React.useState<string>(hasHistory && defaultView === "details" ? "details" : "timeline");
   const rows = events.map((e, i) => ({ e, i })).sort((a, b) => (kzIsoDays(b.e.date) ?? -Infinity) - (kzIsoDays(a.e.date) ?? -Infinity) || a.i - b.i);
   return (
-    <details className="c-jt-history" open={open}>
-      <summary className="c-jt-history-toggle" onClick={(ev) => { ev.preventDefault(); setOpen((o) => !o); }}>
-        <span className="c-jt-history-title"><span data-kz-field="history.title">{history.title || "Full history"}</span> ({events.length})</span>
-        <span className="c-jt-history-chevron" aria-hidden="true" />
-      </summary>
-      <ol className="c-jt-history-list" data-kz-list="history.events">
-        {rows.map(({ e, i }) => (
-          <li key={i} className={`c-jt-hist${e.kind ? ` is-${e.kind}` : ""}`}>
-            <span className="c-jt-hist-date" data-kz-field={`history.events[${i}].date`}>{kzIso(e.date) ?? ""}</span>
-            <span className="c-jt-hist-dot" />
-            <span className="c-jt-hist-text">
-              <span className="c-jt-hist-label" data-kz-field={`history.events[${i}].label`}>{e.label}</span>
-              {e.detail && <span className="c-jt-hist-detail" data-kz-field={`history.events[${i}].detail`}>{e.detail}</span>}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </details>
+    <div id={id} className="c-journey" {...(hasHistory ? { "data-journey": "" } : {})}>
+      {(title || hasHistory) && (
+        <div className="c-jt-head">
+          {title && <div className="c-jt-title" data-kz-field="title">{title}</div>}
+          {hasHistory && (
+            <div className="c-venn-toggle c-jt-toggle" role="group" aria-label="Journey view switcher">
+              <button type="button" className={view === "timeline" ? "active" : ""} data-jt-view="timeline" aria-pressed={view === "timeline"} onClick={() => setView("timeline")}>Timeline</button>
+              <button type="button" className={view === "details" ? "active" : ""} data-jt-view="details" aria-pressed={view === "details"} onClick={() => setView("details")}>Details<span className="c-jt-toggle-count">{events.length}</span></button>
+            </div>
+          )}
+        </div>
+      )}
+      {hasHistory ? <div className="c-jt-panel" data-jt-panel="timeline" hidden={view !== "timeline"}>{children}</div> : children}
+      {hasHistory && (
+        <div className="c-jt-panel c-jt-details" data-jt-panel="details" hidden={view !== "details"}>
+          <ol className="c-jt-history-list" data-kz-list="history.events">
+            {rows.map(({ e, i }) => (
+              <li key={i} className={`c-jt-hist${e.kind ? ` is-${e.kind}` : ""}`}>
+                <span className="c-jt-hist-date" data-kz-field={`history.events[${i}].date`}>{kzIso(e.date) ?? ""}</span>
+                <span className="c-jt-hist-dot" />
+                <span className="c-jt-hist-text">
+                  <span className="c-jt-hist-label" data-kz-field={`history.events[${i}].label`}>{e.label}</span>
+                  {e.detail && <span className="c-jt-hist-detail" data-kz-field={`history.events[${i}].detail`}>{e.detail}</span>}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
   );
 }
 
 type NsStep = { label: string; detail?: string; account?: string; due?: unknown; status?: string; owner?: string; href?: string };
 type NsAccount = { id: string; name: string; stage?: string; color?: string; shade?: number; owner?: string; href?: string };
 
-/** next_steps: list or owner board; connectors measured from the DOM. */
-function NextStepsView({ id, steps, accounts, owners, title }: { id: string; steps: NsStep[]; accounts: NsAccount[]; owners: string[]; title?: string }) {
+/** Open (not done) steps, overdue count, soonest due day. Mirrors next_account_summary. */
+function nsSummary(id: string, steps: NsStep[]) {
+  let open = 0, overdue = 0;
+  let soonest: number | null = null;
+  for (const s of steps) {
+    if (s.account !== id || s.status === "done") continue;
+    open++;
+    if (s.status === "overdue") overdue++;
+    const d = kzIsoDays(s.due);
+    if (d != null) soonest = soonest == null ? d : Math.min(soonest, d);
+  }
+  return { open, overdue, soonest };
+}
+
+/** Default order: overdue, then open by soonest due, then nothing due; names break ties. */
+function nsOrder(accounts: NsAccount[], steps: NsStep[], order?: string): Array<{ a: NsAccount; i: number }> {
+  const rows = accounts.map((a, i) => ({ a, i }));
+  if (order === "as_written") return rows;
+  const key = (a: NsAccount): [number, number, string] => {
+    const { open, overdue, soonest } = nsSummary(a.id, steps);
+    const group = overdue > 0 ? 0 : open > 0 ? 1 : 2;
+    return [group, group === 2 ? 0 : soonest ?? Number.MAX_SAFE_INTEGER, a.name.toLowerCase()];
+  };
+  return rows.sort((x, y) => {
+    const kx = key(x.a), ky = key(y.a);
+    return kx[0] - ky[0] || kx[1] - ky[1] || (kx[2] < ky[2] ? -1 : kx[2] > ky[2] ? 1 : 0) || x.i - y.i;
+  });
+}
+
+/** Inside its own account row, "Larkspur: day 52" reads as "day 52". */
+function nsStrip(detail: string, name?: string): string {
+  return name && detail.startsWith(`${name}: `) ? detail.slice(name.length + 2) : detail;
+}
+
+/** next_steps: to-do list, or one expandable row per account. */
+function NextStepsView({ id, steps, accounts, owners, title, order }: { id: string; steps: NsStep[]; accounts: NsAccount[]; owners: string[]; title?: string; order?: string }) {
   const board = accounts.length > 0;
   const [owner, setOwner] = React.useState<string>("");
-  const [hot, setHot] = React.useState<string | null>(null);
-  const [wires, setWires] = React.useState<{ w: number; h: number; paths: Array<[string, string]> } | null>(null);
-  const bodyRef = React.useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = React.useState<string[]>([]);
+  const [scrollTo, setScrollTo] = React.useState<string | null>(null);
+  const prefix = id || "next";
+  const writeUrl = (k: string, v: string) => {
+    try {
+      const u = new URL(window.location.href);
+      if (v) u.searchParams.set(k, v); else u.searchParams.delete(k);
+      window.history.replaceState(window.history.state, "", u.toString());
+    } catch { /* ignore */ }
+  };
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const want = (new URLSearchParams(window.location.search).get("owner") || "").trim().toLowerCase();
+    const p = new URLSearchParams(window.location.search);
+    const want = (p.get("owner") || "").trim().toLowerCase();
     const match = owners.find((o) => o.trim().toLowerCase() === want);
     if (want && match) setOwner(match);
+    const ids = (p.get("account") || "").split(",").map((x) => x.trim()).filter((x) => accounts.some((a) => a.id === x));
+    if (ids.length) { setOpen(ids); setScrollTo(ids[0]); }
   }, []);
+  React.useEffect(() => {
+    if (!scrollTo) return;
+    document.getElementById(`${prefix}-acct-${scrollTo}`)?.closest("[data-acct]")?.scrollIntoView({ block: "center" });
+    setScrollTo(null);
+  }, [scrollTo, prefix]);
   const key = owner.trim().toLowerCase();
+  const isHidden = (o: string | undefined) => !!key && (o || "").trim().toLowerCase() !== key;
   const ownerOf = (s: NsStep) => {
     const a = s.account ? accounts.find((x) => x.id === s.account) : undefined;
     return a ? a.owner : s.owner;
   };
-  const isHidden = (o: string | undefined) => !!key && (o || "").trim().toLowerCase() !== key;
-  const pick = (o: string) => {
-    setOwner(o);
-    try {
-      const u = new URL(window.location.href);
-      if (o) u.searchParams.set("owner", o); else u.searchParams.delete("owner");
-      window.history.replaceState(window.history.state, "", u.toString());
-    } catch { /* ignore */ }
+  const pick = (o: string) => { setOwner(o); writeUrl("owner", o); };
+  const toggle = (aid: string) => {
+    const next = open.includes(aid) ? open.filter((x) => x !== aid) : [...open, aid];
+    setOpen(next);
+    writeUrl("account", accounts.filter((a) => next.includes(a.id)).map((a) => a.id).join(","));
   };
-  const measure = React.useCallback(() => {
-    const body = bodyRef.current;
-    if (!body) return setWires(null);
-    const svg = body.querySelector(".c-next-wires");
-    if (!svg || getComputedStyle(svg).display === "none") return setWires(null);
-    const b = body.getBoundingClientRect();
-    if (!(b.width > 0 && b.height > 0)) return setWires(null);
-    const shown = (el: Element) => !(el as HTMLElement).hidden && el.getClientRects().length > 0;
-    const paths: Array<[string, string]> = [];
-    let ok = true;
-    body.querySelectorAll(".c-next-step[data-acct]").forEach((st) => {
-      if (!ok || !shown(st)) return;
-      const aid = st.getAttribute("data-acct") || "";
-      const row = Array.from(body.querySelectorAll(".c-next-acct[data-acct]")).find((r) => r.getAttribute("data-acct") === aid);
-      if (!row || !shown(row)) return;
-      const r = row.getBoundingClientRect(), s = st.getBoundingClientRect();
-      const x1 = r.right - b.left, y1 = r.top + r.height / 2 - b.top;
-      const x2 = s.left - b.left, y2 = s.top + s.height / 2 - b.top;
-      if (!(r.width > 0 && s.width > 0 && x2 > x1)) { ok = false; return; }
-      const mx = (x1 + x2) / 2;
-      paths.push([aid, `M${x1.toFixed(1)} ${y1.toFixed(1)} C${mx.toFixed(1)} ${y1.toFixed(1)} ${mx.toFixed(1)} ${y2.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`]);
-    });
-    setWires(ok ? { w: b.width, h: b.height, paths } : null);
-  }, []);
-  useKzLayoutEffect(() => {
-    if (!board) return;
-    measure();
-    const body = bodyRef.current;
-    if (!body || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(body);
-    return () => ro.disconnect();
-  }, [board, owner, steps, accounts, measure]);
-  const hotProps = (aid: string) => ({ onMouseEnter: () => setHot(aid), onMouseLeave: () => setHot(null), onFocus: () => setHot(aid), onBlur: () => setHot(null) });
+  const card = (s: NsStep, i: number, name?: string) => {
+    const o = ownerOf(s);
+    const iso = kzIso(s.due);
+    return (
+      <li key={i} className={`c-next-step${s.status ? ` is-${s.status}` : ""}`} {...(o ? { "data-owner": o } : {})} hidden={isHidden(o) || undefined}>
+        <span className="c-next-dot" />
+        <span className="c-next-text">
+          {s.href
+            ? <a className="c-next-label" href={s.href} data-kz-field={`steps[${i}].label`}>{s.label}</a>
+            : <span className="c-next-label" data-kz-field={`steps[${i}].label`}>{s.label}</span>}
+          {s.detail && <span className="c-next-detail" data-kz-field={`steps[${i}].detail`}>{nsStrip(s.detail, name)}</span>}
+        </span>
+        {iso && <span className="c-next-due" data-kz-field={`steps[${i}].due`}>{kzShortDate(iso)}</span>}
+      </li>
+    );
+  };
   const chips = owners.length > 0 && (
     <div className="c-next-chips" role="group" aria-label="Filter by owner">
       <button type="button" className={`c-next-chip${key === "" ? " is-active" : ""}`} data-owner-chip="" aria-pressed={key === ""} onClick={() => pick("")}>Owner: All</button>
@@ -2558,58 +2600,50 @@ function NextStepsView({ id, steps, accounts, owners, title }: { id: string; ste
     </div>
   );
   const titleEl = title && <div className="c-next-title" data-kz-field="title">{title}</div>;
-  const stepList = (
-    <ul className="c-next-steps" data-kz-list="steps">
-      {steps.length === 0 && <li className="c-next-empty">Nothing due.</li>}
-      {steps.map((s, i) => {
-        const o = ownerOf(s);
-        const iso = kzIso(s.due);
-        const aid = board && s.account ? s.account : undefined;
-        return (
-          <li
-            key={i}
-            className={`c-next-step${s.status ? ` is-${s.status}` : ""}${aid && hot === aid ? " is-hot" : ""}`}
-            {...(aid ? { "data-acct": aid, tabIndex: 0, ...hotProps(aid) } : {})}
-            {...(o ? { "data-owner": o } : {})}
-            hidden={isHidden(o) || undefined}
-          >
-            <span className="c-next-dot" />
-            <span className="c-next-text">
-              {s.href
-                ? <a className="c-next-label" href={s.href} data-kz-field={`steps[${i}].label`}>{s.label}</a>
-                : <span className="c-next-label" data-kz-field={`steps[${i}].label`}>{s.label}</span>}
-              {s.detail && <span className="c-next-detail" data-kz-field={`steps[${i}].detail`}>{s.detail}</span>}
-            </span>
-            {iso && <span className="c-next-due" data-kz-field={`steps[${i}].due`}>{kzShortDate(iso)}</span>}
-          </li>
-        );
-      })}
-    </ul>
-  );
   if (!board) {
-    return <div id={id} className="c-next" data-next-steps="">{chips}{titleEl}{stepList}</div>;
+    return (
+      <div id={id} className="c-next" data-next-steps="">
+        {chips}{titleEl}
+        <ul className="c-next-steps" data-kz-list="steps">
+          {steps.length === 0 && <li className="c-next-empty">Nothing due.</li>}
+          {steps.map((s, i) => card(s, i))}
+        </ul>
+      </div>
+    );
   }
+  const loose = steps.map((s, i) => ({ s, i })).filter(({ s }) => !s.account || !accounts.some((a) => a.id === s.account));
   return (
     <div id={id} className="c-next is-board" data-next-steps="">
-      <div className="c-next-body" ref={bodyRef}>
-        <div className="c-next-head-left">{chips}</div>
-        <div className="c-next-head-right">{titleEl}</div>
-        <ul className="c-next-accounts" data-kz-list="accounts">
-          {accounts.map((a, i) => (
-            <li key={i} className={`c-next-acct ${hudClass(a.color, a.shade)}${hot === a.id ? " is-hot" : ""}`} data-acct={a.id} {...(a.owner ? { "data-owner": a.owner } : {})} tabIndex={0} hidden={isHidden(a.owner) || undefined} {...hotProps(a.id)}>
-              <span className="c-hud-swatch" />
-              {a.href
-                ? <a className="c-next-acct-name" href={a.href} data-kz-field={`accounts[${i}].name`}>{a.name}</a>
-                : <span className="c-next-acct-name" data-kz-field={`accounts[${i}].name`}>{a.name}</span>}
-              {a.stage && <span className="c-next-acct-stage" data-kz-field={`accounts[${i}].stage`}>{a.stage}</span>}
+      {chips}{titleEl}
+      <ul className="c-next-accounts" data-kz-list="accounts">
+        {nsOrder(accounts, steps, order).map(({ a, i }) => {
+          const sum = nsSummary(a.id, steps);
+          const isOpen = open.includes(a.id);
+          const panel = `${prefix}-acct-${a.id}`;
+          const mine = steps.map((s, si) => ({ s, si })).filter(({ s }) => s.account === a.id);
+          return (
+            <li key={a.id} className={`c-next-acct-item${isOpen ? " is-open" : ""}`} data-acct={a.id} {...(a.owner ? { "data-owner": a.owner } : {})} hidden={isHidden(a.owner) || undefined}>
+              <button type="button" className={`c-next-acct ${hudClass(a.color, a.shade)}`} aria-expanded={isOpen} aria-controls={panel} data-acct-toggle={a.id} onClick={() => toggle(a.id)}>
+                <span className="c-next-chevron" aria-hidden="true" />
+                <span className="c-hud-swatch" />
+                <span className="c-next-acct-name" data-kz-field={`accounts[${i}].name`}>{a.name}</span>
+                {a.stage && <span className="c-next-acct-stage" data-kz-field={`accounts[${i}].stage`}>{a.stage}</span>}
+                {sum.open === 0
+                  ? <span className="c-next-acct-sum is-clear">nothing due</span>
+                  : <span className="c-next-acct-sum">{sum.open} open{sum.overdue > 0 && <span className="c-next-acct-overdue"> · {sum.overdue} overdue</span>}</span>}
+              </button>
+              <div className="c-next-acct-steps" id={panel} hidden={!isOpen}>
+                <ul className="c-next-steps">
+                  {mine.length === 0 && <li className="c-next-empty">Nothing due.</li>}
+                  {mine.map(({ s, si }) => card(s, si, a.name))}
+                </ul>
+                {a.href && <a className="c-next-acct-link" href={a.href}>Open account</a>}
+              </div>
             </li>
-          ))}
-        </ul>
-        {stepList}
-        <svg className="c-next-wires" aria-hidden="true" {...(wires ? { viewBox: `0 0 ${wires.w.toFixed(1)} ${wires.h.toFixed(1)}` } : {})}>
-          {wires && wires.paths.map(([aid, d], i) => <path key={i} className={`c-next-wire${hot === aid ? " is-hot" : ""}`} d={d} data-acct={aid} />)}
-        </svg>
-      </div>
+          );
+        })}
+      </ul>
+      {loose.length > 0 && <ul className="c-next-steps c-next-loose" data-kz-list="steps">{loose.map(({ s, i }) => card(s, i))}</ul>}
     </div>
   );
 }
@@ -4592,11 +4626,12 @@ function ComponentView({
     }
 
     case "tier_summary": {
-      type TierAccount = { name: string; value?: string; renewal?: unknown; detail?: string; href?: string; color?: string };
+      type TierAccount = { name: string; value?: string; share?: number; renewal?: unknown; detail?: string; href?: string; color?: string };
       type Tier = { label: string; count?: unknown; value?: string; share?: number; detail?: string; color?: string; href?: string; active?: boolean; accounts?: TierAccount[] };
       const tiers = (comp.tiers as Tier[]) || [];
       const countLabel = (comp.count_label as string) || "accounts";
-      const shareLabel = (comp.share_label as string) || "Share";
+      const unitLabel = comp.share_label as string | undefined;
+      const shareLabel = unitLabel || "Share";
       const anyShare = tiers.some((t) => t.share != null);
       const prefix = (comp.id as string) || "tiers";
       const [open, setOpen] = React.useState<number>(-1);
@@ -4633,14 +4668,15 @@ function ComponentView({
                   </span>
                   <span className="c-tier-count" data-kz-field={`tiers[${i}].count`}>{count}</span>
                   <span className="c-tier-count-label" data-kz-field="count_label">{countLabel}</span>
-                  {t.value && <span className="c-tier-value" data-kz-field={`tiers[${i}].value`}>{t.value}</span>}
-                  {anyShare && (
+                  {(t.value || anyShare) && (
                     <span className="c-tier-share">
                       <span className="c-tier-share-head">
-                        <span className="c-tier-share-label" data-kz-field="share_label">{shareLabel}</span>
+                        {t.value
+                          ? <span className="c-tier-money"><span data-kz-field={`tiers[${i}].value`}>{t.value}</span>{unitLabel && <span className="c-tier-money-unit" data-kz-field="share_label">{unitLabel}</span>}</span>
+                          : <span className="c-tier-share-label" data-kz-field="share_label">{shareLabel}</span>}
                         {t.share != null && <span className="c-tier-share-num"><span data-kz-field={`tiers[${i}].share`}>{String(t.share)}</span>%</span>}
                       </span>
-                      <span className="c-tier-track"><span className={`c-tier-fill${width <= 0 ? " is-zero" : ""}`} style={{ width: `${width}%` }} /></span>
+                      {anyShare && <span className="c-tier-track"><span className={`c-tier-fill${width <= 0 ? " is-zero" : ""}`} style={{ width: `${width}%` }} /></span>}
                     </span>
                   )}
                   {t.detail && <span className="c-tier-detail" data-kz-field={`tiers[${i}].detail`}>{t.detail}</span>}
@@ -4662,7 +4698,7 @@ function ComponentView({
               <div className="c-tier-panel-head">
                 <span className="c-tier-swatch" />
                 <span className="c-tier-panel-title">{panelTier.label}</span>
-                <span className="c-tier-panel-count">{panelAccounts.length} {panelAccounts.length === 1 ? "account" : "accounts"}</span>
+                <span className="c-tier-panel-count">{panelAccounts.length} {panelAccounts.length === 1 ? "account" : "accounts"}{panelTier.value ? ` · ${panelTier.value}` : ""}</span>
               </div>
               <ul className="c-tier-accounts" data-kz-list={`tiers[${open}].accounts`}>
                 {rows.map(({ a, j }) => {
@@ -4683,7 +4719,7 @@ function ComponentView({
                         </span>
                       </span>
                       <span className="c-tier-acct-side">
-                        {a.value && <span className="c-tier-acct-value" data-kz-field={`${f}.value`}>{a.value}</span>}
+                        {a.value && <span className="c-tier-acct-value"><span data-kz-field={`${f}.value`}>{a.value}</span>{a.share != null && <span className="c-tier-acct-share"> · <span data-kz-field={`${f}.share`}>{String(a.share)}</span>%</span>}</span>}
                         {iso && (
                           <span className="c-tier-acct-renewal">
                             Renews <span data-kz-field={`${f}.renewal`}>{kzLongDate(iso)}</span>
@@ -4733,6 +4769,7 @@ function ComponentView({
           accounts={(comp.accounts as NsAccount[]) || []}
           owners={(comp.owners as string[]) || []}
           title={comp.title as string | undefined}
+          order={comp.order as string | undefined}
         />
       );
     }
@@ -4755,8 +4792,7 @@ function ComponentView({
       const tpNarrow = jtPlaceLabels(tpItems, JT_TP_CHAR_W, JT_RAIL_W_NARROW);
       const curColor = current?.color || "default";
       return (
-        <div id={id} className="c-journey">
-          {title && <div className="c-jt-title" data-kz-field="title">{title}</div>}
+        <JourneyFrame id={id} title={title} history={comp.history as JtHistory | undefined} defaultView={comp.default_view as string | undefined}>
           <div className={`c-jt-track${above ? " has-above" : ""}`}>
             <div className="c-jt-line" />
             <div className="c-jt-rail">
@@ -4806,8 +4842,7 @@ function ComponentView({
               </div>
             </>
           )}
-          {(comp.history as { events?: unknown[] } | undefined)?.events?.length ? <JourneyHistoryView history={comp.history as Parameters<typeof JourneyHistoryView>[0]["history"]} /> : null}
-        </div>
+        </JourneyFrame>
       );
     }
 
@@ -5740,7 +5775,7 @@ mod tests {
             ("graph", "function GraphSVG("),
             ("accordion", "function AccordionView("),
             ("next_steps", "function NextStepsView("),
-            ("journey_track", "function JourneyHistoryView("),
+            ("journey_track", "function JourneyFrame("),
         ];
         let mut region = String::new();
         let needle = format!("\n    case \"{comp}\": {{");

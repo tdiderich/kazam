@@ -225,6 +225,14 @@
       "cadence",
       "call",
       "note"
+    ],
+    "NextOrder": [
+      "auto",
+      "as_written"
+    ],
+    "JourneyView": [
+      "timeline",
+      "details"
     ]
   },
   "types": {
@@ -1667,6 +1675,11 @@
         "required": false,
         "kind": "text"
       },
+      "share": {
+        "type": "number",
+        "required": false,
+        "kind": "number"
+      },
       "renewal": {
         "type": "string",
         "required": false,
@@ -1878,11 +1891,6 @@
       }
     },
     "JourneyHistory": {
-      "title": {
-        "type": "string",
-        "required": false,
-        "kind": "text"
-      },
       "events": {
         "type": "HistoryEvent[]",
         "required": false,
@@ -2993,6 +3001,11 @@
         "required": false,
         "kind": "object"
       },
+      "default_view": {
+        "type": "JourneyView",
+        "required": false,
+        "kind": "enum"
+      },
       "title": {
         "type": "string",
         "required": false,
@@ -3041,6 +3054,11 @@
         "type": "string[]",
         "required": false,
         "kind": "list"
+      },
+      "order": {
+        "type": "NextOrder",
+        "required": false,
+        "kind": "enum"
       },
       "title": {
         "type": "string",
@@ -3361,7 +3379,7 @@
       ]
     },
     "next_steps": {
-      "use_when": "What to do next: to-do cards from the journey rules, or an owner board wiring accounts to their steps.",
+      "use_when": "What to do next: to-do cards from the journey rules, or one expandable row per account with its open and overdue counts.",
       "avoid_when": "A long backlog with dates and groups (use priority_queue).",
       "example": "next_steps",
       "rules": [
@@ -3371,7 +3389,7 @@
         },
         {
           "warn": "accounts > 10",
-          "say": "More than 10 account rows crowds the connectors. Filter by owner or split the board."
+          "say": "More than 10 account rows is a long list. Filter by owner or split by team."
         }
       ]
     }

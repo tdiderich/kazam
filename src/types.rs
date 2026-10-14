@@ -1137,8 +1137,8 @@ pub enum Component {
         #[serde(default)]
         animate: Option<Animate>,
     },
-    /// To-do cards. With `accounts`, an owner board: account rows on the
-    /// left wired to their steps on the right. `owners` adds filter chips.
+    /// To-do cards. With `accounts`, one row per account that expands to
+    /// its steps. `owners` adds filter chips.
     NextSteps {
         #[serde(default)]
         steps: Vec<NextStep>,
@@ -1146,6 +1146,10 @@ pub enum Component {
         accounts: Vec<NextAccount>,
         #[serde(default)]
         owners: Vec<String>,
+        /// Account row order: `auto` (overdue first, then soonest due) or
+        /// `as_written`.
+        #[serde(default)]
+        order: NextOrder,
         #[serde(default)]
         title: Option<String>,
         #[serde(default)]
@@ -1167,9 +1171,12 @@ pub enum Component {
         current: Option<JourneyCurrent>,
         #[serde(default)]
         touchpoints: Vec<JourneyTouchpoint>,
-        /// Verbose log under the track, collapsed by default.
+        /// Verbose log shown by the Details view toggle.
         #[serde(default)]
         history: Option<JourneyHistory>,
+        /// Which view shows first when `history` is given.
+        #[serde(default)]
+        default_view: JourneyView,
         #[serde(default)]
         title: Option<String>,
         #[serde(default)]
@@ -1409,7 +1416,7 @@ pub struct Tier {
     pub label: String,
     #[serde(deserialize_with = "string_or_number")]
     pub count: String,
-    /// Secondary figure under the count, like `$71K ARR`.
+    /// Tier dollars, like `$406K`; leads the share row.
     #[serde(default)]
     pub value: Option<String>,
     /// 0-100 bar width. Shown as given: 8.4 stays 8.4%.
@@ -1436,6 +1443,9 @@ pub struct TierAccount {
     /// ARR, as text: `$71K`.
     #[serde(default)]
     pub value: Option<String>,
+    /// Share of total ARR, 0-100; shown after the dollars.
+    #[serde(default)]
+    pub share: Option<f64>,
     /// ISO renewal date. Rows sort by it, soonest first.
     #[serde(default)]
     pub renewal: Option<String>,
@@ -1484,6 +1494,14 @@ impl StepStatus {
             StepStatus::Done => "is-done",
         }
     }
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NextOrder {
+    #[default]
+    Auto,
+    AsWritten,
 }
 
 #[derive(Deserialize, Clone)]
@@ -1591,11 +1609,16 @@ pub struct JourneyCurrent {
 
 #[derive(Deserialize, Clone)]
 pub struct JourneyHistory {
-    /// Toggle text; default "Full history".
-    #[serde(default)]
-    pub title: Option<String>,
     #[serde(default)]
     pub events: Vec<HistoryEvent>,
+}
+
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JourneyView {
+    #[default]
+    Timeline,
+    Details,
 }
 
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq)]

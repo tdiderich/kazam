@@ -2868,26 +2868,66 @@ fn health_breakdown_renders_tier_swatch_and_value() {
 }
 
 #[test]
-fn next_steps_board_wires_accounts_and_filters_by_owner() {
+fn next_steps_board_sorts_rows_overdue_first_then_soonest_then_clear() {
     let html = build_one_page(
-        "next-steps",
-        "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    title: From the journey rules\n    owners: [Tyler, Will]\n    accounts:\n      - { id: lark, name: Larkspur, stage: Onboarding, owner: Tyler }\n    steps:\n      - { label: Move past onboarding, account: lark, due: 2026-10-17, status: overdue }\n      - { label: Loose step, owner: Will }\n",
+        "next-steps-order",
+        "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    owners: [Tyler, Will]\n    accounts:\n      - { id: zed, name: Zed, owner: Will }\n      - { id: brk, name: Brightline, owner: Tyler }\n      - { id: ost, name: Ostra Health, owner: Will, href: ./ostra }\n      - { id: lark, name: Larkspur, stage: Onboarding, owner: Tyler }\n      - { id: alp, name: Alpha }\n    steps:\n      - { label: Exec call, account: brk, due: 2026-11-04 }\n      - { label: Renewal review, account: ost, due: 2026-10-24 }\n      - { label: Move past onboarding, account: lark, due: 2026-10-17, status: overdue }\n      - { label: Old thing, account: zed, status: done }\n",
         "",
     );
-    assert_contains(&html, r#"class="c-next is-board" data-next-steps"#);
+    let pos = |name: &str| {
+        html.find(&format!(r#"<span class="c-next-acct-name">{name}</span>"#))
+            .unwrap_or_else(|| panic!("{name}"))
+    };
+    let order = ["Larkspur", "Ostra Health", "Brightline", "Alpha", "Zed"];
+    for w in order.windows(2) {
+        assert!(pos(w[0]) < pos(w[1]), "{} before {}", w[0], w[1]);
+    }
     assert_contains(
         &html,
-        r#"<li class="c-next-acct c-hud-shade-1" data-acct="lark" data-owner="Tyler" tabindex="0">"#,
+        r#"<span class="c-next-acct-sum">1 open<span class="c-next-acct-overdue"> · 1 overdue</span></span>"#,
     );
     assert_contains(
         &html,
-        r#"<li class="c-next-step is-overdue" data-acct="lark" tabindex="0" data-owner="Tyler">"#,
+        r#"<span class="c-next-acct-sum is-clear">nothing due</span>"#,
     );
-    assert_contains(&html, r#"<li class="c-next-step" data-owner="Will">"#);
-    assert_contains(&html, r#"<span class="c-next-due">Oct 17</span>"#);
-    assert_contains(&html, r#"data-owner-chip="Will""#);
-    assert_contains(&html, "c-next-wires");
-    assert_contains(&html, "history.replaceState");
+    assert_contains(
+        &html,
+        r#"aria-expanded="false" aria-controls="next-acct-lark" data-acct-toggle="lark""#,
+    );
+    assert_contains(
+        &html,
+        r#"<a class="c-next-acct-link" href="./ostra">Open account</a>"#,
+    );
+    assert_contains(
+        &html,
+        r#"<li class="c-next-acct-item" data-acct="lark" data-owner="Tyler">"#,
+    );
+    assert!(!html.contains("<svg class=\"c-next-wires\""));
+    assert_contains(&html, "searchParams.set(key, value)");
+
+    let html = build_one_page(
+        "next-steps-as-written",
+        "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    order: as_written\n    accounts:\n      - { id: zed, name: Zed }\n      - { id: alp, name: Alpha }\n    steps: []\n",
+        "",
+    );
+    assert!(html.find(">Zed<").unwrap() < html.find(">Alpha<").unwrap());
+}
+
+#[test]
+fn next_steps_strips_account_prefix_inside_its_row() {
+    let html = build_one_page(
+        "next-steps-strip",
+        "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    accounts:\n      - { id: lark, name: Larkspur }\n    steps:\n      - { label: Move past onboarding, detail: \"Larkspur: day 52 of a 45 day target\", account: lark }\n      - { label: Loose, detail: \"Larkspur: stays as written\" }\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<span class="c-next-detail">day 52 of a 45 day target</span>"#,
+    );
+    assert_contains(
+        &html,
+        r#"<span class="c-next-detail">Larkspur: stays as written</span>"#,
+    );
 }
 
 #[test]
@@ -2903,22 +2943,68 @@ fn next_steps_list_mode_ships_no_script() {
 }
 
 #[test]
-fn journey_history_renders_collapsed_newest_first() {
+fn journey_history_is_a_details_view_behind_the_toggle() {
     let html = build_one_page(
         "journey-history",
-        "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages:\n      - { label: A }\n    history:\n      events:\n        - { date: 2025-11-05, label: Kickoff }\n        - { date: 2026-03-01, label: Entered Save, kind: stage, detail: Champion left }\n",
+        "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    title: Journey\n    default_view: details\n    stages:\n      - { label: A }\n    history:\n      events:\n        - { date: 2025-11-05, label: Kickoff }\n        - { date: 2026-03-01, label: Entered Save, kind: stage, detail: Champion left }\n",
         "",
     );
     assert_contains(
         &html,
-        r#"<details class="c-jt-history"><summary class="c-jt-history-toggle"><span class="c-jt-history-title">Full history (2)</span>"#,
+        r#"class="c-journey" data-journey data-default-view="details""#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="c-venn-toggle c-jt-toggle" role="group" aria-label="Journey view switcher">"#,
+    );
+    assert_contains(
+        &html,
+        r#"data-jt-view="details" aria-pressed="false">Details<span class="c-jt-toggle-count">2</span>"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="c-jt-panel" data-jt-panel="timeline">"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="c-jt-panel c-jt-details" data-jt-panel="details" hidden>"#,
     );
     let save = html.find("Entered Save").unwrap();
     let kick = html.find(">Kickoff<").unwrap();
     assert!(save < kick, "newest first");
+    assert!(!html.contains("<details class=\"c-jt-history\""));
+
+    let html = build_one_page(
+        "journey-no-history",
+        "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages:\n      - { label: A }\n",
+        "",
+    );
+    assert!(!html.contains(r#"class="c-venn-toggle c-jt-toggle""#));
+    assert!(!html.contains(r#"data-jt-panel=""#));
+}
+
+#[test]
+fn tier_summary_leads_with_dollars_and_shows_account_share() {
+    let html = build_one_page(
+        "tier-money",
+        "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    share_label: ARR\n    tiers:\n      - label: Outstanding\n        count: 3\n        value: $406K\n        share: 31.2\n        accounts:\n          - { name: Larkspur, value: $95K, share: 7.3, renewal: 2026-11-02 }\n          - { name: Other, value: $10K }\n      - { label: Good, count: 2, share: 58.4 }\n",
+        "",
+    );
     assert_contains(
         &html,
-        r#"<li class="c-jt-hist is-stage"><span class="c-jt-hist-date">2026-03-01</span>"#,
+        r#"<span class="c-tier-money">$406K<span class="c-tier-money-unit">ARR</span></span><span class="c-tier-share-num">31.2%</span>"#,
     );
-    assert_contains(&html, r#"data-align-n=""#);
+    assert_contains(
+        &html,
+        r#"<span class="c-tier-share-label">ARR</span><span class="c-tier-share-num">58.4%</span>"#,
+    );
+    assert_contains(
+        &html,
+        r#"<span class="c-tier-panel-count">2 accounts · $406K</span>"#,
+    );
+    assert_contains(
+        &html,
+        r#"<span class="c-tier-acct-value">$95K<span class="c-tier-acct-share"> · 7.3%</span></span>"#,
+    );
+    assert_contains(&html, r#"<span class="c-tier-acct-value">$10K</span>"#);
 }

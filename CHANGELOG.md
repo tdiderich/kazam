@@ -8,9 +8,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 - `tier_summary` component: one card per health tier with a swatch, big count, optional share bar (8.4 stays 8.4%) and detail line. Tiers with `accounts` open a panel listing each account's ARR and renewal date, soonest first, with an "in N days" note under 90 days. `?tier=<label>` opens a tier on load. Static and React renderers match.
-- `journey_track` component: one account's journey with main stages on a line, temporary stages as detour arcs, a pulsing current marker, and a touchpoint band. Dated mode is linear in time; leave a date out and it spaces evenly in list order. Colliding labels drop to extra rows (a second pass covers half-width columns). Optional `history` adds a collapsed, newest-first log under the track for dense cadence calls.
+- `journey_track` component: one account's journey with main stages on a line, temporary stages as detour arcs, a pulsing current marker, and a touchpoint band. Dated mode is linear in time; leave a date out and it spaces evenly in list order. Colliding labels drop to extra rows (a second pass covers half-width columns). Optional `history` adds a Details view (newest-first log for dense cadence calls) behind a Timeline | Details switcher styled like venn's; `default_view` picks the first view.
 - `health_breakdown` component: one card per health dimension with a tier swatch, mono tier name, optional value and the rule behind it.
-- `next_steps` component: to-do cards with due dates and status. With `accounts` it becomes an owner board with curved connectors measured from the DOM; `owners` adds filter chips with `?owner=<name>` support. Columns stack and connectors drop under about 760px.
+- `next_steps` component: to-do cards with due dates and status. With `accounts` it renders one expandable row per account ("N open · N overdue" or "nothing due"), sorted overdue first, then soonest due (`order: as_written` to opt out); `?account=<id>` opens a row and `owners` adds filter chips with `?owner=<name>`.
+- `tier_summary` cards lead the share row with the tier's dollars (`value`, with `share_label` as a small unit) and the share on the right; the accounts panel shows the tier total and each account's `share`.
 - `tier_summary` tiers without a `color` take accent shades by position (solid, 62%, 32%, hollow). `health_breakdown` and `next_steps` take the same shades through `shade: 1-4`.
 
 ## [1.30.1] - 2026-09-28

@@ -2415,11 +2415,12 @@ a.c-tier:hover, .c-tier.is-expandable:hover { border-color: rgba(var(--accent-rg
 .c-tier.is-open .c-tier-chevron { transform: translateY(2px) rotate(-135deg); }
 .c-tier-count { display: block; margin-top: 16px; font-size: clamp(2.6rem, 36cqi, 4.5rem); font-weight: 500; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .c-tier-count-label { display: block; margin-top: 10px; font-size: clamp(0.85rem, 8cqi, 1rem); color: var(--light-muted); }
-.c-tier-value { display: block; margin-top: 4px; font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 12px; letter-spacing: 0.06em; color: var(--muted); }
+.c-tier-money { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(1rem, 10cqi, 1.15rem); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--snow); }
+.c-tier-money-unit { margin-left: 5px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .c-tier-share { display: block; margin-top: 26px; }
 .c-tier-share-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; font-size: clamp(0.85rem, 8cqi, 1rem); white-space: nowrap; color: var(--light-muted); }
 .c-tier-share-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.c-tier-share-num { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.c-tier-share-num { font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .c-tier-track { display: block; height: 14px; border-radius: 999px; background: rgba(var(--text-rgb), 0.08); overflow: hidden; }
 .c-tier-fill { display: block; height: 100%; border-radius: 999px; background: var(--tier-c); box-sizing: border-box; }
 .c-tier-fill.is-zero { width: 36px !important; background: transparent; border: 2px solid rgba(var(--text-rgb), 0.35); }
@@ -2440,6 +2441,7 @@ a.c-tier-acct-name:hover { color: var(--teal); }
 .c-tier-acct-detail { font-size: 13.5px; color: var(--light-muted); }
 .c-tier-acct-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; }
 .c-tier-acct-value { font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.08em; color: var(--snow); }
+.c-tier-acct-share { color: var(--muted); }
 .c-tier-acct-renewal { font-size: 13px; color: var(--light-muted); }
 .c-tier-acct-soon { margin-left: 6px; font-weight: 600; color: var(--yellow); }
 @media (max-width: 560px) { .c-tier-acct { flex-direction: column; align-items: flex-start; } .c-tier-acct-side { align-items: flex-start; text-align: left; } }
@@ -2465,8 +2467,7 @@ a.c-tier-acct-name:hover { color: var(--teal); }
 .c-health-value { margin-right: 8px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--snow); }
 .c-health-tier { flex: none; display: flex; align-items: center; gap: 10px; padding-top: 5px; font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--snow); }
 
-/* Next steps: to-do cards; with accounts, an owner board with connectors */
-.c-next { container-type: inline-size; --next-gutter: 120px; }
+/* Next steps: to-do cards; with accounts, one expandable row per account */
 .c-next [hidden] { display: none !important; }
 .c-next-title { margin-bottom: 14px; font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--light-muted); }
 .c-next-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
@@ -2479,7 +2480,7 @@ a.c-tier-acct-name:hover { color: var(--teal); }
 .c-next-dot { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--teal); box-sizing: border-box; }
 .c-next-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .c-next-label { font-size: 1.25rem; font-weight: 600; line-height: 1.25; color: var(--snow); text-decoration: none; }
-a.c-next-label:hover, a.c-next-acct-name:hover { color: var(--teal); }
+a.c-next-label:hover { color: var(--teal); }
 .c-next-detail { font-size: 1rem; line-height: 1.4; color: var(--light-muted); }
 .c-next-due { flex: none; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .c-next-step.is-overdue .c-next-due { font-weight: 600; color: var(--red); }
@@ -2487,26 +2488,28 @@ a.c-next-label:hover, a.c-next-acct-name:hover { color: var(--teal); }
 .c-next-step.is-done .c-next-dot { background: var(--teal); }
 .c-next-step.is-done .c-next-label, .c-next-step.is-done .c-next-detail { color: var(--muted); }
 .c-next-empty { padding: 14px 0; color: var(--muted); }
-.c-next-head-left .c-next-chips { margin-bottom: 18px; }
-.c-next-head-right .c-next-title { margin-bottom: 18px; }
-.c-next-body { position: relative; display: grid; grid-template-columns: 1fr 1fr; grid-template-areas: "chips title" "accts steps"; column-gap: var(--next-gutter); align-items: start; }
-.c-next-body > .c-next-head-left { grid-area: chips; align-self: end; }
-.c-next-body > .c-next-head-right { grid-area: title; align-self: end; }
-.c-next-body > .c-next-accounts { grid-area: accts; }
-.c-next-body > .c-next-steps { grid-area: steps; }
-.c-next-acct { display: flex; align-items: center; gap: 14px; margin: 0; padding: 16px 24px; border-radius: 14px; background: rgba(var(--text-rgb), 0.06); border: 2px solid rgba(var(--text-rgb), 0.08); outline: none; transition: border-color 0.15s ease; }
-.c-next-acct-name { min-width: 0; font-size: 1.2rem; font-weight: 600; color: var(--snow); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-next-acct-item { list-style: none; margin: 0; }
+.c-next-acct { width: 100%; display: flex; align-items: center; gap: 14px; margin: 0; padding: 16px 24px; font: inherit; text-align: left; color: var(--snow); cursor: pointer; border-radius: 14px; background: rgba(var(--text-rgb), 0.06); border: 2px solid rgba(var(--text-rgb), 0.08); transition: border-color 0.15s ease; }
+.c-next-acct:hover { border-color: rgba(var(--accent-rgb), 0.45); }
+.c-next-acct-item.is-open > .c-next-acct { border-color: var(--teal); }
+.c-next-acct:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.c-next-chevron { flex: none; width: 7px; height: 7px; margin: 0 2px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform 0.2s ease; }
+.c-next-acct-item.is-open .c-next-chevron { transform: rotate(45deg); }
+.c-next-acct-name { min-width: 0; font-size: 1.2rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .c-next-acct-stage { margin-left: auto; flex: none; font-size: 1rem; color: var(--light-muted); }
-.c-next-acct.is-hot, .c-next-step.is-hot { border-color: var(--teal); }
-.c-next-acct:focus-visible, .c-next-step:focus-visible { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.35); }
-.c-next-wires { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.c-next-wire { fill: none; stroke: rgba(var(--text-rgb), 0.28); stroke-width: 1.5; transition: stroke 0.15s ease; }
-.c-next-wire.is-hot { stroke: var(--teal); stroke-width: 2; }
-@container (max-width: 760px) {
-  .c-next-body { grid-template-columns: 1fr; grid-template-areas: "chips" "accts" "title" "steps"; }
-  .c-next-head-right .c-next-title { margin: 24px 0 14px; }
-  .c-next-wires { display: none; }
-}
+.c-next-acct-sum { flex: none; min-width: 9.5em; text-align: right; font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 12px; letter-spacing: 0.08em; color: var(--light-muted); }
+.c-next-acct-name + .c-next-acct-sum { margin-left: auto; }
+.c-next-acct-sum.is-clear { color: var(--muted); }
+.c-next-acct-overdue { font-weight: 600; color: var(--red); }
+.c-next-acct-steps { display: flex; flex-direction: column; gap: 10px; margin: 10px 0 6px 38px; }
+.c-next-acct-steps .c-next-step { padding: 14px 20px; }
+.c-next-acct-steps .c-next-label { font-size: 1.1rem; }
+.c-next-acct-steps .c-next-empty { padding: 4px 0; }
+.c-next-acct-link { align-self: flex-start; font-size: 13.5px; color: var(--teal); text-decoration: none; }
+.c-next-acct-link:hover { text-decoration: underline; }
+.c-next-loose { margin-top: 14px; }
+.c-next.is-board .c-next-title { margin-top: 4px; }
+@media (max-width: 560px) { .c-next-acct-stage { display: none; } .c-next-acct-sum { margin-left: auto; min-width: 0; } .c-next-acct-steps { margin-left: 16px; } }
 @media print { .c-next-chips { display: none; } }
 
 /* Journey track: stages on one line, detours as arcs, touchpoints below */
@@ -2545,21 +2548,21 @@ a.c-next-label:hover, a.c-next-acct-name:hover { color: var(--teal); }
 .c-jt-tp { position: absolute; top: 0; width: 12px; height: 12px; border-radius: 50%; transform: translateX(-50%); background: var(--snow); box-sizing: border-box; }
 .c-jt-tp.is-upcoming { background: transparent; border: 2px solid var(--snow); }
 .c-jt-tp-label { position: absolute; top: calc(20px + var(--jt-row, 0) * 22px); white-space: nowrap; font-size: 13.5px; line-height: 20px; color: var(--light-muted); }
-.c-jt-history { margin-top: 18px; }
-.c-jt-history-toggle { display: inline-flex; align-items: center; gap: 10px; list-style: none; cursor: pointer; font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); user-select: none; }
-.c-jt-history-toggle::-webkit-details-marker { display: none; }
-.c-jt-history-toggle:hover { color: var(--light-muted); }
-.c-jt-history-toggle:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 4px; }
-.c-jt-history-chevron { width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-2px) rotate(45deg); transition: transform 0.2s ease; }
-.c-jt-history[open] .c-jt-history-chevron { transform: translateY(1px) rotate(-135deg); }
-.c-jt-history-list { list-style: none; margin: 12px 0 0; padding: 0 0 0 4px; }
+.c-jt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; min-height: 30px; }
+.c-jt-head .c-jt-title { margin-bottom: 0; }
+.c-jt-head > .c-jt-toggle { margin-left: auto; }
+.c-venn-toggle.c-jt-toggle button { width: auto; padding: 0 10px; gap: 6px; font: inherit; font-size: 12.5px; font-weight: 500; }
+.c-jt-toggle-count { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.c-venn-toggle.c-jt-toggle button.active .c-jt-toggle-count { color: inherit; opacity: 0.7; }
+.c-jt-panel[hidden] { display: none; }
+.c-jt-details { max-height: 420px; overflow-y: auto; }
+.c-jt-history-list { list-style: none; margin: 4px 0 0; padding: 0 0 0 4px; }
 .c-jt-hist { display: grid; grid-template-columns: 96px 8px 1fr; column-gap: 12px; align-items: baseline; margin: 0; padding: 5px 0 5px 12px; border-left: 1px solid rgba(var(--text-rgb), 0.14); font-size: 13.5px; line-height: 1.45; }
 .c-jt-hist-date { font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .c-jt-hist-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--text-rgb), 0.3); align-self: center; }
 .c-jt-hist.is-stage .c-jt-hist-dot { background: var(--teal); }
 .c-jt-hist-text { min-width: 0; color: var(--snow); }
 .c-jt-hist-detail { margin-left: 8px; color: var(--muted); }
-@media print { .c-jt-history-list { display: block; } }
 .c-jt-label[data-align="center"], .c-jt-tp-label[data-align="center"], .c-jt-current-label[data-align="center"] { transform: translateX(-50%); }
 .c-jt-label[data-align="start"], .c-jt-tp-label[data-align="start"], .c-jt-current-label[data-align="start"] { transform: translateX(-10px); }
 .c-jt-label[data-align="end"], .c-jt-tp-label[data-align="end"], .c-jt-current-label[data-align="end"] { transform: translateX(calc(-100% + 10px)); }
