@@ -1,4 +1,6 @@
 path	tokens	reads	description
 demo/charts.yaml	840	0	YAML configuration/data
+demo/customer-hud.yaml	1438	0	YAML configuration/data
+demo/maze-code-analysis.yaml	2713	0	YAML configuration/data
 demo/primitives.yaml	1247	0	YAML configuration/data
 demo/priority-queue.yaml	1292	0	YAML configuration/data

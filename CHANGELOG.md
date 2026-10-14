@@ -4,8 +4,6 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
 ## [1.31.0] - 2026-10-14
 
 ### Added
@@ -16,6 +14,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `tier_summary` cards lead the share row with the tier's dollars (`value`, with `share_label` as a small unit) and the share on the right; the accounts panel shows the tier total and each account's `share`.
 - HUD components only emit http(s), mailto, tel, anchor and path links (validate rejects other schemes), keep panels readable without JS and in print, give unnamed instances unique ids, and namespace URL params by component `id`.
 - `tier_summary` tiers without a `color` take accent shades by position (solid, 62%, 32%, hollow). `health_breakdown` and `next_steps` take the same shades through `shade: 1-4`.
+
+### Security
+- Bump `rustls` to 0.23.46 for RUSTSEC-2026-0346, -0347, -0348 and -0349.
 
 ## [1.30.1] - 2026-09-28
 
