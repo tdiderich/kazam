@@ -528,6 +528,8 @@ pub(crate) fn example_yaml(name: &str) -> Option<&'static str> {
         "chart-bar" => include_str!("../schema/examples/chart-bar.yaml"),
         "tree" => include_str!("../schema/examples/tree.yaml"),
         "timeline" => include_str!("../schema/examples/timeline.yaml"),
+        "tier_summary" => include_str!("../schema/examples/tier_summary.yaml"),
+        "journey_track" => include_str!("../schema/examples/journey_track.yaml"),
         _ => return None,
     })
 }
@@ -2308,6 +2310,129 @@ function vennTspans(fit: VennFit, x: number, avail: number, weight: number) {
     );
   });
 }
+
+// ── tier_summary / journey_track helpers ───────────────────
+// Mirrors src/render/components.rs (`journey_layout`, `jt_place_labels`,
+// `fmt_long_date`). Change both together.
+
+/** ISO `YYYY-MM-DD` from a YAML date: js-yaml may hand back a Date. */
+function kzIso(v: unknown): string | undefined {
+  if (v instanceof Date) return isNaN(v.getTime()) ? undefined : v.toISOString().slice(0, 10);
+  if (typeof v === "string") return v.trim().slice(0, 10);
+  return undefined;
+}
+
+/** Days since 1970-01-01 for an ISO date, or null. */
+function kzIsoDays(v: unknown): number | null {
+  const iso = kzIso(v);
+  if (!iso) return null;
+  const m = /^(-?\d+)-(\d+)-(\d+)$/.exec(iso);
+  if (!m) return null;
+  const mo = +m[2], d = +m[3];
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return Math.round(Date.UTC(+m[1], mo - 1, d) / 86400000);
+}
+
+function kzLongDate(iso: string): string {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const [y, m, d] = iso.split("-");
+  const mi = parseInt(m, 10), di = parseInt(d, 10);
+  if (!y || isNaN(mi) || isNaN(di) || mi < 1 || mi > 12) return iso;
+  return `${months[mi - 1]} ${di}, ${y}`;
+}
+
+const JT_RAIL_W = 640;
+const JT_EDGE = 24;
+const JT_GAP = 10;
+const JT_MAX_ROWS = 4;
+const JT_STAGE_CHAR_W = 8;
+const JT_TP_CHAR_W = 7;
+const JT_MONO_CHAR_W = 10;
+
+type JtStage = { label: string; date?: unknown; status?: string };
+type JtDetour = { label: string; from?: unknown; to?: unknown; after?: number; color?: string };
+type JtCurrent = { label: string; date?: unknown; temporary?: boolean; color?: string };
+type JtTouch = { label: string; date?: unknown; status?: string };
+
+function journeyLayout(stages: JtStage[], detours: JtDetour[], current: JtCurrent | undefined, tps: JtTouch[], start: unknown, end: unknown) {
+  const has = (v: unknown) => kzIsoDays(v) != null;
+  const dated = stages.every((s) => has(s.date)) && tps.every((t) => has(t.date)) && (!current || has(current.date)) && detours.every((d) => has(d.from));
+  let stageX: number[];
+  let detourX: Array<[number, number]>;
+  let currentX: number | null;
+  let tpX: number[];
+  if (dated) {
+    const all: number[] = [];
+    stages.forEach((s) => all.push(kzIsoDays(s.date) as number));
+    tps.forEach((t) => all.push(kzIsoDays(t.date) as number));
+    if (current) all.push(kzIsoDays(current.date) as number);
+    detours.forEach((d) => {
+      all.push(kzIsoDays(d.from) as number);
+      const t = kzIsoDays(d.to);
+      if (t != null) all.push(t);
+    });
+    const lo = kzIsoDays(start) ?? (all.length ? Math.min(...all) : 0);
+    let hi = kzIsoDays(end) ?? (all.length ? Math.max(...all) : lo);
+    if (hi <= lo) hi = lo + 1;
+    const f = (d: number) => Math.min(1, Math.max(0, (d - lo) / (hi - lo)));
+    stageX = stages.map((s) => f(kzIsoDays(s.date) ?? lo));
+    detourX = detours.map((d) => {
+      let a = f(kzIsoDays(d.from) ?? lo);
+      const to = kzIsoDays(d.to);
+      let b = to != null ? f(to) : a + 0.06;
+      if (b < a) [a, b] = [b, a];
+      b = Math.min(Math.max(b, a + 0.03), 1);
+      return [a, b] as [number, number];
+    });
+    currentX = current ? f(kzIsoDays(current.date) ?? hi) : null;
+    tpX = tps.map((t) => f(kzIsoDays(t.date) ?? lo));
+  } else {
+    const n = stages.length;
+    const slots = n + (current ? 1 : 0);
+    const pos = (i: number) => (slots <= 1 ? 0.5 : i / (slots - 1));
+    detourX = detours.map((d) => {
+      const k = Math.min(d.after ?? 0, Math.max(0, n - 1));
+      const xa = pos(k);
+      const xb = k + 1 < slots ? pos(k + 1) : 1;
+      const gap = xb - xa;
+      return (gap <= 0 ? [Math.max(0, xa - 0.12), xa] : [xa + 0.18 * gap, xa + 0.72 * gap]) as [number, number];
+    });
+    stageX = stages.map((_, i) => pos(i));
+    currentX = current ? pos(n) : null;
+    const m = tps.length;
+    tpX = tps.map((_, i) => (i + 0.5) / m);
+  }
+  const done = currentX ?? stages.reduce((acc, s, i) => (s.status !== "upcoming" ? Math.max(acc, stageX[i]) : acc), 0);
+  return { stageX, detourX, currentX, tpX, done };
+}
+
+/** Row and alignment per label so neighbours don't overlap at JT_RAIL_W. */
+function jtPlaceLabels(items: Array<[number, string]>, charW: number): { places: Array<[number, string]>; rows: number } {
+  const order = items.map((_, i) => i).sort((a, b) => items[a][0] - items[b][0] || a - b);
+  const ends: number[] = new Array(JT_MAX_ROWS).fill(-Infinity);
+  const places: Array<[number, string]> = items.map(() => [0, "center"]);
+  let rows = 0;
+  for (const i of order) {
+    const [x, label] = items[i];
+    const c = x * JT_RAIL_W;
+    const w = Array.from(label).length * charW + 6;
+    let l: number, r: number, align: string;
+    if (c - w / 2 < -JT_EDGE) { l = c - 10; r = c - 10 + w; align = "start"; }
+    else if (c + w / 2 > JT_RAIL_W + JT_EDGE) { l = c + 10 - w; r = c + 10; align = "end"; }
+    else { l = c - w / 2; r = c + w / 2; align = "center"; }
+    let row = ends.findIndex((e) => l >= e + JT_GAP);
+    if (row < 0) {
+      row = 0;
+      for (let ri = 1; ri < JT_MAX_ROWS; ri++) if (ends[ri] < ends[row]) row = ri;
+    }
+    ends[row] = r;
+    rows = Math.max(rows, row + 1);
+    places[i] = [row, align];
+  }
+  return { places, rows };
+}
+
+const jtPct = (x: number) => (x * 100).toFixed(2);
 
 function ComponentView({
   comp,
@@ -4286,6 +4411,186 @@ function ComponentView({
       );
     }
 
+    case "tier_summary": {
+      type TierAccount = { name: string; value?: string; renewal?: unknown; detail?: string; href?: string; color?: string };
+      type Tier = { label: string; count?: unknown; value?: string; share?: number; detail?: string; color?: string; href?: string; active?: boolean; accounts?: TierAccount[] };
+      const tiers = (comp.tiers as Tier[]) || [];
+      const countLabel = (comp.count_label as string) || "accounts";
+      const shareLabel = (comp.share_label as string) || "Share";
+      const anyShare = tiers.some((t) => t.share != null);
+      const prefix = (comp.id as string) || "tiers";
+      const [open, setOpen] = React.useState<number>(-1);
+      const [today, setToday] = React.useState<number | null>(null);
+      // Read the clock and ?tier= after mount so server and client markup match.
+      React.useEffect(() => {
+        const now = new Date();
+        setToday(Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000));
+        if (typeof window === "undefined") return;
+        const want = (new URLSearchParams(window.location.search).get("tier") || "").trim().toLowerCase();
+        if (!want) return;
+        const idx = tiers.findIndex((t) => !t.href && (t.accounts?.length ?? 0) > 0 && (t.label || "").trim().toLowerCase() === want);
+        if (idx >= 0) setOpen(idx);
+      }, []);
+      const panelTier = open >= 0 ? tiers[open] : undefined;
+      const panelAccounts = panelTier && !panelTier.href ? panelTier.accounts || [] : [];
+      const sortKey = (v: unknown) => kzIsoDays(v) ?? Number.MAX_SAFE_INTEGER;
+      const rows = panelAccounts.map((a, j) => ({ a, j })).sort((x, y) => sortKey(x.a.renewal) - sortKey(y.a.renewal));
+      return (
+        <div id={id} className="c-tier-summary" data-tier-summary="">
+          <div className="c-tier-row" data-kz-list="tiers">
+            {tiers.map((t, i) => {
+              const accounts = t.accounts || [];
+              const expandable = !t.href && accounts.length > 0;
+              const count = t.count == null ? "" : String(t.count);
+              const cls = `c-tier c-tier-${t.color || "default"}${t.active ? " is-active" : ""}${count.trim() === "0" ? " is-empty" : ""}${expandable ? " is-expandable" : ""}${open === i ? " is-open" : ""}`;
+              const width = Math.min(100, Math.max(0, t.share ?? 0));
+              const body = (
+                <>
+                  <span className="c-tier-head">
+                    <span className="c-tier-swatch" />
+                    <span className="c-tier-label" data-kz-field={`tiers[${i}].label`}>{t.label}</span>
+                    {expandable && <span className="c-tier-chevron" aria-hidden="true" />}
+                  </span>
+                  <span className="c-tier-count" data-kz-field={`tiers[${i}].count`}>{count}</span>
+                  <span className="c-tier-count-label" data-kz-field="count_label">{countLabel}</span>
+                  {t.value && <span className="c-tier-value" data-kz-field={`tiers[${i}].value`}>{t.value}</span>}
+                  {anyShare && (
+                    <span className="c-tier-share">
+                      <span className="c-tier-share-head">
+                        <span className="c-tier-share-label" data-kz-field="share_label">{shareLabel}</span>
+                        {t.share != null && <span className="c-tier-share-num"><span data-kz-field={`tiers[${i}].share`}>{String(t.share)}</span>%</span>}
+                      </span>
+                      <span className="c-tier-track"><span className={`c-tier-fill${width <= 0 ? " is-zero" : ""}`} style={{ width: `${width}%` }} /></span>
+                    </span>
+                  )}
+                  {t.detail && <span className="c-tier-detail" data-kz-field={`tiers[${i}].detail`}>{t.detail}</span>}
+                </>
+              );
+              if (t.href) return <a key={i} className={cls} href={t.href}>{body}</a>;
+              if (expandable) {
+                return (
+                  <button key={i} type="button" className={cls} aria-expanded={open === i} aria-controls={`${prefix}-panel-${i}`} data-tier-toggle={String(i)} data-tier-label={t.label} onClick={() => setOpen((o) => (o === i ? -1 : i))}>
+                    {body}
+                  </button>
+                );
+              }
+              return <div key={i} className={cls}>{body}</div>;
+            })}
+          </div>
+          {panelTier && panelAccounts.length > 0 && (
+            <div className={`c-tier-panel c-tier-${panelTier.color || "default"}`} id={`${prefix}-panel-${open}`} data-tier-panel={String(open)}>
+              <div className="c-tier-panel-head">
+                <span className="c-tier-swatch" />
+                <span className="c-tier-panel-title">{panelTier.label}</span>
+                <span className="c-tier-panel-count">{panelAccounts.length} {panelAccounts.length === 1 ? "account" : "accounts"}</span>
+              </div>
+              <ul className="c-tier-accounts" data-kz-list={`tiers[${open}].accounts`}>
+                {rows.map(({ a, j }) => {
+                  const iso = kzIso(a.renewal);
+                  const d = kzIsoDays(a.renewal);
+                  const days = d != null && today != null ? d - today : null;
+                  const soon = days != null && days >= 0 && days < 90;
+                  const f = `tiers[${open}].accounts[${j}]`;
+                  return (
+                    <li key={j} className={`c-tier-acct c-tier-${a.color || panelTier.color || "default"}${soon ? " is-soon" : ""}`} data-renewal={iso}>
+                      <span className="c-tier-acct-main">
+                        <span className="c-tier-swatch" />
+                        <span className="c-tier-acct-text">
+                          {a.href
+                            ? <a className="c-tier-acct-name" href={a.href} data-kz-field={`${f}.name`}>{a.name}</a>
+                            : <span className="c-tier-acct-name" data-kz-field={`${f}.name`}>{a.name}</span>}
+                          {a.detail && <span className="c-tier-acct-detail" data-kz-field={`${f}.detail`}>{a.detail}</span>}
+                        </span>
+                      </span>
+                      <span className="c-tier-acct-side">
+                        {a.value && <span className="c-tier-acct-value" data-kz-field={`${f}.value`}>{a.value}</span>}
+                        {iso && (
+                          <span className="c-tier-acct-renewal">
+                            Renews <span data-kz-field={`${f}.renewal`}>{kzLongDate(iso)}</span>
+                            {soon && <span className="c-tier-acct-soon">{days === 0 ? "today" : `in ${days} ${days === 1 ? "day" : "days"}`}</span>}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    case "journey_track": {
+      const stages = (comp.stages as JtStage[]) || [];
+      const detours = (comp.detours as JtDetour[]) || [];
+      const current = comp.current as JtCurrent | undefined;
+      const tps = (comp.touchpoints as JtTouch[]) || [];
+      const title = comp.title as string | undefined;
+      const lay = journeyLayout(stages, detours, current, tps, comp.start, comp.end);
+      const above = detours.length > 0 || !!current?.temporary;
+      const stageItems: Array<[number, string]> = stages.map((s, i) => [lay.stageX[i], s.label]);
+      const currentBelow = !!current && lay.currentX != null && !current.temporary;
+      if (currentBelow) stageItems.push([lay.currentX as number, current!.label]);
+      const stagePlace = jtPlaceLabels(stageItems, JT_STAGE_CHAR_W);
+      const tpPlace = jtPlaceLabels(tps.map((t, i) => [lay.tpX[i], t.label] as [number, string]), JT_TP_CHAR_W);
+      const curColor = current?.color || "default";
+      return (
+        <div id={id} className="c-journey">
+          {title && <div className="c-jt-title" data-kz-field="title">{title}</div>}
+          <div className={`c-jt-track${above ? " has-above" : ""}`}>
+            <div className="c-jt-line" />
+            <div className="c-jt-rail">
+              <div className="c-jt-done" style={{ width: `calc(${jtPct(lay.done)}% + 16px)` }} />
+              <div className="c-jt-detours" data-kz-list="detours">
+                {detours.map((d, i) => {
+                  const [a, b] = lay.detourX[i];
+                  return (
+                    <div key={i} className={`c-jt-detour c-jt-c-${d.color || "default"}`} style={{ left: `${jtPct(a)}%`, width: `${jtPct(b - a)}%` }}>
+                      <svg viewBox="0 0 100 64" preserveAspectRatio="none" aria-hidden="true"><path d="M0 64 A50 62 0 0 1 100 64" vectorEffect="non-scaling-stroke" /></svg>
+                      <span className="c-jt-detour-label" data-kz-field={`detours[${i}].label`}>{d.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {stages.map((s, i) => (
+                <span key={i} className={`c-jt-stage ${s.status === "upcoming" ? "is-upcoming" : "is-completed"}`} style={{ left: `${jtPct(lay.stageX[i])}%` }} title={s.label} />
+              ))}
+              {current && lay.currentX != null && (
+                <>
+                  <span className={`c-jt-current c-jt-c-${curColor}`} style={{ left: `${jtPct(lay.currentX)}%` }} title={current.label} />
+                  {current.temporary && (
+                    <span className={`c-jt-current-label c-jt-c-${curColor}`} data-align={jtPlaceLabels([[lay.currentX, current.label]], JT_MONO_CHAR_W).places[0][1]} style={{ left: `${jtPct(lay.currentX)}%` }} data-kz-field="current.label">{current.label}</span>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+          <div className="c-jt-stage-labels" data-kz-list="stages" style={{ "--jt-rows": Math.max(1, stagePlace.rows) } as React.CSSProperties}>
+            {stages.map((s, i) => (
+              <span key={i} className={`c-jt-label ${s.status === "upcoming" ? "is-upcoming" : "is-completed"}`} data-align={stagePlace.places[i][1]} style={{ left: `${jtPct(lay.stageX[i])}%`, "--jt-row": stagePlace.places[i][0] } as React.CSSProperties} data-kz-field={`stages[${i}].label`}>{s.label}</span>
+            ))}
+            {currentBelow && (
+              <span className={`c-jt-label is-current c-jt-c-${curColor}`} data-align={stagePlace.places[stages.length][1]} style={{ left: `${jtPct(lay.currentX as number)}%`, "--jt-row": stagePlace.places[stages.length][0] } as React.CSSProperties} data-kz-field="current.label">{current!.label}</span>
+            )}
+          </div>
+          {tps.length > 0 && (
+            <>
+              <div className="c-jt-tp-head">Touchpoints</div>
+              <div className="c-jt-tps" data-kz-list="touchpoints" style={{ "--jt-rows": Math.max(1, tpPlace.rows) } as React.CSSProperties}>
+                {tps.map((t, i) => (
+                  <React.Fragment key={i}>
+                    <span className={`c-jt-tp ${t.status === "upcoming" ? "is-upcoming" : "is-completed"}`} style={{ left: `${jtPct(lay.tpX[i])}%` }} />
+                    <span className="c-jt-tp-label" data-align={tpPlace.places[i][1]} style={{ left: `${jtPct(lay.tpX[i])}%`, "--jt-row": tpPlace.places[i][0] } as React.CSSProperties} data-kz-field={`touchpoints[${i}].label`}>{t.label}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
     default:
       return (
         <div id={id} className="c-unsupported" data-type={comp.type}>
@@ -4839,6 +5144,8 @@ export const EDITOR_TYPES: Array<{type: string; label: string; icon: string}> = 
   { type: "rule_list", label: "Rule List", icon: "R" },
   { type: "gauge", label: "Gauge", icon: "G" },
   { type: "priority_queue", label: "Priority Queue", icon: "P" },
+  { type: "tier_summary", label: "Tier Summary", icon: "▤" },
+  { type: "journey_track", label: "Journey Track", icon: "⟿" },
 ];
 
 function KzControl({ field, value, onChange }: { field: KzField; value: unknown; onChange: (v: unknown) => void }) {
@@ -5311,6 +5618,13 @@ mod tests {
             ("tree", "TreeNode.original_due"),
             ("priority_queue", "QueueItem.original_due"), // rendered as derived "was <date>" slip
             ("event_timeline", "EventItem.link"),
+            ("journey_track", "start"), // dates drive position, not text
+            ("journey_track", "end"),
+            ("journey_track", "JourneyStage.date"),
+            ("journey_track", "JourneyDetour.from"),
+            ("journey_track", "JourneyDetour.to"),
+            ("journey_track", "JourneyCurrent.date"),
+            ("journey_track", "JourneyTouchpoint.date"),
         ];
         let mut missing: Vec<String> = Vec::new();
         for (comp, fields) in &schema.components {
@@ -5388,6 +5702,10 @@ mod tests {
             ("table", "rows"),
             ("before_after", "items"),
             ("priority_queue", "items"),
+            ("tier_summary", "tiers"),
+            ("journey_track", "stages"),
+            ("journey_track", "detours"),
+            ("journey_track", "touchpoints"),
             ("tree", "nodes"),
             ("callout", "links"),
             ("hero_banner", "buttons"),

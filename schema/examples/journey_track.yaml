@@ -1,0 +1,17 @@
+- type: journey_track
+  id: account-journey
+  title: Journey
+  start: 2025-11-01
+  end: 2026-11-15
+  stages:
+    - { label: Onboarding, date: 2025-11-03 }
+    - { label: Operationalizing, date: 2026-02-12 }
+    - { label: Adopted, date: 2026-06-20 }
+  detours:
+    - { label: Save, from: 2026-03-20, to: 2026-05-20 }
+  current: { label: Renewal, date: 2026-10-01, temporary: true }
+  touchpoints:
+    - { label: Kickoff, date: 2025-11-25 }
+    - { label: Config review, date: 2026-02-25 }
+    - { label: Exec call, date: 2026-07-10 }
+    - { label: Renewal review, date: 2026-10-20, status: upcoming }

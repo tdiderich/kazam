@@ -116,6 +116,8 @@ fn component_type_name(c: &Component) -> String {
         Component::EventTimeline { .. } => "event_timeline",
         Component::Tree { .. } => "tree",
         Component::PriorityQueue { .. } => "priority_queue",
+        Component::TierSummary { .. } => "tier_summary",
+        Component::JourneyTrack { .. } => "journey_track",
         Component::Venn { .. } => "venn",
         Component::Image { .. } => "image",
         Component::Badge { .. } => "badge",

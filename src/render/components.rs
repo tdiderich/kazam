@@ -325,6 +325,39 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             *filterable,
             title.as_deref(),
         ),
+        Component::TierSummary {
+            tiers,
+            count_label,
+            share_label,
+            id,
+            ..
+        } => tier_summary(
+            tiers,
+            count_label.as_deref(),
+            share_label.as_deref(),
+            id.as_deref(),
+            base,
+        ),
+        Component::JourneyTrack {
+            stages,
+            detours,
+            current,
+            touchpoints,
+            title,
+            start,
+            end,
+            id,
+            ..
+        } => journey_track(
+            stages,
+            detours,
+            current.as_ref(),
+            touchpoints,
+            title.as_deref(),
+            start,
+            end,
+            id.as_deref(),
+        ),
     };
     apply_motion(apply_scale(rendered, c.scale()), c.animate())
 }
@@ -3524,6 +3557,519 @@ fn render_org_chart(
     Rendered::new(html)
 }
 
+// ── Tier Summary ──────────────────────────────────
+
+/// `Mar 3, 2027` from an ISO date; the raw text when it doesn't parse.
+fn fmt_long_date(iso: &str) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let s = iso.trim();
+    let s = s.get(..10).unwrap_or(s);
+    let mut p = s.split('-');
+    let (Some(y), Some(m), Some(d)) = (p.next(), p.next(), p.next()) else {
+        return iso.to_string();
+    };
+    match (m.parse::<usize>(), d.parse::<u32>()) {
+        (Ok(m), Ok(d)) if (1..=12).contains(&m) => format!("{} {}, {}", MONTHS[m - 1], d, y),
+        _ => iso.to_string(),
+    }
+}
+
+/// Accounts sorted by renewal date, soonest first; undated ones last.
+fn sorted_accounts(accounts: &[TierAccount]) -> Vec<&TierAccount> {
+    let mut v: Vec<&TierAccount> = accounts.iter().collect();
+    v.sort_by_key(|a| {
+        a.renewal
+            .as_deref()
+            .and_then(crate::freshness::parse_iso_date)
+            .unwrap_or(i64::MAX)
+    });
+    v
+}
+
+fn tier_summary(
+    tiers: &[Tier],
+    count_label: Option<&str>,
+    share_label: Option<&str>,
+    id: Option<&str>,
+    base: &str,
+) -> Rendered {
+    let count_label = count_label.unwrap_or("accounts");
+    let share_label = share_label.unwrap_or("Share");
+    let any_share = tiers.iter().any(|t| t.share.is_some());
+    let any_panel = tiers
+        .iter()
+        .any(|t| t.href.is_none() && !t.accounts.is_empty());
+    let prefix = id.unwrap_or("tiers");
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let mut h = format!(
+        r#"<div{} class="c-tier-summary" data-tier-summary><div class="c-tier-row" data-kz-list="tiers">"#,
+        id_attr
+    );
+    for (i, t) in tiers.iter().enumerate() {
+        let expandable = t.href.is_none() && !t.accounts.is_empty();
+        let mut cls = format!("c-tier c-tier-{}", sem_color_class(t.color));
+        if t.active {
+            cls.push_str(" is-active");
+        }
+        if t.count.trim() == "0" {
+            cls.push_str(" is-empty");
+        }
+        if expandable {
+            cls.push_str(" is-expandable");
+        }
+        let (open, close) = if let Some(href) = &t.href {
+            (
+                format!(
+                    r#"<a class="{}" href="{}">"#,
+                    cls,
+                    esc(&resolve_href(href, base))
+                ),
+                "</a>",
+            )
+        } else if expandable {
+            (
+                format!(
+                    r#"<button type="button" class="{}" aria-expanded="false" aria-controls="{}-panel-{}" data-tier-toggle="{}" data-tier-label="{}">"#,
+                    cls,
+                    esc(prefix),
+                    i,
+                    i,
+                    esc(&t.label)
+                ),
+                "</button>",
+            )
+        } else {
+            (format!(r#"<div class="{}">"#, cls), "</div>")
+        };
+        h.push_str(&open);
+        h.push_str(&format!(
+            r#"<span class="c-tier-head"><span class="c-tier-swatch"></span><span class="c-tier-label">{}</span>"#,
+            esc(&t.label)
+        ));
+        if expandable {
+            h.push_str(r#"<span class="c-tier-chevron" aria-hidden="true"></span>"#);
+        }
+        h.push_str("</span>");
+        h.push_str(&format!(
+            r#"<span class="c-tier-count">{}</span><span class="c-tier-count-label">{}</span>"#,
+            esc(&t.count),
+            esc(count_label)
+        ));
+        if let Some(v) = &t.value {
+            h.push_str(&format!(r#"<span class="c-tier-value">{}</span>"#, esc(v)));
+        }
+        if any_share {
+            let share = t.share.unwrap_or(0.0);
+            let width = share.clamp(0.0, 100.0);
+            h.push_str(&format!(
+                r#"<span class="c-tier-share"><span class="c-tier-share-head"><span class="c-tier-share-label">{}</span>"#,
+                esc(share_label)
+            ));
+            if let Some(s) = t.share {
+                h.push_str(&format!(r#"<span class="c-tier-share-num">{}%</span>"#, s));
+            }
+            h.push_str(&format!(
+                r#"</span><span class="c-tier-track"><span class="c-tier-fill{}" style="width: {}%"></span></span></span>"#,
+                if width <= 0.0 { " is-zero" } else { "" },
+                width
+            ));
+        }
+        if let Some(d) = &t.detail {
+            h.push_str(&format!(r#"<span class="c-tier-detail">{}</span>"#, esc(d)));
+        }
+        h.push_str(close);
+    }
+    h.push_str("</div>");
+    for (i, t) in tiers.iter().enumerate() {
+        if t.href.is_some() || t.accounts.is_empty() {
+            continue;
+        }
+        h.push_str(&tier_panel(t, i, prefix, base));
+    }
+    h.push_str("</div>");
+    let r = Rendered::new(h);
+    if any_panel {
+        r.with_script("tier_summary")
+    } else {
+        r
+    }
+}
+
+fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
+    let n = t.accounts.len();
+    let mut h = format!(
+        r#"<div class="c-tier-panel c-tier-{}" id="{}-panel-{}" data-tier-panel="{}" hidden><div class="c-tier-panel-head"><span class="c-tier-swatch"></span><span class="c-tier-panel-title">{}</span><span class="c-tier-panel-count">{} {}</span></div><ul class="c-tier-accounts">"#,
+        sem_color_class(t.color),
+        esc(prefix),
+        i,
+        i,
+        esc(&t.label),
+        n,
+        if n == 1 { "account" } else { "accounts" }
+    );
+    for a in sorted_accounts(&t.accounts) {
+        let color = a.color.unwrap_or(t.color);
+        let renewal_attr = a
+            .renewal
+            .as_deref()
+            .map(|r| format!(r#" data-renewal="{}""#, esc(r.trim())))
+            .unwrap_or_default();
+        h.push_str(&format!(
+            r#"<li class="c-tier-acct c-tier-{}"{}><span class="c-tier-acct-main"><span class="c-tier-swatch"></span><span class="c-tier-acct-text">"#,
+            sem_color_class(color),
+            renewal_attr
+        ));
+        match &a.href {
+            Some(href) => h.push_str(&format!(
+                r#"<a class="c-tier-acct-name" href="{}">{}</a>"#,
+                esc(&resolve_href(href, base)),
+                esc(&a.name)
+            )),
+            None => h.push_str(&format!(
+                r#"<span class="c-tier-acct-name">{}</span>"#,
+                esc(&a.name)
+            )),
+        }
+        if let Some(d) = &a.detail {
+            h.push_str(&format!(
+                r#"<span class="c-tier-acct-detail">{}</span>"#,
+                esc(d)
+            ));
+        }
+        h.push_str(r#"</span></span><span class="c-tier-acct-side">"#);
+        if let Some(v) = &a.value {
+            h.push_str(&format!(
+                r#"<span class="c-tier-acct-value">{}</span>"#,
+                esc(v)
+            ));
+        }
+        if let Some(r) = &a.renewal {
+            h.push_str(&format!(
+                r#"<span class="c-tier-acct-renewal">Renews {}<span class="c-tier-acct-soon" data-tier-soon hidden></span></span>"#,
+                esc(&fmt_long_date(r))
+            ));
+        }
+        h.push_str("</span></li>");
+    }
+    h.push_str("</ul></div>");
+    h
+}
+
+// ── Journey Track ─────────────────────────────────
+//
+// Layout math is mirrored line for line in the React renderer (sdk.rs,
+// `journeyLayout`); change both together.
+
+/// Rail width (px) the label-collision pass assumes: about curata's column.
+const JT_RAIL_W: f64 = 640.0;
+/// How far (px) a centered label may run past the rail before it flips to
+/// start/end alignment.
+const JT_EDGE: f64 = 24.0;
+const JT_GAP: f64 = 10.0;
+const JT_MAX_ROWS: usize = 4;
+const JT_STAGE_CHAR_W: f64 = 8.0;
+const JT_TP_CHAR_W: f64 = 7.0;
+const JT_MONO_CHAR_W: f64 = 10.0;
+
+struct JourneyLayout {
+    stages: Vec<f64>,
+    detours: Vec<(f64, f64)>,
+    current: Option<f64>,
+    touchpoints: Vec<f64>,
+    done: f64,
+}
+
+fn jt_date(s: &Option<String>) -> Option<i64> {
+    s.as_deref()
+        .and_then(|d| crate::freshness::parse_iso_date(d.get(..10).unwrap_or(d)))
+}
+
+fn journey_layout(
+    stages: &[JourneyStage],
+    detours: &[JourneyDetour],
+    current: Option<&JourneyCurrent>,
+    touchpoints: &[JourneyTouchpoint],
+    start: &Option<String>,
+    end: &Option<String>,
+) -> JourneyLayout {
+    let dated = stages.iter().all(|s| jt_date(&s.date).is_some())
+        && touchpoints.iter().all(|t| jt_date(&t.date).is_some())
+        && current.is_none_or(|c| jt_date(&c.date).is_some())
+        && detours.iter().all(|d| jt_date(&d.from).is_some());
+    let (stage_x, detour_x, current_x, tp_x) = if dated {
+        let mut all: Vec<i64> = Vec::new();
+        all.extend(stages.iter().filter_map(|s| jt_date(&s.date)));
+        all.extend(touchpoints.iter().filter_map(|t| jt_date(&t.date)));
+        all.extend(current.and_then(|c| jt_date(&c.date)));
+        for d in detours {
+            all.extend(jt_date(&d.from));
+            all.extend(jt_date(&d.to));
+        }
+        let lo = jt_date(start).unwrap_or_else(|| all.iter().copied().min().unwrap_or(0));
+        let mut hi = jt_date(end).unwrap_or_else(|| all.iter().copied().max().unwrap_or(lo));
+        if hi <= lo {
+            hi = lo + 1;
+        }
+        let f = |d: i64| ((d - lo) as f64 / (hi - lo) as f64).clamp(0.0, 1.0);
+        (
+            stages
+                .iter()
+                .map(|s| f(jt_date(&s.date).unwrap_or(lo)))
+                .collect::<Vec<_>>(),
+            detours
+                .iter()
+                .map(|d| {
+                    let a = f(jt_date(&d.from).unwrap_or(lo));
+                    let b = jt_date(&d.to).map(f).unwrap_or(a + 0.06);
+                    let (a, b) = if b < a { (b, a) } else { (a, b) };
+                    let b = b.max(a + 0.03).min(1.0);
+                    (a, b)
+                })
+                .collect::<Vec<_>>(),
+            current.map(|c| f(jt_date(&c.date).unwrap_or(hi))),
+            touchpoints
+                .iter()
+                .map(|t| f(jt_date(&t.date).unwrap_or(lo)))
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        let n = stages.len();
+        let slots = n + usize::from(current.is_some());
+        let pos = |i: usize| {
+            if slots <= 1 {
+                0.5
+            } else {
+                i as f64 / (slots - 1) as f64
+            }
+        };
+        let detour_x = detours
+            .iter()
+            .map(|d| {
+                let k = d.after.unwrap_or(0).min(n.saturating_sub(1));
+                let xa = pos(k);
+                let xb = if k + 1 < slots { pos(k + 1) } else { 1.0 };
+                let gap = xb - xa;
+                if gap <= 0.0 {
+                    ((xa - 0.12).max(0.0), xa)
+                } else {
+                    (xa + 0.18 * gap, xa + 0.72 * gap)
+                }
+            })
+            .collect::<Vec<_>>();
+        let m = touchpoints.len();
+        (
+            (0..n).map(pos).collect::<Vec<_>>(),
+            detour_x,
+            current.map(|_| pos(n)),
+            (0..m)
+                .map(|i| (i as f64 + 0.5) / m as f64)
+                .collect::<Vec<_>>(),
+        )
+    };
+    let done = current_x.unwrap_or_else(|| {
+        stages
+            .iter()
+            .zip(&stage_x)
+            .filter(|(s, _)| s.status == JourneyStatus::Completed)
+            .map(|(_, x)| *x)
+            .fold(0.0, f64::max)
+    });
+    JourneyLayout {
+        stages: stage_x,
+        detours: detour_x,
+        current: current_x,
+        touchpoints: tp_x,
+        done,
+    }
+}
+
+/// Row (0-based) and alignment for each label so neighbours don't overlap
+/// at `JT_RAIL_W`. Returns the per-label placement and the rows used.
+fn jt_place_labels(items: &[(f64, &str)], char_w: f64) -> (Vec<(usize, &'static str)>, usize) {
+    let mut order: Vec<usize> = (0..items.len()).collect();
+    order.sort_by(|a, b| items[*a].0.total_cmp(&items[*b].0).then(a.cmp(b)));
+    let mut ends = [f64::NEG_INFINITY; JT_MAX_ROWS];
+    let mut out = vec![(0usize, "center"); items.len()];
+    let mut rows = 0;
+    for i in order {
+        let (x, label) = items[i];
+        let c = x * JT_RAIL_W;
+        let w = label.chars().count() as f64 * char_w + 6.0;
+        let (l, r, align) = if c - w / 2.0 < -JT_EDGE {
+            (c - 10.0, c - 10.0 + w, "start")
+        } else if c + w / 2.0 > JT_RAIL_W + JT_EDGE {
+            (c + 10.0 - w, c + 10.0, "end")
+        } else {
+            (c - w / 2.0, c + w / 2.0, "center")
+        };
+        let mut row = None;
+        for (ri, end) in ends.iter().enumerate() {
+            if l >= end + JT_GAP {
+                row = Some(ri);
+                break;
+            }
+        }
+        let row = row.unwrap_or_else(|| {
+            let mut best = 0;
+            for ri in 1..JT_MAX_ROWS {
+                if ends[ri] < ends[best] {
+                    best = ri;
+                }
+            }
+            best
+        });
+        ends[row] = r;
+        rows = rows.max(row + 1);
+        out[i] = (row, align);
+    }
+    (out, rows)
+}
+
+fn jt_pct(x: f64) -> String {
+    format!("{:.2}", x * 100.0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn journey_track(
+    stages: &[JourneyStage],
+    detours: &[JourneyDetour],
+    current: Option<&JourneyCurrent>,
+    touchpoints: &[JourneyTouchpoint],
+    title: Option<&str>,
+    start: &Option<String>,
+    end: &Option<String>,
+    id: Option<&str>,
+) -> Rendered {
+    let lay = journey_layout(stages, detours, current, touchpoints, start, end);
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let above = !detours.is_empty() || current.is_some_and(|c| c.temporary);
+    let mut h = format!(r#"<div{} class="c-journey">"#, id_attr);
+    if let Some(t) = title {
+        h.push_str(&format!(r#"<div class="c-jt-title">{}</div>"#, esc(t)));
+    }
+    h.push_str(&format!(
+        r#"<div class="c-jt-track{}"><div class="c-jt-line"></div><div class="c-jt-rail"><div class="c-jt-done" style="width: calc({}% + 16px)"></div><div class="c-jt-detours" data-kz-list="detours">"#,
+        if above { " has-above" } else { "" },
+        jt_pct(lay.done)
+    ));
+    for (d, (a, b)) in detours.iter().zip(&lay.detours) {
+        h.push_str(&format!(
+            r#"<div class="c-jt-detour c-jt-c-{}" style="left: {}%; width: {}%"><svg viewBox="0 0 100 64" preserveAspectRatio="none" aria-hidden="true"><path d="M0 64 A50 62 0 0 1 100 64" vector-effect="non-scaling-stroke"/></svg><span class="c-jt-detour-label">{}</span></div>"#,
+            sem_color_class(d.color),
+            jt_pct(*a),
+            jt_pct(b - a),
+            esc(&d.label)
+        ));
+    }
+    h.push_str("</div>");
+    for (s, x) in stages.iter().zip(&lay.stages) {
+        h.push_str(&format!(
+            r#"<span class="c-jt-stage {}" style="left: {}%" title="{}"></span>"#,
+            s.status.class(),
+            jt_pct(*x),
+            esc(&s.label)
+        ));
+    }
+    if let (Some(c), Some(x)) = (current, lay.current) {
+        h.push_str(&format!(
+            r#"<span class="c-jt-current c-jt-c-{}" style="left: {}%" title="{}"></span>"#,
+            sem_color_class(c.color),
+            jt_pct(x),
+            esc(&c.label)
+        ));
+        if c.temporary {
+            let (places, _) = jt_place_labels(&[(x, c.label.as_str())], JT_MONO_CHAR_W);
+            h.push_str(&format!(
+                r#"<span class="c-jt-current-label c-jt-c-{}" data-align="{}" style="left: {}%">{}</span>"#,
+                sem_color_class(c.color),
+                places[0].1,
+                jt_pct(x),
+                esc(&c.label)
+            ));
+        }
+    }
+    h.push_str("</div></div>");
+
+    // Stage labels (plus a non-temporary current) share one collision pass.
+    let mut items: Vec<(f64, &str)> = stages
+        .iter()
+        .zip(&lay.stages)
+        .map(|(s, x)| (*x, s.label.as_str()))
+        .collect();
+    let current_below = match (current, lay.current) {
+        (Some(c), Some(x)) if !c.temporary => {
+            items.push((x, c.label.as_str()));
+            true
+        }
+        _ => false,
+    };
+    let (places, rows) = jt_place_labels(&items, JT_STAGE_CHAR_W);
+    h.push_str(&format!(
+        r#"<div class="c-jt-stage-labels" data-kz-list="stages" style="--jt-rows: {}">"#,
+        rows.max(1)
+    ));
+    for (i, s) in stages.iter().enumerate() {
+        let (row, align) = places[i];
+        h.push_str(&format!(
+            r#"<span class="c-jt-label {}" data-align="{}" style="left: {}%; --jt-row: {}">{}</span>"#,
+            s.status.class(),
+            align,
+            jt_pct(lay.stages[i]),
+            row,
+            esc(&s.label)
+        ));
+    }
+    if current_below {
+        if let (Some(c), Some(x)) = (current, lay.current) {
+            let (row, align) = places[stages.len()];
+            h.push_str(&format!(
+                r#"<span class="c-jt-label is-current c-jt-c-{}" data-align="{}" style="left: {}%; --jt-row: {}">{}</span>"#,
+                sem_color_class(c.color),
+                align,
+                jt_pct(x),
+                row,
+                esc(&c.label)
+            ));
+        }
+    }
+    h.push_str("</div>");
+
+    if !touchpoints.is_empty() {
+        let items: Vec<(f64, &str)> = touchpoints
+            .iter()
+            .zip(&lay.touchpoints)
+            .map(|(t, x)| (*x, t.label.as_str()))
+            .collect();
+        let (places, rows) = jt_place_labels(&items, JT_TP_CHAR_W);
+        h.push_str(&format!(
+            r#"<div class="c-jt-tp-head">Touchpoints</div><div class="c-jt-tps" data-kz-list="touchpoints" style="--jt-rows: {}">"#,
+            rows.max(1)
+        ));
+        for (i, t) in touchpoints.iter().enumerate() {
+            let (row, align) = places[i];
+            let x = jt_pct(lay.touchpoints[i]);
+            h.push_str(&format!(
+                r#"<span class="c-jt-tp {}" style="left: {}%"></span><span class="c-jt-tp-label" data-align="{}" style="left: {}%; --jt-row: {}">{}</span>"#,
+                t.status.class(),
+                x,
+                align,
+                x,
+                row,
+                esc(&t.label)
+            ));
+        }
+        h.push_str("</div>");
+    }
+    h.push_str("</div>");
+    Rendered::new(h)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3795,5 +4341,53 @@ mod tests {
             queue_has_drift(&it, today, &two_week_end, &eight_week_end),
             "should detect drift"
         );
+    }
+
+    #[test]
+    fn journey_layout_is_linear_in_dated_mode_and_even_otherwise() {
+        let st = |l: &str, d: Option<&str>| JourneyStage {
+            label: l.into(),
+            date: d.map(String::from),
+            status: JourneyStatus::Completed,
+        };
+        let stages = vec![
+            st("A", Some("2026-01-01")),
+            st("B", Some("2026-01-11")),
+            st("C", Some("2026-01-21")),
+        ];
+        let lay = journey_layout(&stages, &[], None, &[], &None, &None);
+        assert_eq!(lay.stages, vec![0.0, 0.5, 1.0]);
+        assert_eq!(lay.done, 1.0);
+
+        let stages = vec![st("A", None), st("B", None), st("C", None)];
+        let cur = JourneyCurrent {
+            label: "Renewal".into(),
+            date: None,
+            temporary: true,
+            color: SemColor::Teal,
+        };
+        let det = JourneyDetour {
+            label: "Save".into(),
+            from: None,
+            to: None,
+            after: Some(1),
+            color: SemColor::Yellow,
+        };
+        let lay = journey_layout(&stages, &[det], Some(&cur), &[], &None, &None);
+        assert_eq!(lay.current, Some(1.0));
+        let (a, b) = lay.detours[0];
+        assert!(a > lay.stages[1] && b < lay.stages[2], "{a} {b}");
+    }
+
+    #[test]
+    fn journey_labels_that_collide_take_another_row() {
+        let (places, rows) =
+            jt_place_labels(&[(0.5, "Config review"), (0.51, "Exec call")], JT_TP_CHAR_W);
+        assert_eq!(rows, 2);
+        assert_ne!(places[0].0, places[1].0);
+        let (places, rows) = jt_place_labels(&[(0.0, "Onboarding"), (1.0, "Renewal")], 8.0);
+        assert_eq!(rows, 1);
+        assert_eq!(places[0].1, "start");
+        assert_eq!(places[1].1, "end");
     }
 }

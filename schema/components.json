@@ -209,6 +209,10 @@
       "now",
       "next",
       "later"
+    ],
+    "JourneyStatus": [
+      "completed",
+      "upcoming"
     ]
   },
   "types": {
@@ -1592,6 +1596,168 @@
         "required": false,
         "kind": "bool"
       }
+    },
+    "Tier": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "count": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "value": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "share": {
+        "type": "number",
+        "required": false,
+        "kind": "number"
+      },
+      "detail": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      },
+      "href": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      },
+      "active": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
+      },
+      "accounts": {
+        "type": "TierAccount[]",
+        "required": false,
+        "kind": "list"
+      }
+    },
+    "TierAccount": {
+      "name": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "value": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "renewal": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "detail": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "href": {
+        "type": "string",
+        "required": false,
+        "kind": "url"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "JourneyStage": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "date": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "status": {
+        "type": "JourneyStatus",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "JourneyDetour": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "from": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "to": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "after": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "JourneyCurrent": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "date": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "temporary": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
+      },
+      "color": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
+      }
+    },
+    "JourneyTouchpoint": {
+      "label": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "date": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "status": {
+        "type": "JourneyStatus",
+        "required": false,
+        "kind": "enum"
+      }
     }
   },
   "components": {
@@ -2626,6 +2792,70 @@
         "required": false,
         "kind": "text"
       }
+    },
+    "tier_summary": {
+      "tiers": {
+        "type": "Tier[]",
+        "required": true,
+        "kind": "list"
+      },
+      "count_label": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "share_label": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
+    },
+    "journey_track": {
+      "stages": {
+        "type": "JourneyStage[]",
+        "required": true,
+        "kind": "list"
+      },
+      "detours": {
+        "type": "JourneyDetour[]",
+        "required": false,
+        "kind": "list"
+      },
+      "current": {
+        "type": "JourneyCurrent",
+        "required": false,
+        "kind": "object"
+      },
+      "touchpoints": {
+        "type": "JourneyTouchpoint[]",
+        "required": false,
+        "kind": "list"
+      },
+      "title": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "start": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "end": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "id": {
+        "type": "string",
+        "required": false,
+        "kind": "id"
+      }
     }
   },
   "guidance": {
@@ -2882,6 +3112,40 @@
         {
           "warn": "columns > 4",
           "say": "More than 4 columns collapses on any normal width. Use grid for diagrams or a table for data."
+        }
+      ]
+    },
+    "tier_summary": {
+      "use_when": "A portfolio split by health or segment: one card per tier with a count, an optional share bar, and the accounts behind it.",
+      "avoid_when": "Unrelated metrics (use stat_grid). More than six buckets (use table or chart).",
+      "example": "tier_summary",
+      "rules": [
+        {
+          "warn": "tiers < 2",
+          "say": "A tier summary compares tiers. Use stat_grid for a single number."
+        },
+        {
+          "warn": "tiers > 6",
+          "say": "More than 6 tiers stops reading as a row. Merge tiers or use a table."
+        },
+        {
+          "warn": "any(tiers, share > 100) || any(tiers, share < 0)",
+          "say": "share is a percentage. Keep it between 0 and 100."
+        }
+      ]
+    },
+    "journey_track": {
+      "use_when": "One account's path through lifecycle stages, with temporary stages (Save, Renewal) as detours and touchpoints underneath.",
+      "avoid_when": "Many accounts at once (use table). A dated event log with summaries (use event_timeline).",
+      "example": "journey_track",
+      "rules": [
+        {
+          "warn": "stages > 8",
+          "say": "More than 8 stages crowds the line. Keep the main stages and move the rest to touchpoints."
+        },
+        {
+          "warn": "touchpoints > 12",
+          "say": "More than 12 touchpoints overlap. Keep the ones that changed the journey."
         }
       ]
     }

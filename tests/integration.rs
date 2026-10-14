@@ -2788,3 +2788,51 @@ fn validate_single_file_picks_up_site_shape_rules_from_parent_dir() {
     let s = String::from_utf8_lossy(&out.stdout);
     assert!(s.contains("Too long for a callout"), "{s}");
 }
+
+#[test]
+fn tier_summary_renders_cards_share_and_sorted_account_panel() {
+    let html = build_one_page(
+        "tier-summary",
+        "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    share_label: ARR share\n    tiers:\n      - label: Outstanding\n        count: 6\n        share: 8.4\n        color: teal\n        accounts:\n          - { name: Later Co, value: $10K, renewal: 2027-03-03 }\n          - { name: Sooner Co, value: $71K, renewal: 2026-11-02, href: ./sooner }\n      - label: Poor\n        count: \"0\"\n        share: 0\n        color: red\n",
+        "",
+    );
+    assert_contains(&html, r#"<span class="c-tier-count">6</span>"#);
+    assert_contains(&html, r#"<span class="c-tier-share-num">8.4%</span>"#);
+    assert_contains(&html, r#"class="c-tier c-tier-red is-empty""#);
+    assert_contains(&html, r#"c-tier-fill is-zero"#);
+    assert_contains(
+        &html,
+        r#"aria-expanded="false" aria-controls="tiers-panel-0" data-tier-toggle="0""#,
+    );
+    assert_contains(&html, "Renews Nov 2, 2026");
+    let sooner = html.find("Sooner Co").unwrap();
+    let later = html.find("Later Co").unwrap();
+    assert!(sooner < later, "accounts sort by renewal");
+    assert_contains(&html, "data-tier-summary");
+    assert_contains(&html, "URLSearchParams");
+}
+
+#[test]
+fn journey_track_renders_dated_line_detour_and_touchpoints() {
+    let html = build_one_page(
+        "journey-track",
+        "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    title: Journey\n    stages:\n      - { label: Onboarding, date: 2026-01-01 }\n      - { label: Adopted, date: 2026-01-11 }\n    detours:\n      - { label: Save, from: 2026-01-03, to: 2026-01-05, color: yellow }\n    current: { label: Renewal, date: 2026-01-21, temporary: true }\n    touchpoints:\n      - { label: Kickoff, date: 2026-01-02 }\n      - { label: Review, date: 2026-01-20, status: upcoming }\n",
+        "",
+    );
+    assert_contains(&html, r#"<div class="c-jt-title">Journey</div>"#);
+    assert_contains(&html, r#"class="c-jt-track has-above""#);
+    assert_contains(
+        &html,
+        r#"class="c-jt-stage is-completed" style="left: 50.00%""#,
+    );
+    assert_contains(
+        &html,
+        r#"class="c-jt-detour c-jt-c-yellow" style="left: 10.00%; width: 10.00%""#,
+    );
+    assert_contains(
+        &html,
+        r#"class="c-jt-current-label c-jt-c-default" data-align="end""#,
+    );
+    assert_contains(&html, r#"class="c-jt-tp is-upcoming""#);
+    assert_contains(&html, "@keyframes c-jt-pulse");
+}

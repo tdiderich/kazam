@@ -17,6 +17,7 @@ pub fn get(name: &str) -> Option<&'static str> {
         "queue_filter" => Some(QUEUE_FILTER),
         "motion" => Some(MOTION),
         "sequence" => Some(SEQUENCE),
+        "tier_summary" => Some(TIER_SUMMARY),
         _ => None,
     }
 }
@@ -941,5 +942,42 @@ document.querySelectorAll('[data-sequence]').forEach(function (root) {
     else if (e.key === 'Escape') { off(); }
   });
   if (prev) prev.disabled = true;
+});
+"#;
+
+const TIER_SUMMARY: &str = r#"
+document.querySelectorAll('[data-tier-summary]').forEach(function (root) {
+  var btns = Array.prototype.slice.call(root.querySelectorAll('[data-tier-toggle]'));
+  var panels = Array.prototype.slice.call(root.querySelectorAll('[data-tier-panel]'));
+  function open(i) {
+    btns.forEach(function (b) {
+      var on = b.getAttribute('data-tier-toggle') === String(i);
+      b.setAttribute('aria-expanded', on ? 'true' : 'false');
+      b.classList.toggle('is-open', on);
+    });
+    panels.forEach(function (p) { p.hidden = p.getAttribute('data-tier-panel') !== String(i); });
+  }
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      open(b.getAttribute('aria-expanded') === 'true' ? -1 : b.getAttribute('data-tier-toggle'));
+    });
+  });
+  var now = new Date();
+  var today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  root.querySelectorAll('[data-renewal]').forEach(function (row) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(row.getAttribute('data-renewal') || '');
+    if (!m) return;
+    var days = Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - today) / 86400000);
+    if (days < 0 || days >= 90) return;
+    row.classList.add('is-soon');
+    var soon = row.querySelector('[data-tier-soon]');
+    if (soon) { soon.textContent = days === 0 ? 'today' : 'in ' + days + (days === 1 ? ' day' : ' days'); soon.hidden = false; }
+  });
+  var want = (new URLSearchParams(location.search).get('tier') || '').trim().toLowerCase();
+  if (want) {
+    btns.forEach(function (b) {
+      if ((b.getAttribute('data-tier-label') || '').trim().toLowerCase() === want) open(b.getAttribute('data-tier-toggle'));
+    });
+  }
 });
 "#;

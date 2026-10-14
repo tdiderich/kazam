@@ -695,6 +695,8 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::Code { code, .. } => 2 + (code.lines().count() as u32 / 3),
         Component::Image { .. } | Component::Embed { .. } => 4,
         Component::Gauge { items, .. } => 2 + items.len() as u32,
+        Component::TierSummary { .. } => 4,
+        Component::JourneyTrack { .. } => 4,
         Component::RuleList { items, .. } => 1 + items.len() as u32,
         Component::Tree { .. } => 4,
         Component::PriorityQueue { items, .. } => 2 + items.len() as u32,
@@ -1766,6 +1768,116 @@ fn validate_component(
                 ));
             }
         }
+
+        Component::TierSummary { tiers, .. } => {
+            if tiers.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.tiers", path),
+                    "missing_field",
+                    "tier_summary requires at least one tier",
+                    Some("Add tiers with label: and count:.".into()),
+                ));
+            }
+            for (ti, t) in tiers.iter().enumerate() {
+                for (ai, a) in t.accounts.iter().enumerate() {
+                    if let Some(r) = &a.renewal {
+                        check_iso_date(
+                            file,
+                            &format!("{}.tiers[{}].accounts[{}].renewal", path, ti, ai),
+                            r,
+                            errors,
+                        );
+                    }
+                }
+            }
+        }
+
+        Component::JourneyTrack {
+            stages,
+            detours,
+            current,
+            touchpoints,
+            start,
+            end,
+            ..
+        } => {
+            if stages.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.stages", path),
+                    "missing_field",
+                    "journey_track requires at least one stage",
+                    Some("Add stages with label: and an optional date:.".into()),
+                ));
+            }
+            let mut dates: Vec<(String, &str)> = Vec::new();
+            for (k, v) in [("start", start), ("end", end)] {
+                if let Some(d) = v {
+                    dates.push((format!("{}.{}", path, k), d));
+                }
+            }
+            for (i, s) in stages.iter().enumerate() {
+                if let Some(d) = &s.date {
+                    dates.push((format!("{}.stages[{}].date", path, i), d));
+                }
+            }
+            for (i, d) in detours.iter().enumerate() {
+                for (k, v) in [("from", &d.from), ("to", &d.to)] {
+                    if let Some(x) = v {
+                        dates.push((format!("{}.detours[{}].{}", path, i, k), x));
+                    }
+                }
+                if d.from.is_none() && d.after.is_none() {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.detours[{}]", path, i),
+                        "missing_field",
+                        "detour needs from: (dated) or after: (undated)",
+                        Some("Give from:/to: ISO dates, or after: <0-based stage index>.".into()),
+                    ));
+                }
+            }
+            if let Some(c) = current {
+                if let Some(d) = &c.date {
+                    dates.push((format!("{}.current.date", path), d));
+                }
+            }
+            for (i, t) in touchpoints.iter().enumerate() {
+                if let Some(d) = &t.date {
+                    dates.push((format!("{}.touchpoints[{}].date", path, i), d));
+                }
+            }
+            for (p, d) in &dates {
+                check_iso_date(file, p, d, errors);
+            }
+            let s = start.as_deref().and_then(crate::freshness::parse_iso_date);
+            let e = end.as_deref().and_then(crate::freshness::parse_iso_date);
+            if let (Some(s), Some(e)) = (s, e) {
+                if s > e {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.start", path),
+                        "invalid_value",
+                        "journey_track start is after end",
+                        Some("Swap start: and end:, or drop one.".into()),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn check_iso_date(file: &str, path: &str, value: &str, errors: &mut Vec<ValidationError>) {
+    let v = value.trim();
+    if crate::freshness::parse_iso_date(v.get(..10).unwrap_or(v)).is_none() || v.len() < 10 {
+        errors.push(ValidationError::new(
+            file,
+            path,
+            "format",
+            format!("'{}' is not an ISO date", value),
+            Some("Use YYYY-MM-DD, like 2026-03-01.".into()),
+        ));
     }
 }
 
@@ -2520,6 +2632,54 @@ mod tests {
             errors.iter().any(|e| e.path.ends_with(".target")),
             "{errors:?}"
         );
+    }
+
+    #[test]
+    fn journey_track_rejects_bad_dates_and_reversed_range() {
+        let page = page_from_yaml(
+            "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    start: 2026-12-01\n    end: 2026-01-01\n    stages:\n      - { label: Onboarding, date: 2026-13-40 }\n    detours:\n      - { label: Save }\n",
+        );
+        let errors = validate_page("j.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.path.ends_with(".stages[0].date") && e.error_type == "format"),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.path.ends_with(".start") && e.error_type == "invalid_value"),
+            "{errors:?}"
+        );
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".detours[0]")),
+            "{errors:?}"
+        );
+
+        let page = page_from_yaml(
+            "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages: []\n",
+        );
+        let errors = validate_page("j.yaml", &page);
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".stages")),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
+    fn tier_summary_needs_tiers_and_iso_renewals() {
+        let page = page_from_yaml(
+            "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers:\n      - label: Good\n        count: 3\n        accounts:\n          - { name: A, renewal: soon }\n",
+        );
+        let errors = validate_page("t.yaml", &page);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].path.ends_with(".accounts[0].renewal"));
+
+        let page = page_from_yaml(
+            "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers: []\n",
+        );
+        assert!(!validate_page("t.yaml", &page).is_empty());
     }
 
     #[test]
