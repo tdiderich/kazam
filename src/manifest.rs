@@ -118,6 +118,8 @@ fn component_type_name(c: &Component) -> String {
         Component::PriorityQueue { .. } => "priority_queue",
         Component::TierSummary { .. } => "tier_summary",
         Component::JourneyTrack { .. } => "journey_track",
+        Component::HealthBreakdown { .. } => "health_breakdown",
+        Component::NextSteps { .. } => "next_steps",
         Component::Venn { .. } => "venn",
         Component::Image { .. } => "image",
         Component::Badge { .. } => "badge",

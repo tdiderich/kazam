@@ -530,6 +530,8 @@ pub(crate) fn example_yaml(name: &str) -> Option<&'static str> {
         "timeline" => include_str!("../schema/examples/timeline.yaml"),
         "tier_summary" => include_str!("../schema/examples/tier_summary.yaml"),
         "journey_track" => include_str!("../schema/examples/journey_track.yaml"),
+        "health_breakdown" => include_str!("../schema/examples/health_breakdown.yaml"),
+        "next_steps" => include_str!("../schema/examples/next_steps.yaml"),
         _ => return None,
     })
 }
@@ -2315,6 +2317,11 @@ function vennTspans(fit: VennFit, x: number, avail: number, weight: number) {
 // Mirrors src/render/components.rs (`journey_layout`, `jt_place_labels`,
 // `fmt_long_date`). Change both together.
 
+/** Tier color class: explicit color, else accent shade by position. */
+function tierClass(color: string | undefined, i: number): string {
+  return color ? `c-tier-${color}` : `c-tier-pos-${Math.min(i + 1, 4)}`;
+}
+
 /** ISO `YYYY-MM-DD` from a YAML date: js-yaml may hand back a Date. */
 function kzIso(v: unknown): string | undefined {
   if (v instanceof Date) return isNaN(v.getTime()) ? undefined : v.toISOString().slice(0, 10);
@@ -2342,6 +2349,7 @@ function kzLongDate(iso: string): string {
 }
 
 const JT_RAIL_W = 640;
+const JT_RAIL_W_NARROW = 380;
 const JT_EDGE = 24;
 const JT_GAP = 10;
 const JT_MAX_ROWS = 4;
@@ -2407,18 +2415,18 @@ function journeyLayout(stages: JtStage[], detours: JtDetour[], current: JtCurren
 }
 
 /** Row and alignment per label so neighbours don't overlap at JT_RAIL_W. */
-function jtPlaceLabels(items: Array<[number, string]>, charW: number): { places: Array<[number, string]>; rows: number } {
+function jtPlaceLabels(items: Array<[number, string]>, charW: number, railW: number = JT_RAIL_W): { places: Array<[number, string]>; rows: number } {
   const order = items.map((_, i) => i).sort((a, b) => items[a][0] - items[b][0] || a - b);
   const ends: number[] = new Array(JT_MAX_ROWS).fill(-Infinity);
   const places: Array<[number, string]> = items.map(() => [0, "center"]);
   let rows = 0;
   for (const i of order) {
     const [x, label] = items[i];
-    const c = x * JT_RAIL_W;
+    const c = x * railW;
     const w = Array.from(label).length * charW + 6;
     let l: number, r: number, align: string;
     if (c - w / 2 < -JT_EDGE) { l = c - 10; r = c - 10 + w; align = "start"; }
-    else if (c + w / 2 > JT_RAIL_W + JT_EDGE) { l = c + 10 - w; r = c + 10; align = "end"; }
+    else if (c + w / 2 > railW + JT_EDGE) { l = c + 10 - w; r = c + 10; align = "end"; }
     else { l = c - w / 2; r = c + w / 2; align = "center"; }
     let row = ends.findIndex((e) => l >= e + JT_GAP);
     if (row < 0) {
@@ -2433,6 +2441,178 @@ function jtPlaceLabels(items: Array<[number, string]>, charW: number): { places:
 }
 
 const jtPct = (x: number) => (x * 100).toFixed(2);
+
+/** `c-hud-<color>` or an accent shade class (1 solid .. 4 hollow). */
+function hudClass(color: string | undefined, shade: number | undefined): string {
+  return color ? `c-hud-${color}` : `c-hud-shade-${Math.min(4, Math.max(1, Math.round(shade ?? 1)))}`;
+}
+
+function kzShortDate(iso: string): string {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const [, m, d] = iso.split("-");
+  const mi = parseInt(m, 10), di = parseInt(d, 10);
+  if (isNaN(mi) || isNaN(di) || mi < 1 || mi > 12) return iso;
+  return `${months[mi - 1]} ${di}`;
+}
+
+const useKzLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+
+/** Collapsed journey log; same markup as the static <details>. */
+function JourneyHistoryView({ history }: { history: { title?: string; events?: Array<{ date?: unknown; label: string; detail?: string; kind?: string }> } }) {
+  const [open, setOpen] = React.useState(false);
+  const events = history.events || [];
+  const rows = events.map((e, i) => ({ e, i })).sort((a, b) => (kzIsoDays(b.e.date) ?? -Infinity) - (kzIsoDays(a.e.date) ?? -Infinity) || a.i - b.i);
+  return (
+    <details className="c-jt-history" open={open}>
+      <summary className="c-jt-history-toggle" onClick={(ev) => { ev.preventDefault(); setOpen((o) => !o); }}>
+        <span className="c-jt-history-title"><span data-kz-field="history.title">{history.title || "Full history"}</span> ({events.length})</span>
+        <span className="c-jt-history-chevron" aria-hidden="true" />
+      </summary>
+      <ol className="c-jt-history-list" data-kz-list="history.events">
+        {rows.map(({ e, i }) => (
+          <li key={i} className={`c-jt-hist${e.kind ? ` is-${e.kind}` : ""}`}>
+            <span className="c-jt-hist-date" data-kz-field={`history.events[${i}].date`}>{kzIso(e.date) ?? ""}</span>
+            <span className="c-jt-hist-dot" />
+            <span className="c-jt-hist-text">
+              <span className="c-jt-hist-label" data-kz-field={`history.events[${i}].label`}>{e.label}</span>
+              {e.detail && <span className="c-jt-hist-detail" data-kz-field={`history.events[${i}].detail`}>{e.detail}</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
+type NsStep = { label: string; detail?: string; account?: string; due?: unknown; status?: string; owner?: string; href?: string };
+type NsAccount = { id: string; name: string; stage?: string; color?: string; shade?: number; owner?: string; href?: string };
+
+/** next_steps: list or owner board; connectors measured from the DOM. */
+function NextStepsView({ id, steps, accounts, owners, title }: { id: string; steps: NsStep[]; accounts: NsAccount[]; owners: string[]; title?: string }) {
+  const board = accounts.length > 0;
+  const [owner, setOwner] = React.useState<string>("");
+  const [hot, setHot] = React.useState<string | null>(null);
+  const [wires, setWires] = React.useState<{ w: number; h: number; paths: Array<[string, string]> } | null>(null);
+  const bodyRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const want = (new URLSearchParams(window.location.search).get("owner") || "").trim().toLowerCase();
+    const match = owners.find((o) => o.trim().toLowerCase() === want);
+    if (want && match) setOwner(match);
+  }, []);
+  const key = owner.trim().toLowerCase();
+  const ownerOf = (s: NsStep) => {
+    const a = s.account ? accounts.find((x) => x.id === s.account) : undefined;
+    return a ? a.owner : s.owner;
+  };
+  const isHidden = (o: string | undefined) => !!key && (o || "").trim().toLowerCase() !== key;
+  const pick = (o: string) => {
+    setOwner(o);
+    try {
+      const u = new URL(window.location.href);
+      if (o) u.searchParams.set("owner", o); else u.searchParams.delete("owner");
+      window.history.replaceState(window.history.state, "", u.toString());
+    } catch { /* ignore */ }
+  };
+  const measure = React.useCallback(() => {
+    const body = bodyRef.current;
+    if (!body) return setWires(null);
+    const svg = body.querySelector(".c-next-wires");
+    if (!svg || getComputedStyle(svg).display === "none") return setWires(null);
+    const b = body.getBoundingClientRect();
+    if (!(b.width > 0 && b.height > 0)) return setWires(null);
+    const shown = (el: Element) => !(el as HTMLElement).hidden && el.getClientRects().length > 0;
+    const paths: Array<[string, string]> = [];
+    let ok = true;
+    body.querySelectorAll(".c-next-step[data-acct]").forEach((st) => {
+      if (!ok || !shown(st)) return;
+      const aid = st.getAttribute("data-acct") || "";
+      const row = Array.from(body.querySelectorAll(".c-next-acct[data-acct]")).find((r) => r.getAttribute("data-acct") === aid);
+      if (!row || !shown(row)) return;
+      const r = row.getBoundingClientRect(), s = st.getBoundingClientRect();
+      const x1 = r.right - b.left, y1 = r.top + r.height / 2 - b.top;
+      const x2 = s.left - b.left, y2 = s.top + s.height / 2 - b.top;
+      if (!(r.width > 0 && s.width > 0 && x2 > x1)) { ok = false; return; }
+      const mx = (x1 + x2) / 2;
+      paths.push([aid, `M${x1.toFixed(1)} ${y1.toFixed(1)} C${mx.toFixed(1)} ${y1.toFixed(1)} ${mx.toFixed(1)} ${y2.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`]);
+    });
+    setWires(ok ? { w: b.width, h: b.height, paths } : null);
+  }, []);
+  useKzLayoutEffect(() => {
+    if (!board) return;
+    measure();
+    const body = bodyRef.current;
+    if (!body || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(body);
+    return () => ro.disconnect();
+  }, [board, owner, steps, accounts, measure]);
+  const hotProps = (aid: string) => ({ onMouseEnter: () => setHot(aid), onMouseLeave: () => setHot(null), onFocus: () => setHot(aid), onBlur: () => setHot(null) });
+  const chips = owners.length > 0 && (
+    <div className="c-next-chips" role="group" aria-label="Filter by owner">
+      <button type="button" className={`c-next-chip${key === "" ? " is-active" : ""}`} data-owner-chip="" aria-pressed={key === ""} onClick={() => pick("")}>Owner: All</button>
+      {owners.map((o, i) => {
+        const on = key === o.trim().toLowerCase();
+        return <button key={i} type="button" className={`c-next-chip${on ? " is-active" : ""}`} data-owner-chip={o} aria-pressed={on} onClick={() => pick(o)}>Owner: <span data-kz-field={`owners[${i}]`}>{o}</span></button>;
+      })}
+    </div>
+  );
+  const titleEl = title && <div className="c-next-title" data-kz-field="title">{title}</div>;
+  const stepList = (
+    <ul className="c-next-steps" data-kz-list="steps">
+      {steps.length === 0 && <li className="c-next-empty">Nothing due.</li>}
+      {steps.map((s, i) => {
+        const o = ownerOf(s);
+        const iso = kzIso(s.due);
+        const aid = board && s.account ? s.account : undefined;
+        return (
+          <li
+            key={i}
+            className={`c-next-step${s.status ? ` is-${s.status}` : ""}${aid && hot === aid ? " is-hot" : ""}`}
+            {...(aid ? { "data-acct": aid, tabIndex: 0, ...hotProps(aid) } : {})}
+            {...(o ? { "data-owner": o } : {})}
+            hidden={isHidden(o) || undefined}
+          >
+            <span className="c-next-dot" />
+            <span className="c-next-text">
+              {s.href
+                ? <a className="c-next-label" href={s.href} data-kz-field={`steps[${i}].label`}>{s.label}</a>
+                : <span className="c-next-label" data-kz-field={`steps[${i}].label`}>{s.label}</span>}
+              {s.detail && <span className="c-next-detail" data-kz-field={`steps[${i}].detail`}>{s.detail}</span>}
+            </span>
+            {iso && <span className="c-next-due" data-kz-field={`steps[${i}].due`}>{kzShortDate(iso)}</span>}
+          </li>
+        );
+      })}
+    </ul>
+  );
+  if (!board) {
+    return <div id={id} className="c-next" data-next-steps="">{chips}{titleEl}{stepList}</div>;
+  }
+  return (
+    <div id={id} className="c-next is-board" data-next-steps="">
+      <div className="c-next-body" ref={bodyRef}>
+        <div className="c-next-head-left">{chips}</div>
+        <div className="c-next-head-right">{titleEl}</div>
+        <ul className="c-next-accounts" data-kz-list="accounts">
+          {accounts.map((a, i) => (
+            <li key={i} className={`c-next-acct ${hudClass(a.color, a.shade)}${hot === a.id ? " is-hot" : ""}`} data-acct={a.id} {...(a.owner ? { "data-owner": a.owner } : {})} tabIndex={0} hidden={isHidden(a.owner) || undefined} {...hotProps(a.id)}>
+              <span className="c-hud-swatch" />
+              {a.href
+                ? <a className="c-next-acct-name" href={a.href} data-kz-field={`accounts[${i}].name`}>{a.name}</a>
+                : <span className="c-next-acct-name" data-kz-field={`accounts[${i}].name`}>{a.name}</span>}
+              {a.stage && <span className="c-next-acct-stage" data-kz-field={`accounts[${i}].stage`}>{a.stage}</span>}
+            </li>
+          ))}
+        </ul>
+        {stepList}
+        <svg className="c-next-wires" aria-hidden="true" {...(wires ? { viewBox: `0 0 ${wires.w.toFixed(1)} ${wires.h.toFixed(1)}` } : {})}>
+          {wires && wires.paths.map(([aid, d], i) => <path key={i} className={`c-next-wire${hot === aid ? " is-hot" : ""}`} d={d} data-acct={aid} />)}
+        </svg>
+      </div>
+    </div>
+  );
+}
 
 function ComponentView({
   comp,
@@ -4442,7 +4622,7 @@ function ComponentView({
               const accounts = t.accounts || [];
               const expandable = !t.href && accounts.length > 0;
               const count = t.count == null ? "" : String(t.count);
-              const cls = `c-tier c-tier-${t.color || "default"}${t.active ? " is-active" : ""}${count.trim() === "0" ? " is-empty" : ""}${expandable ? " is-expandable" : ""}${open === i ? " is-open" : ""}`;
+              const cls = `c-tier ${tierClass(t.color, i)}${t.active ? " is-active" : ""}${count.trim() === "0" ? " is-empty" : ""}${expandable ? " is-expandable" : ""}${open === i ? " is-open" : ""}`;
               const width = Math.min(100, Math.max(0, t.share ?? 0));
               const body = (
                 <>
@@ -4478,7 +4658,7 @@ function ComponentView({
             })}
           </div>
           {panelTier && panelAccounts.length > 0 && (
-            <div className={`c-tier-panel c-tier-${panelTier.color || "default"}`} id={`${prefix}-panel-${open}`} data-tier-panel={String(open)}>
+            <div className={`c-tier-panel ${tierClass(panelTier.color, open)}`} id={`${prefix}-panel-${open}`} data-tier-panel={String(open)}>
               <div className="c-tier-panel-head">
                 <span className="c-tier-swatch" />
                 <span className="c-tier-panel-title">{panelTier.label}</span>
@@ -4492,7 +4672,7 @@ function ComponentView({
                   const soon = days != null && days >= 0 && days < 90;
                   const f = `tiers[${open}].accounts[${j}]`;
                   return (
-                    <li key={j} className={`c-tier-acct c-tier-${a.color || panelTier.color || "default"}${soon ? " is-soon" : ""}`} data-renewal={iso}>
+                    <li key={j} className={`c-tier-acct ${a.color ? `c-tier-${a.color}` : tierClass(panelTier.color, open)}${soon ? " is-soon" : ""}`} data-renewal={iso}>
                       <span className="c-tier-acct-main">
                         <span className="c-tier-swatch" />
                         <span className="c-tier-acct-text">
@@ -4521,6 +4701,42 @@ function ComponentView({
       );
     }
 
+    case "health_breakdown": {
+      const items = (comp.items as Array<{ label: string; tier?: string; color?: string; shade?: number; value?: unknown; detail?: string }>) || [];
+      return (
+        <div id={id} className="c-health" data-kz-list="items">
+          {items.map((it, i) => (
+            <div key={i} className={`c-health-item ${hudClass(it.color, it.shade)}`}>
+              <div className="c-health-main">
+                <div className="c-health-label" data-kz-field={`items[${i}].label`}>{it.label}</div>
+                {(it.value != null || it.detail) && (
+                  <div className="c-health-detail">
+                    {it.value != null && <span className="c-health-value" data-kz-field={`items[${i}].value`}>{String(it.value)}</span>}
+                    {it.detail && <span className="c-health-text" data-kz-field={`items[${i}].detail`}>{it.detail}</span>}
+                  </div>
+                )}
+              </div>
+              {it.tier && (
+                <div className="c-health-tier"><span className="c-hud-swatch" /><span className="c-health-tier-name" data-kz-field={`items[${i}].tier`}>{it.tier}</span></div>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    case "next_steps": {
+      return (
+        <NextStepsView
+          id={id}
+          steps={(comp.steps as NsStep[]) || []}
+          accounts={(comp.accounts as NsAccount[]) || []}
+          owners={(comp.owners as string[]) || []}
+          title={comp.title as string | undefined}
+        />
+      );
+    }
+
     case "journey_track": {
       const stages = (comp.stages as JtStage[]) || [];
       const detours = (comp.detours as JtDetour[]) || [];
@@ -4533,7 +4749,10 @@ function ComponentView({
       const currentBelow = !!current && lay.currentX != null && !current.temporary;
       if (currentBelow) stageItems.push([lay.currentX as number, current!.label]);
       const stagePlace = jtPlaceLabels(stageItems, JT_STAGE_CHAR_W);
-      const tpPlace = jtPlaceLabels(tps.map((t, i) => [lay.tpX[i], t.label] as [number, string]), JT_TP_CHAR_W);
+      const stageNarrow = jtPlaceLabels(stageItems, JT_STAGE_CHAR_W, JT_RAIL_W_NARROW);
+      const tpItems = tps.map((t, i) => [lay.tpX[i], t.label] as [number, string]);
+      const tpPlace = jtPlaceLabels(tpItems, JT_TP_CHAR_W);
+      const tpNarrow = jtPlaceLabels(tpItems, JT_TP_CHAR_W, JT_RAIL_W_NARROW);
       const curColor = current?.color || "default";
       return (
         <div id={id} className="c-journey">
@@ -4560,33 +4779,34 @@ function ComponentView({
                 <>
                   <span className={`c-jt-current c-jt-c-${curColor}`} style={{ left: `${jtPct(lay.currentX)}%` }} title={current.label} />
                   {current.temporary && (
-                    <span className={`c-jt-current-label c-jt-c-${curColor}`} data-align={jtPlaceLabels([[lay.currentX, current.label]], JT_MONO_CHAR_W).places[0][1]} style={{ left: `${jtPct(lay.currentX)}%` }} data-kz-field="current.label">{current.label}</span>
+                    <span className={`c-jt-current-label c-jt-c-${curColor}`} data-align={jtPlaceLabels([[lay.currentX, current.label]], JT_MONO_CHAR_W).places[0][1]} data-align-n={jtPlaceLabels([[lay.currentX, current.label]], JT_MONO_CHAR_W, JT_RAIL_W_NARROW).places[0][1]} style={{ left: `${jtPct(lay.currentX)}%` }} data-kz-field="current.label">{current.label}</span>
                   )}
                 </>
               )}
             </div>
           </div>
-          <div className="c-jt-stage-labels" data-kz-list="stages" style={{ "--jt-rows": Math.max(1, stagePlace.rows) } as React.CSSProperties}>
+          <div className="c-jt-stage-labels" data-kz-list="stages" style={{ "--jt-rows": Math.max(1, stagePlace.rows), "--jt-rows-n": Math.max(1, stageNarrow.rows) } as React.CSSProperties}>
             {stages.map((s, i) => (
-              <span key={i} className={`c-jt-label ${s.status === "upcoming" ? "is-upcoming" : "is-completed"}`} data-align={stagePlace.places[i][1]} style={{ left: `${jtPct(lay.stageX[i])}%`, "--jt-row": stagePlace.places[i][0] } as React.CSSProperties} data-kz-field={`stages[${i}].label`}>{s.label}</span>
+              <span key={i} className={`c-jt-label ${s.status === "upcoming" ? "is-upcoming" : "is-completed"}`} data-align={stagePlace.places[i][1]} data-align-n={stageNarrow.places[i][1]} style={{ left: `${jtPct(lay.stageX[i])}%`, "--jt-row": stagePlace.places[i][0], "--jt-row-n": stageNarrow.places[i][0] } as React.CSSProperties} data-kz-field={`stages[${i}].label`}>{s.label}</span>
             ))}
             {currentBelow && (
-              <span className={`c-jt-label is-current c-jt-c-${curColor}`} data-align={stagePlace.places[stages.length][1]} style={{ left: `${jtPct(lay.currentX as number)}%`, "--jt-row": stagePlace.places[stages.length][0] } as React.CSSProperties} data-kz-field="current.label">{current!.label}</span>
+              <span className={`c-jt-label is-current c-jt-c-${curColor}`} data-align={stagePlace.places[stages.length][1]} data-align-n={stageNarrow.places[stages.length][1]} style={{ left: `${jtPct(lay.currentX as number)}%`, "--jt-row": stagePlace.places[stages.length][0], "--jt-row-n": stageNarrow.places[stages.length][0] } as React.CSSProperties} data-kz-field="current.label">{current!.label}</span>
             )}
           </div>
           {tps.length > 0 && (
             <>
               <div className="c-jt-tp-head">Touchpoints</div>
-              <div className="c-jt-tps" data-kz-list="touchpoints" style={{ "--jt-rows": Math.max(1, tpPlace.rows) } as React.CSSProperties}>
+              <div className="c-jt-tps" data-kz-list="touchpoints" style={{ "--jt-rows": Math.max(1, tpPlace.rows), "--jt-rows-n": Math.max(1, tpNarrow.rows) } as React.CSSProperties}>
                 {tps.map((t, i) => (
                   <React.Fragment key={i}>
                     <span className={`c-jt-tp ${t.status === "upcoming" ? "is-upcoming" : "is-completed"}`} style={{ left: `${jtPct(lay.tpX[i])}%` }} />
-                    <span className="c-jt-tp-label" data-align={tpPlace.places[i][1]} style={{ left: `${jtPct(lay.tpX[i])}%`, "--jt-row": tpPlace.places[i][0] } as React.CSSProperties} data-kz-field={`touchpoints[${i}].label`}>{t.label}</span>
+                    <span className="c-jt-tp-label" data-align={tpPlace.places[i][1]} data-align-n={tpNarrow.places[i][1]} style={{ left: `${jtPct(lay.tpX[i])}%`, "--jt-row": tpPlace.places[i][0], "--jt-row-n": tpNarrow.places[i][0] } as React.CSSProperties} data-kz-field={`touchpoints[${i}].label`}>{t.label}</span>
                   </React.Fragment>
                 ))}
               </div>
             </>
           )}
+          {(comp.history as { events?: unknown[] } | undefined)?.events?.length ? <JourneyHistoryView history={comp.history as Parameters<typeof JourneyHistoryView>[0]["history"]} /> : null}
         </div>
       );
     }
@@ -5146,6 +5366,8 @@ export const EDITOR_TYPES: Array<{type: string; label: string; icon: string}> = 
   { type: "priority_queue", label: "Priority Queue", icon: "P" },
   { type: "tier_summary", label: "Tier Summary", icon: "▤" },
   { type: "journey_track", label: "Journey Track", icon: "⟿" },
+  { type: "health_breakdown", label: "Health Breakdown", icon: "♥" },
+  { type: "next_steps", label: "Next Steps", icon: "○" },
 ];
 
 function KzControl({ field, value, onChange }: { field: KzField; value: unknown; onChange: (v: unknown) => void }) {
@@ -5517,6 +5739,8 @@ mod tests {
             ("chart", "function ChartSVG("),
             ("graph", "function GraphSVG("),
             ("accordion", "function AccordionView("),
+            ("next_steps", "function NextStepsView("),
+            ("journey_track", "function JourneyHistoryView("),
         ];
         let mut region = String::new();
         let needle = format!("\n    case \"{comp}\": {{");
@@ -5625,6 +5849,8 @@ mod tests {
             ("journey_track", "JourneyDetour.to"),
             ("journey_track", "JourneyCurrent.date"),
             ("journey_track", "JourneyTouchpoint.date"),
+            ("next_steps", "NextStep.owner"), // drives the owner filter, not text
+            ("next_steps", "NextAccount.owner"),
         ];
         let mut missing: Vec<String> = Vec::new();
         for (comp, fields) in &schema.components {
@@ -5706,6 +5932,9 @@ mod tests {
             ("journey_track", "stages"),
             ("journey_track", "detours"),
             ("journey_track", "touchpoints"),
+            ("health_breakdown", "items"),
+            ("next_steps", "steps"),
+            ("next_steps", "accounts"),
             ("tree", "nodes"),
             ("callout", "links"),
             ("hero_banner", "buttons"),

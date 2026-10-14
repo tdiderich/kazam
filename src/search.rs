@@ -267,12 +267,40 @@ fn extract_searchable_text(
                     }
                 }
             }
+            Component::HealthBreakdown { items, .. } => {
+                for it in items {
+                    headings.push(it.label.clone());
+                    if let Some(d) = &it.detail {
+                        push_snippet(snippets, d);
+                    }
+                }
+            }
+            Component::NextSteps {
+                title,
+                steps,
+                accounts,
+                ..
+            } => {
+                if let Some(t) = title {
+                    headings.push(t.clone());
+                }
+                for s in steps {
+                    push_snippet(snippets, &s.label);
+                    if let Some(d) = &s.detail {
+                        push_snippet(snippets, d);
+                    }
+                }
+                for a in accounts {
+                    push_snippet(snippets, &a.name);
+                }
+            }
             Component::JourneyTrack {
                 title,
                 stages,
                 detours,
                 current,
                 touchpoints,
+                history,
                 ..
             } => {
                 if let Some(t) = title {
@@ -289,6 +317,11 @@ fn extract_searchable_text(
                 }
                 for t in touchpoints {
                     push_snippet(snippets, &t.label);
+                }
+                if let Some(h) = history {
+                    for e in &h.events {
+                        push_snippet(snippets, &e.label);
+                    }
                 }
             }
             // Code blocks skipped - not useful as search content.

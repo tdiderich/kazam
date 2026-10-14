@@ -2836,3 +2836,89 @@ fn journey_track_renders_dated_line_detour_and_touchpoints() {
     assert_contains(&html, r#"class="c-jt-tp is-upcoming""#);
     assert_contains(&html, "@keyframes c-jt-pulse");
 }
+
+#[test]
+fn tier_summary_defaults_to_accent_shades_by_position() {
+    let html = build_one_page(
+        "tier-shades",
+        "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers:\n      - { label: A, count: 1 }\n      - { label: B, count: 2 }\n      - { label: C, count: 3, color: red }\n      - { label: D, count: 4 }\n      - { label: E, count: 5 }\n",
+        "",
+    );
+    assert_contains(&html, r#"class="c-tier c-tier-pos-1""#);
+    assert_contains(&html, r#"class="c-tier c-tier-pos-2""#);
+    assert_contains(&html, r#"class="c-tier c-tier-red""#);
+    assert_contains(&html, r#"class="c-tier c-tier-pos-4""#);
+    assert!(!html.contains("c-tier-pos-5"));
+    assert_contains(&html, "color-mix(in srgb, var(--teal) 62%, var(--bg))");
+}
+
+#[test]
+fn health_breakdown_renders_tier_swatch_and_value() {
+    let html = build_one_page(
+        "health-breakdown",
+        "title: H\nshell: standard\ncomponents:\n  - type: health_breakdown\n    items:\n      - { label: Noise reduction, tier: Outstanding, detail: Auto-triaged }\n      - { label: License, tier: Okay, shade: 3, value: 52.84%, detail: of assets }\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<div class="c-health-item c-hud-shade-1"><div class="c-health-main"><div class="c-health-label">Noise reduction</div>"#,
+    );
+    assert_contains(&html, r#"<span class="c-health-value">52.84%</span>"#);
+    assert_contains(&html, r#"<span class="c-health-tier-name">Okay</span>"#);
+}
+
+#[test]
+fn next_steps_board_wires_accounts_and_filters_by_owner() {
+    let html = build_one_page(
+        "next-steps",
+        "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    title: From the journey rules\n    owners: [Tyler, Will]\n    accounts:\n      - { id: lark, name: Larkspur, stage: Onboarding, owner: Tyler }\n    steps:\n      - { label: Move past onboarding, account: lark, due: 2026-10-17, status: overdue }\n      - { label: Loose step, owner: Will }\n",
+        "",
+    );
+    assert_contains(&html, r#"class="c-next is-board" data-next-steps"#);
+    assert_contains(
+        &html,
+        r#"<li class="c-next-acct c-hud-shade-1" data-acct="lark" data-owner="Tyler" tabindex="0">"#,
+    );
+    assert_contains(
+        &html,
+        r#"<li class="c-next-step is-overdue" data-acct="lark" tabindex="0" data-owner="Tyler">"#,
+    );
+    assert_contains(&html, r#"<li class="c-next-step" data-owner="Will">"#);
+    assert_contains(&html, r#"<span class="c-next-due">Oct 17</span>"#);
+    assert_contains(&html, r#"data-owner-chip="Will""#);
+    assert_contains(&html, "c-next-wires");
+    assert_contains(&html, "history.replaceState");
+}
+
+#[test]
+fn next_steps_list_mode_ships_no_script() {
+    let html = build_one_page(
+        "next-steps-list",
+        "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    steps:\n      - { label: Done thing, status: done }\n",
+        "",
+    );
+    assert_contains(&html, r#"<div class="c-next" data-next-steps>"#);
+    assert_contains(&html, r#"<li class="c-next-step is-done">"#);
+    assert!(!html.contains("history.replaceState"));
+}
+
+#[test]
+fn journey_history_renders_collapsed_newest_first() {
+    let html = build_one_page(
+        "journey-history",
+        "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages:\n      - { label: A }\n    history:\n      events:\n        - { date: 2025-11-05, label: Kickoff }\n        - { date: 2026-03-01, label: Entered Save, kind: stage, detail: Champion left }\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<details class="c-jt-history"><summary class="c-jt-history-toggle"><span class="c-jt-history-title">Full history (2)</span>"#,
+    );
+    let save = html.find("Entered Save").unwrap();
+    let kick = html.find(">Kickoff<").unwrap();
+    assert!(save < kick, "newest first");
+    assert_contains(
+        &html,
+        r#"<li class="c-jt-hist is-stage"><span class="c-jt-hist-date">2026-03-01</span>"#,
+    );
+    assert_contains(&html, r#"data-align-n=""#);
+}

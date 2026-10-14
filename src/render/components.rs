@@ -338,11 +338,28 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             id.as_deref(),
             base,
         ),
+        Component::HealthBreakdown { items, id, .. } => health_breakdown(items, id.as_deref()),
+        Component::NextSteps {
+            steps,
+            accounts,
+            owners,
+            title,
+            id,
+            ..
+        } => next_steps(
+            steps,
+            accounts,
+            owners,
+            title.as_deref(),
+            id.as_deref(),
+            base,
+        ),
         Component::JourneyTrack {
             stages,
             detours,
             current,
             touchpoints,
+            history,
             title,
             start,
             end,
@@ -353,6 +370,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             detours,
             current.as_ref(),
             touchpoints,
+            history.as_ref(),
             title.as_deref(),
             start,
             end,
@@ -3588,6 +3606,15 @@ fn sorted_accounts(accounts: &[TierAccount]) -> Vec<&TierAccount> {
     v
 }
 
+/// Color class for a tier: its explicit color, or an accent shade by
+/// position (tier 1 solid, 2 at 62%, 3 at 32%, 4+ hollow).
+fn tier_color_class(color: Option<SemColor>, index: usize) -> String {
+    match color {
+        Some(c) => format!("c-tier-{}", sem_color_class(c)),
+        None => format!("c-tier-pos-{}", (index + 1).min(4)),
+    }
+}
+
 fn tier_summary(
     tiers: &[Tier],
     count_label: Option<&str>,
@@ -3611,7 +3638,7 @@ fn tier_summary(
     );
     for (i, t) in tiers.iter().enumerate() {
         let expandable = t.href.is_none() && !t.accounts.is_empty();
-        let mut cls = format!("c-tier c-tier-{}", sem_color_class(t.color));
+        let mut cls = format!("c-tier {}", tier_color_class(t.color, i));
         if t.active {
             cls.push_str(" is-active");
         }
@@ -3702,8 +3729,8 @@ fn tier_summary(
 fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
     let n = t.accounts.len();
     let mut h = format!(
-        r#"<div class="c-tier-panel c-tier-{}" id="{}-panel-{}" data-tier-panel="{}" hidden><div class="c-tier-panel-head"><span class="c-tier-swatch"></span><span class="c-tier-panel-title">{}</span><span class="c-tier-panel-count">{} {}</span></div><ul class="c-tier-accounts">"#,
-        sem_color_class(t.color),
+        r#"<div class="c-tier-panel {}" id="{}-panel-{}" data-tier-panel="{}" hidden><div class="c-tier-panel-head"><span class="c-tier-swatch"></span><span class="c-tier-panel-title">{}</span><span class="c-tier-panel-count">{} {}</span></div><ul class="c-tier-accounts">"#,
+        tier_color_class(t.color, i),
         esc(prefix),
         i,
         i,
@@ -3712,15 +3739,18 @@ fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
         if n == 1 { "account" } else { "accounts" }
     );
     for a in sorted_accounts(&t.accounts) {
-        let color = a.color.unwrap_or(t.color);
+        let color = match a.color {
+            Some(c) => format!("c-tier-{}", sem_color_class(c)),
+            None => tier_color_class(t.color, i),
+        };
         let renewal_attr = a
             .renewal
             .as_deref()
             .map(|r| format!(r#" data-renewal="{}""#, esc(r.trim())))
             .unwrap_or_default();
         h.push_str(&format!(
-            r#"<li class="c-tier-acct c-tier-{}"{}><span class="c-tier-acct-main"><span class="c-tier-swatch"></span><span class="c-tier-acct-text">"#,
-            sem_color_class(color),
+            r#"<li class="c-tier-acct {}"{}><span class="c-tier-acct-main"><span class="c-tier-swatch"></span><span class="c-tier-acct-text">"#,
+            color,
             renewal_attr
         ));
         match &a.href {
@@ -3759,6 +3789,207 @@ fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
     h
 }
 
+// ── HUD color helper ──────────────────────────────
+
+/// `c-hud-<color>` for an explicit color, else `c-hud-shade-<1..4>`
+/// (accent solid, 62%, 32%, hollow). Default is shade 1.
+fn hud_color_class(color: Option<SemColor>, shade: Option<u8>) -> String {
+    match color {
+        Some(c) => format!("c-hud-{}", sem_color_class(c)),
+        None => format!("c-hud-shade-{}", shade.unwrap_or(1).clamp(1, 4)),
+    }
+}
+
+/// `Oct 17` from an ISO date; the raw text when it doesn't parse.
+fn fmt_short_date(iso: &str) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let s = iso.trim();
+    let s = s.get(..10).unwrap_or(s);
+    let mut p = s.split('-');
+    let (Some(_), Some(m), Some(d)) = (p.next(), p.next(), p.next()) else {
+        return iso.to_string();
+    };
+    match (m.parse::<usize>(), d.parse::<u32>()) {
+        (Ok(m), Ok(d)) if (1..=12).contains(&m) => format!("{} {}", MONTHS[m - 1], d),
+        _ => iso.to_string(),
+    }
+}
+
+// ── Health Breakdown ──────────────────────────────
+
+fn health_breakdown(items: &[HealthItem], id: Option<&str>) -> Rendered {
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let mut h = format!(r#"<div{} class="c-health" data-kz-list="items">"#, id_attr);
+    for it in items {
+        h.push_str(&format!(
+            r#"<div class="c-health-item {}"><div class="c-health-main"><div class="c-health-label">{}</div>"#,
+            hud_color_class(it.color, it.shade),
+            esc(&it.label)
+        ));
+        if it.value.is_some() || it.detail.is_some() {
+            h.push_str(r#"<div class="c-health-detail">"#);
+            if let Some(v) = &it.value {
+                h.push_str(&format!(
+                    r#"<span class="c-health-value">{}</span>"#,
+                    esc(v)
+                ));
+            }
+            if let Some(d) = &it.detail {
+                h.push_str(&format!(r#"<span class="c-health-text">{}</span>"#, esc(d)));
+            }
+            h.push_str("</div>");
+        }
+        h.push_str("</div>");
+        if let Some(t) = &it.tier {
+            h.push_str(&format!(
+                r#"<div class="c-health-tier"><span class="c-hud-swatch"></span><span class="c-health-tier-name">{}</span></div>"#,
+                esc(t)
+            ));
+        }
+        h.push_str("</div>");
+    }
+    h.push_str("</div>");
+    Rendered::new(h)
+}
+
+// ── Next Steps ────────────────────────────────────
+
+fn next_step_owner<'a>(step: &'a NextStep, accounts: &'a [NextAccount]) -> Option<&'a str> {
+    match step
+        .account
+        .as_deref()
+        .and_then(|a| accounts.iter().find(|x| x.id == a))
+    {
+        Some(acct) => acct.owner.as_deref(),
+        None => step.owner.as_deref(),
+    }
+}
+
+fn owner_attr(owner: Option<&str>) -> String {
+    owner
+        .map(|o| format!(r#" data-owner="{}""#, esc(o)))
+        .unwrap_or_default()
+}
+
+fn next_link(cls: &str, label: &str, href: Option<&str>, base: &str) -> String {
+    match href {
+        Some(h) => format!(
+            r#"<a class="{}" href="{}">{}</a>"#,
+            cls,
+            esc(&resolve_href(h, base)),
+            esc(label)
+        ),
+        None => format!(r#"<span class="{}">{}</span>"#, cls, esc(label)),
+    }
+}
+
+fn next_steps(
+    steps: &[NextStep],
+    accounts: &[NextAccount],
+    owners: &[String],
+    title: Option<&str>,
+    id: Option<&str>,
+    base: &str,
+) -> Rendered {
+    let board = !accounts.is_empty();
+    let id_attr = id
+        .map(|i| format!(r#" id="{}""#, esc(i)))
+        .unwrap_or_default();
+    let mut h = format!(
+        r#"<div{} class="c-next{}" data-next-steps>"#,
+        id_attr,
+        if board { " is-board" } else { "" }
+    );
+    let mut chips = String::new();
+    if !owners.is_empty() {
+        chips.push_str(r#"<div class="c-next-chips" role="group" aria-label="Filter by owner"><button type="button" class="c-next-chip is-active" data-owner-chip="" aria-pressed="true">Owner: All</button>"#);
+        for o in owners {
+            chips.push_str(&format!(
+                r#"<button type="button" class="c-next-chip" data-owner-chip="{}" aria-pressed="false">Owner: {}</button>"#,
+                esc(o),
+                esc(o)
+            ));
+        }
+        chips.push_str("</div>");
+    }
+    let title_html = title
+        .map(|t| format!(r#"<div class="c-next-title">{}</div>"#, esc(t)))
+        .unwrap_or_default();
+    if board {
+        h.push_str(&format!(
+            r#"<div class="c-next-body"><div class="c-next-head-left">{}</div><div class="c-next-head-right">{}</div><ul class="c-next-accounts" data-kz-list="accounts">"#,
+            chips, title_html
+        ));
+        for a in accounts {
+            h.push_str(&format!(
+                r#"<li class="c-next-acct {}" data-acct="{}"{} tabindex="0"><span class="c-hud-swatch"></span>{}"#,
+                hud_color_class(a.color, a.shade),
+                esc(&a.id),
+                owner_attr(a.owner.as_deref()),
+                next_link("c-next-acct-name", &a.name, a.href.as_deref(), base)
+            ));
+            if let Some(st) = &a.stage {
+                h.push_str(&format!(
+                    r#"<span class="c-next-acct-stage">{}</span>"#,
+                    esc(st)
+                ));
+            }
+            h.push_str("</li>");
+        }
+        h.push_str("</ul>");
+    } else {
+        h.push_str(&chips);
+        h.push_str(&title_html);
+    }
+    h.push_str(r#"<ul class="c-next-steps" data-kz-list="steps">"#);
+    if steps.is_empty() {
+        h.push_str(r#"<li class="c-next-empty">Nothing due.</li>"#);
+    }
+    for s in steps {
+        let status = s
+            .status
+            .map(|x| format!(" {}", x.class()))
+            .unwrap_or_default();
+        let acct = match (&s.account, board) {
+            (Some(a), true) => format!(r#" data-acct="{}" tabindex="0""#, esc(a)),
+            _ => String::new(),
+        };
+        h.push_str(&format!(
+            r#"<li class="c-next-step{}"{}{}><span class="c-next-dot"></span><span class="c-next-text">{}"#,
+            status,
+            acct,
+            owner_attr(next_step_owner(s, accounts)),
+            next_link("c-next-label", &s.label, s.href.as_deref(), base)
+        ));
+        if let Some(d) = &s.detail {
+            h.push_str(&format!(r#"<span class="c-next-detail">{}</span>"#, esc(d)));
+        }
+        h.push_str("</span>");
+        if let Some(d) = &s.due {
+            h.push_str(&format!(
+                r#"<span class="c-next-due">{}</span>"#,
+                esc(&fmt_short_date(d))
+            ));
+        }
+        h.push_str("</li>");
+    }
+    h.push_str("</ul>");
+    if board {
+        h.push_str(r#"<svg class="c-next-wires" aria-hidden="true"></svg></div>"#);
+    }
+    h.push_str("</div>");
+    let r = Rendered::new(h);
+    if board || !owners.is_empty() {
+        r.with_script("next_steps")
+    } else {
+        r
+    }
+}
+
 // ── Journey Track ─────────────────────────────────
 //
 // Layout math is mirrored line for line in the React renderer (sdk.rs,
@@ -3766,6 +3997,8 @@ fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
 
 /// Rail width (px) the label-collision pass assumes: about curata's column.
 const JT_RAIL_W: f64 = 640.0;
+/// Narrow pass for a half-width column; CSS switches below a 560px track.
+const JT_RAIL_W_NARROW: f64 = 380.0;
 /// How far (px) a centered label may run past the rail before it flips to
 /// start/end alignment.
 const JT_EDGE: f64 = 24.0;
@@ -3890,6 +4123,15 @@ fn journey_layout(
 /// Row (0-based) and alignment for each label so neighbours don't overlap
 /// at `JT_RAIL_W`. Returns the per-label placement and the rows used.
 fn jt_place_labels(items: &[(f64, &str)], char_w: f64) -> (Vec<(usize, &'static str)>, usize) {
+    jt_place_labels_at(items, char_w, JT_RAIL_W)
+}
+
+/// Same pass at an explicit rail width (the narrow pass uses `JT_RAIL_W_NARROW`).
+fn jt_place_labels_at(
+    items: &[(f64, &str)],
+    char_w: f64,
+    rail_w: f64,
+) -> (Vec<(usize, &'static str)>, usize) {
     let mut order: Vec<usize> = (0..items.len()).collect();
     order.sort_by(|a, b| items[*a].0.total_cmp(&items[*b].0).then(a.cmp(b)));
     let mut ends = [f64::NEG_INFINITY; JT_MAX_ROWS];
@@ -3897,11 +4139,11 @@ fn jt_place_labels(items: &[(f64, &str)], char_w: f64) -> (Vec<(usize, &'static 
     let mut rows = 0;
     for i in order {
         let (x, label) = items[i];
-        let c = x * JT_RAIL_W;
+        let c = x * rail_w;
         let w = label.chars().count() as f64 * char_w + 6.0;
         let (l, r, align) = if c - w / 2.0 < -JT_EDGE {
             (c - 10.0, c - 10.0 + w, "start")
-        } else if c + w / 2.0 > JT_RAIL_W + JT_EDGE {
+        } else if c + w / 2.0 > rail_w + JT_EDGE {
             (c + 10.0 - w, c + 10.0, "end")
         } else {
             (c - w / 2.0, c + w / 2.0, "center")
@@ -3939,6 +4181,7 @@ fn journey_track(
     detours: &[JourneyDetour],
     current: Option<&JourneyCurrent>,
     touchpoints: &[JourneyTouchpoint],
+    history: Option<&JourneyHistory>,
     title: Option<&str>,
     start: &Option<String>,
     end: &Option<String>,
@@ -3985,10 +4228,13 @@ fn journey_track(
         ));
         if c.temporary {
             let (places, _) = jt_place_labels(&[(x, c.label.as_str())], JT_MONO_CHAR_W);
+            let (narrow, _) =
+                jt_place_labels_at(&[(x, c.label.as_str())], JT_MONO_CHAR_W, JT_RAIL_W_NARROW);
             h.push_str(&format!(
-                r#"<span class="c-jt-current-label c-jt-c-{}" data-align="{}" style="left: {}%">{}</span>"#,
+                r#"<span class="c-jt-current-label c-jt-c-{}" data-align="{}" data-align-n="{}" style="left: {}%">{}</span>"#,
                 sem_color_class(c.color),
                 places[0].1,
+                narrow[0].1,
                 jt_pct(x),
                 esc(&c.label)
             ));
@@ -4010,30 +4256,38 @@ fn journey_track(
         _ => false,
     };
     let (places, rows) = jt_place_labels(&items, JT_STAGE_CHAR_W);
+    let (narrow, rows_n) = jt_place_labels_at(&items, JT_STAGE_CHAR_W, JT_RAIL_W_NARROW);
     h.push_str(&format!(
-        r#"<div class="c-jt-stage-labels" data-kz-list="stages" style="--jt-rows: {}">"#,
-        rows.max(1)
+        r#"<div class="c-jt-stage-labels" data-kz-list="stages" style="--jt-rows: {}; --jt-rows-n: {}">"#,
+        rows.max(1),
+        rows_n.max(1)
     ));
     for (i, s) in stages.iter().enumerate() {
         let (row, align) = places[i];
+        let (row_n, align_n) = narrow[i];
         h.push_str(&format!(
-            r#"<span class="c-jt-label {}" data-align="{}" style="left: {}%; --jt-row: {}">{}</span>"#,
+            r#"<span class="c-jt-label {}" data-align="{}" data-align-n="{}" style="left: {}%; --jt-row: {}; --jt-row-n: {}">{}</span>"#,
             s.status.class(),
             align,
+            align_n,
             jt_pct(lay.stages[i]),
             row,
+            row_n,
             esc(&s.label)
         ));
     }
     if current_below {
         if let (Some(c), Some(x)) = (current, lay.current) {
             let (row, align) = places[stages.len()];
+            let (row_n, align_n) = narrow[stages.len()];
             h.push_str(&format!(
-                r#"<span class="c-jt-label is-current c-jt-c-{}" data-align="{}" style="left: {}%; --jt-row: {}">{}</span>"#,
+                r#"<span class="c-jt-label is-current c-jt-c-{}" data-align="{}" data-align-n="{}" style="left: {}%; --jt-row: {}; --jt-row-n: {}">{}</span>"#,
                 sem_color_class(c.color),
                 align,
+                align_n,
                 jt_pct(x),
                 row,
+                row_n,
                 esc(&c.label)
             ));
         }
@@ -4047,27 +4301,68 @@ fn journey_track(
             .map(|(t, x)| (*x, t.label.as_str()))
             .collect();
         let (places, rows) = jt_place_labels(&items, JT_TP_CHAR_W);
+        let (narrow, rows_n) = jt_place_labels_at(&items, JT_TP_CHAR_W, JT_RAIL_W_NARROW);
         h.push_str(&format!(
-            r#"<div class="c-jt-tp-head">Touchpoints</div><div class="c-jt-tps" data-kz-list="touchpoints" style="--jt-rows: {}">"#,
-            rows.max(1)
+            r#"<div class="c-jt-tp-head">Touchpoints</div><div class="c-jt-tps" data-kz-list="touchpoints" style="--jt-rows: {}; --jt-rows-n: {}">"#,
+            rows.max(1),
+            rows_n.max(1)
         ));
         for (i, t) in touchpoints.iter().enumerate() {
             let (row, align) = places[i];
+            let (row_n, align_n) = narrow[i];
             let x = jt_pct(lay.touchpoints[i]);
             h.push_str(&format!(
-                r#"<span class="c-jt-tp {}" style="left: {}%"></span><span class="c-jt-tp-label" data-align="{}" style="left: {}%; --jt-row: {}">{}</span>"#,
+                r#"<span class="c-jt-tp {}" style="left: {}%"></span><span class="c-jt-tp-label" data-align="{}" data-align-n="{}" style="left: {}%; --jt-row: {}; --jt-row-n: {}">{}</span>"#,
                 t.status.class(),
                 x,
                 align,
+                align_n,
                 x,
                 row,
+                row_n,
                 esc(&t.label)
             ));
         }
         h.push_str("</div>");
     }
+    if let Some(hist) = history.filter(|x| !x.events.is_empty()) {
+        h.push_str(&journey_history(hist));
+    }
     h.push_str("</div>");
     Rendered::new(h)
+}
+
+/// Collapsed `<details>` log under the track, newest first.
+fn journey_history(hist: &JourneyHistory) -> String {
+    let mut events: Vec<&HistoryEvent> = hist.events.iter().collect();
+    events.sort_by_key(|e| std::cmp::Reverse(jt_date(&Some(e.date.clone())).unwrap_or(i64::MIN)));
+    let mut h = format!(
+        r#"<details class="c-jt-history"><summary class="c-jt-history-toggle"><span class="c-jt-history-title">{} ({})</span><span class="c-jt-history-chevron" aria-hidden="true"></span></summary><ol class="c-jt-history-list" data-kz-list="history.events">"#,
+        esc(hist.title.as_deref().unwrap_or("Full history")),
+        hist.events.len()
+    );
+    for e in events {
+        let kind = e
+            .kind
+            .map(|k| format!(" {}", k.class()))
+            .unwrap_or_default();
+        let d = e.date.trim();
+        h.push_str(&format!(
+            r#"<li class="c-jt-hist{}"><span class="c-jt-hist-date">{}</span><span class="c-jt-hist-dot"></span><span class="c-jt-hist-text"><span class="c-jt-hist-label">{}</span>"#,
+            kind,
+            esc(d.get(..10).unwrap_or(d)),
+            esc(&e.label)
+        ));
+        if let Some(det) = &e.detail {
+            h.push_str(&format!(
+                r#"<span class="c-jt-hist-detail">{}</span>"#,
+                esc(det)
+            ));
+        }
+        h.push_str("</span></li>");
+    }
+    h.push_str("</ol></details>");
+    h
 }
 
 #[cfg(test)]

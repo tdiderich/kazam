@@ -1127,6 +1127,34 @@ pub enum Component {
         #[serde(default)]
         animate: Option<Animate>,
     },
+    /// One card per health dimension: label, tier swatch + name, detail.
+    HealthBreakdown {
+        items: Vec<HealthItem>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
+    /// To-do cards. With `accounts`, an owner board: account rows on the
+    /// left wired to their steps on the right. `owners` adds filter chips.
+    NextSteps {
+        #[serde(default)]
+        steps: Vec<NextStep>,
+        #[serde(default)]
+        accounts: Vec<NextAccount>,
+        #[serde(default)]
+        owners: Vec<String>,
+        #[serde(default)]
+        title: Option<String>,
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
     /// One account's journey: main stages on a horizontal line, temporary
     /// stages as detour arcs, touchpoints as dots in a band below. Dated
     /// when every element has a date (x is linear in time), else evenly
@@ -1139,6 +1167,9 @@ pub enum Component {
         current: Option<JourneyCurrent>,
         #[serde(default)]
         touchpoints: Vec<JourneyTouchpoint>,
+        /// Verbose log under the track, collapsed by default.
+        #[serde(default)]
+        history: Option<JourneyHistory>,
         #[serde(default)]
         title: Option<String>,
         #[serde(default)]
@@ -1213,6 +1244,8 @@ impl Component {
             | Component::RuleList { scale, .. }
             | Component::Gauge { scale, .. }
             | Component::TierSummary { scale, .. }
+            | Component::HealthBreakdown { scale, .. }
+            | Component::NextSteps { scale, .. }
             | Component::JourneyTrack { scale, .. } => *scale,
         }
     }
@@ -1275,6 +1308,8 @@ impl Component {
             | Component::RuleList { animate, .. }
             | Component::Gauge { animate, .. }
             | Component::TierSummary { animate, .. }
+            | Component::HealthBreakdown { animate, .. }
+            | Component::NextSteps { animate, .. }
             | Component::JourneyTrack { animate, .. } => *animate,
         }
     }
@@ -1382,8 +1417,9 @@ pub struct Tier {
     pub share: Option<f64>,
     #[serde(default)]
     pub detail: Option<String>,
+    /// Unset = accent shade by position (solid, 62%, 32%, hollow).
     #[serde(default)]
-    pub color: SemColor,
+    pub color: Option<SemColor>,
     /// Whole card links here. A linked card never expands.
     #[serde(default)]
     pub href: Option<String>,
@@ -1410,6 +1446,93 @@ pub struct TierAccount {
     /// Swatch color; defaults to the tier's.
     #[serde(default)]
     pub color: Option<SemColor>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct HealthItem {
+    pub label: String,
+    /// Tier name shown on the right, like `Outstanding`.
+    #[serde(default)]
+    pub tier: Option<String>,
+    #[serde(default)]
+    pub color: Option<SemColor>,
+    /// Accent shade 1-4 (solid, 62%, 32%, hollow) when no `color`.
+    #[serde(default)]
+    pub shade: Option<u8>,
+    /// Figure shown before the detail, like `52.84%`.
+    #[serde(default, deserialize_with = "opt_string_or_number")]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StepStatus {
+    Overdue,
+    Due,
+    Upcoming,
+    Done,
+}
+
+impl StepStatus {
+    pub fn class(&self) -> &'static str {
+        match self {
+            StepStatus::Overdue => "is-overdue",
+            StepStatus::Due => "is-due",
+            StepStatus::Upcoming => "is-upcoming",
+            StepStatus::Done => "is-done",
+        }
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct NextStep {
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    /// Id of an entry in `accounts` (board mode).
+    #[serde(default)]
+    pub account: Option<String>,
+    /// ISO due date, shown right-aligned.
+    #[serde(default)]
+    pub due: Option<String>,
+    #[serde(default)]
+    pub status: Option<StepStatus>,
+    /// Owner for the filter when the step has no account.
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub href: Option<String>,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct NextAccount {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub stage: Option<String>,
+    #[serde(default)]
+    pub color: Option<SemColor>,
+    #[serde(default)]
+    pub shade: Option<u8>,
+    #[serde(default)]
+    pub owner: Option<String>,
+    #[serde(default)]
+    pub href: Option<String>,
+}
+
+fn opt_string_or_number<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<String>, D::Error> {
+    let v = Option::<serde_yaml::Value>::deserialize(d)?;
+    match v {
+        None | Some(serde_yaml::Value::Null) => Ok(None),
+        Some(serde_yaml::Value::String(s)) => Ok(Some(s)),
+        Some(serde_yaml::Value::Number(n)) => Ok(Some(n.to_string())),
+        Some(serde_yaml::Value::Bool(b)) => Ok(Some(b.to_string())),
+        _ => Err(serde::de::Error::custom("expected a string or number")),
+    }
 }
 
 #[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq)]
@@ -1464,6 +1587,45 @@ pub struct JourneyCurrent {
     pub temporary: bool,
     #[serde(default)]
     pub color: SemColor,
+}
+
+#[derive(Deserialize, Clone)]
+pub struct JourneyHistory {
+    /// Toggle text; default "Full history".
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub events: Vec<HistoryEvent>,
+}
+
+#[derive(Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum HistoryKind {
+    Stage,
+    Cadence,
+    Call,
+    Note,
+}
+
+impl HistoryKind {
+    pub fn class(&self) -> &'static str {
+        match self {
+            HistoryKind::Stage => "is-stage",
+            HistoryKind::Cadence => "is-cadence",
+            HistoryKind::Call => "is-call",
+            HistoryKind::Note => "is-note",
+        }
+    }
+}
+
+#[derive(Deserialize, Clone)]
+pub struct HistoryEvent {
+    pub date: String,
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub kind: Option<HistoryKind>,
 }
 
 #[derive(Deserialize, Clone)]

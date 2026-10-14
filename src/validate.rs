@@ -697,6 +697,8 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::Gauge { items, .. } => 2 + items.len() as u32,
         Component::TierSummary { .. } => 4,
         Component::JourneyTrack { .. } => 4,
+        Component::HealthBreakdown { items, .. } => 1 + items.len() as u32,
+        Component::NextSteps { steps, .. } => 1 + steps.len() as u32,
         Component::RuleList { items, .. } => 1 + items.len() as u32,
         Component::Tree { .. } => 4,
         Component::PriorityQueue { items, .. } => 2 + items.len() as u32,
@@ -1793,11 +1795,89 @@ fn validate_component(
             }
         }
 
+        Component::HealthBreakdown { items, .. } => {
+            if items.is_empty() {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.items", path),
+                    "missing_field",
+                    "health_breakdown requires at least one item",
+                    Some("Add items with label:, tier: and detail:.".into()),
+                ));
+            }
+            for (i, it) in items.iter().enumerate() {
+                check_shade(
+                    file,
+                    &format!("{}.items[{}].shade", path, i),
+                    it.shade,
+                    errors,
+                );
+            }
+        }
+
+        Component::NextSteps {
+            steps,
+            accounts,
+            owners,
+            ..
+        } => {
+            let mut seen: Vec<String> = Vec::new();
+            for (i, o) in owners.iter().enumerate() {
+                let k = o.trim().to_lowercase();
+                if seen.contains(&k) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.owners[{}]", path, i),
+                        "invalid_value",
+                        format!("owner '{}' is listed twice", o),
+                        Some("List each owner once.".into()),
+                    ));
+                }
+                seen.push(k);
+            }
+            let mut ids: Vec<&str> = Vec::new();
+            for (i, a) in accounts.iter().enumerate() {
+                if ids.contains(&a.id.as_str()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.accounts[{}].id", path, i),
+                        "invalid_value",
+                        format!("account id '{}' is used twice", a.id),
+                        Some("Give each account a unique id.".into()),
+                    ));
+                }
+                ids.push(a.id.as_str());
+                check_shade(
+                    file,
+                    &format!("{}.accounts[{}].shade", path, i),
+                    a.shade,
+                    errors,
+                );
+            }
+            for (i, s) in steps.iter().enumerate() {
+                if let (Some(a), false) = (&s.account, accounts.is_empty()) {
+                    if !ids.contains(&a.as_str()) {
+                        errors.push(ValidationError::new(
+                            file,
+                            format!("{}.steps[{}].account", path, i),
+                            "cross_reference",
+                            format!("step account '{}' matches no accounts id", a),
+                            Some(format!("Use one of: {}.", ids.join(", "))),
+                        ));
+                    }
+                }
+                if let Some(d) = &s.due {
+                    check_iso_date(file, &format!("{}.steps[{}].due", path, i), d, errors);
+                }
+            }
+        }
+
         Component::JourneyTrack {
             stages,
             detours,
             current,
             touchpoints,
+            history,
             start,
             end,
             ..
@@ -1848,6 +1928,22 @@ fn validate_component(
                     dates.push((format!("{}.touchpoints[{}].date", path, i), d));
                 }
             }
+            if let Some(h) = history {
+                for (i, e) in h.events.iter().enumerate() {
+                    dates.push((format!("{}.history.events[{}].date", path, i), &e.date));
+                }
+                if h.events.len() > 200 {
+                    errors.push(ValidationError::warning(
+                        file,
+                        format!("{}.history.events", path),
+                        "shape",
+                        format!("journey history has {} events", h.events.len()),
+                        Some(
+                            "Keep the log under 200 events; trim the oldest cadence notes.".into(),
+                        ),
+                    ));
+                }
+            }
             for (p, d) in &dates {
                 check_iso_date(file, p, d, errors);
             }
@@ -1864,6 +1960,20 @@ fn validate_component(
                     ));
                 }
             }
+        }
+    }
+}
+
+fn check_shade(file: &str, path: &str, shade: Option<u8>, errors: &mut Vec<ValidationError>) {
+    if let Some(n) = shade {
+        if !(1..=4).contains(&n) {
+            errors.push(ValidationError::new(
+                file,
+                path,
+                "invalid_value",
+                format!("shade must be 1-4, got {}", n),
+                Some("1 = solid accent, 2 = 62%, 3 = 32%, 4 = hollow.".into()),
+            ));
         }
     }
 }
@@ -2680,6 +2790,34 @@ mod tests {
             "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers: []\n",
         );
         assert!(!validate_page("t.yaml", &page).is_empty());
+    }
+
+    #[test]
+    fn next_steps_checks_account_refs_owners_and_history_dates() {
+        let page = page_from_yaml(
+            "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    owners: [Tyler, tyler]\n    accounts:\n      - { id: a, name: A }\n    steps:\n      - { label: X, account: b, due: soon }\n",
+        );
+        let errors = validate_page("n.yaml", &page);
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".owners[1]")),
+            "{errors:?}"
+        );
+        assert!(errors.iter().any(|e| e.path.ends_with(".steps[0].account") && e.error_type == "cross_reference"), "{errors:?}");
+        assert!(
+            errors.iter().any(|e| e.path.ends_with(".steps[0].due")),
+            "{errors:?}"
+        );
+
+        let page = page_from_yaml(
+            "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages:\n      - { label: A }\n    history:\n      events:\n        - { date: last week, label: X }\n",
+        );
+        let errors = validate_page("j.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.path.ends_with(".history.events[0].date")),
+            "{errors:?}"
+        );
     }
 
     #[test]
