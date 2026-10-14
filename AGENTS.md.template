@@ -408,7 +408,9 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         color: red
   ```
   2-6 tiers. `active: true` gives a card the accent border. A tier with `href`
-  links instead of expanding. `?tier=<label>` in the URL opens that tier on load.
+  links instead of expanding. `?tier=<label>` in the URL opens that tier on load
+  (`?tier.<id>=` when the component has an `id`). Links accept http(s), mailto,
+  tel, #anchors and paths only.
 
 - **health_breakdown** - one account's health, one card per dimension
   ```yaml
@@ -706,6 +708,8 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   `status`: overdue | due | upcoming | done. `account` must match an accounts `id`.
   Steps without an account use their own `owner:` for the filter. `?account=<id>`
   opens a row on load. A detail starting "<account name>: " drops that prefix in its row.
+  With an explicit `id`, params are namespaced (`?owner.<id>=`, `?account.<id>=`).
+  Account ids are slugs (no commas or spaces); owners used must be listed in `owners`.
 
 - **event_timeline** - vertical event history with severity filter
   ```yaml

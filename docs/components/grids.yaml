@@ -362,7 +362,8 @@ components:
           Give a tier `accounts` and the card becomes a button: clicking it opens a panel
           under the row listing each account with its ARR and renewal date, soonest first.
           Renewals under 90 days out get a "in N days" note. `?tier=<label>` in the URL
-          opens a tier on load. A tier with `href` links instead of expanding.
+          opens a tier on load (`?tier.<id>=` when the component has an `id`). A tier with
+          `href` links instead of expanding. Without JS, and in print, every panel shows.
 
       - type: tier_summary
         id: portfolio-tiers

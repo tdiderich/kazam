@@ -2322,7 +2322,9 @@ function tierClass(color: string | undefined, i: number): string {
   return color ? `c-tier-${color}` : `c-tier-pos-${Math.min(i + 1, 4)}`;
 }
 
-/** ISO `YYYY-MM-DD` from a YAML date: js-yaml may hand back a Date. */
+/** ISO `YYYY-MM-DD` from a YAML date. js-yaml turns a bare `2026-03-20`
+ * into a Date at UTC midnight, so the UTC parts (toISOString) are the
+ * literal the author wrote, in every viewer time zone. */
 function kzIso(v: unknown): string | undefined {
   if (v instanceof Date) return isNaN(v.getTime()) ? undefined : v.toISOString().slice(0, 10);
   if (typeof v === "string") return v.trim().slice(0, 10);
@@ -2487,6 +2489,8 @@ function jtTipProps(name: string, from: unknown, to?: unknown): Record<string, u
   return { tabIndex: 0, "data-jt-tip": f, ...(t ? { "data-jt-tip-to": t } : {}), "data-jt-tip-name": name, title: `${name} · ${when}`, "aria-label": `${name}, ${when}` };
 }
 
+const useKzLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+
 /** Today in days since epoch, set after mount so server and client match. */
 const JtTodayContext = React.createContext<number | null>(null);
 
@@ -2501,15 +2505,24 @@ function JtRel({ date }: { date: unknown }) {
   const today = React.useContext(JtTodayContext);
   const d = kzIsoDays(date);
   const show = today != null && d != null;
-  return <span className="c-jt-hist-rel" data-jt-rel={kzIso(date)} hidden={!show}>{show ? ` · ${jtRelShort(today - d)}` : null}</span>;
+  return <span className="c-jt-hist-rel" data-jt-rel={kzIso(date)} hidden={!show}>{show ? jtRelShort(today - d) : null}</span>;
+}
+
+/** Row title: exact date, plus the relative time once the clock is known. */
+function jtRowTitle(date: unknown, today: number | null): string {
+  const iso = kzIso(date) ?? "";
+  const d = kzIsoDays(date);
+  return today != null && d != null ? `${kzLongDate(iso)} · ${jtRelShort(today - d)}` : kzLongDate(iso);
 }
 
 function JtUntil({ date, label, place }: { date: unknown; label: string; place: Record<string, unknown> }) {
   const today = React.useContext(JtTodayContext);
   const d = kzIsoDays(date);
   const show = today != null && d != null;
-  const text = !show ? null : d >= today ? `${label} in ${d - today}d` : `${jtPast(label)} ${today - d}d ago`;
-  return <span className="c-jt-label c-jt-end-label" {...place} data-jt-until={kzIso(date)} data-jt-end={label} data-jt-end-past={jtPast(label)} hidden={!show}>{text}</span>;
+  const iso = kzIso(date) ?? "";
+  // Static date until the clock is known, then the relative form.
+  const text = !show ? `${label} ${kzLongDate(iso)}` : d >= today ? `${label} in ${d - today}d` : `${jtPast(label)} ${today - d}d ago`;
+  return <span className="c-jt-label c-jt-end-label" {...place} data-jt-until={iso} data-jt-end={label} data-jt-end-past={jtPast(label)}>{text}</span>;
 }
 
 type JtHistory = { events?: Array<{ date?: unknown; label: string; detail?: string; kind?: string }> };
@@ -2539,10 +2552,13 @@ function JourneyFrame({ id, title, history, defaultView, dated, children }: { id
   React.useEffect(() => {
     const now = new Date();
     setToday(Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000));
-    // The styled tooltip takes over from the native title once JS runs.
-    rootRef.current?.querySelectorAll("[data-jt-tip]").forEach((el) => el.removeAttribute("title"));
   }, []);
+  // The styled tooltip takes over from the native title once JS runs; runs
+  // after every render so new or changed targets lose theirs too.
   React.useEffect(() => {
+    rootRef.current?.querySelectorAll("[data-jt-tip][title]").forEach((el) => el.removeAttribute("title"));
+  });
+  useKzLayoutEffect(() => {
     const root = rootRef.current, tip = tipRef.current;
     if (!root || !tip || !tipEl) return;
     const r = root.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
@@ -2583,13 +2599,14 @@ function JourneyFrame({ id, title, history, defaultView, dated, children }: { id
           <div className={`c-jt-panel c-jt-details${more ? " has-more" : ""}`} data-jt-panel="details" hidden={view !== "details"} ref={detailsRef} onScroll={fade}>
             <ol className="c-jt-history-list" data-kz-list="history.events">
               {rows.map(({ e, i }) => (
-                <li key={i} className={`c-jt-hist${e.kind ? ` is-${e.kind}` : ""}`}>
-                  <span className="c-jt-hist-date"><span data-kz-field={`history.events[${i}].date`}>{kzIso(e.date) ?? ""}</span><JtRel date={e.date} /></span>
+                <li key={i} className={`c-jt-hist${e.kind ? ` is-${e.kind}` : ""}`} title={jtRowTitle(e.date, today)}>
+                  <span className="c-jt-hist-date" data-kz-field={`history.events[${i}].date`}>{kzLongDate(kzIso(e.date) ?? "")}</span>
                   <span className="c-jt-hist-dot" />
                   <span className="c-jt-hist-text">
                     <span className="c-jt-hist-label" data-kz-field={`history.events[${i}].label`}>{e.label}</span>
-                    {e.detail && <span className="c-jt-hist-detail" data-kz-field={`history.events[${i}].detail`}>{e.detail}</span>}
+                    {e.detail && <> <span className="c-jt-hist-detail" data-kz-field={`history.events[${i}].detail`}>{e.detail}</span></>}
                   </span>
+                  <JtRel date={e.date} />
                 </li>
               ))}
             </ol>
@@ -2613,14 +2630,21 @@ function JourneyFrame({ id, title, history, defaultView, dated, children }: { id
 type NsStep = { label: string; detail?: string; account?: string; due?: unknown; status?: string; owner?: string; href?: string };
 type NsAccount = { id: string; name: string; stage?: string; color?: string; shade?: number; owner?: string; href?: string };
 
+/** Overdue by status, or (no status) by a due date before today. Mirrors step_overdue. */
+function nsOverdue(s: NsStep, today: number | null): boolean {
+  if (s.status) return s.status === "overdue";
+  const d = kzIsoDays(s.due);
+  return d != null && today != null && d < today;
+}
+
 /** Open (not done) steps, overdue count, soonest due day. Mirrors next_account_summary. */
-function nsSummary(id: string, steps: NsStep[]) {
+function nsSummary(id: string, steps: NsStep[], today: number | null) {
   let open = 0, overdue = 0;
   let soonest: number | null = null;
   for (const s of steps) {
     if (s.account !== id || s.status === "done") continue;
     open++;
-    if (s.status === "overdue") overdue++;
+    if (nsOverdue(s, today)) overdue++;
     const d = kzIsoDays(s.due);
     if (d != null) soonest = soonest == null ? d : Math.min(soonest, d);
   }
@@ -2628,11 +2652,11 @@ function nsSummary(id: string, steps: NsStep[]) {
 }
 
 /** Default order: overdue, then open by soonest due, then nothing due; names break ties. */
-function nsOrder(accounts: NsAccount[], steps: NsStep[], order?: string): Array<{ a: NsAccount; i: number }> {
+function nsOrder(accounts: NsAccount[], steps: NsStep[], order: string | undefined, today: number | null): Array<{ a: NsAccount; i: number }> {
   const rows = accounts.map((a, i) => ({ a, i }));
   if (order === "as_written") return rows;
   const key = (a: NsAccount): [number, number, string] => {
-    const { open, overdue, soonest } = nsSummary(a.id, steps);
+    const { open, overdue, soonest } = nsSummary(a.id, steps, today);
     const group = overdue > 0 ? 0 : open > 0 ? 1 : 2;
     return [group, group === 2 ? 0 : soonest ?? Number.MAX_SAFE_INTEGER, a.name.toLowerCase()];
   };
@@ -2648,38 +2672,47 @@ function nsStrip(detail: string, name?: string): string {
 }
 
 /** next_steps: to-do list, or one expandable row per account. */
-function NextStepsView({ id, steps, accounts, owners, title, order }: { id: string; steps: NsStep[]; accounts: NsAccount[]; owners: string[]; title?: string; order?: string }) {
+function NextStepsView({ id, explicitId, steps, accounts, owners, title, order }: { id: string; explicitId?: string; steps: NsStep[]; accounts: NsAccount[]; owners: string[]; title?: string; order?: string }) {
   const board = accounts.length > 0;
   const [owner, setOwner] = React.useState<string>("");
   const [open, setOpen] = React.useState<string[]>([]);
   const [scrollTo, setScrollTo] = React.useState<string | null>(null);
-  const prefix = id || "next";
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const prefix = useKzPrefix(explicitId, "next-steps");
+  const [today, setToday] = React.useState<number | null>(null);
   const writeUrl = (k: string, v: string) => {
     try {
       const u = new URL(window.location.href);
-      if (v) u.searchParams.set(k, v); else u.searchParams.delete(k);
+      const name = explicitId ? `${k}.${explicitId}` : k;
+      if (explicitId) u.searchParams.delete(k);
+      if (v) u.searchParams.set(name, v); else u.searchParams.delete(name);
       window.history.replaceState(window.history.state, "", u.toString());
     } catch { /* ignore */ }
   };
   React.useEffect(() => {
+    const now = new Date();
+    setToday(Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000));
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
-    const want = (p.get("owner") || "").trim().toLowerCase();
+    const want = kzParam(p, "owner", explicitId).trim().toLowerCase();
     const match = owners.find((o) => o.trim().toLowerCase() === want);
     if (want && match) setOwner(match);
-    const ids = (p.get("account") || "").split(",").map((x) => x.trim()).filter((x) => accounts.some((a) => a.id === x));
+    const ids = kzParam(p, "account", explicitId).split(",").map((x) => x.trim()).filter((x) => accounts.some((a) => a.id === x));
     if (ids.length) { setOpen(ids); setScrollTo(ids[0]); }
   }, []);
   React.useEffect(() => {
     if (!scrollTo) return;
-    document.getElementById(`${prefix}-acct-${scrollTo}`)?.closest("[data-acct]")?.scrollIntoView({ block: "center" });
+    const target = Array.from(rootRef.current?.querySelectorAll<HTMLElement>("[data-acct]") ?? []).find((el) => el.getAttribute("data-acct") === scrollTo);
+    target?.scrollIntoView({ block: "center" });
     setScrollTo(null);
   }, [scrollTo, prefix]);
   const key = owner.trim().toLowerCase();
-  const isHidden = (o: string | undefined) => !!key && (o || "").trim().toLowerCase() !== key;
+  // Same rules as the static script: no owner = always visible; a step
+  // follows its account's owner, then its own.
+  const isHidden = (o: string | undefined) => !!key && !!o && o.trim().toLowerCase() !== key;
   const ownerOf = (s: NsStep) => {
     const a = s.account ? accounts.find((x) => x.id === s.account) : undefined;
-    return a ? a.owner : s.owner;
+    return a?.owner ?? s.owner;
   };
   const pick = (o: string) => { setOwner(o); writeUrl("owner", o); };
   const toggle = (aid: string) => {
@@ -2690,12 +2723,14 @@ function NextStepsView({ id, steps, accounts, owners, title, order }: { id: stri
   const card = (s: NsStep, i: number, name?: string) => {
     const o = ownerOf(s);
     const iso = kzIso(s.due);
+    const status = s.status ?? (nsOverdue(s, today) ? "overdue" : undefined);
+    const href = kzSafeHref(s.href);
     return (
-      <li key={i} className={`c-next-step${s.status ? ` is-${s.status}` : ""}`} {...(o ? { "data-owner": o } : {})} hidden={isHidden(o) || undefined}>
+      <li key={i} className={`c-next-step${status ? ` is-${status}` : ""}`} {...(o ? { "data-owner": o } : {})} hidden={isHidden(o) || undefined}>
         <span className="c-next-dot" />
         <span className="c-next-text">
-          {s.href
-            ? <a className="c-next-label" href={s.href} data-kz-field={`steps[${i}].label`}>{s.label}</a>
+          {href
+            ? <a className="c-next-label" href={href} data-kz-field={`steps[${i}].label`}>{s.label}</a>
             : <span className="c-next-label" data-kz-field={`steps[${i}].label`}>{s.label}</span>}
           {s.detail && <span className="c-next-detail" data-kz-field={`steps[${i}].detail`}>{nsStrip(s.detail, name)}</span>}
         </span>
@@ -2715,7 +2750,7 @@ function NextStepsView({ id, steps, accounts, owners, title, order }: { id: stri
   const titleEl = title && <div className="c-next-title" data-kz-field="title">{title}</div>;
   if (!board) {
     return (
-      <div id={id} className="c-next" data-next-steps="">
+      <div id={id} ref={rootRef} className="c-next" data-next-steps="" {...(explicitId ? { "data-kz-param": explicitId } : {})}>
         {chips}{titleEl}
         <ul className="c-next-steps" data-kz-list="steps">
           {steps.length === 0 && <li className="c-next-empty">Nothing due.</li>}
@@ -2726,11 +2761,11 @@ function NextStepsView({ id, steps, accounts, owners, title, order }: { id: stri
   }
   const loose = steps.map((s, i) => ({ s, i })).filter(({ s }) => !s.account || !accounts.some((a) => a.id === s.account));
   return (
-    <div id={id} className="c-next is-board" data-next-steps="">
+    <div id={id} ref={rootRef} className="c-next is-board" data-next-steps="" {...(explicitId ? { "data-kz-param": explicitId } : {})}>
       {chips}{titleEl}
       <ul className="c-next-accounts" data-kz-list="accounts">
-        {nsOrder(accounts, steps, order).map(({ a, i }) => {
-          const sum = nsSummary(a.id, steps);
+        {nsOrder(accounts, steps, order, today).map(({ a, i }) => {
+          const sum = nsSummary(a.id, steps, today);
           const isOpen = open.includes(a.id);
           const panel = `${prefix}-acct-${a.id}`;
           const mine = steps.map((s, si) => ({ s, si })).filter(({ s }) => s.account === a.id);
@@ -2750,13 +2785,161 @@ function NextStepsView({ id, steps, accounts, owners, title, order }: { id: stri
                   {mine.length === 0 && <li className="c-next-empty">Nothing due.</li>}
                   {mine.map(({ s, si }) => card(s, si, a.name))}
                 </ul>
-                {a.href && <a className="c-next-acct-link" href={a.href}>Open account</a>}
+                {kzSafeHref(a.href) && <a className="c-next-acct-link" href={kzSafeHref(a.href)}>Open account</a>}
               </div>
             </li>
           );
         })}
       </ul>
       {loose.length > 0 && <ul className="c-next-steps c-next-loose" data-kz-list="steps">{loose.map(({ s, i }) => card(s, i))}</ul>}
+    </div>
+  );
+}
+
+/** True for http(s), mailto, tel, #anchor, /path and relative hrefs. Mirrors safe_href_scheme. */
+function kzSafeHref(href: string | undefined): string | undefined {
+  if (!href) return undefined;
+  const h = href.trim();
+  const cut = h.search(/[/?#]/);
+  const head = cut < 0 ? h : h.slice(0, cut);
+  const colon = head.indexOf(":");
+  if (colon < 0) return href;
+  return ["http", "https", "mailto", "tel"].includes(head.slice(0, colon).toLowerCase()) ? href : undefined;
+}
+
+/** A finite share clamped to 0-100, or undefined. Mirrors hud_share. */
+function kzShare(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : undefined;
+}
+
+/** Per-instance id prefix when the author gave none. */
+function useKzPrefix(explicit: string | undefined, base: string): string {
+  const auto = React.useId().replace(/[^a-zA-Z0-9]/g, "");
+  return explicit && explicit.trim() ? explicit.trim() : `${base}-${auto}`;
+}
+
+/** URL param reader: `name.<id>` when the component has an explicit id, else the bare name. */
+function kzParam(p: URLSearchParams, name: string, ns: string | undefined): string {
+  return (ns && p.get(`${name}.${ns}`)) || p.get(name) || "";
+}
+
+type TierAccount = { name: string; value?: string; share?: number; renewal?: unknown; detail?: string; href?: string; color?: string };
+type TierItem = { label: string; count?: unknown; value?: string; share?: number; detail?: string; color?: string; href?: string; active?: boolean; accounts?: TierAccount[] };
+
+/** tier_summary: cards plus one accounts panel per expandable tier (closed ones `hidden`). */
+function TierSummaryView({ id, comp }: { id: string; comp: ComponentData }) {
+  const tiers = (comp.tiers as TierItem[]) || [];
+  const countLabel = (comp.count_label as string) || "accounts";
+  const unitLabel = comp.share_label as string | undefined;
+  const shareLabel = unitLabel || "Share";
+  const anyShare = tiers.some((t) => t.share != null);
+  const explicitId = comp.id as string | undefined;
+  const prefix = useKzPrefix(explicitId, "tier-summary");
+  const [open, setOpen] = React.useState<number>(-1);
+  const [today, setToday] = React.useState<number | null>(null);
+  const expands = (t: TierItem) => !kzSafeHref(t.href) && (t.accounts?.length ?? 0) > 0;
+  // Read the clock and ?tier= after mount so server and client markup match.
+  React.useEffect(() => {
+    const now = new Date();
+    setToday(Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000));
+    if (typeof window === "undefined") return;
+    const want = kzParam(new URLSearchParams(window.location.search), "tier", explicitId).trim().toLowerCase();
+    if (!want) return;
+    const idx = tiers.findIndex((t) => expands(t) && (t.label || "").trim().toLowerCase() === want);
+    if (idx >= 0) setOpen(idx);
+  }, []);
+  const sortKey = (v: unknown) => kzIsoDays(v) ?? Number.MAX_SAFE_INTEGER;
+  return (
+    <div id={id} className="c-tier-summary" data-tier-summary="" {...(explicitId ? { "data-kz-param": explicitId } : {})}>
+      <div className="c-tier-row" data-kz-list="tiers">
+        {tiers.map((t, i) => {
+          const expandable = expands(t);
+          const href = kzSafeHref(t.href);
+          const count = t.count == null ? "" : String(t.count);
+          const cls = `c-tier ${tierClass(t.color, i)}${t.active ? " is-active" : ""}${count.trim() === "0" ? " is-empty" : ""}${expandable ? " is-expandable" : ""}${open === i ? " is-open" : ""}`;
+          const share = kzShare(t.share);
+          const width = share ?? 0;
+          const body = (
+            <>
+              <span className="c-tier-head">
+                <span className="c-tier-swatch" />
+                <span className="c-tier-label" data-kz-field={`tiers[${i}].label`}>{t.label}</span>
+                {expandable && <span className="c-tier-chevron" aria-hidden="true" />}
+              </span>
+              <span className="c-tier-count" data-kz-field={`tiers[${i}].count`}>{count}</span>
+              <span className="c-tier-count-label" data-kz-field="count_label">{countLabel}</span>
+              {(t.value || anyShare) && (
+                <span className="c-tier-share">
+                  <span className="c-tier-share-head">
+                    {t.value
+                      ? <span className="c-tier-money"><span data-kz-field={`tiers[${i}].value`}>{t.value}</span>{unitLabel && <span className="c-tier-money-unit" data-kz-field="share_label">{unitLabel}</span>}</span>
+                      : <span className="c-tier-share-label" data-kz-field="share_label">{shareLabel}</span>}
+                    {share != null && <span className="c-tier-share-num"><span data-kz-field={`tiers[${i}].share`}>{String(share)}</span>%</span>}
+                  </span>
+                  {anyShare && <span className="c-tier-track"><span className={`c-tier-fill${width <= 0 ? " is-zero" : ""}`} style={{ width: `${width}%` }} /></span>}
+                </span>
+              )}
+              {t.detail && <span className="c-tier-detail" data-kz-field={`tiers[${i}].detail`}>{t.detail}</span>}
+            </>
+          );
+          if (href) return <a key={i} className={cls} href={href}>{body}</a>;
+          if (expandable) {
+            return (
+              <button key={i} type="button" className={cls} aria-expanded={open === i} aria-controls={`${prefix}-panel-${i}`} data-tier-toggle={String(i)} data-tier-label={t.label} onClick={() => setOpen((o) => (o === i ? -1 : i))}>
+                {body}
+              </button>
+            );
+          }
+          return <div key={i} className={cls}>{body}</div>;
+        })}
+      </div>
+      {tiers.map((t, ti) => {
+        if (!expands(t)) return null;
+        const accounts = t.accounts || [];
+        const rows = accounts.map((a, j) => ({ a, j })).sort((x, y) => sortKey(x.a.renewal) - sortKey(y.a.renewal));
+        return (
+          <div key={ti} className={`c-tier-panel ${tierClass(t.color, ti)}`} id={`${prefix}-panel-${ti}`} data-tier-panel={String(ti)} hidden={open !== ti}>
+            <div className="c-tier-panel-head">
+              <span className="c-tier-swatch" />
+              <span className="c-tier-panel-title">{t.label}</span>
+              <span className="c-tier-panel-count">{accounts.length} {accounts.length === 1 ? "account" : "accounts"}{t.value ? ` · ${t.value}` : ""}</span>
+            </div>
+            <ul className="c-tier-accounts" data-kz-list={`tiers[${ti}].accounts`}>
+              {rows.map(({ a, j }) => {
+                const iso = kzIso(a.renewal);
+                const d = kzIsoDays(a.renewal);
+                const days = d != null && today != null ? d - today : null;
+                const soon = days != null && days >= 0 && days < 90;
+                const f = `tiers[${ti}].accounts[${j}]`;
+                const ahref = kzSafeHref(a.href);
+                const ashare = kzShare(a.share);
+                return (
+                  <li key={j} className={`c-tier-acct ${a.color ? `c-tier-${a.color}` : tierClass(t.color, ti)}${soon ? " is-soon" : ""}`} data-renewal={iso}>
+                    <span className="c-tier-acct-main">
+                      <span className="c-tier-swatch" />
+                      <span className="c-tier-acct-text">
+                        {ahref
+                          ? <a className="c-tier-acct-name" href={ahref} data-kz-field={`${f}.name`}>{a.name}</a>
+                          : <span className="c-tier-acct-name" data-kz-field={`${f}.name`}>{a.name}</span>}
+                        {a.detail && <span className="c-tier-acct-detail" data-kz-field={`${f}.detail`}>{a.detail}</span>}
+                      </span>
+                    </span>
+                    <span className="c-tier-acct-side">
+                      {a.value && <span className="c-tier-acct-value"><span data-kz-field={`${f}.value`}>{a.value}</span>{ashare != null && <span className="c-tier-acct-share"> · <span data-kz-field={`${f}.share`}>{String(ashare)}</span>%</span>}</span>}
+                      {iso && (
+                        <span className="c-tier-acct-renewal">
+                          Renews <span data-kz-field={`${f}.renewal`}>{kzLongDate(iso)}</span>
+                          {soon && <span className="c-tier-acct-soon">{days === 0 ? "today" : `in ${days} ${days === 1 ? "day" : "days"}`}</span>}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -4739,115 +4922,7 @@ function ComponentView({
     }
 
     case "tier_summary": {
-      type TierAccount = { name: string; value?: string; share?: number; renewal?: unknown; detail?: string; href?: string; color?: string };
-      type Tier = { label: string; count?: unknown; value?: string; share?: number; detail?: string; color?: string; href?: string; active?: boolean; accounts?: TierAccount[] };
-      const tiers = (comp.tiers as Tier[]) || [];
-      const countLabel = (comp.count_label as string) || "accounts";
-      const unitLabel = comp.share_label as string | undefined;
-      const shareLabel = unitLabel || "Share";
-      const anyShare = tiers.some((t) => t.share != null);
-      const prefix = (comp.id as string) || "tiers";
-      const [open, setOpen] = React.useState<number>(-1);
-      const [today, setToday] = React.useState<number | null>(null);
-      // Read the clock and ?tier= after mount so server and client markup match.
-      React.useEffect(() => {
-        const now = new Date();
-        setToday(Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000));
-        if (typeof window === "undefined") return;
-        const want = (new URLSearchParams(window.location.search).get("tier") || "").trim().toLowerCase();
-        if (!want) return;
-        const idx = tiers.findIndex((t) => !t.href && (t.accounts?.length ?? 0) > 0 && (t.label || "").trim().toLowerCase() === want);
-        if (idx >= 0) setOpen(idx);
-      }, []);
-      const panelTier = open >= 0 ? tiers[open] : undefined;
-      const panelAccounts = panelTier && !panelTier.href ? panelTier.accounts || [] : [];
-      const sortKey = (v: unknown) => kzIsoDays(v) ?? Number.MAX_SAFE_INTEGER;
-      const rows = panelAccounts.map((a, j) => ({ a, j })).sort((x, y) => sortKey(x.a.renewal) - sortKey(y.a.renewal));
-      return (
-        <div id={id} className="c-tier-summary" data-tier-summary="">
-          <div className="c-tier-row" data-kz-list="tiers">
-            {tiers.map((t, i) => {
-              const accounts = t.accounts || [];
-              const expandable = !t.href && accounts.length > 0;
-              const count = t.count == null ? "" : String(t.count);
-              const cls = `c-tier ${tierClass(t.color, i)}${t.active ? " is-active" : ""}${count.trim() === "0" ? " is-empty" : ""}${expandable ? " is-expandable" : ""}${open === i ? " is-open" : ""}`;
-              const width = Math.min(100, Math.max(0, t.share ?? 0));
-              const body = (
-                <>
-                  <span className="c-tier-head">
-                    <span className="c-tier-swatch" />
-                    <span className="c-tier-label" data-kz-field={`tiers[${i}].label`}>{t.label}</span>
-                    {expandable && <span className="c-tier-chevron" aria-hidden="true" />}
-                  </span>
-                  <span className="c-tier-count" data-kz-field={`tiers[${i}].count`}>{count}</span>
-                  <span className="c-tier-count-label" data-kz-field="count_label">{countLabel}</span>
-                  {(t.value || anyShare) && (
-                    <span className="c-tier-share">
-                      <span className="c-tier-share-head">
-                        {t.value
-                          ? <span className="c-tier-money"><span data-kz-field={`tiers[${i}].value`}>{t.value}</span>{unitLabel && <span className="c-tier-money-unit" data-kz-field="share_label">{unitLabel}</span>}</span>
-                          : <span className="c-tier-share-label" data-kz-field="share_label">{shareLabel}</span>}
-                        {t.share != null && <span className="c-tier-share-num"><span data-kz-field={`tiers[${i}].share`}>{String(t.share)}</span>%</span>}
-                      </span>
-                      {anyShare && <span className="c-tier-track"><span className={`c-tier-fill${width <= 0 ? " is-zero" : ""}`} style={{ width: `${width}%` }} /></span>}
-                    </span>
-                  )}
-                  {t.detail && <span className="c-tier-detail" data-kz-field={`tiers[${i}].detail`}>{t.detail}</span>}
-                </>
-              );
-              if (t.href) return <a key={i} className={cls} href={t.href}>{body}</a>;
-              if (expandable) {
-                return (
-                  <button key={i} type="button" className={cls} aria-expanded={open === i} aria-controls={`${prefix}-panel-${i}`} data-tier-toggle={String(i)} data-tier-label={t.label} onClick={() => setOpen((o) => (o === i ? -1 : i))}>
-                    {body}
-                  </button>
-                );
-              }
-              return <div key={i} className={cls}>{body}</div>;
-            })}
-          </div>
-          {panelTier && panelAccounts.length > 0 && (
-            <div className={`c-tier-panel ${tierClass(panelTier.color, open)}`} id={`${prefix}-panel-${open}`} data-tier-panel={String(open)}>
-              <div className="c-tier-panel-head">
-                <span className="c-tier-swatch" />
-                <span className="c-tier-panel-title">{panelTier.label}</span>
-                <span className="c-tier-panel-count">{panelAccounts.length} {panelAccounts.length === 1 ? "account" : "accounts"}{panelTier.value ? ` · ${panelTier.value}` : ""}</span>
-              </div>
-              <ul className="c-tier-accounts" data-kz-list={`tiers[${open}].accounts`}>
-                {rows.map(({ a, j }) => {
-                  const iso = kzIso(a.renewal);
-                  const d = kzIsoDays(a.renewal);
-                  const days = d != null && today != null ? d - today : null;
-                  const soon = days != null && days >= 0 && days < 90;
-                  const f = `tiers[${open}].accounts[${j}]`;
-                  return (
-                    <li key={j} className={`c-tier-acct ${a.color ? `c-tier-${a.color}` : tierClass(panelTier.color, open)}${soon ? " is-soon" : ""}`} data-renewal={iso}>
-                      <span className="c-tier-acct-main">
-                        <span className="c-tier-swatch" />
-                        <span className="c-tier-acct-text">
-                          {a.href
-                            ? <a className="c-tier-acct-name" href={a.href} data-kz-field={`${f}.name`}>{a.name}</a>
-                            : <span className="c-tier-acct-name" data-kz-field={`${f}.name`}>{a.name}</span>}
-                          {a.detail && <span className="c-tier-acct-detail" data-kz-field={`${f}.detail`}>{a.detail}</span>}
-                        </span>
-                      </span>
-                      <span className="c-tier-acct-side">
-                        {a.value && <span className="c-tier-acct-value"><span data-kz-field={`${f}.value`}>{a.value}</span>{a.share != null && <span className="c-tier-acct-share"> · <span data-kz-field={`${f}.share`}>{String(a.share)}</span>%</span>}</span>}
-                        {iso && (
-                          <span className="c-tier-acct-renewal">
-                            Renews <span data-kz-field={`${f}.renewal`}>{kzLongDate(iso)}</span>
-                            {soon && <span className="c-tier-acct-soon">{days === 0 ? "today" : `in ${days} ${days === 1 ? "day" : "days"}`}</span>}
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </div>
-      );
+      return <TierSummaryView id={id} comp={comp} />;
     }
 
     case "health_breakdown": {
@@ -4878,6 +4953,7 @@ function ComponentView({
       return (
         <NextStepsView
           id={id}
+          explicitId={comp.id as string | undefined}
           steps={(comp.steps as NsStep[]) || []}
           accounts={(comp.accounts as NsAccount[]) || []}
           owners={(comp.owners as string[]) || []}
@@ -4901,7 +4977,9 @@ function ComponentView({
       const stageItems: Array<[number, string]> = stages.map((s, i) => [lay.stageX[i], s.label]);
       const currentBelow = !!current && lay.currentX != null && !current.temporary;
       if (currentBelow) stageItems.push([lay.currentX as number, current!.label]);
-      const endAt = endIso ? stageItems.push([1, `${jtPast(endLabel)} in 999d`]) - 1 : -1;
+      const endLive = `${jtPast(endLabel)} in 999d`;
+      const endFixed = endIso ? `${endLabel} ${kzLongDate(endIso)}` : "";
+      const endAt = endIso ? stageItems.push([1, endFixed.length > endLive.length ? endFixed : endLive]) - 1 : -1;
       const stagePlace = jtPlaceLabels(stageItems, JT_STAGE_CHAR_W);
       const stageNarrow = jtPlaceLabels(stageItems, JT_STAGE_CHAR_W, JT_RAIL_W_NARROW);
       const place = (i: number) => ({ "data-align": stagePlace.places[i][1], "data-align-n": stageNarrow.places[i][1], style: { left: `${jtPct(stageItems[i][0])}%`, "--jt-row": stagePlace.places[i][0], "--jt-row-n": stageNarrow.places[i][0] } as React.CSSProperties });
@@ -5910,6 +5988,7 @@ mod tests {
             ("graph", "function GraphSVG("),
             ("accordion", "function AccordionView("),
             ("next_steps", "function NextStepsView("),
+            ("tier_summary", "function TierSummaryView("),
             ("journey_track", "function JourneyFrame("),
         ];
         let mut region = String::new();

@@ -1397,6 +1397,21 @@ pub(crate) fn valid_hex_color(s: &str) -> bool {
     matches!(rest.len(), 3 | 6 | 8) && rest.chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// True for hrefs that are safe to emit: http(s), mailto, tel, `#`
+/// anchors, `/` site paths and relative paths. Anything else with a
+/// scheme (`javascript:`, `data:`, `vbscript:`) is rejected.
+pub(crate) fn safe_href_scheme(href: &str) -> bool {
+    let h = href.trim();
+    let end = h.find(['/', '?', '#']).unwrap_or(h.len());
+    match h[..end].find(':') {
+        None => true,
+        Some(i) => matches!(
+            h[..i].to_ascii_lowercase().as_str(),
+            "http" | "https" | "mailto" | "tel"
+        ),
+    }
+}
+
 /// Resolves an optional `hex` override against a semantic color, dropping
 /// invalid overrides silently.
 pub(crate) fn resolve_hex(hex: Option<&str>, color: SemColor) -> &str {

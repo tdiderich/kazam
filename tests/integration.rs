@@ -2802,7 +2802,7 @@ fn tier_summary_renders_cards_share_and_sorted_account_panel() {
     assert_contains(&html, r#"c-tier-fill is-zero"#);
     assert_contains(
         &html,
-        r#"aria-expanded="false" aria-controls="tiers-panel-0" data-tier-toggle="0""#,
+        r#"aria-expanded="false" aria-controls="tier-summary-panel-0" data-tier-toggle="0""#,
     );
     assert_contains(&html, "Renews Nov 2, 2026");
     let sooner = html.find("Sooner Co").unwrap();
@@ -2871,7 +2871,7 @@ fn health_breakdown_renders_tier_swatch_and_value() {
 fn next_steps_board_sorts_rows_overdue_first_then_soonest_then_clear() {
     let html = build_one_page(
         "next-steps-order",
-        "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    owners: [Tyler, Will]\n    accounts:\n      - { id: zed, name: Zed, owner: Will }\n      - { id: brk, name: Brightline, owner: Tyler }\n      - { id: ost, name: Ostra Health, owner: Will, href: ./ostra }\n      - { id: lark, name: Larkspur, stage: Onboarding, owner: Tyler }\n      - { id: alp, name: Alpha }\n    steps:\n      - { label: Exec call, account: brk, due: 2026-11-04 }\n      - { label: Renewal review, account: ost, due: 2026-10-24 }\n      - { label: Move past onboarding, account: lark, due: 2026-10-17, status: overdue }\n      - { label: Old thing, account: zed, status: done }\n",
+        "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    owners: [Tyler, Will]\n    accounts:\n      - { id: zed, name: Zed, owner: Will }\n      - { id: brk, name: Brightline, owner: Tyler }\n      - { id: ost, name: Ostra Health, owner: Will, href: ./ostra }\n      - { id: lark, name: Larkspur, stage: Onboarding, owner: Tyler }\n      - { id: alp, name: Alpha }\n    steps:\n      - { label: Exec call, account: brk, due: 2099-11-04 }\n      - { label: Renewal review, account: ost, due: 2099-10-24 }\n      - { label: Move past onboarding, account: lark, due: 2099-10-17, status: overdue }\n      - { label: Old thing, account: zed, status: done }\n",
         "",
     );
     let pos = |name: &str| {
@@ -2892,7 +2892,7 @@ fn next_steps_board_sorts_rows_overdue_first_then_soonest_then_clear() {
     );
     assert_contains(
         &html,
-        r#"aria-expanded="false" aria-controls="next-acct-lark" data-acct-toggle="lark""#,
+        r#"aria-expanded="true" aria-controls="next-steps-acct-lark" data-acct-toggle="lark" data-acct-i="3""#,
     );
     assert_contains(
         &html,
@@ -2903,7 +2903,7 @@ fn next_steps_board_sorts_rows_overdue_first_then_soonest_then_clear() {
         r#"<li class="c-next-acct-item" data-acct="lark" data-owner="Tyler">"#,
     );
     assert!(!html.contains("<svg class=\"c-next-wires\""));
-    assert_contains(&html, "searchParams.set(key, value)");
+    assert_contains(&html, "u.searchParams.set(key(k), value)");
 
     let html = build_one_page(
         "next-steps-as-written",
@@ -2967,7 +2967,7 @@ fn journey_history_is_a_details_view_behind_the_toggle() {
     );
     assert_contains(
         &html,
-        r#"<div class="c-jt-panel c-jt-details" data-jt-panel="details" hidden>"#,
+        r#"<div class="c-jt-panel c-jt-details" data-jt-panel="details">"#,
     );
     let save = html.find("Entered Save").unwrap();
     let kick = html.find(">Kickoff<").unwrap();
@@ -3025,7 +3025,7 @@ fn journey_dated_mode_adds_spans_end_tick_and_tooltips() {
     );
     assert_contains(
         &html,
-        r#"data-jt-until="2026-06-01" data-jt-end="Contract ends" data-jt-end-past="Contract ended" hidden"#,
+        r#"data-jt-until="2026-06-01" data-jt-end="Contract ends" data-jt-end-past="Contract ended">Contract ends Jun 1, 2026</span>"#,
     );
     assert_contains(
         &html,
@@ -3048,4 +3048,29 @@ fn journey_dated_mode_adds_spans_end_tick_and_tooltips() {
     assert!(!html.contains(r#"<span class="c-jt-span">"#));
     assert!(!html.contains(r#"class="c-jt-end""#));
     assert!(!html.contains(r#"class="c-jt-tip" role="tooltip""#));
+}
+
+#[test]
+fn hud_links_render_and_default_ids_stay_unique() {
+    let html = build_one_page(
+        "hud-hrefs",
+        "title: H\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers:\n      - { label: A, count: 1 }\n      - { label: B, count: 2, href: ./b }\n  - type: tier_summary\n    tiers:\n      - { label: C, count: 3, accounts: [{ name: X }] }\n  - type: tier_summary\n    tiers:\n      - { label: D, count: 4, accounts: [{ name: Y }] }\n",
+        "",
+    );
+    assert_contains(&html, r#"<a class="c-tier c-tier-pos-2" href="./b">"#);
+    assert_contains(&html, r#"id="tier-summary-2-panel-0""#);
+    assert_contains(&html, r#"id="tier-summary-3-panel-0""#);
+}
+
+#[test]
+fn hud_explicit_ids_namespace_url_params() {
+    let html = build_one_page(
+        "hud-params",
+        "title: H\nshell: standard\ncomponents:\n  - type: next_steps\n    id: team\n    owners: [Tyler]\n    steps:\n      - { label: X, owner: Tyler }\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"class="c-next" data-next-steps data-kz-param="team""#,
+    );
 }

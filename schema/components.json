@@ -3346,10 +3346,6 @@
         {
           "warn": "tiers > 6",
           "say": "More than 6 tiers stops reading as a row. Merge tiers or use a table."
-        },
-        {
-          "warn": "any(tiers, share > 100) || any(tiers, share < 0)",
-          "say": "share is a percentage. Keep it between 0 and 100."
         }
       ]
     },

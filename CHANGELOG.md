@@ -12,6 +12,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `health_breakdown` component: one card per health dimension with a tier swatch, mono tier name, optional value and the rule behind it.
 - `next_steps` component: to-do cards with due dates and status. With `accounts` it renders one expandable row per account ("N open · N overdue" or "nothing due"), sorted overdue first, then soonest due (`order: as_written` to opt out); `?account=<id>` opens a row and `owners` adds filter chips with `?owner=<name>`.
 - `tier_summary` cards lead the share row with the tier's dollars (`value`, with `share_label` as a small unit) and the share on the right; the accounts panel shows the tier total and each account's `share`.
+- HUD components only emit http(s), mailto, tel, anchor and path links (validate rejects other schemes), keep panels readable without JS and in print, give unnamed instances unique ids, and namespace URL params by component `id`.
 - `tier_summary` tiers without a `color` take accent shades by position (solid, 62%, 32%, hollow). `health_breakdown` and `next_steps` take the same shades through `shade: 1-4`.
 
 ## [1.30.1] - 2026-09-28

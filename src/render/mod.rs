@@ -411,6 +411,12 @@ pub(super) fn resolve_href(href: &str, base: &str) -> String {
     href.to_string()
 }
 
+/// `resolve_href` for author links on the HUD components, with unsafe
+/// schemes dropped (the caller renders plain text instead of a link).
+pub(super) fn safe_href(href: &str, base: &str) -> Option<String> {
+    crate::types::safe_href_scheme(href).then(|| resolve_href(href, base))
+}
+
 // ── Rendered: HTML + required JS fragment names ──
 
 #[derive(Default)]

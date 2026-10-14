@@ -1,6 +1,6 @@
 use pulldown_cmark::{html as md_html, Event, Options, Parser as MdParser, Tag};
 
-use super::{charts, esc, resolve_href, slug, Rendered};
+use super::{charts, esc, resolve_href, safe_href, slug, Rendered};
 use crate::icons;
 use crate::types::*;
 
@@ -3603,12 +3603,7 @@ fn fmt_long_date(iso: &str) -> String {
 /// Accounts sorted by renewal date, soonest first; undated ones last.
 fn sorted_accounts(accounts: &[TierAccount]) -> Vec<&TierAccount> {
     let mut v: Vec<&TierAccount> = accounts.iter().collect();
-    v.sort_by_key(|a| {
-        a.renewal
-            .as_deref()
-            .and_then(crate::freshness::parse_iso_date)
-            .unwrap_or(i64::MAX)
-    });
+    v.sort_by_key(|a| a.renewal.as_deref().and_then(jt_day).unwrap_or(i64::MAX));
     v
 }
 
@@ -3634,19 +3629,20 @@ fn tier_summary(
     let unit_label = share_label;
     let share_label = share_label.unwrap_or("Share");
     let any_share = tiers.iter().any(|t| t.share.is_some());
-    let any_panel = tiers
-        .iter()
-        .any(|t| t.href.is_none() && !t.accounts.is_empty());
-    let prefix = id.unwrap_or("tiers");
+    let link = |t: &Tier| t.href.as_deref().and_then(|h| safe_href(h, base));
+    let expands = |t: &Tier| link(t).is_none() && !t.accounts.is_empty();
+    let any_panel = tiers.iter().any(expands);
+    let prefix = hud_prefix(id, "tier-summary");
     let id_attr = id
         .map(|i| format!(r#" id="{}""#, esc(i)))
         .unwrap_or_default();
     let mut h = format!(
-        r#"<div{} class="c-tier-summary" data-tier-summary><div class="c-tier-row" data-kz-list="tiers">"#,
-        id_attr
+        r#"<div{} class="c-tier-summary" data-tier-summary{}><div class="c-tier-row" data-kz-list="tiers">"#,
+        id_attr,
+        hud_param_attr(id)
     );
     for (i, t) in tiers.iter().enumerate() {
-        let expandable = t.href.is_none() && !t.accounts.is_empty();
+        let expandable = expands(t);
         let mut cls = format!("c-tier {}", tier_color_class(t.color, i));
         if t.active {
             cls.push_str(" is-active");
@@ -3657,13 +3653,9 @@ fn tier_summary(
         if expandable {
             cls.push_str(" is-expandable");
         }
-        let (open, close) = if let Some(href) = &t.href {
+        let (open, close) = if let Some(href) = link(t) {
             (
-                format!(
-                    r#"<a class="{}" href="{}">"#,
-                    cls,
-                    esc(&resolve_href(href, base))
-                ),
+                format!(r#"<a class="{}" href="{}">"#, cls, esc(&href)),
                 "</a>",
             )
         } else if expandable {
@@ -3671,7 +3663,7 @@ fn tier_summary(
                 format!(
                     r#"<button type="button" class="{}" aria-expanded="false" aria-controls="{}-panel-{}" data-tier-toggle="{}" data-tier-label="{}">"#,
                     cls,
-                    esc(prefix),
+                    esc(&prefix),
                     i,
                     i,
                     esc(&t.label)
@@ -3705,10 +3697,9 @@ fn tier_summary(
     }
     h.push_str("</div>");
     for (i, t) in tiers.iter().enumerate() {
-        if t.href.is_some() || t.accounts.is_empty() {
-            continue;
+        if expands(t) {
+            h.push_str(&tier_panel(t, i, &prefix, base));
         }
-        h.push_str(&tier_panel(t, i, prefix, base));
     }
     h.push_str("</div>");
     let r = Rendered::new(h);
@@ -3739,12 +3730,12 @@ fn tier_money_row(t: &Tier, any_share: bool, share_label: &str, unit: Option<&st
             esc(share_label)
         )),
     }
-    if let Some(s) = t.share {
+    if let Some(s) = hud_share(t.share) {
         h.push_str(&format!(r#"<span class="c-tier-share-num">{}%</span>"#, s));
     }
     h.push_str("</span>");
     if any_share {
-        let width = t.share.unwrap_or(0.0).clamp(0.0, 100.0);
+        let width = hud_share(t.share).unwrap_or(0.0);
         h.push_str(&format!(
             r#"<span class="c-tier-track"><span class="c-tier-fill{}" style="width: {}%"></span></span>"#,
             if width <= 0.0 { " is-zero" } else { "" },
@@ -3758,7 +3749,7 @@ fn tier_money_row(t: &Tier, any_share: bool, share_label: &str, unit: Option<&st
 fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
     let n = t.accounts.len();
     let mut h = format!(
-        r#"<div class="c-tier-panel {}" id="{}-panel-{}" data-tier-panel="{}" hidden><div class="c-tier-panel-head"><span class="c-tier-swatch"></span><span class="c-tier-panel-title">{}</span><span class="c-tier-panel-count">{} {}{}</span></div><ul class="c-tier-accounts">"#,
+        r#"<div class="c-tier-panel {}" id="{}-panel-{}" data-tier-panel="{}"><div class="c-tier-panel-head"><span class="c-tier-swatch"></span><span class="c-tier-panel-title">{}</span><span class="c-tier-panel-count">{} {}{}</span></div><ul class="c-tier-accounts">"#,
         tier_color_class(t.color, i),
         esc(prefix),
         i,
@@ -3786,10 +3777,10 @@ fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
             color,
             renewal_attr
         ));
-        match &a.href {
+        match a.href.as_deref().and_then(|h| safe_href(h, base)) {
             Some(href) => h.push_str(&format!(
                 r#"<a class="c-tier-acct-name" href="{}">{}</a>"#,
-                esc(&resolve_href(href, base)),
+                esc(&href),
                 esc(&a.name)
             )),
             None => h.push_str(&format!(
@@ -3806,7 +3797,7 @@ fn tier_panel(t: &Tier, i: usize, prefix: &str, base: &str) -> String {
         h.push_str(r#"</span></span><span class="c-tier-acct-side">"#);
         if let Some(v) = &a.value {
             h.push_str(&format!(r#"<span class="c-tier-acct-value">{}"#, esc(v)));
-            if let Some(sh) = a.share {
+            if let Some(sh) = hud_share(a.share) {
                 h.push_str(&format!(
                     r#"<span class="c-tier-acct-share"> · {}%</span>"#,
                     sh
@@ -3901,7 +3892,7 @@ fn next_step_owner<'a>(step: &'a NextStep, accounts: &'a [NextAccount]) -> Optio
         .as_deref()
         .and_then(|a| accounts.iter().find(|x| x.id == a))
     {
-        Some(acct) => acct.owner.as_deref(),
+        Some(acct) => acct.owner.as_deref().or(step.owner.as_deref()),
         None => step.owner.as_deref(),
     }
 }
@@ -3913,11 +3904,11 @@ fn owner_attr(owner: Option<&str>) -> String {
 }
 
 fn next_link(cls: &str, label: &str, href: Option<&str>, base: &str) -> String {
-    match href {
+    match href.and_then(|h| safe_href(h, base)) {
         Some(h) => format!(
             r#"<a class="{}" href="{}">{}</a>"#,
             cls,
-            esc(&resolve_href(h, base)),
+            esc(&h),
             esc(label)
         ),
         None => format!(r#"<span class="{}">{}</span>"#, cls, esc(label)),
@@ -3937,10 +3928,12 @@ fn next_steps(
     let id_attr = id
         .map(|i| format!(r#" id="{}""#, esc(i)))
         .unwrap_or_default();
+    let today = hud_today();
     let mut h = format!(
-        r#"<div{} class="c-next{}" data-next-steps>"#,
+        r#"<div{} class="c-next{}" data-next-steps{}>"#,
         id_attr,
-        if board { " is-board" } else { "" }
+        if board { " is-board" } else { "" },
+        hud_param_attr(id)
     );
     if !owners.is_empty() {
         h.push_str(r#"<div class="c-next-chips" role="group" aria-label="Filter by owner"><button type="button" class="c-next-chip is-active" data-owner-chip="" aria-pressed="true">Owner: All</button>"#);
@@ -3957,10 +3950,12 @@ fn next_steps(
         h.push_str(&format!(r#"<div class="c-next-title">{}</div>"#, esc(t)));
     }
     if board {
-        let prefix = id.unwrap_or("next");
+        let prefix = hud_prefix(id, "next-steps");
         h.push_str(r#"<ul class="c-next-accounts" data-kz-list="accounts">"#);
-        for a in next_account_order(accounts, steps, order) {
-            h.push_str(&next_account_row(a, steps, prefix, base));
+        for (i, a) in next_account_order(accounts, steps, order, today) {
+            h.push_str(&next_account_row(
+                a, i, steps, accounts, &prefix, today, base,
+            ));
         }
         h.push_str("</ul>");
         let loose: Vec<&NextStep> = steps
@@ -3974,7 +3969,7 @@ fn next_steps(
         if !loose.is_empty() {
             h.push_str(r#"<ul class="c-next-steps c-next-loose" data-kz-list="steps">"#);
             for s in loose {
-                h.push_str(&next_step_card(s, None, accounts, base));
+                h.push_str(&next_step_card(s, None, accounts, today, base));
             }
             h.push_str("</ul>");
         }
@@ -3984,7 +3979,7 @@ fn next_steps(
             h.push_str(r#"<li class="c-next-empty">Nothing due.</li>"#);
         }
         for s in steps {
-            h.push_str(&next_step_card(s, None, accounts, base));
+            h.push_str(&next_step_card(s, None, accounts, today, base));
         }
         h.push_str("</ul>");
     }
@@ -4001,12 +3996,14 @@ fn next_step_card(
     s: &NextStep,
     account_name: Option<&str>,
     accounts: &[NextAccount],
+    today: Option<i64>,
     base: &str,
 ) -> String {
-    let status = s
-        .status
-        .map(|x| format!(" {}", x.class()))
-        .unwrap_or_default();
+    let status = match s.status {
+        Some(x) => format!(" {}", x.class()),
+        None if step_overdue(s, today) => " is-overdue".to_string(),
+        None => String::new(),
+    };
     let mut h = format!(
         r#"<li class="c-next-step{}"{}><span class="c-next-dot"></span><span class="c-next-text">{}"#,
         status,
@@ -4039,7 +4036,22 @@ fn strip_account_prefix<'a>(detail: &'a str, account_name: Option<&str>) -> &'a 
 }
 
 /// Open (not done) steps, overdue count, and soonest due day for an account.
-fn next_account_summary(id: &str, steps: &[NextStep]) -> (usize, usize, Option<i64>) {
+/// Overdue by status, or (no status given) by a due date before today.
+fn step_overdue(s: &NextStep, today: Option<i64>) -> bool {
+    match s.status {
+        Some(st) => st == StepStatus::Overdue,
+        None => matches!(
+            (s.due.as_deref().and_then(jt_day), today),
+            (Some(d), Some(t)) if d < t
+        ),
+    }
+}
+
+fn next_account_summary(
+    id: &str,
+    steps: &[NextStep],
+    today: Option<i64>,
+) -> (usize, usize, Option<i64>) {
     let mine = steps
         .iter()
         .filter(|s| s.account.as_deref() == Some(id) && s.status != Some(StepStatus::Done));
@@ -4048,10 +4060,10 @@ fn next_account_summary(id: &str, steps: &[NextStep]) -> (usize, usize, Option<i
     let mut soonest: Option<i64> = None;
     for s in mine {
         open += 1;
-        if s.status == Some(StepStatus::Overdue) {
+        if step_overdue(s, today) {
             overdue += 1;
         }
-        if let Some(d) = s.due.as_deref().and_then(|d| jt_date(&Some(d.to_string()))) {
+        if let Some(d) = s.due.as_deref().and_then(jt_day) {
             soonest = Some(soonest.map_or(d, |x| x.min(d)));
         }
     }
@@ -4065,13 +4077,14 @@ fn next_account_order<'a>(
     accounts: &'a [NextAccount],
     steps: &[NextStep],
     order: NextOrder,
-) -> Vec<&'a NextAccount> {
-    let mut v: Vec<&NextAccount> = accounts.iter().collect();
+    today: Option<i64>,
+) -> Vec<(usize, &'a NextAccount)> {
+    let mut v: Vec<(usize, &NextAccount)> = accounts.iter().enumerate().collect();
     if order == NextOrder::AsWritten {
         return v;
     }
-    v.sort_by_key(|a| {
-        let (open, overdue, soonest) = next_account_summary(&a.id, steps);
+    v.sort_by_key(|(_, a)| {
+        let (open, overdue, soonest) = next_account_summary(&a.id, steps, today);
         let group = if overdue > 0 {
             0
         } else if open > 0 {
@@ -4089,16 +4102,27 @@ fn next_account_order<'a>(
     v
 }
 
-fn next_account_row(a: &NextAccount, steps: &[NextStep], prefix: &str, base: &str) -> String {
-    let (open, overdue, _) = next_account_summary(&a.id, steps);
+fn next_account_row(
+    a: &NextAccount,
+    index: usize,
+    steps: &[NextStep],
+    accounts: &[NextAccount],
+    prefix: &str,
+    today: Option<i64>,
+    base: &str,
+) -> String {
+    let (open, overdue, _) = next_account_summary(&a.id, steps, today);
     let panel = format!("{}-acct-{}", prefix, a.id);
+    // Expanded in the static markup so no-JS and print read everything;
+    // the script collapses rows on load.
     let mut h = format!(
-        r#"<li class="c-next-acct-item" data-acct="{}"{}><button type="button" class="c-next-acct {}" aria-expanded="false" aria-controls="{}" data-acct-toggle="{}"><span class="c-next-chevron" aria-hidden="true"></span><span class="c-hud-swatch"></span><span class="c-next-acct-name">{}</span>"#,
+        r#"<li class="c-next-acct-item" data-acct="{}"{}><button type="button" class="c-next-acct {}" aria-expanded="true" aria-controls="{}" data-acct-toggle="{}" data-acct-i="{}"><span class="c-next-chevron" aria-hidden="true"></span><span class="c-hud-swatch"></span><span class="c-next-acct-name">{}</span>"#,
         esc(&a.id),
         owner_attr(a.owner.as_deref()),
         hud_color_class(a.color, a.shade),
         esc(&panel),
         esc(&a.id),
+        index,
         esc(&a.name)
     );
     if let Some(st) = &a.stage {
@@ -4120,7 +4144,7 @@ fn next_account_row(a: &NextAccount, steps: &[NextStep], prefix: &str, base: &st
         h.push_str("</span>");
     }
     h.push_str(&format!(
-        r#"</button><div class="c-next-acct-steps" id="{}" hidden><ul class="c-next-steps">"#,
+        r#"</button><div class="c-next-acct-steps" id="{}"><ul class="c-next-steps">"#,
         esc(&panel)
     ));
     let mine: Vec<&NextStep> = steps
@@ -4131,13 +4155,13 @@ fn next_account_row(a: &NextAccount, steps: &[NextStep], prefix: &str, base: &st
         h.push_str(r#"<li class="c-next-empty">Nothing due.</li>"#);
     }
     for s in mine {
-        h.push_str(&next_step_card(s, Some(&a.name), &[], base));
+        h.push_str(&next_step_card(s, Some(&a.name), accounts, today, base));
     }
     h.push_str("</ul>");
-    if let Some(href) = &a.href {
+    if let Some(href) = a.href.as_deref().and_then(|h| safe_href(h, base)) {
         h.push_str(&format!(
             r#"<a class="c-next-acct-link" href="{}">Open account</a>"#,
-            esc(&resolve_href(href, base))
+            esc(&href)
         ));
     }
     h.push_str("</div></li>");
@@ -4175,8 +4199,40 @@ struct JourneyLayout {
 }
 
 fn jt_date(s: &Option<String>) -> Option<i64> {
-    s.as_deref()
-        .and_then(|d| crate::freshness::parse_iso_date(d.get(..10).unwrap_or(d)))
+    s.as_deref().and_then(jt_day)
+}
+
+/// Days since epoch for an ISO date, ignoring any time part.
+fn jt_day(d: &str) -> Option<i64> {
+    let t = d.trim();
+    crate::freshness::parse_iso_date(t.get(..10).unwrap_or(t))
+}
+
+/// Today as days since epoch (honors `KAZAM_TODAY`), for build-time rules.
+fn hud_today() -> Option<i64> {
+    crate::freshness::parse_iso_date(&crate::freshness::today_iso())
+}
+
+/// A finite share clamped to 0-100, or None.
+fn hud_share(v: Option<f64>) -> Option<f64> {
+    v.filter(|x| x.is_finite()).map(|x| x.clamp(0.0, 100.0))
+}
+
+/// Per-page unique prefix for ids when the author gave none.
+fn hud_prefix(id: Option<&str>, base: &str) -> String {
+    match id.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(i) => i.to_string(),
+        None => slug::resolve(None, Some(base)).unwrap_or_else(|| base.to_string()),
+    }
+}
+
+/// `data-kz-param` names the URL params `owner.<id>` etc. when the
+/// component has an explicit id; bare params still work as a fallback.
+fn hud_param_attr(id: Option<&str>) -> String {
+    id.map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|i| format!(r#" data-kz-param="{}""#, esc(i)))
+        .unwrap_or_default()
 }
 
 fn journey_layout(
@@ -4545,8 +4601,18 @@ fn journey_track(
         }
         _ => false,
     };
-    let end_at = end_iso.map(|_| {
-        items.push((1.0, format!("{} in 999d", jt_past(end_label))));
+    // Sized for the longer of the static text and the live "... in 999d".
+    let end_at = end_iso.map(|e| {
+        let live = format!("{} in 999d", jt_past(end_label));
+        let fixed = format!("{} {}", end_label, fmt_long_date(e));
+        items.push((
+            1.0,
+            if fixed.len() > live.len() {
+                fixed
+            } else {
+                live
+            },
+        ));
         items.len() - 1
     });
     let refs: Vec<(f64, &str)> = items.iter().map(|(x, l)| (*x, l.as_str())).collect();
@@ -4599,11 +4665,13 @@ fn journey_track(
     }
     if let (Some(i), Some(e)) = (end_at, end_iso) {
         h.push_str(&format!(
-            r#"<span class="c-jt-label c-jt-end-label"{} data-jt-until="{}" data-jt-end="{}" data-jt-end-past="{}" hidden></span>"#,
+            r#"<span class="c-jt-label c-jt-end-label"{} data-jt-until="{}" data-jt-end="{}" data-jt-end-past="{}">{} {}</span>"#,
             place(i),
             esc(jt_iso(e)),
             esc(end_label),
-            esc(&jt_past(end_label))
+            esc(&jt_past(end_label)),
+            esc(end_label),
+            esc(&fmt_long_date(e))
         ));
     }
     h.push_str("</div>");
@@ -4677,7 +4745,7 @@ fn journey_history(hist: &JourneyHistory) -> String {
     let mut events: Vec<&HistoryEvent> = hist.events.iter().collect();
     events.sort_by_key(|e| std::cmp::Reverse(jt_date(&Some(e.date.clone())).unwrap_or(i64::MIN)));
     let mut h = String::from(
-        r#"<div class="c-jt-panel c-jt-details" data-jt-panel="details" hidden><ol class="c-jt-history-list" data-kz-list="history.events">"#,
+        r#"<div class="c-jt-panel c-jt-details" data-jt-panel="details"><ol class="c-jt-history-list" data-kz-list="history.events">"#,
     );
     for e in events {
         let kind = e
@@ -4685,20 +4753,24 @@ fn journey_history(hist: &JourneyHistory) -> String {
             .map(|k| format!(" {}", k.class()))
             .unwrap_or_default();
         let d = e.date.as_str();
+        // date | dot | label + detail | relative (filled in the browser).
         h.push_str(&format!(
-            r#"<li class="c-jt-hist{}"><span class="c-jt-hist-date">{}<span class="c-jt-hist-rel" data-jt-rel="{}" hidden></span></span><span class="c-jt-hist-dot"></span><span class="c-jt-hist-text"><span class="c-jt-hist-label">{}</span>"#,
+            r#"<li class="c-jt-hist{}" title="{}"><span class="c-jt-hist-date">{}</span><span class="c-jt-hist-dot"></span><span class="c-jt-hist-text"><span class="c-jt-hist-label">{}</span>"#,
             kind,
-            esc(jt_iso(d)),
-            esc(jt_iso(d)),
+            esc(&fmt_long_date(d)),
+            esc(&fmt_long_date(d)),
             esc(&e.label)
         ));
         if let Some(det) = &e.detail {
             h.push_str(&format!(
-                r#"<span class="c-jt-hist-detail">{}</span>"#,
+                r#" <span class="c-jt-hist-detail">{}</span>"#,
                 esc(det)
             ));
         }
-        h.push_str("</span></li>");
+        h.push_str(&format!(
+            r#"</span><span class="c-jt-hist-rel" data-jt-rel="{}" hidden></span></li>"#,
+            esc(jt_iso(d))
+        ));
     }
     h.push_str("</ol></div>");
     h
@@ -5055,5 +5127,20 @@ mod tests {
         let spans = jt_stage_spans(&[st("2026-01-01"), st("2026-02-10")], Some(&cur));
         assert_eq!(spans, vec![Some(40), Some(30)]);
         assert_eq!(jt_stage_spans(&[st("2026-01-01")], None), vec![None]);
+    }
+
+    #[test]
+    fn hud_unsafe_hrefs_render_as_plain_text() {
+        let yaml = "type: tier_summary\ntiers:\n  - { label: A, count: 1, href: \"javascript:alert(1)\" }\n  - { label: B, count: 1, accounts: [{ name: N, href: \"data:text/html,x\" }] }\n";
+        let comp: Component = serde_yaml::from_str(yaml).unwrap();
+        let Component::TierSummary { tiers, .. } = &comp else {
+            panic!("expected TierSummary")
+        };
+        let r = tier_summary(tiers, None, None, Some("t"), "");
+        assert!(!r.html.contains("javascript:"), "{}", r.html);
+        assert!(!r.html.contains("data:text"), "{}", r.html);
+        assert!(r
+            .html
+            .contains(r#"<span class="c-tier-acct-name">N</span>"#));
     }
 }

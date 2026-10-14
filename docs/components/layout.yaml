@@ -557,7 +557,10 @@ components:
           due (`order: as_written` keeps yours). A step detail that starts with
           "<account name>: " drops that prefix inside its row. `?account=<id>` opens a row
           on load, `owners` adds filter chips (`?owner=<name>`), and both write back to
-          the URL. Steps follow their account's owner, or their own `owner:`.
+          the URL. Steps follow their account's owner, or their own `owner:`; items with
+          no owner stay visible under any filter. With an explicit `id`, the params are
+          namespaced (`?owner.<id>=`, `?account.<id>=`) so two boards on one page don't
+          fight; the bare names still work as a fallback.
 
       - type: next_steps
         id: owner-next

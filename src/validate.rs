@@ -753,7 +753,11 @@ fn collect_ids(components: &[Component], out: &mut Vec<String>) {
             | Component::Section { id: Some(id), .. }
             | Component::Grid { id: Some(id), .. }
             | Component::Box { id: Some(id), .. }
-            | Component::Sequence { id: Some(id), .. } => out.push(id.trim().to_string()),
+            | Component::Sequence { id: Some(id), .. }
+            | Component::TierSummary { id: Some(id), .. }
+            | Component::JourneyTrack { id: Some(id), .. }
+            | Component::HealthBreakdown { id: Some(id), .. }
+            | Component::NextSteps { id: Some(id), .. } => out.push(id.trim().to_string()),
             _ => {}
         }
         match c {
@@ -1781,8 +1785,26 @@ fn validate_component(
                     Some("Add tiers with label: and count:.".into()),
                 ));
             }
+            let mut labels: Vec<String> = Vec::new();
             for (ti, t) in tiers.iter().enumerate() {
+                let tp = format!("{}.tiers[{}]", path, ti);
+                let k = t.label.trim().to_lowercase();
+                if labels.contains(&k) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.label", tp),
+                        "invalid_value",
+                        format!("tier label '{}' is used twice", t.label),
+                        Some("Tier labels must be unique; ?tier= opens by label.".into()),
+                    ));
+                }
+                labels.push(k);
+                check_href(file, &format!("{}.href", tp), t.href.as_deref(), errors);
+                check_share(file, &format!("{}.share", tp), t.share, errors);
                 for (ai, a) in t.accounts.iter().enumerate() {
+                    let ap = format!("{}.accounts[{}]", tp, ai);
+                    check_href(file, &format!("{}.href", ap), a.href.as_deref(), errors);
+                    check_share(file, &format!("{}.share", ap), a.share, errors);
                     if let Some(r) = &a.renewal {
                         check_iso_date(
                             file,
@@ -1846,6 +1868,20 @@ fn validate_component(
                         Some("Give each account a unique id.".into()),
                     ));
                 }
+                if a.id.is_empty() || a.id.contains(|c: char| c == ',' || c.is_whitespace()) {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.accounts[{}].id", path, i),
+                        "invalid_value",
+                        format!(
+                            "account id '{}' must not be empty or contain commas or spaces",
+                            a.id
+                        ),
+                        Some(
+                            "Use a slug like ostra-health; ?account= lists ids with commas.".into(),
+                        ),
+                    ));
+                }
                 ids.push(a.id.as_str());
                 check_shade(
                     file,
@@ -1853,8 +1889,43 @@ fn validate_component(
                     a.shade,
                     errors,
                 );
+                check_href(
+                    file,
+                    &format!("{}.accounts[{}].href", path, i),
+                    a.href.as_deref(),
+                    errors,
+                );
+                check_owner(
+                    file,
+                    &format!("{}.accounts[{}].owner", path, i),
+                    a.owner.as_deref(),
+                    &seen,
+                    errors,
+                );
             }
             for (i, s) in steps.iter().enumerate() {
+                if s.account.is_some() && accounts.is_empty() {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.steps[{}].account", path, i),
+                        "cross_reference",
+                        "step names an account but next_steps has no accounts",
+                        Some("Add accounts:, or drop account: from the step.".into()),
+                    ));
+                }
+                check_href(
+                    file,
+                    &format!("{}.steps[{}].href", path, i),
+                    s.href.as_deref(),
+                    errors,
+                );
+                check_owner(
+                    file,
+                    &format!("{}.steps[{}].owner", path, i),
+                    s.owner.as_deref(),
+                    &seen,
+                    errors,
+                );
                 if let (Some(a), false) = (&s.account, accounts.is_empty()) {
                     if !ids.contains(&a.as_str()) {
                         errors.push(ValidationError::new(
@@ -1947,6 +2018,23 @@ fn validate_component(
             for (p, d) in &dates {
                 check_iso_date(file, p, d, errors);
             }
+            let has_date = |d: &Option<String>| d.is_some();
+            let flags: Vec<bool> = stages
+                .iter()
+                .map(|x| has_date(&x.date))
+                .chain(touchpoints.iter().map(|x| has_date(&x.date)))
+                .chain(current.iter().map(|x| has_date(&x.date)))
+                .chain(detours.iter().map(|x| has_date(&x.from)))
+                .collect();
+            if flags.iter().any(|f| *f) && !flags.iter().all(|f| *f) {
+                errors.push(ValidationError::warning(
+                    file,
+                    path,
+                    "shape",
+                    "journey_track mixes dated and undated elements, so it falls back to even spacing",
+                    Some("Date every stage, touchpoint, current and detour from:, or none of them.".into()),
+                ));
+            }
             let s = start.as_deref().and_then(crate::freshness::parse_iso_date);
             let e = end.as_deref().and_then(crate::freshness::parse_iso_date);
             if let (Some(s), Some(e)) = (s, e) {
@@ -1960,6 +2048,55 @@ fn validate_component(
                     ));
                 }
             }
+        }
+    }
+}
+
+fn check_href(file: &str, path: &str, href: Option<&str>, errors: &mut Vec<ValidationError>) {
+    if let Some(h) = href {
+        if !crate::types::safe_href_scheme(h) {
+            errors.push(ValidationError::new(
+                file,
+                path,
+                "invalid_value",
+                format!("href '{}' uses a scheme that is not allowed", h),
+                Some("Use http(s), mailto, tel, #anchor, /path or a relative path.".into()),
+            ));
+        }
+    }
+}
+
+fn check_share(file: &str, path: &str, share: Option<f64>, errors: &mut Vec<ValidationError>) {
+    if let Some(v) = share {
+        if !v.is_finite() || !(0.0..=100.0).contains(&v) {
+            errors.push(ValidationError::new(
+                file,
+                path,
+                "invalid_value",
+                format!("share must be a number from 0 to 100, got {}", v),
+                Some("share is a percentage, like 8.4.".into()),
+            ));
+        }
+    }
+}
+
+/// When `owners` is set, every owner used must be one of them (case-insensitive).
+fn check_owner(
+    file: &str,
+    path: &str,
+    owner: Option<&str>,
+    owners: &[String],
+    errors: &mut Vec<ValidationError>,
+) {
+    if let Some(o) = owner {
+        if !owners.is_empty() && !owners.contains(&o.trim().to_lowercase()) {
+            errors.push(ValidationError::new(
+                file,
+                path,
+                "cross_reference",
+                format!("owner '{}' is not in owners", o),
+                Some("Add it to owners:, or fix the spelling.".into()),
+            ));
         }
     }
 }
@@ -2818,6 +2955,55 @@ mod tests {
                 .any(|e| e.path.ends_with(".history.events[0].date")),
             "{errors:?}"
         );
+    }
+
+    #[test]
+    fn hud_review_rules_reject_bad_hrefs_shares_ids_and_owners() {
+        let page = page_from_yaml(
+            "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers:\n      - { label: A, count: 1, share: 140, href: \"javascript:x\" }\n      - { label: a, count: 2, share: .nan, accounts: [{ name: N, href: \"data:text/html,x\" }] }\n",
+        );
+        let errors = validate_page("t.yaml", &page);
+        for want in [
+            ".tiers[0].href",
+            ".tiers[0].share",
+            ".tiers[1].label",
+            ".tiers[1].share",
+            ".tiers[1].accounts[0].href",
+        ] {
+            assert!(
+                errors.iter().any(|e| e.path.ends_with(want)),
+                "{want}: {errors:?}"
+            );
+        }
+        let page = page_from_yaml(
+            "title: N\nshell: standard\ncomponents:\n  - type: next_steps\n    owners: [Tyler]\n    accounts:\n      - { id: \"a b\", name: A, owner: Will }\n    steps:\n      - { label: X, account: \"a b\", owner: Sam, href: \"vbscript:x\" }\n  - type: next_steps\n    steps:\n      - { label: Y, account: zed }\n",
+        );
+        let errors = validate_page("n.yaml", &page);
+        for want in [
+            ".accounts[0].id",
+            ".accounts[0].owner",
+            ".steps[0].owner",
+            ".steps[0].href",
+            "components[1].steps[0].account",
+        ] {
+            assert!(
+                errors.iter().any(|e| e.path.ends_with(want)),
+                "{want}: {errors:?}"
+            );
+        }
+        let page = page_from_yaml(
+            "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    stages:\n      - { label: A, date: 2026-01-01 }\n      - { label: B }\n",
+        );
+        let errors = validate_page("j.yaml", &page);
+        assert!(
+            errors
+                .iter()
+                .any(|e| !e.is_error() && e.message.contains("mixes dated")),
+            "{errors:?}"
+        );
+        assert!(crate::types::safe_href_scheme("https://x.dev/a:b"));
+        assert!(crate::types::safe_href_scheme("../page.html?x=1:2"));
+        assert!(!crate::types::safe_href_scheme(" JavaScript:alert(1)"));
     }
 
     #[test]
