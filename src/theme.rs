@@ -2555,9 +2555,13 @@ a.c-next-label:hover { color: var(--teal); }
 .c-jt-toggle-count { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .c-venn-toggle.c-jt-toggle button.active .c-jt-toggle-count { color: inherit; opacity: 0.7; }
 .c-jt-panel[hidden] { display: none; }
-.c-jt-details { max-height: 420px; overflow-y: auto; }
+.c-jt-details { max-height: 364px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgba(var(--text-rgb), 0.22) transparent; }
+.c-jt-details::-webkit-scrollbar { width: 6px; }
+.c-jt-details::-webkit-scrollbar-track { background: transparent; }
+.c-jt-details::-webkit-scrollbar-thumb { background: rgba(var(--text-rgb), 0.22); border-radius: 3px; }
+.c-jt-details.has-more { -webkit-mask-image: linear-gradient(to bottom, var(--bg) calc(100% - 44px), transparent); mask-image: linear-gradient(to bottom, var(--bg) calc(100% - 44px), transparent); }
 .c-jt-history-list { list-style: none; margin: 4px 0 0; padding: 0 0 0 4px; }
-.c-jt-hist { display: grid; grid-template-columns: 96px 8px 1fr; column-gap: 12px; align-items: baseline; margin: 0; padding: 5px 0 5px 12px; border-left: 1px solid rgba(var(--text-rgb), 0.14); font-size: 13.5px; line-height: 1.45; }
+.c-jt-hist { display: grid; grid-template-columns: 96px 8px 1fr; column-gap: 12px; align-items: baseline; margin: 0; padding: 5px 0 5px 12px; border-left: 1px solid rgba(var(--text-rgb), 0.14); font-size: 13.5px; line-height: 20px; }
 .c-jt-hist-date { font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .c-jt-hist-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(var(--text-rgb), 0.3); align-self: center; }
 .c-jt-hist.is-stage .c-jt-hist-dot { background: var(--teal); }

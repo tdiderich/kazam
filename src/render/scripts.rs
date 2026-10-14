@@ -995,7 +995,15 @@ document.querySelectorAll('[data-journey]').forEach(function (root) {
       b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     panels.forEach(function (p) { p.hidden = p.getAttribute('data-jt-panel') !== view; });
+    fade();
   }
+  var details = root.querySelector('.c-jt-details');
+  function fade() {
+    if (!details) return;
+    details.classList.toggle('has-more', details.scrollTop + details.clientHeight < details.scrollHeight - 2);
+  }
+  if (details) details.addEventListener('scroll', fade, { passive: true });
+  window.addEventListener('resize', fade);
   buttons.forEach(function (b) {
     b.addEventListener('click', function () { show(b.getAttribute('data-jt-view')); });
   });

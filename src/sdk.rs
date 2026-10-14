@@ -2463,6 +2463,18 @@ function JourneyFrame({ id, title, history, defaultView, children }: { id: strin
   const hasHistory = events.length > 0;
   const [view, setView] = React.useState<string>(hasHistory && defaultView === "details" ? "details" : "timeline");
   const rows = events.map((e, i) => ({ e, i })).sort((a, b) => (kzIsoDays(b.e.date) ?? -Infinity) - (kzIsoDays(a.e.date) ?? -Infinity) || a.i - b.i);
+  const detailsRef = React.useRef<HTMLDivElement | null>(null);
+  const [more, setMore] = React.useState(false);
+  const fade = React.useCallback(() => {
+    const d = detailsRef.current;
+    setMore(!!d && d.scrollTop + d.clientHeight < d.scrollHeight - 2);
+  }, []);
+  React.useEffect(() => {
+    fade();
+    if (typeof window === "undefined") return;
+    window.addEventListener("resize", fade);
+    return () => window.removeEventListener("resize", fade);
+  }, [view, fade]);
   return (
     <div id={id} className="c-journey" {...(hasHistory ? { "data-journey": "" } : {})}>
       {(title || hasHistory) && (
@@ -2478,7 +2490,7 @@ function JourneyFrame({ id, title, history, defaultView, children }: { id: strin
       )}
       {hasHistory ? <div className="c-jt-panel" data-jt-panel="timeline" hidden={view !== "timeline"}>{children}</div> : children}
       {hasHistory && (
-        <div className="c-jt-panel c-jt-details" data-jt-panel="details" hidden={view !== "details"}>
+        <div className={`c-jt-panel c-jt-details${more ? " has-more" : ""}`} data-jt-panel="details" hidden={view !== "details"} ref={detailsRef} onScroll={fade}>
           <ol className="c-jt-history-list" data-kz-list="history.events">
             {rows.map(({ e, i }) => (
               <li key={i} className={`c-jt-hist${e.kind ? ` is-${e.kind}` : ""}`}>
