@@ -3008,3 +3008,44 @@ fn tier_summary_leads_with_dollars_and_shows_account_share() {
     );
     assert_contains(&html, r#"<span class="c-tier-acct-value">$10K</span>"#);
 }
+
+#[test]
+fn journey_dated_mode_adds_spans_end_tick_and_tooltips() {
+    let html = build_one_page(
+        "journey-time",
+        "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    end: 2026-06-01\n    end_label: Contract ends\n    stages:\n      - { label: Onboarding, date: 2026-01-01 }\n      - { label: Adopted, date: 2026-03-12 }\n    current: { label: Renewal, date: 2026-05-01, temporary: true }\n    touchpoints:\n      - { label: Kickoff, date: 2026-01-05 }\n",
+        "",
+    );
+    assert_contains(&html, r#"class="c-journey is-dated" data-journey"#);
+    assert_contains(&html, r#"Onboarding<span class="c-jt-span">10w</span>"#);
+    assert_contains(&html, r#"Adopted<span class="c-jt-span">50d</span>"#);
+    assert_contains(
+        &html,
+        r#"<span class="c-jt-span c-jt-since" data-jt-since="2026-05-01" hidden></span>"#,
+    );
+    assert_contains(
+        &html,
+        r#"data-jt-until="2026-06-01" data-jt-end="Contract ends" data-jt-end-past="Contract ended" hidden"#,
+    );
+    assert_contains(
+        &html,
+        r#"<span class="c-jt-end" style="left: 100%" tabindex="0" data-jt-tip="2026-06-01" data-jt-tip-name="Contract ends" title="Contract ends · Jun 1, 2026""#,
+    );
+    assert_contains(
+        &html,
+        r#"data-jt-tip="2026-01-05" data-jt-tip-name="Kickoff""#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="c-jt-tip" role="tooltip" hidden></div>"#,
+    );
+
+    let html = build_one_page(
+        "journey-undated-time",
+        "title: J\nshell: standard\ncomponents:\n  - type: journey_track\n    end: 2026-06-01\n    stages:\n      - { label: A }\n      - { label: B, date: 2026-03-12 }\n",
+        "",
+    );
+    assert!(!html.contains(r#"<span class="c-jt-span">"#));
+    assert!(!html.contains(r#"class="c-jt-end""#));
+    assert!(!html.contains(r#"class="c-jt-tip" role="tooltip""#));
+}

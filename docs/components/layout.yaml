@@ -487,6 +487,13 @@ components:
           `after: <0-based stage index>`, and touchpoints are spaced evenly.
           Labels that would collide drop to a second (third, fourth) row.
 
+          Dated mode also adds time cues: each stage label gets the time spent in it
+          ("14w", detours included), the current marker shows "13d so far", and with
+          `end` a tick closes the axis with "Renews in 32d" (`end_label` changes the
+          word, like "Contract ends"). Hover or focus any dot, detour or the end tick
+          for the exact date and how long ago it was. Live counts are computed in the
+          browser, so a static page never shows a stale number.
+
           Keep `touchpoints` to milestones. Dense cadence calls go in `history`. With it,
           the header gets a Timeline | Details switcher (the same control as venn's), and
           Details swaps the track for the log, newest first. `kind: stage` gets an accent
@@ -516,7 +523,8 @@ components:
           - type: journey_track
             title: Journey
             start: 2025-11-03          # optional; dated mode only
-            end: 2026-12-31            # optional; dated mode only
+            end: 2026-12-31            # optional; dated mode only, adds the end tick
+            end_label: Renews          # optional; "Contract ends" reads "Contract ends in 79d"
             stages:
               - { label: Onboarding, date: 2025-11-03 }             # status: completed (default) | upcoming
               - { label: Operationalizing, date: 2026-01-12 }

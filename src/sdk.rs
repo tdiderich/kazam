@@ -2411,7 +2411,8 @@ function journeyLayout(stages: JtStage[], detours: JtDetour[], current: JtCurren
     tpX = tps.map((_, i) => (i + 0.5) / m);
   }
   const done = currentX ?? stages.reduce((acc, s, i) => (s.status !== "upcoming" ? Math.max(acc, stageX[i]) : acc), 0);
-  return { stageX, detourX, currentX, tpX, done };
+  const endX = dated && kzIsoDays(end) != null ? 1 : null;
+  return { dated, endX, stageX, detourX, currentX, tpX, done };
 }
 
 /** Row and alignment per label so neighbours don't overlap at JT_RAIL_W. */
@@ -2455,13 +2456,73 @@ function kzShortDate(iso: string): string {
   return `${months[mi - 1]} ${di}`;
 }
 
+/** Rough span: days under 60, weeks under 120 days, then months. Mirrors jt_span. */
+function jtSpan(days: number): string {
+  const d = Math.max(0, days);
+  return d < 60 ? `${d}d` : d < 120 ? `${Math.round(d / 7)}w` : `${Math.round(d / 30.44)}mo`;
+}
+
+/** "Renews" -> "Renewed", "Contract ends" -> "Contract ended". Mirrors jt_past. */
+function jtPast(label: string): string {
+  if (label === "Renews") return "Renewed";
+  return label.endsWith(" ends") ? `${label.slice(0, -5)} ended` : label;
+}
+
+function jtRelLong(d: number): string {
+  if (d === 0) return "today";
+  const n = Math.abs(d);
+  const unit = n === 1 ? " day" : " days";
+  return d > 0 ? `${n}${unit} ago` : `in ${n}${unit}`;
+}
+
+function jtRelShort(d: number): string {
+  return d === 0 ? "today" : d > 0 ? `${jtSpan(d)} ago` : `in ${jtSpan(-d)}`;
+}
+
+/** Tooltip target attributes; title/aria-label are the no-JS fallback. */
+function jtTipProps(name: string, from: unknown, to?: unknown): Record<string, unknown> {
+  const f = kzIso(from) ?? "";
+  const t = kzIso(to);
+  const when = t ? `${kzLongDate(f)} to ${kzLongDate(t)}` : kzLongDate(f);
+  return { tabIndex: 0, "data-jt-tip": f, ...(t ? { "data-jt-tip-to": t } : {}), "data-jt-tip-name": name, title: `${name} · ${when}`, "aria-label": `${name}, ${when}` };
+}
+
+/** Today in days since epoch, set after mount so server and client match. */
+const JtTodayContext = React.createContext<number | null>(null);
+
+function JtSince({ date }: { date: unknown }) {
+  const today = React.useContext(JtTodayContext);
+  const d = kzIsoDays(date);
+  const show = today != null && d != null && today >= d;
+  return <span className="c-jt-span c-jt-since" data-jt-since={kzIso(date)} hidden={!show}>{show ? `${jtSpan(today - d)} so far` : null}</span>;
+}
+
+function JtRel({ date }: { date: unknown }) {
+  const today = React.useContext(JtTodayContext);
+  const d = kzIsoDays(date);
+  const show = today != null && d != null;
+  return <span className="c-jt-hist-rel" data-jt-rel={kzIso(date)} hidden={!show}>{show ? ` · ${jtRelShort(today - d)}` : null}</span>;
+}
+
+function JtUntil({ date, label, place }: { date: unknown; label: string; place: Record<string, unknown> }) {
+  const today = React.useContext(JtTodayContext);
+  const d = kzIsoDays(date);
+  const show = today != null && d != null;
+  const text = !show ? null : d >= today ? `${label} in ${d - today}d` : `${jtPast(label)} ${today - d}d ago`;
+  return <span className="c-jt-label c-jt-end-label" {...place} data-jt-until={kzIso(date)} data-jt-end={label} data-jt-end-past={jtPast(label)} hidden={!show}>{text}</span>;
+}
+
 type JtHistory = { events?: Array<{ date?: unknown; label: string; detail?: string; kind?: string }> };
 
-/** journey_track shell: title plus the Timeline | Details switcher (venn's control). */
-function JourneyFrame({ id, title, history, defaultView, children }: { id: string; title?: string; history?: JtHistory; defaultView?: string; children: React.ReactNode }) {
+/** journey_track shell: title, Timeline | Details switcher (venn's control), time cues and tooltip. */
+function JourneyFrame({ id, title, history, defaultView, dated, children }: { id: string; title?: string; history?: JtHistory; defaultView?: string; dated?: boolean; children: React.ReactNode }) {
   const events = history?.events || [];
   const hasHistory = events.length > 0;
   const [view, setView] = React.useState<string>(hasHistory && defaultView === "details" ? "details" : "timeline");
+  const [today, setToday] = React.useState<number | null>(null);
+  const [tipEl, setTipEl] = React.useState<HTMLElement | null>(null);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const tipRef = React.useRef<HTMLDivElement | null>(null);
   const rows = events.map((e, i) => ({ e, i })).sort((a, b) => (kzIsoDays(b.e.date) ?? -Infinity) - (kzIsoDays(a.e.date) ?? -Infinity) || a.i - b.i);
   const detailsRef = React.useRef<HTMLDivElement | null>(null);
   const [more, setMore] = React.useState(false);
@@ -2475,37 +2536,77 @@ function JourneyFrame({ id, title, history, defaultView, children }: { id: strin
     window.addEventListener("resize", fade);
     return () => window.removeEventListener("resize", fade);
   }, [view, fade]);
+  React.useEffect(() => {
+    const now = new Date();
+    setToday(Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000));
+    // The styled tooltip takes over from the native title once JS runs.
+    rootRef.current?.querySelectorAll("[data-jt-tip]").forEach((el) => el.removeAttribute("title"));
+  }, []);
+  React.useEffect(() => {
+    const root = rootRef.current, tip = tipRef.current;
+    if (!root || !tip || !tipEl) return;
+    const r = root.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    const x = Math.min(Math.max(4, t.left + t.width / 2 - r.left - w / 2), Math.max(4, r.width - w - 4));
+    let y = t.top - r.top - h - 8;
+    if (y < 0) y = t.bottom - r.top + 8;
+    tip.style.left = `${x}px`;
+    tip.style.top = `${y}px`;
+  }, [tipEl]);
+  const over = (e: React.SyntheticEvent) => {
+    const el = (e.target as HTMLElement).closest?.("[data-jt-tip]") as HTMLElement | null;
+    if (el && rootRef.current?.contains(el)) setTipEl(el);
+  };
+  const out = (e: React.SyntheticEvent) => {
+    const el = (e.target as HTMLElement).closest?.("[data-jt-tip]");
+    if (el) setTipEl(null);
+  };
+  const tipFrom = tipEl?.getAttribute("data-jt-tip") ?? "";
+  const tipTo = tipEl?.getAttribute("data-jt-tip-to");
+  const tipDay = kzIsoDays(tipFrom);
   return (
-    <div id={id} className="c-journey" {...(hasHistory ? { "data-journey": "" } : {})}>
-      {(title || hasHistory) && (
-        <div className="c-jt-head">
-          {title && <div className="c-jt-title" data-kz-field="title">{title}</div>}
-          {hasHistory && (
-            <div className="c-venn-toggle c-jt-toggle" role="group" aria-label="Journey view switcher">
-              <button type="button" className={view === "timeline" ? "active" : ""} data-jt-view="timeline" aria-pressed={view === "timeline"} onClick={() => setView("timeline")}>Timeline</button>
-              <button type="button" className={view === "details" ? "active" : ""} data-jt-view="details" aria-pressed={view === "details"} onClick={() => setView("details")}>Details<span className="c-jt-toggle-count">{events.length}</span></button>
-            </div>
-          )}
-        </div>
-      )}
-      {hasHistory ? <div className="c-jt-panel" data-jt-panel="timeline" hidden={view !== "timeline"}>{children}</div> : children}
-      {hasHistory && (
-        <div className={`c-jt-panel c-jt-details${more ? " has-more" : ""}`} data-jt-panel="details" hidden={view !== "details"} ref={detailsRef} onScroll={fade}>
-          <ol className="c-jt-history-list" data-kz-list="history.events">
-            {rows.map(({ e, i }) => (
-              <li key={i} className={`c-jt-hist${e.kind ? ` is-${e.kind}` : ""}`}>
-                <span className="c-jt-hist-date" data-kz-field={`history.events[${i}].date`}>{kzIso(e.date) ?? ""}</span>
-                <span className="c-jt-hist-dot" />
-                <span className="c-jt-hist-text">
-                  <span className="c-jt-hist-label" data-kz-field={`history.events[${i}].label`}>{e.label}</span>
-                  {e.detail && <span className="c-jt-hist-detail" data-kz-field={`history.events[${i}].detail`}>{e.detail}</span>}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
-    </div>
+    <JtTodayContext.Provider value={today}>
+      <div id={id} ref={rootRef} className={`c-journey${dated ? " is-dated" : ""}`} {...(hasHistory || dated ? { "data-journey": "" } : {})} onMouseOver={over} onMouseOut={out} onFocus={over} onBlur={out}>
+        {(title || hasHistory) && (
+          <div className="c-jt-head">
+            {title && <div className="c-jt-title" data-kz-field="title">{title}</div>}
+            {hasHistory && (
+              <div className="c-venn-toggle c-jt-toggle" role="group" aria-label="Journey view switcher">
+                <button type="button" className={view === "timeline" ? "active" : ""} data-jt-view="timeline" aria-pressed={view === "timeline"} onClick={() => { setView("timeline"); setTipEl(null); }}>Timeline</button>
+                <button type="button" className={view === "details" ? "active" : ""} data-jt-view="details" aria-pressed={view === "details"} onClick={() => { setView("details"); setTipEl(null); }}>Details<span className="c-jt-toggle-count">{events.length}</span></button>
+              </div>
+            )}
+          </div>
+        )}
+        {hasHistory ? <div className="c-jt-panel" data-jt-panel="timeline" hidden={view !== "timeline"}>{children}</div> : children}
+        {hasHistory && (
+          <div className={`c-jt-panel c-jt-details${more ? " has-more" : ""}`} data-jt-panel="details" hidden={view !== "details"} ref={detailsRef} onScroll={fade}>
+            <ol className="c-jt-history-list" data-kz-list="history.events">
+              {rows.map(({ e, i }) => (
+                <li key={i} className={`c-jt-hist${e.kind ? ` is-${e.kind}` : ""}`}>
+                  <span className="c-jt-hist-date"><span data-kz-field={`history.events[${i}].date`}>{kzIso(e.date) ?? ""}</span><JtRel date={e.date} /></span>
+                  <span className="c-jt-hist-dot" />
+                  <span className="c-jt-hist-text">
+                    <span className="c-jt-hist-label" data-kz-field={`history.events[${i}].label`}>{e.label}</span>
+                    {e.detail && <span className="c-jt-hist-detail" data-kz-field={`history.events[${i}].detail`}>{e.detail}</span>}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {dated && (
+          <div className="c-jt-tip" role="tooltip" ref={tipRef} hidden={!tipEl}>
+            {tipEl && (
+              <>
+                <span className="c-jt-tip-name">{tipEl.getAttribute("data-jt-tip-name")}</span>
+                <span className="c-jt-tip-date">{kzLongDate(tipFrom)}{tipTo ? ` to ${kzLongDate(tipTo)}` : ""}{tipDay != null && today != null ? ` · ${jtRelLong(today - tipDay)}` : ""}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </JtTodayContext.Provider>
   );
 }
 
@@ -4793,18 +4894,29 @@ function ComponentView({
       const tps = (comp.touchpoints as JtTouch[]) || [];
       const title = comp.title as string | undefined;
       const lay = journeyLayout(stages, detours, current, tps, comp.start, comp.end);
+      const dated = lay.dated;
+      const endIso = dated && lay.endX != null ? kzIso(comp.end) : undefined;
+      const endLabel = (comp.end_label as string) || "Renews";
       const above = detours.length > 0 || !!current?.temporary;
       const stageItems: Array<[number, string]> = stages.map((s, i) => [lay.stageX[i], s.label]);
       const currentBelow = !!current && lay.currentX != null && !current.temporary;
       if (currentBelow) stageItems.push([lay.currentX as number, current!.label]);
+      const endAt = endIso ? stageItems.push([1, `${jtPast(endLabel)} in 999d`]) - 1 : -1;
       const stagePlace = jtPlaceLabels(stageItems, JT_STAGE_CHAR_W);
       const stageNarrow = jtPlaceLabels(stageItems, JT_STAGE_CHAR_W, JT_RAIL_W_NARROW);
+      const place = (i: number) => ({ "data-align": stagePlace.places[i][1], "data-align-n": stageNarrow.places[i][1], style: { left: `${jtPct(stageItems[i][0])}%`, "--jt-row": stagePlace.places[i][0], "--jt-row-n": stageNarrow.places[i][0] } as React.CSSProperties });
+      const spans: Array<number | null> = stages.map((s, i) => {
+        if (!dated) return null;
+        const a = kzIsoDays(s.date);
+        const b = i + 1 < stages.length ? kzIsoDays(stages[i + 1].date) : current ? kzIsoDays(current.date) : null;
+        return a != null && b != null && b >= a ? b - a : null;
+      });
       const tpItems = tps.map((t, i) => [lay.tpX[i], t.label] as [number, string]);
       const tpPlace = jtPlaceLabels(tpItems, JT_TP_CHAR_W);
       const tpNarrow = jtPlaceLabels(tpItems, JT_TP_CHAR_W, JT_RAIL_W_NARROW);
       const curColor = current?.color || "default";
       return (
-        <JourneyFrame id={id} title={title} history={comp.history as JtHistory | undefined} defaultView={comp.default_view as string | undefined}>
+        <JourneyFrame id={id} title={title} history={comp.history as JtHistory | undefined} defaultView={comp.default_view as string | undefined} dated={dated}>
           <div className={`c-jt-track${above ? " has-above" : ""}`}>
             <div className="c-jt-line" />
             <div className="c-jt-rail">
@@ -4813,7 +4925,7 @@ function ComponentView({
                 {detours.map((d, i) => {
                   const [a, b] = lay.detourX[i];
                   return (
-                    <div key={i} className={`c-jt-detour c-jt-c-${d.color || "default"}`} style={{ left: `${jtPct(a)}%`, width: `${jtPct(b - a)}%` }}>
+                    <div key={i} className={`c-jt-detour c-jt-c-${d.color || "default"}`} style={{ left: `${jtPct(a)}%`, width: `${jtPct(b - a)}%` }} {...(dated && d.from != null ? jtTipProps(d.label, d.from, d.to) : {})}>
                       <svg viewBox="0 0 100 64" preserveAspectRatio="none" aria-hidden="true"><path d="M0 64 A50 62 0 0 1 100 64" vectorEffect="non-scaling-stroke" /></svg>
                       <span className="c-jt-detour-label" data-kz-field={`detours[${i}].label`}>{d.label}</span>
                     </div>
@@ -4821,13 +4933,17 @@ function ComponentView({
                 })}
               </div>
               {stages.map((s, i) => (
-                <span key={i} className={`c-jt-stage ${s.status === "upcoming" ? "is-upcoming" : "is-completed"}`} style={{ left: `${jtPct(lay.stageX[i])}%` }} title={s.label} />
+                <span key={i} className={`c-jt-stage ${s.status === "upcoming" ? "is-upcoming" : "is-completed"}`} style={{ left: `${jtPct(lay.stageX[i])}%` }} {...(dated && s.date != null ? jtTipProps(s.label, s.date) : { title: s.label })} />
               ))}
+              {endIso && <span className="c-jt-end" style={{ left: "100%" }} {...jtTipProps(endLabel, endIso)} />}
               {current && lay.currentX != null && (
                 <>
-                  <span className={`c-jt-current c-jt-c-${curColor}`} style={{ left: `${jtPct(lay.currentX)}%` }} title={current.label} />
+                  <span className={`c-jt-current c-jt-c-${curColor}`} style={{ left: `${jtPct(lay.currentX)}%` }} {...(dated && current.date != null ? jtTipProps(current.label, current.date) : { title: current.label })} />
                   {current.temporary && (
-                    <span className={`c-jt-current-label c-jt-c-${curColor}`} data-align={jtPlaceLabels([[lay.currentX, current.label]], JT_MONO_CHAR_W).places[0][1]} data-align-n={jtPlaceLabels([[lay.currentX, current.label]], JT_MONO_CHAR_W, JT_RAIL_W_NARROW).places[0][1]} style={{ left: `${jtPct(lay.currentX)}%` }} data-kz-field="current.label">{current.label}</span>
+                    <span className={`c-jt-current-label c-jt-c-${curColor}`} data-align={jtPlaceLabels([[lay.currentX, current.label]], JT_MONO_CHAR_W).places[0][1]} data-align-n={jtPlaceLabels([[lay.currentX, current.label]], JT_MONO_CHAR_W, JT_RAIL_W_NARROW).places[0][1]} style={{ left: `${jtPct(lay.currentX)}%` }}>
+                      <span data-kz-field="current.label">{current.label}</span>
+                      {dated && current.date != null && <JtSince date={current.date} />}
+                    </span>
                   )}
                 </>
               )}
@@ -4835,11 +4951,18 @@ function ComponentView({
           </div>
           <div className="c-jt-stage-labels" data-kz-list="stages" style={{ "--jt-rows": Math.max(1, stagePlace.rows), "--jt-rows-n": Math.max(1, stageNarrow.rows) } as React.CSSProperties}>
             {stages.map((s, i) => (
-              <span key={i} className={`c-jt-label ${s.status === "upcoming" ? "is-upcoming" : "is-completed"}`} data-align={stagePlace.places[i][1]} data-align-n={stageNarrow.places[i][1]} style={{ left: `${jtPct(lay.stageX[i])}%`, "--jt-row": stagePlace.places[i][0], "--jt-row-n": stageNarrow.places[i][0] } as React.CSSProperties} data-kz-field={`stages[${i}].label`}>{s.label}</span>
+              <span key={i} className={`c-jt-label ${s.status === "upcoming" ? "is-upcoming" : "is-completed"}`} {...place(i)}>
+                <span data-kz-field={`stages[${i}].label`}>{s.label}</span>
+                {spans[i] != null && <span className="c-jt-span">{jtSpan(spans[i] as number)}</span>}
+              </span>
             ))}
             {currentBelow && (
-              <span className={`c-jt-label is-current c-jt-c-${curColor}`} data-align={stagePlace.places[stages.length][1]} data-align-n={stageNarrow.places[stages.length][1]} style={{ left: `${jtPct(lay.currentX as number)}%`, "--jt-row": stagePlace.places[stages.length][0], "--jt-row-n": stageNarrow.places[stages.length][0] } as React.CSSProperties} data-kz-field="current.label">{current!.label}</span>
+              <span className={`c-jt-label is-current c-jt-c-${curColor}`} {...place(stages.length)}>
+                <span data-kz-field="current.label">{current!.label}</span>
+                {dated && current!.date != null && <JtSince date={current!.date} />}
+              </span>
             )}
+            {endIso && <JtUntil date={endIso} label={endLabel} place={place(endAt)} />}
           </div>
           {tps.length > 0 && (
             <>
@@ -4847,7 +4970,7 @@ function ComponentView({
               <div className="c-jt-tps" data-kz-list="touchpoints" style={{ "--jt-rows": Math.max(1, tpPlace.rows), "--jt-rows-n": Math.max(1, tpNarrow.rows) } as React.CSSProperties}>
                 {tps.map((t, i) => (
                   <React.Fragment key={i}>
-                    <span className={`c-jt-tp ${t.status === "upcoming" ? "is-upcoming" : "is-completed"}`} style={{ left: `${jtPct(lay.tpX[i])}%` }} />
+                    <span className={`c-jt-tp ${t.status === "upcoming" ? "is-upcoming" : "is-completed"}`} style={{ left: `${jtPct(lay.tpX[i])}%` }} {...(dated && t.date != null ? jtTipProps(t.label, t.date) : {})} />
                     <span className="c-jt-tp-label" data-align={tpPlace.places[i][1]} data-align-n={tpNarrow.places[i][1]} style={{ left: `${jtPct(lay.tpX[i])}%`, "--jt-row": tpPlace.places[i][0], "--jt-row-n": tpNarrow.places[i][0] } as React.CSSProperties} data-kz-field={`touchpoints[${i}].label`}>{t.label}</span>
                   </React.Fragment>
                 ))}
@@ -5891,6 +6014,7 @@ mod tests {
             ("event_timeline", "EventItem.link"),
             ("journey_track", "start"), // dates drive position, not text
             ("journey_track", "end"),
+            ("journey_track", "end_label"), // composed into the browser-filled "Renews in Nd"
             ("journey_track", "JourneyStage.date"),
             ("journey_track", "JourneyDetour.from"),
             ("journey_track", "JourneyDetour.to"),

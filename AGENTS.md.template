@@ -669,6 +669,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
     title: Journey
     start: 2025-11-03            # optional; defaults to the earliest date
     end: 2026-12-31              # optional; defaults to the latest date
+    end_label: Renews            # optional; end tick reads "Renews in 79d"
     stages:
       - { label: Onboarding, date: 2025-11-03 }          # status: completed (default) | upcoming
       - { label: Operationalizing, date: 2026-01-12 }
@@ -684,6 +685,8 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   x is linear in time. Leave any date out and everything is evenly spaced in list
   order; detours then take `after: <0-based stage index>` instead of from/to.
   Up to 8 stages and 12 touchpoints. Dates must be ISO `YYYY-MM-DD`.
+  Dated mode adds time in each stage ("14w"), "13d so far" on the current marker,
+  an end tick when `end` is set, and date tooltips on hover; live counts run in the browser.
   Keep touchpoints to milestones; put dense cadence calls in `history:`
   (`events: [{ date, label, detail?, kind? }]`, kind = stage | cadence | call | note).
   With it the header gets a Timeline | Details switcher; Details shows the log,

@@ -1183,6 +1183,10 @@ pub enum Component {
         start: Option<String>,
         #[serde(default)]
         end: Option<String>,
+        /// Word for the end of the axis: "Renews" (default) or, say,
+        /// "Contract ends". Shown as "Renews in 79d".
+        #[serde(default)]
+        end_label: Option<String>,
         #[serde(default)]
         id: Option<String>,
         #[serde(default)]

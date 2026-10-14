@@ -985,30 +985,107 @@ document.querySelectorAll('[data-tier-summary]').forEach(function (root) {
 "#;
 
 const JOURNEY_TRACK: &str = r#"
-document.querySelectorAll('[data-journey]').forEach(function (root) {
-  var buttons = root.querySelectorAll('button[data-jt-view]');
-  var panels = root.querySelectorAll('[data-jt-panel]');
-  function show(view) {
-    buttons.forEach(function (b) {
-      var on = b.getAttribute('data-jt-view') === view;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+(function () {
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var now = new Date();
+  var today = Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+  function day(iso) {
+    var m = /^(-?\d+)-(\d+)-(\d+)$/.exec((iso || '').slice(0, 10));
+    return m ? Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : null;
+  }
+  function span(d) {
+    d = Math.max(0, d);
+    return d < 60 ? d + 'd' : d < 120 ? Math.round(d / 7) + 'w' : Math.round(d / 30.44) + 'mo';
+  }
+  function longDate(iso) {
+    var p = (iso || '').slice(0, 10).split('-');
+    var mi = parseInt(p[1], 10);
+    return mi >= 1 && mi <= 12 ? MONTHS[mi - 1] + ' ' + parseInt(p[2], 10) + ', ' + p[0] : iso;
+  }
+  function relLong(d) {
+    var n = Math.abs(d);
+    if (d === 0) return 'today';
+    var unit = n === 1 ? ' day' : ' days';
+    return d > 0 ? n + unit + ' ago' : 'in ' + n + unit;
+  }
+  function relShort(d) { return d === 0 ? 'today' : d > 0 ? span(d) + ' ago' : 'in ' + span(-d); }
+  document.querySelectorAll('[data-journey]').forEach(function (root) {
+    root.querySelectorAll('[data-jt-since]').forEach(function (el) {
+      var d = day(el.getAttribute('data-jt-since'));
+      if (d === null || today < d) return;
+      el.textContent = span(today - d) + ' so far';
+      el.hidden = false;
     });
-    panels.forEach(function (p) { p.hidden = p.getAttribute('data-jt-panel') !== view; });
-    fade();
-  }
-  var details = root.querySelector('.c-jt-details');
-  function fade() {
-    if (!details) return;
-    details.classList.toggle('has-more', details.scrollTop + details.clientHeight < details.scrollHeight - 2);
-  }
-  if (details) details.addEventListener('scroll', fade, { passive: true });
-  window.addEventListener('resize', fade);
-  buttons.forEach(function (b) {
-    b.addEventListener('click', function () { show(b.getAttribute('data-jt-view')); });
+    root.querySelectorAll('[data-jt-until]').forEach(function (el) {
+      var d = day(el.getAttribute('data-jt-until'));
+      if (d === null) return;
+      el.textContent = d >= today
+        ? el.getAttribute('data-jt-end') + ' in ' + (d - today) + 'd'
+        : el.getAttribute('data-jt-end-past') + ' ' + (today - d) + 'd ago';
+      el.hidden = false;
+    });
+    root.querySelectorAll('[data-jt-rel]').forEach(function (el) {
+      var d = day(el.getAttribute('data-jt-rel'));
+      if (d === null) return;
+      el.textContent = ' · ' + relShort(today - d);
+      el.hidden = false;
+    });
+    var tip = root.querySelector('.c-jt-tip');
+    function showTip(el) {
+      if (!tip) return;
+      var from = el.getAttribute('data-jt-tip'), to = el.getAttribute('data-jt-tip-to');
+      var d = day(from);
+      tip.innerHTML = '';
+      var name = document.createElement('span');
+      name.className = 'c-jt-tip-name';
+      name.textContent = el.getAttribute('data-jt-tip-name') || '';
+      var when = document.createElement('span');
+      when.className = 'c-jt-tip-date';
+      when.textContent = longDate(from) + (to ? ' to ' + longDate(to) : '') + (d === null ? '' : ' · ' + relLong(today - d));
+      tip.appendChild(name);
+      tip.appendChild(when);
+      tip.hidden = false;
+      var r = root.getBoundingClientRect(), t = el.getBoundingClientRect();
+      var w = tip.offsetWidth, h = tip.offsetHeight;
+      var x = Math.min(Math.max(4, t.left + t.width / 2 - r.left - w / 2), Math.max(4, r.width - w - 4));
+      var y = t.top - r.top - h - 8;
+      if (y < 0) y = t.bottom - r.top + 8;
+      tip.style.left = x + 'px';
+      tip.style.top = y + 'px';
+    }
+    function hideTip() { if (tip) tip.hidden = true; }
+    root.querySelectorAll('[data-jt-tip]').forEach(function (el) {
+      el.removeAttribute('title');
+      el.addEventListener('mouseenter', function () { showTip(el); });
+      el.addEventListener('focus', function () { showTip(el); });
+      el.addEventListener('mouseleave', hideTip);
+      el.addEventListener('blur', hideTip);
+    });
+    var buttons = root.querySelectorAll('button[data-jt-view]');
+    var panels = root.querySelectorAll('[data-jt-panel]');
+    var details = root.querySelector('.c-jt-details');
+    function fade() {
+      if (!details) return;
+      details.classList.toggle('has-more', details.scrollTop + details.clientHeight < details.scrollHeight - 2);
+    }
+    function show(view) {
+      buttons.forEach(function (b) {
+        var on = b.getAttribute('data-jt-view') === view;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      panels.forEach(function (p) { p.hidden = p.getAttribute('data-jt-panel') !== view; });
+      hideTip();
+      fade();
+    }
+    if (details) details.addEventListener('scroll', fade, { passive: true });
+    window.addEventListener('resize', fade);
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () { show(b.getAttribute('data-jt-view')); });
+    });
+    if (root.getAttribute('data-default-view') === 'details') show('details');
   });
-  if (root.getAttribute('data-default-view') === 'details') show('details');
-});
+})();
 "#;
 
 const NEXT_STEPS: &str = r#"

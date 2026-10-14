@@ -3021,6 +3021,11 @@
         "required": false,
         "kind": "text"
       },
+      "end_label": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
       "id": {
         "type": "string",
         "required": false,
