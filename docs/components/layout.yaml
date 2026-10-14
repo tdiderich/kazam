@@ -13,7 +13,7 @@ components:
   - type: header
     title: Layout components
     eyebrow: Reference
-    subtitle: section, columns, grid, box, connector, divider, timeline, journey_track, steps, progress_bar, empty_state
+    subtitle: section, columns, grid, box, connector, divider, timeline, journey_track, next_steps, steps, progress_bar, empty_state
 
   # ── section ───────────────────────────────
   - type: section
@@ -487,6 +487,10 @@ components:
           `after: <0-based stage index>`, and touchpoints are spaced evenly.
           Labels that would collide drop to a second (third, fourth) row.
 
+          Keep `touchpoints` to milestones. Dense cadence calls go in `history`: a log
+          under the track, collapsed by default ("Full history (N)"), newest first.
+          `kind: stage` gets an accent dot; cadence, call and note stay muted.
+
       - type: journey_track
         id: account-journey
         title: Journey
@@ -522,6 +526,53 @@ components:
             touchpoints:
               - { label: Kickoff, date: 2025-11-05 }
               - { label: Renewal review, date: 2026-09-30, status: upcoming }
+            history:                   # optional; collapsed log, newest first
+              title: Full history
+              events:
+                - { date: 2025-11-12, label: Weekly cadence started, kind: cadence }   # stage | cadence | call | note
+                - { date: 2026-01-20, label: Cadence switched to biweekly, detail: "Config done" }
+
+  # ── next_steps ────────────────────────────
+  - type: section
+    eyebrow: next_steps
+    heading: Next steps
+    components:
+      - type: markdown
+        body: |
+          To-do cards: hollow circle, label, muted detail, optional due date
+          (`status: overdue` turns it red, `done` fills the circle).
+
+          Give it `accounts` and it becomes an owner board: account rows on the left,
+          steps on the right, wired by curved connectors measured from the page (hover or
+          focus a row to light its pair). `owners` adds filter chips; `?owner=<name>`
+          picks one on load and a click writes it back to the URL. Steps follow their
+          account's owner, or their own `owner:` when they have no account. Under about
+          760px wide the columns stack and the connectors drop.
+
+      - type: next_steps
+        id: owner-next
+        title: From the journey rules
+        owners: [Tyler, Will]
+        accounts:
+          - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler }
+          - { id: brightline, name: Brightline, stage: Adopted, shade: 1, owner: Tyler }
+          - { id: ostra, name: Ostra Health, stage: Renewal, shade: 2, owner: Will }
+        steps:
+          - { label: Book the renewal review, detail: "Ostra Health: contract ends in 120 days", account: ostra, due: 2026-10-24 }
+          - { label: Schedule the exec roadmap call, detail: "Brightline: Adopted, one every 90 days", account: brightline, due: 2026-11-04 }
+          - { label: Move past onboarding, detail: "Larkspur: day 52 of a 45 day target", account: larkspur, due: 2026-10-17, status: overdue }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: next_steps
+            title: From the journey rules   # optional eyebrow
+            owners: [Tyler, Will]           # optional; filter chips
+            accounts:                       # optional; turns on the board
+              - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler, href: ./larkspur }
+            steps:
+              - { label: Move past onboarding, detail: "Larkspur: day 52 of 45", account: larkspur, due: 2026-10-17, status: overdue }
+              - { label: Write the QBR deck, owner: Will, status: upcoming }   # overdue | due | upcoming | done
 
   # ── venn ──────────────────────────────────
   - type: section

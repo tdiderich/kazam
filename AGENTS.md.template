@@ -392,7 +392,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       - label: Outstanding
         count: "6"
         share: 8.4               # 0-100, shown as given (8.4%)
-        color: teal              # default | green | yellow | red | teal
+        color: teal              # optional; unset = accent shade by position (solid, 62%, 32%, hollow)
         detail: Cohere Health    # optional muted line
         accounts:                # optional; clicking the card opens a panel
           - name: Cohere Health
@@ -407,6 +407,16 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   ```
   2-6 tiers. `active: true` gives a card the accent border. A tier with `href`
   links instead of expanding. `?tier=<label>` in the URL opens that tier on load.
+
+- **health_breakdown** - one account's health, one card per dimension
+  ```yaml
+  - type: health_breakdown
+    items:
+      - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
+      - { label: License utilization, tier: Okay, shade: 3, value: "28.4%", detail: of assets investigated }
+  ```
+  `shade` 1-4 is the accent at full, 62%, 32%, and hollow (matches tier_summary
+  positions); `color:` (semantic palette) wins over it.
 
 - **selectable_grid** - interactive phase tracker / click-to-focus cards
   ```yaml
@@ -672,6 +682,22 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   x is linear in time. Leave any date out and everything is evenly spaced in list
   order; detours then take `after: <0-based stage index>` instead of from/to.
   Up to 8 stages and 12 touchpoints. Dates must be ISO `YYYY-MM-DD`.
+  Keep touchpoints to milestones; put dense cadence calls in `history:`
+  (`events: [{ date, label, detail?, kind? }]`, kind = stage | cadence | call | note).
+  It renders collapsed under the track, newest first.
+
+- **next_steps** - to-do cards; with `accounts`, an owner board wired by connectors
+  ```yaml
+  - type: next_steps
+    title: From the journey rules
+    owners: [Tyler, Will]          # optional filter chips; ?owner=<name> picks one
+    accounts:                      # optional; account rows left, steps right
+      - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler }
+    steps:
+      - { label: Move past onboarding, detail: "Larkspur: day 52 of 45", account: larkspur, due: 2026-10-17, status: overdue }
+  ```
+  `status`: overdue | due | upcoming | done. `account` must match an accounts `id`.
+  Steps without an account use their own `owner:` for the filter.
 
 - **event_timeline** - vertical event history with severity filter
   ```yaml

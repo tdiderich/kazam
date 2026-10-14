@@ -13,7 +13,7 @@ components:
   - type: header
     title: Grid components
     eyebrow: Reference
-    subtitle: card_grid, stat_grid, tier_summary, selectable_grid, before_after, split_compare, avatar_group, definition_list, role_map
+    subtitle: card_grid, stat_grid, tier_summary, health_breakdown, selectable_grid, before_after, split_compare, avatar_group, definition_list, role_map
 
   # ── card_grid ─────────────────────────────
   - type: section
@@ -357,6 +357,7 @@ components:
           One card per tier, side by side: a swatch, the tier label, a big count, and an
           optional share bar (`share` is 0-100 and shows as given, so 8.4 stays 8.4%).
           A count of `0` gets a hollow swatch. `active: true` gives a card the accent border.
+          Leave `color` off and tiers take accent shades by position: solid, 62%, 32%, then hollow.
 
           Give a tier `accounts` and the card becomes a button: clicking it opens a panel
           under the row listing each account with its ARR and renewal date, soonest first.
@@ -400,7 +401,7 @@ components:
                 value: $71K ARR        # optional small figure under the count
                 share: 8.4             # optional, 0-100
                 detail: Cohere Health  # optional muted line
-                color: teal            # default | green | yellow | red | teal
+                color: teal            # optional; unset = accent shade by position
                 href: ./tier-outstanding   # optional; card links, never expands
                 active: false
                 accounts:              # optional; card opens a panel
@@ -410,6 +411,36 @@ components:
                     detail: Adopted
                     href: ./cohere
                     color: teal        # defaults to the tier color
+
+  # ── health_breakdown ───────────────────────
+  - type: section
+    eyebrow: health_breakdown
+    heading: Health breakdown
+    components:
+      - type: markdown
+        body: |
+          One card per health dimension: the label, the tier it lands in (swatch plus
+          mono name), and the rule behind it. `value` shows before the detail.
+          Color with `color:` (semantic) or `shade:` 1-4 (accent solid, 62%, 32%, hollow).
+
+      - type: health_breakdown
+        id: account-health
+        items:
+          - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
+          - { label: License utilization, tier: Okay, shade: 3, detail: "20 to 35% of assets investigated, 30 days" }
+          - { label: User activity, tier: Good, shade: 2, detail: "Portal stickiness 0.5 or more, seen this week" }
+          - { label: Sentiment, tier: Good, shade: 2, detail: "Positive relationship, responsive" }
+
+      - type: code
+        language: yaml
+        code: |
+          - type: health_breakdown
+            id: account-health
+            items:
+              - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
+              - { label: License utilization, tier: Okay, shade: 3, detail: "20 to 35% of assets investigated, 30 days" }
+              - { label: User activity, tier: Good, shade: 2, detail: "Portal stickiness 0.5 or more, seen this week" }
+              - { label: Sentiment, tier: Good, shade: 2, detail: "Positive relationship, responsive" }
 
   # ── role_map ───────────────────────────────
   - type: section
