@@ -367,39 +367,30 @@ components:
       - type: tier_summary
         id: portfolio-tiers
         count_label: accounts
-        share_label: ARR share
+        share_label: ARR
         tiers:
           - label: Outstanding
             count: "6"
+            value: $406K
             share: 31.2
-            color: teal
             accounts:
-              - { name: Cohere Health, value: $71K, renewal: 2027-03-03, detail: Adopted }
-              - { name: Larkspur, value: $95K, renewal: 2026-11-02, detail: Renewal }
-          - label: Good
-            count: "11"
-            share: 58.4
-            color: green
-          - label: Okay
-            count: "5"
-            share: 8.4
-            color: yellow
-          - label: Poor
-            count: "0"
-            share: 0
-            color: red
+              - { name: Cohere Health, value: $71K, share: 5.5, renewal: 2027-03-03, detail: Adopted }
+              - { name: Larkspur, value: $95K, share: 7.3, renewal: 2026-11-02, detail: Renewal }
+          - { label: Good, count: "11", value: $759K, share: 58.4 }
+          - { label: Okay, count: "5", value: $109K, share: 8.4 }
+          - { label: Poor, count: "2", value: $26K, share: 2.0 }
 
       - type: code
         language: yaml
         code: |
           - type: tier_summary
             count_label: accounts      # default "accounts"
-            share_label: ARR share     # default "Share"; bars show when any tier has share
+            share_label: ARR           # unit after the dollars; without value it labels the bar
             tiers:
               - label: Outstanding
                 count: "6"
-                value: $71K ARR        # optional small figure under the count
-                share: 8.4             # optional, 0-100
+                value: $406K           # optional; leads the share row as "$406K ARR"
+                share: 31.2            # optional, 0-100
                 detail: Cohere Health  # optional muted line
                 color: teal            # optional; unset = accent shade by position
                 href: ./tier-outstanding   # optional; card links, never expands
@@ -407,6 +398,7 @@ components:
                 accounts:              # optional; card opens a panel
                   - name: Cohere Health
                     value: $71K
+                    share: 5.5           # optional % of total ARR
                     renewal: 2027-03-03
                     detail: Adopted
                     href: ./cohere

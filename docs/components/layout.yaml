@@ -487,9 +487,10 @@ components:
           `after: <0-based stage index>`, and touchpoints are spaced evenly.
           Labels that would collide drop to a second (third, fourth) row.
 
-          Keep `touchpoints` to milestones. Dense cadence calls go in `history`: a log
-          under the track, collapsed by default ("Full history (N)"), newest first.
-          `kind: stage` gets an accent dot; cadence, call and note stay muted.
+          Keep `touchpoints` to milestones. Dense cadence calls go in `history`. With it,
+          the header gets a Timeline | Details switcher (the same control as venn's), and
+          Details swaps the track for the log, newest first. `kind: stage` gets an accent
+          dot; cadence, call and note stay muted. `default_view: details` opens on the log.
 
       - type: journey_track
         id: account-journey
@@ -526,8 +527,8 @@ components:
             touchpoints:
               - { label: Kickoff, date: 2025-11-05 }
               - { label: Renewal review, date: 2026-09-30, status: upcoming }
-            history:                   # optional; collapsed log, newest first
-              title: Full history
+            default_view: timeline     # timeline (default) | details; needs history
+            history:                   # optional; the Details view, newest first
               events:
                 - { date: 2025-11-12, label: Weekly cadence started, kind: cadence }   # stage | cadence | call | note
                 - { date: 2026-01-20, label: Cadence switched to biweekly, detail: "Config done" }
@@ -542,12 +543,13 @@ components:
           To-do cards: hollow circle, label, muted detail, optional due date
           (`status: overdue` turns it red, `done` fills the circle).
 
-          Give it `accounts` and it becomes an owner board: account rows on the left,
-          steps on the right, wired by curved connectors measured from the page (hover or
-          focus a row to light its pair). `owners` adds filter chips; `?owner=<name>`
-          picks one on load and a click writes it back to the URL. Steps follow their
-          account's owner, or their own `owner:` when they have no account. Under about
-          760px wide the columns stack and the connectors drop.
+          Give it `accounts` and it becomes one row per account: name, stage, and
+          "N open · N overdue" (or "nothing due"). Click a row to open its steps under it;
+          several can be open. Rows sort overdue first, then by soonest due, then nothing
+          due (`order: as_written` keeps yours). A step detail that starts with
+          "<account name>: " drops that prefix inside its row. `?account=<id>` opens a row
+          on load, `owners` adds filter chips (`?owner=<name>`), and both write back to
+          the URL. Steps follow their account's owner, or their own `owner:`.
 
       - type: next_steps
         id: owner-next
@@ -568,7 +570,8 @@ components:
           - type: next_steps
             title: From the journey rules   # optional eyebrow
             owners: [Tyler, Will]           # optional; filter chips
-            accounts:                       # optional; turns on the board
+            order: auto                     # auto (default) | as_written
+            accounts:                       # optional; one expandable row each
               - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler, href: ./larkspur }
             steps:
               - { label: Move past onboarding, detail: "Larkspur: day 52 of 45", account: larkspur, due: 2026-10-17, status: overdue }

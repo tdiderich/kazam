@@ -387,16 +387,18 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   ```yaml
   - type: tier_summary
     count_label: accounts        # default "accounts"
-    share_label: ARR share       # default "Share"; bars show when any tier has share
+    share_label: ARR             # unit after value ("$406K ARR"); labels the bar when no value
     tiers:
       - label: Outstanding
         count: "6"
-        share: 8.4               # 0-100, shown as given (8.4%)
+        value: $406K             # tier dollars, lead the row; share sits right of them
+        share: 31.2              # 0-100, shown as given (31.2%)
         color: teal              # optional; unset = accent shade by position (solid, 62%, 32%, hollow)
         detail: Cohere Health    # optional muted line
         accounts:                # optional; clicking the card opens a panel
           - name: Cohere Health
             value: $71K          # ARR
+            share: 5.5           # optional % of total ARR, shown after the dollars
             renewal: 2027-03-03  # ISO; rows sort soonest first
             detail: Adopted
             href: ./cohere
@@ -684,20 +686,23 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   Up to 8 stages and 12 touchpoints. Dates must be ISO `YYYY-MM-DD`.
   Keep touchpoints to milestones; put dense cadence calls in `history:`
   (`events: [{ date, label, detail?, kind? }]`, kind = stage | cadence | call | note).
-  It renders collapsed under the track, newest first.
+  With it the header gets a Timeline | Details switcher; Details shows the log,
+  newest first. `default_view: details` opens there.
 
-- **next_steps** - to-do cards; with `accounts`, an owner board wired by connectors
+- **next_steps** - to-do cards; with `accounts`, one expandable row per account
   ```yaml
   - type: next_steps
     title: From the journey rules
     owners: [Tyler, Will]          # optional filter chips; ?owner=<name> picks one
-    accounts:                      # optional; account rows left, steps right
+    order: auto                    # auto: overdue, then soonest due, then nothing due | as_written
+    accounts:                      # optional; rows show "N open · N overdue", click to expand
       - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler }
     steps:
       - { label: Move past onboarding, detail: "Larkspur: day 52 of 45", account: larkspur, due: 2026-10-17, status: overdue }
   ```
   `status`: overdue | due | upcoming | done. `account` must match an accounts `id`.
-  Steps without an account use their own `owner:` for the filter.
+  Steps without an account use their own `owner:` for the filter. `?account=<id>`
+  opens a row on load. A detail starting "<account name>: " drops that prefix in its row.
 
 - **event_timeline** - vertical event history with severity filter
   ```yaml

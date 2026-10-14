@@ -7,18 +7,19 @@ components:
     components:
       - type: tier_summary
         id: portfolio-tiers
-        share_label: ARR share
+        share_label: ARR
         tiers:
           - label: Outstanding
             count: 6
+            value: $406K
             share: 31.2
             accounts:
-              - { name: Cohere Health, value: $71K, renewal: 2026-12-01, detail: Adopted }
-              - { name: Brightline, value: $240K, renewal: 2027-03-03, detail: Adopted }
-              - { name: Larkspur, value: $95K, renewal: 2026-11-02, detail: Renewal }
-          - { label: Good, count: "11", share: 58.4 }
-          - { label: Okay, count: "5", share: 8.4, detail: "Alloy, Contentful, DTCC and 2 more" }
-          - { label: Poor, count: "2", share: 2.0 }
+              - { name: Cohere Health, value: $71K, share: 5.5, renewal: 2026-12-01, detail: Adopted }
+              - { name: Brightline, value: $240K, share: 18.4, renewal: 2027-03-03, detail: Adopted }
+              - { name: Larkspur, value: $95K, share: 7.3, renewal: 2026-11-02, detail: Renewal }
+          - { label: Good, count: "11", value: $759K, share: 58.4 }
+          - { label: Okay, count: "5", value: $109K, share: 8.4, detail: "Alloy, Contentful, DTCC and 2 more" }
+          - { label: Poor, count: "2", value: $26K, share: 2.0 }
 
   - type: section
     eyebrow: Owner / AE and TSE
@@ -29,14 +30,18 @@ components:
         title: From the journey rules
         owners: [Tyler, Will]
         accounts:
-          - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler }
+          - { id: larkspur, name: Larkspur, stage: Onboarding, shade: 3, owner: Tyler, href: ./larkspur }
           - { id: brightline, name: Brightline, stage: Adopted, shade: 1, owner: Tyler }
-          - { id: ostra, name: Ostra Health, stage: Renewal, shade: 2, owner: Will }
+          - { id: ostra, name: Ostra Health, stage: Renewal, shade: 2, owner: Will, href: ./ostra }
           - { id: northfield, name: Northfield, stage: Operationalizing, shade: 2, owner: Will }
+          - { id: cohere, name: Cohere Health, stage: Adopted, shade: 1, owner: Tyler }
         steps:
           - { label: Book the renewal review, detail: "Ostra Health: contract ends in 120 days", account: ostra, due: 2026-10-24 }
           - { label: Schedule the exec roadmap call, detail: "Brightline: Adopted, one every 90 days", account: brightline, due: 2026-11-04 }
           - { label: Move past onboarding, detail: "Larkspur: day 52 of a 45 day target", account: larkspur, due: 2026-10-17, status: overdue }
+          - { label: Confirm SSO rollout, detail: "Larkspur: IT owner named last week", account: larkspur, due: 2026-10-28 }
+          - { label: Send the Q3 value recap, account: ostra, due: 2026-10-10, status: overdue }
+          - { label: Kickoff deck, account: northfield, status: done }
 
   - type: section
     eyebrow: "Account view / Overall: good"
