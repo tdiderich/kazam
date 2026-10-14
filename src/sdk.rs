@@ -2851,7 +2851,7 @@ function TierSummaryView({ id, comp }: { id: string; comp: ComponentData }) {
   const sortKey = (v: unknown) => kzIsoDays(v) ?? Number.MAX_SAFE_INTEGER;
   return (
     <div id={id} className="c-tier-summary" data-tier-summary="" {...(explicitId ? { "data-kz-param": explicitId } : {})}>
-      <div className="c-tier-row" data-kz-list="tiers">
+      <div className="c-tier-row" data-kz-list="tiers" data-n={String(tiers.length)} style={{ "--tier-n": Math.max(1, tiers.length) } as React.CSSProperties}>
         {tiers.map((t, i) => {
           const expandable = expands(t);
           const href = kzSafeHref(t.href);

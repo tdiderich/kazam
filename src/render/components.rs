@@ -3637,9 +3637,11 @@ fn tier_summary(
         .map(|i| format!(r#" id="{}""#, esc(i)))
         .unwrap_or_default();
     let mut h = format!(
-        r#"<div{} class="c-tier-summary" data-tier-summary{}><div class="c-tier-row" data-kz-list="tiers">"#,
+        r#"<div{} class="c-tier-summary" data-tier-summary{}><div class="c-tier-row" data-kz-list="tiers" data-n="{}" style="--tier-n: {}">"#,
         id_attr,
-        hud_param_attr(id)
+        hud_param_attr(id),
+        tiers.len(),
+        tiers.len().max(1)
     );
     for (i, t) in tiers.iter().enumerate() {
         let expandable = expands(t);

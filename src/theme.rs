@@ -2390,8 +2390,16 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .export-root .c-sequence { display: none !important; }
 
 /* Tier summary: one card per health tier, optional account panel */
-.c-tier-summary { --tier-c: var(--teal); }
-.c-tier-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 16px; }
+.c-tier-summary { container-type: inline-size; --tier-c: var(--teal); }
+/* One row while every card gets ~210px, then halves, then one column. */
+.c-tier-row { display: grid; grid-template-columns: repeat(var(--tier-n, 4), minmax(0, 1fr)); gap: 16px; }
+.c-tier-row[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
+.c-tier-row:not([data-n="1"]):not([data-n="2"]):not([data-n="3"]):not([data-n="4"]):not([data-n="5"]):not([data-n="6"]) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
+@container (max-width: 1339px) { .c-tier-row[data-n="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (max-width: 1113px) { .c-tier-row[data-n="5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (max-width: 887px) { .c-tier-row[data-n="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 661px) { .c-tier-row[data-n="3"], .c-tier-row[data-n="5"], .c-tier-row[data-n="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 435px) { .c-tier-row { grid-template-columns: minmax(0, 1fr) !important; } }
 .c-tier { position: relative; container-type: inline-size; display: flex; flex-direction: column; align-items: stretch; min-width: 0; margin: 0; text-align: left; font: inherit; color: var(--snow); text-decoration: none; background: rgba(var(--text-rgb), 0.015); border: 2px solid rgba(var(--text-rgb), 0.12); border-radius: 18px; padding: 24px 20px 26px; transition: border-color 0.15s ease, background 0.15s ease; }
 .c-tier.is-expandable { cursor: pointer; }
 a.c-tier:hover, .c-tier.is-expandable:hover { border-color: rgba(var(--accent-rgb), 0.55); background: rgba(var(--text-rgb), 0.03); }
@@ -2415,11 +2423,13 @@ a.c-tier:hover, .c-tier.is-expandable:hover { border-color: rgba(var(--accent-rg
 .c-tier.is-open .c-tier-chevron { transform: translateY(2px) rotate(-135deg); }
 .c-tier-count { display: block; margin-top: 16px; font-size: clamp(2.6rem, 36cqi, 4.5rem); font-weight: 500; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .c-tier-count-label { display: block; margin-top: 10px; font-size: clamp(0.85rem, 8cqi, 1rem); color: var(--light-muted); }
-.c-tier-money { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(1rem, 10cqi, 1.15rem); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--snow); }
-.c-tier-money-unit { margin-left: 5px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.c-tier-money { flex: none; white-space: nowrap; font-size: clamp(1rem, 10cqi, 1.15rem); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--snow); }
+.c-tier-money-unit { margin-left: 5px; white-space: nowrap; font-size: 12px; font-weight: 500; color: var(--muted); }
 .c-tier-share { display: block; margin-top: 26px; }
 .c-tier-share-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; font-size: clamp(0.85rem, 8cqi, 1rem); white-space: nowrap; color: var(--light-muted); }
 .c-tier-share-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Tight cards drop the unit before the number ever shrinks. */
+@container (max-width: 199px) { .c-tier-money-unit { display: none; } }
 .c-tier-share-num { font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted); }
 .c-tier-track { display: block; height: 14px; border-radius: 999px; background: rgba(var(--text-rgb), 0.08); overflow: hidden; }
 .c-tier-fill { display: block; height: 100%; border-radius: 999px; background: var(--tier-c); box-sizing: border-box; }
