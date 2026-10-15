@@ -86,7 +86,51 @@ pub fn ensure(project: &Path) -> Result<PathBuf> {
         }
     }
 
+    ensure_gitignore(&r)?;
+
     Ok(r)
+}
+
+/// Per-machine state under .kazam/: rebuilt every session, or logs and caches
+/// that only mean something locally. Committing .kazam/ shares tasks,
+/// learnings, bugs, and hooks; these would just churn every diff.
+const GITIGNORED: [&str; 10] = [
+    "ctx/anatomy*",
+    "ctx/brief-last/",
+    "ctx/briefs.log",
+    "ctx/changes.log",
+    "ctx/cochange.json",
+    "ctx/enrich.log",
+    "ctx/handoff.log",
+    "ctx/reads.log",
+    "track/log.yaml",
+    "annotations/",
+];
+
+/// Append any missing GITIGNORED line to .kazam/.gitignore, keeping lines a
+/// human added. Idempotent, so every init brings older workspaces up to date.
+fn ensure_gitignore(root: &Path) -> Result<()> {
+    let path = root.join(".gitignore");
+    let mut content = fs::read_to_string(&path).unwrap_or_default();
+    let have: std::collections::HashSet<&str> = content.lines().map(str::trim).collect();
+    let missing: Vec<&str> = GITIGNORED
+        .iter()
+        .copied()
+        .filter(|l| !have.contains(l))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    if content.is_empty() {
+        content.push_str("# Per-machine kazam state, managed by `kazam workspace init`\n");
+    } else if !content.ends_with('\n') {
+        content.push('\n');
+    }
+    for line in missing {
+        content.push_str(line);
+        content.push('\n');
+    }
+    fs::write(&path, content).context("write .kazam/.gitignore")
 }
 
 pub fn apply_skunkworks(project: &Path) -> Result<()> {
@@ -285,6 +329,23 @@ mod tests {
             project,
         )
         .unwrap();
+    }
+
+    #[test]
+    fn ensure_gitignore_adds_missing_lines_and_keeps_custom_ones() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        fs::write(root.join(".gitignore"), "# mine\nctx/anatomy*\nscratch/").unwrap();
+
+        ensure_gitignore(root).unwrap();
+        let first = fs::read_to_string(root.join(".gitignore")).unwrap();
+        assert!(first.starts_with("# mine\nctx/anatomy*\nscratch/\n"));
+        for line in GITIGNORED {
+            assert_eq!(first.lines().filter(|l| *l == line).count(), 1, "{line}");
+        }
+
+        ensure_gitignore(root).unwrap();
+        assert_eq!(fs::read_to_string(root.join(".gitignore")).unwrap(), first);
     }
 
     /// kz-a4c7 repro: init with --skunkworks once, then plain re-init.

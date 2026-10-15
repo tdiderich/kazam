@@ -2,3 +2,10 @@
 ctx/anatomy*
 track/log.yaml
 annotations/
+ctx/brief-last/
+ctx/briefs.log
+ctx/changes.log
+ctx/cochange.json
+ctx/enrich.log
+ctx/handoff.log
+ctx/reads.log

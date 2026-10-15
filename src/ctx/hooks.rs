@@ -820,13 +820,11 @@ pub fn status(project: &Path) -> Result<()> {
         }
     }
 
-    let settings_path = project.join(".claude/settings.json");
-    let claude_registered = if settings_path.exists() {
-        let text = fs::read_to_string(&settings_path).unwrap_or_default();
-        text.contains("kazam-workspace")
-    } else {
-        false
-    };
+    // Skunkworks registers into settings.local.json, so check both.
+    let claude_registered = ["settings.json", "settings.local.json"].iter().any(|f| {
+        fs::read_to_string(project.join(".claude").join(f))
+            .is_ok_and(|text| text.contains("kazam-workspace"))
+    });
 
     let rules_exist = project.join(".claude/rules/kazam-workspace.md").exists();
 
