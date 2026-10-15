@@ -1,5 +1,5 @@
 #!/bin/bash
-# kazam-scaffold-version: 1.28.1
+# kazam-scaffold-version: 1.30.1
 # kazam workspace - post-tool hook
 #
 # Runs after Read / Write / Edit. Claude Code delivers the tool payload as JSON

@@ -1,5 +1,5 @@
 #!/bin/bash
-# kazam-scaffold-version: 1.28.1
+# kazam-scaffold-version: 1.30.1
 # kazam workspace - session stop hook
 # Rescans anatomy, then summarizes session activity and suggests enrichment.
 kazam ctx scan 2>/dev/null

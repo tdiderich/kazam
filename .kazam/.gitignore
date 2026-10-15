@@ -9,3 +9,7 @@ ctx/cochange.json
 ctx/enrich.log
 ctx/handoff.log
 ctx/reads.log
+# Personal stores: this repo is public, so they stay local
+ctx/learnings.yaml
+ctx/bugs.yaml
+track/tasks.yaml

@@ -1,5 +1,5 @@
 #!/bin/bash
-# kazam-scaffold-version: 1.28.1
+# kazam-scaffold-version: 1.30.1
 # kazam workspace - pre-compact hook
 #
 # Fires immediately before /compact (manual) and before auto-compaction.
