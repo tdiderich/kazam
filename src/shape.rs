@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! nodes > 6                     array length or number compared to a literal
-//! !all(nodes, row)              every element has a truthy field
+//! !all(nodes, row)              every element has the field set (0 counts)
 //! any(nodes, width > 160)       some element satisfies a nested predicate
 //! words(body) > 120             word count of a string field
 //! stages[*].capabilities > 5    `[*]` maps over an array; a comparison on
@@ -370,6 +370,17 @@ fn num_of(v: &Value) -> Option<f64> {
     }
 }
 
+/// Field is set: present and not null or blank. Unlike `truthy`, 0 and
+/// false count, so `all(nodes, row)` accepts `row: 0`.
+fn present(v: &Value) -> bool {
+    match v {
+        Value::Null => false,
+        Value::String(s) => !s.trim().is_empty(),
+        Value::Tagged(t) => present(&t.value),
+        _ => true,
+    }
+}
+
 fn truthy(v: &Value) -> bool {
     match v {
         Value::Null => false,
@@ -431,7 +442,7 @@ fn eval(e: &Expr, v: &Value) -> bool {
             !items.is_empty()
                 && items
                     .iter()
-                    .all(|item| resolve(item, field).into_iter().any(truthy))
+                    .all(|item| resolve(item, field).into_iter().any(present))
         }
         Expr::Cmp(l, op, r) => {
             let rs = numbers(r, v);
@@ -658,6 +669,10 @@ mod tests {
         let yaml = "nodes:\n  - {id: a, row: 1}\n  - {id: b}\n";
         assert!(!fires("all(nodes, row)", yaml));
         assert!(fires("!all(nodes, row)", yaml));
+        // row: 0 is set, not missing.
+        let zero = "nodes:\n  - {id: a, row: 0}\n  - {id: b, row: 1}\n";
+        assert!(fires("all(nodes, row)", zero));
+        assert!(!fires("!all(nodes, row)", zero));
         assert!(fires("any(nodes, row > 0)", yaml));
         assert!(!fires("any(nodes, width > 160)", yaml));
         assert!(fires("any(nodes, width > 160)", "nodes: [{width: 200}]"));
