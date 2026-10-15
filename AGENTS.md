@@ -127,3 +127,16 @@ Adding a new `track` or `ctx` subcommand:
 ## Docs site
 
 `docs/` is a kazam site itself. Changes to component rendering should be visually verified by running `./target/release/kazam dev docs --port 3002`.
+
+<!-- kazam:handoff -->
+## Picking up earlier work (kazam)
+
+This repo records agent sessions with kazam. If the user's request continues
+earlier work ("continue", "keep going", "pick up where we left off"), run
+`kazam load` first: it prints where the last session left off, with its last
+request and report, each repo's branch and commits as of now, background work
+and whether it's still running, open tasks, and decisions. `kazam load --list`
+shows every session. Before you stop or hand off, record what a transcript
+can't carry: `kazam save "where things stand" --next "next step" --decision
+"X over Y: why"`.
+<!-- /kazam:handoff -->
