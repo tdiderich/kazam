@@ -2258,31 +2258,39 @@ function CallLogView({
   }, [items]);
   const [shown, setShown] = React.useState(per);
   const [openId, setOpenId] = React.useState<string | null>(null);
-  React.useEffect(() => setShown(per), [per]);
+  const mounted = React.useRef(false);
+  React.useEffect(() => {
+    if (mounted.current) setShown((n) => Math.max(n, per));
+  }, [per]);
   React.useEffect(() => {
     if (openId && !rows.some((r) => r.cid === openId)) setOpenId(null);
   }, [rows, openId]);
-  const hashTarget = React.useRef<string | null>(null);
+  const rowsRef = React.useRef(rows);
+  rowsRef.current = rows;
+  const pending = React.useRef<string | null>(null);
   React.useEffect(() => {
     const apply = () => {
       let h = (window.location.hash || "").slice(1);
       try { h = decodeURIComponent(h); } catch { /* keep the raw hash */ }
-      const idx = rows.findIndex((r) => r.cid === h);
+      const idx = rowsRef.current.findIndex((r) => r.cid === h);
       if (idx < 0) return;
       setShown((n) => Math.max(n, idx + 1));
       setOpenId(h);
-      hashTarget.current = h;
+      pending.current = h;
     };
     apply();
+    mounted.current = true;
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
-  }, [rows]);
+  }, []);
   React.useEffect(() => {
-    const t = hashTarget.current;
+    const t = pending.current;
     if (!t) return;
-    hashTarget.current = null;
-    document.getElementById(t)?.scrollIntoView({ block: "start" });
-  });
+    const el = document.getElementById(t);
+    if (!el || el.closest("[hidden]")) return;
+    pending.current = null;
+    el.scrollIntoView({ block: "start" });
+  }, [openId, shown]);
   if (rows.length === 0) {
     return <div id={id} className="c-call-log" data-call-log=""><p className="c-call-empty">No calls yet.</p></div>;
   }

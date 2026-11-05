@@ -1399,6 +1399,12 @@ fn accordion(items: &[AccordionItem], base: &str, config: &SiteConfig) -> Render
 
 // ── Call log ──────────────────────────────────────
 
+/// The first 10 characters of the trimmed date, the same cut React makes.
+fn call_iso(d: &str) -> &str {
+    let t = d.trim();
+    t.get(..10).unwrap_or(t)
+}
+
 fn call_log(
     items: &[CallLogItem],
     limit: Option<u32>,
@@ -1415,14 +1421,14 @@ fn call_log(
     }
     // Newest first; the sort is stable so equal dates keep their YAML order.
     let mut sorted: Vec<(usize, &CallLogItem)> = items.iter().enumerate().collect();
-    sorted.sort_by(|a, b| b.1.date.trim().cmp(a.1.date.trim()));
+    sorted.sort_by(|a, b| call_iso(&b.1.date).cmp(call_iso(&a.1.date)));
     r.html.push_str(&format!(
         r#"<div class="c-call-log" data-call-log data-call-limit="{}">"#,
         limit
     ));
     let mut seen: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
     for (i, (orig, item)) in sorted.iter().enumerate() {
-        let date = item.date.trim();
+        let date = call_iso(&item.date);
         let iso_shape = date.len() == 10
             && date.bytes().enumerate().all(|(k, b)| {
                 if k == 4 || k == 7 {
