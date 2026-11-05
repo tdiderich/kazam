@@ -45,7 +45,7 @@ pub fn shell_name(shell: Shell) -> &'static str {
 }
 
 /// Walk a slice of `Component`s and collect the unique variant type names.
-/// Recurses into containers: `Section`, `Tabs`, `Columns`, `Accordion`.
+/// Recurses into containers: `Section`, `Tabs`, `Columns`, `Accordion`, `CallLog`.
 pub fn collect_component_types(components: &[Component]) -> Vec<String> {
     let mut seen: Vec<String> = Vec::new();
     collect_into(components, &mut seen);
@@ -74,6 +74,11 @@ fn collect_into(components: &[Component], out: &mut Vec<String>) {
                 }
             }
             Component::Accordion { items, .. } => {
+                for item in items {
+                    collect_into(&item.components, out);
+                }
+            }
+            Component::CallLog { items, .. } => {
                 for item in items {
                     collect_into(&item.components, out);
                 }
@@ -113,6 +118,7 @@ fn component_type_name(c: &Component) -> String {
         Component::Connector { .. } => "connector",
         Component::Sequence { .. } => "sequence",
         Component::Accordion { .. } => "accordion",
+        Component::CallLog { .. } => "call_log",
         Component::EventTimeline { .. } => "event_timeline",
         Component::Tree { .. } => "tree",
         Component::PriorityQueue { .. } => "priority_queue",

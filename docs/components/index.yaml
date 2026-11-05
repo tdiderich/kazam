@@ -46,7 +46,7 @@ components:
         badge:
           label: "4"
           color: default
-        description: "table, tabs, accordion, sequence"
+        description: "table, tabs, accordion, call_log, sequence"
         links:
           - label: Open →
             href: interactive.html

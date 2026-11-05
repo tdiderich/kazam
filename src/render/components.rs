@@ -125,6 +125,7 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             target, steps, id, ..
         } => sequence(target, steps, id.as_deref(), base),
         Component::Accordion { items, .. } => accordion(items, base, config),
+        Component::CallLog { items, limit, .. } => call_log(items, *limit, base, config),
         Component::EventTimeline {
             events,
             default_filter,
@@ -1393,6 +1394,100 @@ fn accordion(items: &[AccordionItem], base: &str, config: &SiteConfig) -> Render
     }
     r.html.push_str("</div>");
     r.scripts.push("accordion");
+    r
+}
+
+// ── Call log ──────────────────────────────────────
+
+/// The first 10 characters of the trimmed date, the same cut React makes.
+fn call_iso(d: &str) -> &str {
+    let t = d.trim();
+    t.get(..10).unwrap_or(t)
+}
+
+fn call_log(
+    items: &[CallLogItem],
+    limit: Option<u32>,
+    base: &str,
+    config: &SiteConfig,
+) -> Rendered {
+    let mut r = Rendered::default();
+    let limit = limit.unwrap_or(CALL_LOG_DEFAULT_LIMIT).max(1) as usize;
+    if items.is_empty() {
+        r.html.push_str(
+            r#"<div class="c-call-log" data-call-log><p class="c-call-empty">No calls yet.</p></div>"#,
+        );
+        return r;
+    }
+    // Newest first; the sort is stable so equal dates keep their YAML order.
+    let mut sorted: Vec<(usize, &CallLogItem)> = items.iter().enumerate().collect();
+    sorted.sort_by(|a, b| call_iso(&b.1.date).cmp(call_iso(&a.1.date)));
+    r.html.push_str(&format!(
+        r#"<div class="c-call-log" data-call-log data-call-limit="{}">"#,
+        limit
+    ));
+    let mut seen: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+    for (i, (orig, item)) in sorted.iter().enumerate() {
+        let date = call_iso(&item.date);
+        let iso_shape = date.len() == 10
+            && date.bytes().enumerate().all(|(k, b)| {
+                if k == 4 || k == 7 {
+                    b == b'-'
+                } else {
+                    b.is_ascii_digit()
+                }
+            });
+        let n = seen.entry(date.to_string()).or_insert(0);
+        *n += 1;
+        let id = if !iso_shape {
+            format!("call-{orig}")
+        } else if *n == 1 {
+            format!("call-{}", esc(date))
+        } else {
+            format!("call-{}-{}", esc(date), n)
+        };
+        let expandable = !item.components.is_empty();
+        let hidden = if i >= limit { " hidden" } else { "" };
+        r.html.push_str(&format!(
+            r#"<div class="c-call-card" data-call-log-item id="{id}"{hidden}>"#
+        ));
+        let inner = format!(
+            r#"<span class="c-call-date">{}</span><span class="c-call-main"><span class="c-call-title">{}</span>{}</span>"#,
+            esc(&fmt_long_date(date)),
+            esc(&item.title),
+            item.summary
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| format!(r#"<span class="c-call-summary">{}</span>"#, esc(s)))
+                .unwrap_or_default()
+        );
+        if expandable {
+            r.html.push_str(&format!(
+                r#"<button type="button" class="c-call-head" data-call-log-toggle aria-expanded="false" aria-controls="{id}-body">{inner}<span class="c-call-chevron" aria-hidden="true"></span></button>"#
+            ));
+            r.html.push_str(&format!(
+                r#"<div class="c-call-body" id="{id}-body" role="region" aria-label="{}" data-call-log-body hidden>"#,
+                esc(&item.title)
+            ));
+            for c in &item.components {
+                r.extend(render(c, base, config));
+            }
+            r.html.push_str("</div>");
+        } else {
+            r.html.push_str(&format!(
+                r#"<div class="c-call-head is-static">{inner}</div>"#
+            ));
+        }
+        r.html.push_str("</div>");
+    }
+    if sorted.len() > limit {
+        let more = limit.min(sorted.len() - limit);
+        r.html.push_str(&format!(
+            r#"<button type="button" class="c-call-more" data-call-log-more>Show {more} more</button>"#
+        ));
+    }
+    r.html.push_str("</div>");
+    r.scripts.push("call_log");
     r
 }
 

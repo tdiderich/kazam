@@ -615,6 +615,28 @@
         "kind": "list"
       }
     },
+    "CallLogItem": {
+      "date": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "title": {
+        "type": "string",
+        "required": true,
+        "kind": "text"
+      },
+      "summary": {
+        "type": "string",
+        "required": false,
+        "kind": "text"
+      },
+      "components": {
+        "type": "Component[]",
+        "required": false,
+        "kind": "list"
+      }
+    },
     "EventItem": {
       "date": {
         "type": "string",
@@ -2295,6 +2317,18 @@
         "kind": "list"
       }
     },
+    "call_log": {
+      "items": {
+        "type": "CallLogItem[]",
+        "required": false,
+        "kind": "list"
+      },
+      "limit": {
+        "type": "number",
+        "required": false,
+        "kind": "layout"
+      }
+    },
     "event_timeline": {
       "events": {
         "type": "EventItem[]",
@@ -3391,6 +3425,17 @@
         {
           "warn": "accounts > 10",
           "say": "More than 10 account rows is a long list. Filter by owner or split by team."
+        }
+      ]
+    },
+    "call_log": {
+      "use_when": "A customer's call history: one collapsed card per call, newest first, opening to that call's agenda and notes.",
+      "avoid_when": "A single event feed with severity and filters (use event_timeline) or a handful of FAQ-style sections (use accordion).",
+      "example": "call_log",
+      "rules": [
+        {
+          "warn": "items > 200",
+          "say": "Over 200 calls is an archive. Keep the recent ones here."
         }
       ]
     }

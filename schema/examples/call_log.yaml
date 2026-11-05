@@ -1,0 +1,20 @@
+- type: call_log
+  limit: 2
+  items:
+    - date: "2026-11-04"
+      title: Path to production
+      summary: Agreed the Jira rollout, EKS still blocked
+      components:
+        - type: markdown
+          body: |
+            **Agenda**
+            - Jira rollout plan
+            - EKS blocker
+    - date: "2026-10-14"
+      title: Exec sync
+      summary: Renewal timing and roadmap
+      components:
+        - type: markdown
+          body: "Walked the roadmap. Renewal review booked."
+    - date: "2026-09-22"
+      title: Kickoff

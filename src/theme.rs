@@ -270,7 +270,7 @@ pub fn render_css(theme: &Theme, texture: Texture, glow: Glow, depth: Depth) -> 
 /// Panel components that take the depth treatment.
 const DEPTH_SURFACES: &str =
     ".c-card, .c-stat, .c-callout, .c-box, .c-ba-card, .c-step, .c-meta-item, \
-     .c-accordion-item, .c-code, .c-table, .c-blockquote, .c-empty-state, .c-definition-list, \
+     .c-accordion-item, .c-call-card, .c-code, .c-table, .c-blockquote, .c-empty-state, .c-definition-list, \
      .c-event, .c-tree-node, .c-chart, .c-selectable-card";
 
 /// Depth rules. `Some(d)` bakes one level in; `None` emits every level under
@@ -2745,6 +2745,32 @@ a.c-next-label:hover { color: var(--teal); }
   border-top: 1px solid var(--card-border);
   padding-top: 16px;
 }
+
+/* Call log */
+.c-call-log { display: flex; flex-direction: column; gap: 8px; }
+.c-call-card { background: rgba(var(--text-rgb),0.05); border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; transition: border-color 0.15s ease; }
+.c-call-card[hidden], .c-call-body[hidden], .c-call-more[hidden] { display: none; }
+.c-call-card.is-open { background: var(--card-bg); border-color: var(--teal); }
+.c-call-head { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 20px; padding: 14px 20px; margin: 0; background: none; border: none; color: var(--snow); font: inherit; text-align: left; }
+button.c-call-head { cursor: pointer; }
+button.c-call-head:hover .c-call-title { color: var(--teal); }
+button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offset: -2px; }
+.c-call-date { flex: none; width: 110px; font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace; font-size: 12px; letter-spacing: 0.08em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.c-call-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.c-call-title { font-size: 1.1rem; font-weight: 600; line-height: 1.25; transition: color 0.15s; }
+.c-call-summary { font-size: 0.95rem; line-height: 1.4; color: var(--light-muted); }
+.c-call-chevron { flex: none; width: 7px; height: 7px; margin: 0 4px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform 0.2s ease; }
+.c-call-card.is-open .c-call-chevron { transform: rotate(45deg); border-color: var(--teal); }
+.c-call-body { padding: 16px 20px 20px 150px; border-top: 1px solid var(--card-border); }
+.c-call-more { align-self: center; margin-top: 4px; padding: 8px 18px; font: inherit; font-size: 13px; color: var(--light-muted); background: transparent; border: 1px solid var(--card-border); border-radius: 999px; cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
+.c-call-more:hover { color: var(--teal); border-color: var(--teal); }
+.c-call-empty { margin: 0; padding: 14px 0; color: var(--muted); }
+@media (max-width: 640px) {
+  .c-call-head { flex-wrap: wrap; gap: 4px 12px; padding: 12px 16px; }
+  .c-call-date { width: auto; flex-basis: 100%; }
+  .c-call-body { padding: 14px 16px 16px; }
+}
+@media print { .c-call-card[hidden], .c-call-body[hidden] { display: block !important; } .c-call-more { display: none !important; } }
 
 /* Event Timeline */
 .c-event-timeline { display: flex; flex-direction: column; gap: 12px; }

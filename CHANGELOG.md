@@ -4,6 +4,11 @@ All notable changes to kazam are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.32.0] - 2026-11-04
+
+### Added
+- `call_log` component: a customer's call history as one bordered card per call, newest first (sorted by `date`). Each card is a head row (date, title, optional `summary`) that opens that call's agenda and notes; one open at a time. `limit` (default 5) caps the cards shown, with "Show N more" for the rest. Cards get `call-<date>` ids and `#call-<date>` opens one on load. No items renders "No calls yet." Every card and body stays in the DOM (closed ones `hidden`) with `data-call-log*` hooks, so an exporter can expand it all. Static and React renderers match.
+
 ## [1.31.0] - 2026-10-14
 
 ### Added
