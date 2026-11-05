@@ -220,6 +220,13 @@ fn collect_component_hrefs(c: &Component, out: &mut Vec<String>) {
                 }
             }
         }
+        CallLog { items, .. } => {
+            for item in items {
+                for c in &item.components {
+                    collect_component_hrefs(c, out);
+                }
+            }
+        }
         _ => {}
     }
 }

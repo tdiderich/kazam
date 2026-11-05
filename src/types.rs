@@ -709,6 +709,18 @@ pub enum Component {
         #[serde(default)]
         animate: Option<Animate>,
     },
+    /// Customer call history: one collapsed card per call, newest first.
+    CallLog {
+        #[serde(default)]
+        items: Vec<CallLogItem>,
+        /// Cards shown before "Show more". Default 5.
+        #[serde(default)]
+        limit: Option<u32>,
+        #[serde(default)]
+        scale: Option<f32>,
+        #[serde(default)]
+        animate: Option<Animate>,
+    },
     EventTimeline {
         events: Vec<EventItem>,
         #[serde(default)]
@@ -1221,6 +1233,7 @@ impl Component {
             | Component::Connector { scale, .. }
             | Component::Sequence { scale, .. }
             | Component::Accordion { scale, .. }
+            | Component::CallLog { scale, .. }
             | Component::EventTimeline { scale, .. }
             | Component::Tree { scale, .. }
             | Component::PriorityQueue { scale, .. }
@@ -1285,6 +1298,7 @@ impl Component {
             | Component::Connector { animate, .. }
             | Component::Sequence { animate, .. }
             | Component::Accordion { animate, .. }
+            | Component::CallLog { animate, .. }
             | Component::EventTimeline { animate, .. }
             | Component::Tree { animate, .. }
             | Component::PriorityQueue { animate, .. }
@@ -1921,6 +1935,16 @@ pub struct Tab {
 #[derive(Deserialize)]
 pub struct AccordionItem {
     pub title: String,
+    pub components: Vec<Component>,
+}
+
+#[derive(Deserialize)]
+pub struct CallLogItem {
+    pub date: String,
+    pub title: String,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
     pub components: Vec<Component>,
 }
 

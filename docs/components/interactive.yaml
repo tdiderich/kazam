@@ -13,7 +13,7 @@ components:
   - type: header
     title: Interactive components
     eyebrow: Reference
-    subtitle: table, tabs, accordion, sequence
+    subtitle: table, tabs, accordion, call_log, sequence
 
   # ── table ─────────────────────────────────
   - type: section
@@ -226,6 +226,54 @@ components:
                 components:
                   - type: markdown
                     body: Answer content.
+
+  # ── call_log ──────────────────────────────
+  - type: section
+    eyebrow: call_log
+    heading: Customer call history
+    components:
+      - type: markdown
+        body: |
+          One bordered card per call, newest first (sorted by `date`, whatever the YAML order).
+          Each card is a head row with the date, title and an optional one-line `summary`;
+          click it to open that call's agenda and notes. One card is open at a time. Only
+          the first `limit` (default 5) show, then "Show N more" reveals the next `limit`.
+          A call with no `components` is a plain row. `#call-<date>` in the URL opens that
+          call (`-2`, `-3` for same-date duplicates). No items shows "No calls yet."
+
+      - type: call_log
+        limit: 2
+        items:
+          - date: "2026-11-04"
+            title: Path to production
+            summary: Agreed the Jira rollout, EKS still blocked
+            components:
+              - type: markdown
+                body: |
+                  **Agenda**
+                  - Jira rollout plan
+                  - EKS blocker
+          - date: "2026-10-14"
+            title: Exec sync
+            summary: Renewal timing and roadmap
+            components:
+              - type: markdown
+                body: "Walked the roadmap. Renewal review booked."
+          - date: "2026-09-22"
+            title: Kickoff
+
+      - type: code
+        language: yaml
+        code: |
+          - type: call_log
+            limit: 5                      # optional, default 5
+            items:
+              - date: "2026-11-04"        # required, YYYY-MM-DD
+                title: Path to production # required
+                summary: One line         # optional
+                components:               # optional; agenda + notes
+                  - type: markdown
+                    body: Notes.
 
   - type: callout
     variant: info

@@ -665,6 +665,9 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::EventTimeline { events, .. } => 2 + events.len() as u32,
         Component::DefinitionList { items, .. } => 1 + items.len() as u32,
         Component::Accordion { items, .. } => 1 + items.len() as u32,
+        Component::CallLog { items, limit, .. } => {
+            1 + items.len().min(limit.unwrap_or(5).max(1) as usize) as u32
+        }
         Component::BeforeAfter { items, .. } => 2 + items.len() as u32,
         Component::Columns { columns, .. } => columns
             .iter()
@@ -780,6 +783,11 @@ fn collect_ids(components: &[Component], out: &mut Vec<String>) {
                 }
             }
             Component::Accordion { items, .. } => {
+                for i in items {
+                    collect_ids(&i.components, out);
+                }
+            }
+            Component::CallLog { items, .. } => {
                 for i in items {
                     collect_ids(&i.components, out);
                 }
@@ -1832,6 +1840,45 @@ fn validate_component(
                     file,
                     &format!("{}.items[{}].shade", path, i),
                     it.shade,
+                    errors,
+                );
+            }
+        }
+
+        Component::CallLog { items, limit, .. } => {
+            if *limit == Some(0) {
+                errors.push(ValidationError::new(
+                    file,
+                    format!("{}.limit", path),
+                    "invalid_value",
+                    "call_log limit must be at least 1",
+                    Some("Leave limit out for the default of 5.".into()),
+                ));
+            }
+            if items.len() > 200 {
+                errors.push(ValidationError::warning(
+                    file,
+                    format!("{}.items", path),
+                    "shape",
+                    format!("call_log has {} calls", items.len()),
+                    Some("Keep the log under 200 calls; archive the oldest.".into()),
+                ));
+            }
+            for (i, item) in items.iter().enumerate() {
+                let d = item.date.trim();
+                if d.len() != 10 || crate::freshness::parse_iso_date(d).is_none() {
+                    errors.push(ValidationError::new(
+                        file,
+                        format!("{}.items[{}].date", path, i),
+                        "format",
+                        format!("'{}' is not an ISO date", item.date),
+                        Some("Use YYYY-MM-DD, like 2026-11-04.".into()),
+                    ));
+                }
+                validate_components(
+                    file,
+                    &format!("{}.items[{}].components", path, i),
+                    &item.components,
                     errors,
                 );
             }

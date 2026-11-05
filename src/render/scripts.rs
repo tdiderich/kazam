@@ -5,6 +5,7 @@ pub fn get(name: &str) -> Option<&'static str> {
         "tabs" => Some(TABS),
         "venn" => Some(VENN),
         "accordion" => Some(ACCORDION),
+        "call_log" => Some(CALL_LOG),
         "event_timeline" => Some(EVENT_TIMELINE),
         "tree" => Some(TREE),
         "deck" => Some(DECK),
@@ -443,6 +444,51 @@ document.querySelectorAll('[data-accordion-item]').forEach(function (item) {
     item.classList.toggle('accordion-open', !open);
     btn.setAttribute('aria-expanded', open ? 'false' : 'true');
   });
+});
+"#;
+
+const CALL_LOG: &str = r#"
+document.querySelectorAll('[data-call-log]').forEach(function (root) {
+  var cards = Array.prototype.slice.call(root.querySelectorAll('[data-call-log-item]'));
+  var limit = parseInt(root.getAttribute('data-call-limit'), 10) || 5;
+  var more = root.querySelector('[data-call-log-more]');
+  function setOpen(card, open) {
+    var t = card.querySelector('[data-call-log-toggle]');
+    var b = card.querySelector('[data-call-log-body]');
+    if (!t || !b) return;
+    b.hidden = !open;
+    t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    card.classList.toggle('is-open', open);
+  }
+  function hiddenCount() { return cards.filter(function (c) { return c.hidden; }).length; }
+  function label() {
+    if (!more) return;
+    var left = hiddenCount();
+    if (!left) { more.remove(); more = null; return; }
+    more.textContent = 'Show ' + Math.min(limit, left) + ' more';
+  }
+  function reveal(n) {
+    cards.filter(function (c) { return c.hidden; }).slice(0, n).forEach(function (c) { c.hidden = false; });
+    label();
+  }
+  cards.forEach(function (card) {
+    var t = card.querySelector('[data-call-log-toggle]');
+    if (!t) return;
+    t.addEventListener('click', function () {
+      var open = t.getAttribute('aria-expanded') !== 'true';
+      cards.forEach(function (c) { setOpen(c, false); });
+      setOpen(card, open);
+    });
+  });
+  if (more) more.addEventListener('click', function () { reveal(limit); });
+  var h = decodeURIComponent((location.hash || '').slice(1));
+  if (h) {
+    var hit = cards.filter(function (c) { return c.id === h; })[0];
+    if (hit) {
+      if (hit.hidden) reveal(cards.indexOf(hit) + 1 - (cards.length - hiddenCount()));
+      setOpen(hit, true);
+    }
+  }
 });
 "#;
 

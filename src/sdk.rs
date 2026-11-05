@@ -532,6 +532,7 @@ pub(crate) fn example_yaml(name: &str) -> Option<&'static str> {
         "journey_track" => include_str!("../schema/examples/journey_track.yaml"),
         "health_breakdown" => include_str!("../schema/examples/health_breakdown.yaml"),
         "next_steps" => include_str!("../schema/examples/next_steps.yaml"),
+        "call_log" => include_str!("../schema/examples/call_log.yaml"),
         _ => return None,
     })
 }
@@ -2223,6 +2224,98 @@ function AccordionView({
   );
 }
 
+const CALL_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-11-04" -> "Nov 4, 2026" from the string parts, no Date or locale. */
+function callDateLabel(iso: string): string {
+  const m = /^(\d+)-(\d+)-(\d+)/.exec(iso);
+  if (!m || +m[2] < 1 || +m[2] > 12) return iso;
+  return `${CALL_MONTHS[+m[2] - 1]} ${+m[3]}, ${+m[1]}`;
+}
+
+/** call_log: one collapsed card per call, newest first, one open at a time.
+ * Every card and body stays in the DOM (closed ones carry `hidden`). */
+function CallLogView({
+  id,
+  items,
+  limit,
+  kzPath,
+  renderChart,
+  renderRoleMap,
+}: {
+  id: string;
+  items: Array<{ date: unknown; title: string; summary?: string; components?: ComponentData[] }>;
+  limit?: number;
+  kzPath: string;
+  renderChart?: (comp: ComponentData) => React.ReactNode;
+  renderRoleMap?: (comp: ComponentData) => React.ReactNode;
+}) {
+  const per = Math.max(1, Math.floor(Number(limit) || 5));
+  const rows = React.useMemo(() => {
+    const seen: Record<string, number> = {};
+    return items
+      .map((item, orig) => ({ item, orig, iso: kzIso(item.date) ?? "" }))
+      .sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : a.orig - b.orig))
+      .map((r) => {
+        seen[r.iso] = (seen[r.iso] || 0) + 1;
+        return { ...r, cid: seen[r.iso] === 1 ? `call-${r.iso}` : `call-${r.iso}-${seen[r.iso]}` };
+      });
+  }, [items]);
+  const [shown, setShown] = React.useState(per);
+  const [openId, setOpenId] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const h = decodeURIComponent((window.location.hash || "").slice(1));
+    if (!h) return;
+    const idx = rows.findIndex((r) => r.cid === h);
+    if (idx < 0) return;
+    setShown((n) => Math.max(n, idx + 1));
+    setOpenId(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (rows.length === 0) {
+    return <div id={id} className="c-call-log" data-call-log=""><p className="c-call-empty">No calls yet.</p></div>;
+  }
+  const left = Math.max(0, rows.length - shown);
+  return (
+    <div id={id} className="c-call-log" data-call-log="" data-call-limit={per} data-kz-list="items">
+      {rows.map(({ item, orig, iso, cid }, pos) => {
+        const comps = item.components || [];
+        const open = openId === cid;
+        const inner = (
+          <>
+            <span className="c-call-date">{callDateLabel(iso)}</span>
+            <span className="c-call-main">
+              <span className="c-call-title" data-kz-field={`items[${orig}].title`}>{item.title}</span>
+              {item.summary && <span className="c-call-summary" data-kz-field={`items[${orig}].summary`}>{item.summary}</span>}
+            </span>
+          </>
+        );
+        return (
+          <div key={cid} className={`c-call-card${open ? " is-open" : ""}`} data-call-log-item="" id={cid} hidden={pos >= shown}>
+            {comps.length > 0 ? (
+              <>
+                <button type="button" className="c-call-head" data-call-log-toggle="" aria-expanded={open} aria-controls={`${cid}-body`} onClick={() => setOpenId(open ? null : cid)}>
+                  {inner}<span className="c-call-chevron" aria-hidden="true" />
+                </button>
+                <div className="c-call-body" id={`${cid}-body`} role="region" aria-label={item.title} data-call-log-body="" hidden={!open}>
+                  {comps.map((c, ci) => (
+                    <ComponentView key={ci} comp={c} index={ci} kzPath={`${kzPath}.items[${orig}].components[${ci}]`} renderChart={renderChart} renderRoleMap={renderRoleMap} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="c-call-head is-static">{inner}</div>
+            )}
+          </div>
+        );
+      })}
+      {left > 0 && (
+        <button type="button" className="c-call-more" data-call-log-more="" onClick={() => setShown(shown + per)}>Show {Math.min(per, left)} more</button>
+      )}
+    </div>
+  );
+}
+
 // ── Venn text fitting ─────────────────────────────────
 // Approximate glyph advance widths (em units) for the UI font. Good enough to
 // pick a font size that keeps a label inside its circle without measuring DOM.
@@ -3564,6 +3657,11 @@ function ComponentView({
     case "accordion": {
       const items = (comp.items as Array<{ title: string; components: ComponentData[] }>) || [];
       return <AccordionView id={id} items={items} kzPath={kz} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
+    }
+
+    case "call_log": {
+      const items = (comp.items as Array<{ date: unknown; title: string; summary?: string; components?: ComponentData[] }>) || [];
+      return <CallLogView id={id} items={items} limit={comp.limit as number | undefined} kzPath={kz} renderChart={renderChart} renderRoleMap={renderRoleMap} />;
     }
 
     case "hero_banner": {
@@ -5578,6 +5676,7 @@ export const EDITOR_TYPES: Array<{type: string; label: string; icon: string}> = 
   { type: "connector", label: "Connector", icon: "↓" },
   { type: "sequence", label: "Sequence", icon: "▶" },
   { type: "accordion", label: "Accordion", icon: "≡" },
+  { type: "call_log", label: "Call Log", icon: "☎" },
   { type: "event_timeline", label: "Event Timeline", icon: "E" },
   { type: "tree", label: "Tree", icon: "T" },
   { type: "org_chart", label: "Org Chart", icon: "👥" },
@@ -5987,6 +6086,7 @@ mod tests {
             ("chart", "function ChartSVG("),
             ("graph", "function GraphSVG("),
             ("accordion", "function AccordionView("),
+            ("call_log", "function CallLogView("),
             ("next_steps", "function NextStepsView("),
             ("tier_summary", "function TierSummaryView("),
             ("journey_track", "function JourneyFrame("),
@@ -6101,6 +6201,7 @@ mod tests {
             ("journey_track", "JourneyTouchpoint.date"),
             ("next_steps", "NextStep.owner"), // drives the owner filter, not text
             ("next_steps", "NextAccount.owner"),
+            ("call_log", "CallLogItem.date"), // shown as a formatted label, drives sort and ids
         ];
         let mut missing: Vec<String> = Vec::new();
         for (comp, fields) in &schema.components {
@@ -6178,6 +6279,7 @@ mod tests {
             ("table", "rows"),
             ("before_after", "items"),
             ("priority_queue", "items"),
+            ("call_log", "items"),
             ("tier_summary", "tiers"),
             ("journey_track", "stages"),
             ("journey_track", "detours"),

@@ -127,6 +127,15 @@ fn extract_searchable_text(
                     extract_searchable_text(&item.components, headings, snippets);
                 }
             }
+            Component::CallLog { items, .. } => {
+                for item in items {
+                    headings.push(item.title.clone());
+                    if let Some(s) = &item.summary {
+                        push_snippet(snippets, s);
+                    }
+                    extract_searchable_text(&item.components, headings, snippets);
+                }
+            }
             Component::Section {
                 heading,
                 components,

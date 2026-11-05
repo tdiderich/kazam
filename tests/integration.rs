@@ -3074,3 +3074,117 @@ fn hud_explicit_ids_namespace_url_params() {
         r#"class="c-next" data-next-steps data-kz-param="team""#,
     );
 }
+
+// ── call_log ─────────────────────────────────────────
+
+const CALL_LOG_PAGE: &str = "title: C\nshell: standard\ncomponents:\n  - type: call_log\n    limit: 2\n    items:\n      - { date: \"2026-09-22\", title: Kickoff }\n      - date: \"2026-11-04\"\n        title: First\n        summary: Sum one\n        components:\n          - { type: markdown, body: \"agenda one\" }\n      - date: \"2026-11-04\"\n        title: Second\n        components:\n          - { type: markdown, body: \"agenda two\" }\n      - date: \"2026-10-14\"\n        title: Middle\n        components:\n          - { type: markdown, body: \"mid\" }\n";
+
+#[test]
+fn call_log_sorts_newest_first_with_stable_ties_and_hash_ids() {
+    let html = build_one_page("call-log-sort", CALL_LOG_PAGE, "");
+    let pos = |needle: &str| html.find(needle).unwrap_or_else(|| panic!("{needle}"));
+    let order = [
+        r#"id="call-2026-11-04""#,
+        r#"id="call-2026-11-04-2""#,
+        r#"id="call-2026-10-14""#,
+        r#"id="call-2026-09-22""#,
+    ];
+    for w in order.windows(2) {
+        assert!(pos(w[0]) < pos(w[1]), "{} before {}", w[0], w[1]);
+    }
+    assert!(pos(">First<") < pos(">Second<"));
+    assert_contains(&html, r#"<span class="c-call-date">Nov 4, 2026</span>"#);
+    assert_contains(&html, r#"<span class="c-call-summary">Sum one</span>"#);
+}
+
+#[test]
+fn call_log_hides_past_limit_and_shows_more_button() {
+    let html = build_one_page("call-log-limit", CALL_LOG_PAGE, "");
+    assert_contains(&html, r#"data-call-log data-call-limit="2""#);
+    assert_contains(
+        &html,
+        r#"<div class="c-call-card" data-call-log-item id="call-2026-10-14" hidden>"#,
+    );
+    assert_contains(
+        &html,
+        r#"<div class="c-call-card" data-call-log-item id="call-2026-11-04">"#,
+    );
+    assert_contains(&html, r#"data-call-log-more>Show 2 more</button>"#);
+    assert_contains(
+        &html,
+        r#"data-call-log-toggle aria-expanded="false" aria-controls="call-2026-11-04-body""#,
+    );
+    assert_contains(&html, r#"role="region""#);
+    assert_contains(&html, "data-call-log-body hidden>");
+    assert_contains(&html, "agenda one");
+}
+
+#[test]
+fn call_log_without_components_is_not_expandable() {
+    let html = build_one_page("call-log-plain", CALL_LOG_PAGE, "");
+    let start = html.find(r#"id="call-2026-09-22""#).unwrap();
+    let card = &html[start..];
+    let card = &card[..card.find("</div></div>").unwrap()];
+    assert_contains(card, r#"class="c-call-head is-static""#);
+    assert!(!card.contains("<button"));
+    assert!(!card.contains("c-call-chevron"));
+}
+
+#[test]
+fn call_log_empty_items_shows_empty_state() {
+    let html = build_one_page(
+        "call-log-empty",
+        "title: C\nshell: standard\ncomponents:\n  - type: call_log\n    items: []\n",
+        "",
+    );
+    assert_contains(&html, "No calls yet.");
+    assert!(!html.contains("data-call-log-more"));
+}
+
+fn validate_one(name: &str, page: &str) -> (bool, String) {
+    let dir = tmp_dir(name);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kazam.yaml"), "name: T\ntheme: dark\n").unwrap();
+    std::fs::write(dir.join("index.yaml"), page).unwrap();
+    let out = Command::new(bin())
+        .args(["validate"])
+        .arg(&dir)
+        .output()
+        .expect("run kazam validate");
+    (
+        out.status.success(),
+        String::from_utf8_lossy(&out.stdout).to_string(),
+    )
+}
+
+#[test]
+fn call_log_validate_rejects_bad_date_and_zero_limit_but_not_empty() {
+    let (ok, out) = validate_one(
+        "call-log-v-date",
+        "title: C\nshell: standard\ncomponents:\n  - type: call_log\n    items:\n      - { date: \"11/04/2026\", title: X }\n",
+    );
+    assert!(!ok);
+    assert_contains(&out, "is not an ISO date");
+    let (ok, out) = validate_one(
+        "call-log-v-limit",
+        "title: C\nshell: standard\ncomponents:\n  - type: call_log\n    limit: 0\n    items: []\n",
+    );
+    assert!(!ok);
+    assert_contains(&out, "limit must be at least 1");
+    let (ok, out) = validate_one(
+        "call-log-v-empty",
+        "title: C\nshell: standard\ncomponents:\n  - type: call_log\n    items: []\n",
+    );
+    assert!(ok, "{out}");
+}
+
+#[test]
+fn sdk_emit_react_includes_call_log_view() {
+    let out = Command::new(bin())
+        .args(["sdk", "emit-react"])
+        .output()
+        .expect("run sdk emit-react");
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert_contains(&s, "function CallLogView(");
+    assert_contains(&s, "data-call-log-more");
+}
