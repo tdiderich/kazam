@@ -2748,7 +2748,7 @@ a.c-next-label:hover { color: var(--teal); }
 
 /* Call log */
 .c-call-log { display: flex; flex-direction: column; gap: 8px; }
-.c-call-card { background: rgba(var(--text-rgb),0.05); border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; transition: border-color 0.15s ease; }
+.c-call-card { background: rgba(var(--text-rgb),0.05); border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; transition: border-color 0.15s ease; }
 .c-call-card[hidden], .c-call-body[hidden], .c-call-more[hidden] { display: none; }
 .c-call-card.is-open { background: var(--card-bg); border-color: var(--teal); }
 .c-call-head { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 20px; padding: 14px 20px; margin: 0; background: none; border: none; color: var(--snow); font: inherit; text-align: left; }
@@ -2770,7 +2770,7 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
   .c-call-date { width: auto; flex-basis: 100%; }
   .c-call-body { padding: 14px 16px 16px; }
 }
-@media print { .c-call-log [hidden] { display: block !important; } .c-call-more { display: none !important; } }
+@media print { .c-call-card[hidden], .c-call-body[hidden] { display: block !important; } .c-call-more { display: none !important; } }
 
 /* Event Timeline */
 .c-event-timeline { display: flex; flex-direction: column; gap: 12px; }

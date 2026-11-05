@@ -142,9 +142,62 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
             validate_freshness(file, "freshness", freshness, &mut errors);
         }
     }
+    let mut call_logs = 0;
+    if let Some(components) = &page.components {
+        count_call_logs(components, &mut call_logs);
+    }
+    for slide in page.slides.iter().flatten() {
+        count_call_logs(&slide.components, &mut call_logs);
+    }
+    if call_logs > 1 {
+        errors.push(ValidationError::warning(
+            file,
+            "components",
+            "shape",
+            format!("page has {} call_log components", call_logs),
+            Some("Card ids (call-<date>) are page-level, so #call-<date> links assume one call_log per page.".into()),
+        ));
+    }
     validate_pack(file, page, &mut errors);
     validate_skill(file, page, &mut errors);
     errors
+}
+
+fn count_call_logs(components: &[Component], n: &mut u32) {
+    for c in components {
+        match c {
+            Component::CallLog { items, .. } => {
+                *n += 1;
+                for i in items {
+                    count_call_logs(&i.components, n);
+                }
+            }
+            Component::Section { components, .. } | Component::Box { components, .. } => {
+                count_call_logs(components, n)
+            }
+            Component::Columns { columns, .. } => {
+                for col in columns {
+                    count_call_logs(col, n);
+                }
+            }
+            Component::Grid { children, .. } => {
+                for ch in children {
+                    count_call_logs(std::slice::from_ref(&ch.component), n);
+                }
+            }
+            Component::Tabs { tabs, .. } => {
+                for t in tabs {
+                    count_call_logs(&t.components, n);
+                }
+            }
+            Component::Accordion { items, .. } => {
+                for i in items {
+                    count_call_logs(&i.components, n);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Skill pages (`skill:` present) carry agent procedures. Every ```agl fence
@@ -666,7 +719,10 @@ fn component_height_cost(c: &Component) -> u32 {
         Component::DefinitionList { items, .. } => 1 + items.len() as u32,
         Component::Accordion { items, .. } => 1 + items.len() as u32,
         Component::CallLog { items, limit, .. } => {
-            1 + items.len().min(limit.unwrap_or(5).max(1) as usize) as u32
+            1 + items
+                .len()
+                .min(limit.unwrap_or(crate::types::CALL_LOG_DEFAULT_LIMIT).max(1) as usize)
+                as u32
         }
         Component::BeforeAfter { items, .. } => 2 + items.len() as u32,
         Component::Columns { columns, .. } => columns
@@ -1855,24 +1911,24 @@ fn validate_component(
                     Some("Leave limit out for the default of 5.".into()),
                 ));
             }
-            if items.len() > 200 {
-                errors.push(ValidationError::warning(
-                    file,
-                    format!("{}.items", path),
-                    "shape",
-                    format!("call_log has {} calls", items.len()),
-                    Some("Keep the log under 200 calls; archive the oldest.".into()),
-                ));
-            }
             for (i, item) in items.iter().enumerate() {
                 let d = item.date.trim();
-                if d.len() != 10 || crate::freshness::parse_iso_date(d).is_none() {
+                if !call_date_ok(d) {
                     errors.push(ValidationError::new(
                         file,
                         format!("{}.items[{}].date", path, i),
                         "format",
                         format!("'{}' is not an ISO date", item.date),
                         Some("Use YYYY-MM-DD, like 2026-11-04.".into()),
+                    ));
+                }
+                if item.title.trim().is_empty() {
+                    errors.push(ValidationError::warning(
+                        file,
+                        format!("{}.items[{}].title", path, i),
+                        "missing_field",
+                        "call_log item has a blank title",
+                        Some("Give each call a short title.".into()),
                     ));
                 }
                 validate_components(
@@ -2160,6 +2216,39 @@ fn check_shade(file: &str, path: &str, shade: Option<u8>, errors: &mut Vec<Valid
             ));
         }
     }
+}
+
+/// Strict `YYYY-MM-DD` with a real day for the month (leap years included).
+fn call_date_ok(d: &str) -> bool {
+    let b = d.as_bytes();
+    if b.len() != 10 || b[4] != b'-' || b[7] != b'-' {
+        return false;
+    }
+    let num = |r: std::ops::Range<usize>| d[r].parse::<u32>().ok();
+    if !d
+        .bytes()
+        .enumerate()
+        .all(|(k, c)| k == 4 || k == 7 || c.is_ascii_digit())
+    {
+        return false;
+    }
+    let (Some(y), Some(m), Some(day)) = (num(0..4), num(5..7), num(8..10)) else {
+        return false;
+    };
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let max = match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if leap {
+                29
+            } else {
+                28
+            }
+        }
+        _ => return false,
+    };
+    (1..=max).contains(&day)
 }
 
 fn check_iso_date(file: &str, path: &str, value: &str, errors: &mut Vec<ValidationError>) {

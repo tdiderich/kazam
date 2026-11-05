@@ -1399,25 +1399,6 @@ fn accordion(items: &[AccordionItem], base: &str, config: &SiteConfig) -> Render
 
 // ── Call log ──────────────────────────────────────
 
-const CALL_MONTHS: [&str; 12] = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-/// "2026-11-04" -> "Nov 4, 2026". Built from the string parts so the output
-/// never depends on locale or time zone. Anything unparseable shows as written.
-fn call_date_label(iso: &str) -> String {
-    let t = iso.trim();
-    let mut it = t.get(..10).unwrap_or(t).split('-');
-    if let (Some(y), Some(m), Some(d)) = (it.next(), it.next(), it.next()) {
-        if let (Ok(y), Ok(m), Ok(d)) = (y.parse::<u32>(), m.parse::<usize>(), d.parse::<u32>()) {
-            if (1..=12).contains(&m) {
-                return format!("{} {}, {}", CALL_MONTHS[m - 1], d, y);
-            }
-        }
-    }
-    t.to_string()
-}
-
 fn call_log(
     items: &[CallLogItem],
     limit: Option<u32>,
@@ -1425,7 +1406,7 @@ fn call_log(
     config: &SiteConfig,
 ) -> Rendered {
     let mut r = Rendered::default();
-    let limit = limit.unwrap_or(5).max(1) as usize;
+    let limit = limit.unwrap_or(CALL_LOG_DEFAULT_LIMIT).max(1) as usize;
     if items.is_empty() {
         r.html.push_str(
             r#"<div class="c-call-log" data-call-log><p class="c-call-empty">No calls yet.</p></div>"#,
@@ -1433,18 +1414,28 @@ fn call_log(
         return r;
     }
     // Newest first; the sort is stable so equal dates keep their YAML order.
-    let mut sorted: Vec<&CallLogItem> = items.iter().collect();
-    sorted.sort_by(|a, b| b.date.trim().cmp(a.date.trim()));
+    let mut sorted: Vec<(usize, &CallLogItem)> = items.iter().enumerate().collect();
+    sorted.sort_by(|a, b| b.1.date.trim().cmp(a.1.date.trim()));
     r.html.push_str(&format!(
         r#"<div class="c-call-log" data-call-log data-call-limit="{}">"#,
         limit
     ));
     let mut seen: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
-    for (i, item) in sorted.iter().enumerate() {
+    for (i, (orig, item)) in sorted.iter().enumerate() {
         let date = item.date.trim();
+        let iso_shape = date.len() == 10
+            && date.bytes().enumerate().all(|(k, b)| {
+                if k == 4 || k == 7 {
+                    b == b'-'
+                } else {
+                    b.is_ascii_digit()
+                }
+            });
         let n = seen.entry(date.to_string()).or_insert(0);
         *n += 1;
-        let id = if *n == 1 {
+        let id = if !iso_shape {
+            format!("call-{orig}")
+        } else if *n == 1 {
             format!("call-{}", esc(date))
         } else {
             format!("call-{}-{}", esc(date), n)
@@ -1456,7 +1447,7 @@ fn call_log(
         ));
         let inner = format!(
             r#"<span class="c-call-date">{}</span><span class="c-call-main"><span class="c-call-title">{}</span>{}</span>"#,
-            esc(&call_date_label(date)),
+            esc(&fmt_long_date(date)),
             esc(&item.title),
             item.summary
                 .as_deref()

@@ -449,12 +449,18 @@ document.querySelectorAll('[data-accordion-item]').forEach(function (item) {
 
 const CALL_LOG: &str = r#"
 document.querySelectorAll('[data-call-log]').forEach(function (root) {
-  var cards = Array.prototype.slice.call(root.querySelectorAll('[data-call-log-item]'));
+  function own(el, attr) {
+    return Array.prototype.filter.call(el.children, function (c) { return c.hasAttribute(attr); })[0] || null;
+  }
+  // Only this log's own cards: a call_log nested inside a call body belongs to that one.
+  var cards = Array.prototype.filter.call(root.querySelectorAll('[data-call-log-item]'), function (c) {
+    return c.closest('[data-call-log]') === root;
+  });
   var limit = parseInt(root.getAttribute('data-call-limit'), 10) || 5;
-  var more = root.querySelector('[data-call-log-more]');
+  var more = own(root, 'data-call-log-more');
   function setOpen(card, open) {
-    var t = card.querySelector('[data-call-log-toggle]');
-    var b = card.querySelector('[data-call-log-body]');
+    var t = own(card, 'data-call-log-toggle');
+    var b = own(card, 'data-call-log-body');
     if (!t || !b) return;
     b.hidden = !open;
     t.setAttribute('aria-expanded', open ? 'true' : 'false');
@@ -472,7 +478,7 @@ document.querySelectorAll('[data-call-log]').forEach(function (root) {
     label();
   }
   cards.forEach(function (card) {
-    var t = card.querySelector('[data-call-log-toggle]');
+    var t = own(card, 'data-call-log-toggle');
     if (!t) return;
     t.addEventListener('click', function () {
       var open = t.getAttribute('aria-expanded') !== 'true';
@@ -481,14 +487,18 @@ document.querySelectorAll('[data-call-log]').forEach(function (root) {
     });
   });
   if (more) more.addEventListener('click', function () { reveal(limit); });
-  var h = decodeURIComponent((location.hash || '').slice(1));
-  if (h) {
+  function fromHash() {
+    var h = (location.hash || '').slice(1);
+    try { h = decodeURIComponent(h); } catch (e) { /* keep the raw hash */ }
+    if (!h) return;
     var hit = cards.filter(function (c) { return c.id === h; })[0];
-    if (hit) {
-      if (hit.hidden) reveal(cards.indexOf(hit) + 1 - (cards.length - hiddenCount()));
-      setOpen(hit, true);
-    }
+    if (!hit) return;
+    reveal(cards.slice(0, cards.indexOf(hit) + 1).filter(function (c) { return c.hidden; }).length);
+    cards.forEach(function (c) { setOpen(c, c === hit); });
+    hit.scrollIntoView({ block: 'start' });
   }
+  fromHash();
+  window.addEventListener('hashchange', fromHash);
 });
 "#;
 

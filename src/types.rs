@@ -1938,6 +1938,9 @@ pub struct AccordionItem {
     pub components: Vec<Component>,
 }
 
+/// Cards a `call_log` shows before "Show more" when `limit` is unset.
+pub const CALL_LOG_DEFAULT_LIMIT: u32 = 5;
+
 #[derive(Deserialize)]
 pub struct CallLogItem {
     pub date: String,

@@ -3188,3 +3188,45 @@ fn sdk_emit_react_includes_call_log_view() {
     assert_contains(&s, "function CallLogView(");
     assert_contains(&s, "data-call-log-more");
 }
+
+#[test]
+fn call_log_script_guards_hash_scopes_nested_logs_and_scrolls() {
+    let html = build_one_page("call-log-script", CALL_LOG_PAGE, "");
+    assert_contains(&html, "try { h = decodeURIComponent(h); } catch (e)");
+    assert_contains(&html, "c.closest('[data-call-log]') === root");
+    assert_contains(&html, "hit.scrollIntoView({ block: 'start' })");
+    assert_contains(&html, "addEventListener('hashchange', fromHash)");
+}
+
+#[test]
+fn call_log_validate_dates_titles_and_multiple_logs() {
+    let (ok, out) = validate_one(
+        "call-log-v-feb30",
+        "title: C\nshell: standard\ncomponents:\n  - type: call_log\n    items:\n      - { date: \"2026-02-30\", title: X }\n",
+    );
+    assert!(!ok);
+    assert_contains(&out, "is not an ISO date");
+    let (ok, out) = validate_one(
+        "call-log-v-leap",
+        "title: C\nshell: standard\ncomponents:\n  - type: call_log\n    items:\n      - { date: \"2028-02-29\", title: X }\n",
+    );
+    assert!(ok, "{out}");
+    let (ok, out) = validate_one(
+        "call-log-v-multi",
+        "title: C\nshell: standard\ncomponents:\n  - type: call_log\n    items: []\n  - type: call_log\n    items:\n      - { date: \"2026-01-02\", title: \" \" }\n",
+    );
+    assert!(ok, "{out}");
+    assert_contains(&out, "2 call_log components");
+    assert_contains(&out, "blank title");
+}
+
+#[test]
+fn call_log_react_default_limit_matches_rust() {
+    let out = Command::new(bin())
+        .args(["sdk", "emit-react"])
+        .output()
+        .unwrap();
+    let s = String::from_utf8_lossy(&out.stdout);
+    assert_contains(&s, "const CALL_LOG_DEFAULT_LIMIT = 5;");
+    assert_contains(&s, "addEventListener(\"hashchange\", apply)");
+}

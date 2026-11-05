@@ -2224,14 +2224,8 @@ function AccordionView({
   );
 }
 
-const CALL_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "2026-11-04" -> "Nov 4, 2026" from the string parts, no Date or locale. */
-function callDateLabel(iso: string): string {
-  const m = /^(\d+)-(\d+)-(\d+)/.exec(iso);
-  if (!m || +m[2] < 1 || +m[2] > 12) return iso;
-  return `${CALL_MONTHS[+m[2] - 1]} ${+m[3]}, ${+m[1]}`;
-}
+const CALL_LOG_DEFAULT_LIMIT = 5;
+const CALL_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /** call_log: one collapsed card per call, newest first, one open at a time.
  * Every card and body stays in the DOM (closed ones carry `hidden`). */
@@ -2250,28 +2244,45 @@ function CallLogView({
   renderChart?: (comp: ComponentData) => React.ReactNode;
   renderRoleMap?: (comp: ComponentData) => React.ReactNode;
 }) {
-  const per = Math.max(1, Math.floor(Number(limit) || 5));
+  const per = limit == null ? CALL_LOG_DEFAULT_LIMIT : Math.max(1, Math.floor(Number(limit)) || 1);
   const rows = React.useMemo(() => {
     const seen: Record<string, number> = {};
     return items
       .map((item, orig) => ({ item, orig, iso: kzIso(item.date) ?? "" }))
       .sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : a.orig - b.orig))
       .map((r) => {
+        if (!CALL_ISO.test(r.iso)) return { ...r, cid: `call-${r.orig}` };
         seen[r.iso] = (seen[r.iso] || 0) + 1;
         return { ...r, cid: seen[r.iso] === 1 ? `call-${r.iso}` : `call-${r.iso}-${seen[r.iso]}` };
       });
   }, [items]);
   const [shown, setShown] = React.useState(per);
   const [openId, setOpenId] = React.useState<string | null>(null);
+  React.useEffect(() => setShown(per), [per]);
   React.useEffect(() => {
-    const h = decodeURIComponent((window.location.hash || "").slice(1));
-    if (!h) return;
-    const idx = rows.findIndex((r) => r.cid === h);
-    if (idx < 0) return;
-    setShown((n) => Math.max(n, idx + 1));
-    setOpenId(h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (openId && !rows.some((r) => r.cid === openId)) setOpenId(null);
+  }, [rows, openId]);
+  const hashTarget = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const apply = () => {
+      let h = (window.location.hash || "").slice(1);
+      try { h = decodeURIComponent(h); } catch { /* keep the raw hash */ }
+      const idx = rows.findIndex((r) => r.cid === h);
+      if (idx < 0) return;
+      setShown((n) => Math.max(n, idx + 1));
+      setOpenId(h);
+      hashTarget.current = h;
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, [rows]);
+  React.useEffect(() => {
+    const t = hashTarget.current;
+    if (!t) return;
+    hashTarget.current = null;
+    document.getElementById(t)?.scrollIntoView({ block: "start" });
+  });
   if (rows.length === 0) {
     return <div id={id} className="c-call-log" data-call-log=""><p className="c-call-empty">No calls yet.</p></div>;
   }
@@ -2283,10 +2294,10 @@ function CallLogView({
         const open = openId === cid;
         const inner = (
           <>
-            <span className="c-call-date">{callDateLabel(iso)}</span>
+            <span className="c-call-date">{kzLongDate(iso)}</span>
             <span className="c-call-main">
               <span className="c-call-title" data-kz-field={`items[${orig}].title`}>{item.title}</span>
-              {item.summary && <span className="c-call-summary" data-kz-field={`items[${orig}].summary`}>{item.summary}</span>}
+              {item.summary && item.summary.trim() !== "" && <span className="c-call-summary" data-kz-field={`items[${orig}].summary`}>{item.summary}</span>}
             </span>
           </>
         );
@@ -2439,7 +2450,7 @@ function kzLongDate(iso: string): string {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const [y, m, d] = iso.split("-");
   const mi = parseInt(m, 10), di = parseInt(d, 10);
-  if (!y || isNaN(mi) || isNaN(di) || mi < 1 || mi > 12) return iso;
+  if (!y || !/^\d+$/.test(y) || isNaN(mi) || isNaN(di) || mi < 1 || mi > 12) return iso;
   return `${months[mi - 1]} ${di}, ${y}`;
 }
 
