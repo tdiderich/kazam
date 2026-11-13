@@ -1565,7 +1565,7 @@ body.shell-hub { min-height: 100vh; }
 
 /* Role Map */
 .c-role-map { margin: 2rem 0; }
-.c-role-map-title { font-size: 1.5rem; margin-bottom: 1rem; color: var(--text); }
+.c-role-map-title { font-size: 1.5rem; margin-bottom: 1rem; color: var(--snow); }
 .c-role-map-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1590,8 +1590,8 @@ body.shell-hub { min-height: 100vh; }
 }
 .c-role-map-icon { font-size: 1.5rem; }
 .c-role-map-label { font-size: 1.125rem; font-weight: 600; }
-.c-role-map-desc { font-size: 0.875rem; color: var(--text-muted); line-height: 1.4; }
-.c-role-map-empty { color: var(--text-muted); font-style: italic; }
+.c-role-map-desc { font-size: 0.875rem; color: var(--light-muted); line-height: 1.4; }
+.c-role-map-empty { color: var(--light-muted); font-style: italic; }
 
 /* Card Grid */
 .c-card-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(var(--card-min, 320px), 1fr)); }
@@ -3408,7 +3408,7 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
   color: var(--bg);
   border: 1px solid var(--teal);
 }
-.c-button-primary:hover { background: #5fdada; border-color: #5fdada; }
+.c-button-primary:hover { background: color-mix(in srgb, var(--teal) 85%, var(--snow)); border-color: color-mix(in srgb, var(--teal) 85%, var(--snow)); }
 .c-button-secondary {
   background: transparent;
   color: var(--teal);
@@ -3454,10 +3454,10 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 }
 
 /* Blockquote */
-.c-blockquote {
-  margin: 0;
 /* A pull quote is a panel, so it takes the panel border rather than a
    colored side stripe; the italic and the attribution mark it as a quote. */
+.c-blockquote {
+  margin: 0;
   padding: 24px 32px;
   background: var(--card-bg);
   border: 1px solid var(--card-border);

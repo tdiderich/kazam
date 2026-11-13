@@ -575,7 +575,7 @@ pub fn validate_dir(dir: &Path) -> Vec<ValidationError> {
 fn validate_site_config(file: &str, config: &SiteConfig, errors: &mut Vec<ValidationError>) {
     // Valid theme names.
     const VALID_THEMES: &[&str] = &[
-        "dark", "light", "red", "orange", "yellow", "green", "teal", "blue", "violet",
+        "dark", "light", "red", "orange", "yellow", "green", "teal", "blue", "indigo", "violet",
     ];
     if let Some(theme) = &config.theme {
         if !VALID_THEMES.contains(&theme.as_str()) {

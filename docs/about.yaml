@@ -188,7 +188,7 @@ components:
         language: yaml
         code: |
           name: My Knowledge Base
-          theme: dark                      # dark | light | red/orange/yellow/green/blue/indigo/violet
+          theme: dark                      # dark | light | red/orange/yellow/green/blue/indigo/violet/teal
           texture: dots                    # optional - decorative background
           glow: accent                     # optional - soft accent wash
           description: My knowledge base.  # meta description

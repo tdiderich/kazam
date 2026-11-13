@@ -32,7 +32,7 @@ Any non-`.yaml` file (images, SVGs, fonts) is copied verbatim into the output.
 
 ```yaml
 name: Site Name
-theme: dark              # dark | light | red | orange | yellow | green | blue | indigo | violet
+theme: dark              # dark | light | red | orange | yellow | green | blue | indigo | violet | teal
 mode: dark               # optional: dark (default) | light - flips rainbow themes onto the light base
 colors:                  # optional per-token overrides
   accent: '#14b8b8'
@@ -845,11 +845,15 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
 
 Every colored component accepts the same 5-value palette:
 
-- `default` - teal accent (brand)
+- `default` - the theme accent (sage by default): emphasis, never status
 - `green` - success, healthy
 - `yellow` - warning, at-risk
 - `red` - danger, critical
-- `teal` - explicit teal (same as default)
+- `teal` - the theme accent too (the name is historical; same as default)
+
+Green, yellow and red mean status. The accent means emphasis. Don't use a status
+color as decoration, and don't use `hex:` to add a second brand hue: it skips the
+theme's contrast tuning.
 
 ## Common gotchas
 

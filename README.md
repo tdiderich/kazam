@@ -1154,7 +1154,7 @@ Print the full CSS stylesheet to stdout
 
 | Flag | Default | Description |
 |---|---|---|
-| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet) |
+| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet, teal) |
 | `--mode` | `dark` | Base mode for rainbow themes (dark, light). Ignored for dark/light themes |
 | `--texture` | `none` | Enable texture overlay (none, dots, grid, grain, topography, diagonal) |
 | `--glow` | `none` | Enable glow effect (none, accent, corner) |
@@ -1167,7 +1167,7 @@ Print only the :root CSS custom properties block to stdout
 
 | Flag | Default | Description |
 |---|---|---|
-| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet) |
+| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet, teal) |
 | `--mode` | `dark` | Base mode for rainbow themes (dark, light). Ignored for dark/light themes |
 
 ##### `kazam theme json`
@@ -1176,7 +1176,7 @@ Print theme tokens as JSON (for programmatic consumption)
 
 | Flag | Default | Description |
 |---|---|---|
-| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet) |
+| `--theme` | `dark` | Theme name (dark, light, red, orange, yellow, green, blue, indigo, violet, teal) |
 | `--mode` | `dark` | Base mode for rainbow themes (dark, light). Ignored for dark/light themes |
 
 #### `kazam agl`
