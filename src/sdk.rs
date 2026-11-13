@@ -3615,7 +3615,7 @@ function ComponentView({
         return s;
       };
       return (
-        <div id={id} className="c-grid" style={gridStyle as React.CSSProperties} data-kz-list="children">
+        <div id={id} className={comp.stack === false ? "c-grid" : "c-grid c-grid-stack"} style={gridStyle as React.CSSProperties} data-kz-list="children">
           {children.map((ch, i) => (
             <div key={i} className="c-grid-cell" style={cellStyle(ch)}>
               <ComponentView comp={ch.component} index={i} kzPath={`${kz}.children[${i}].component`} renderChart={renderChart} renderRoleMap={renderRoleMap} />

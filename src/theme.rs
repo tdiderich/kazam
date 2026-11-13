@@ -2687,6 +2687,11 @@ a.c-next-label:hover { color: var(--teal); }
   align-items: stretch;
 }
 .c-grid-cell { min-width: 0; display: flex; flex-direction: column; }
+/* Phones: one column in source order unless the author set stack: false. */
+@media (max-width: 640px) {
+  .c-grid.c-grid-stack { grid-template-columns: minmax(0, 1fr); }
+  .c-grid.c-grid-stack > .c-grid-cell { grid-column: auto !important; grid-row: auto !important; }
+}
 .c-grid-cell > * { margin-bottom: 0; flex: 1; }
 .c-grid-cell > .kz-wrap > * { margin-bottom: 0; }
 
@@ -2703,7 +2708,8 @@ a.c-next-label:hover { color: var(--teal); }
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* Top-aligned: centred bodies in stretched grid rows gave ragged tops. */
+  justify-content: flex-start;
 }
 .c-box-border-dashed { border-style: dashed; border-radius: 10px; }
 .c-box-default { --box-accent: var(--teal); }

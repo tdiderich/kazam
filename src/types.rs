@@ -641,6 +641,11 @@ pub enum Component {
         children: Vec<GridChild>,
         #[serde(default)]
         id: Option<String>,
+        /// Under 640px the grid drops to one column, cells in source order
+        /// (default). `stack: false` keeps the authored columns on phones,
+        /// for diagrams whose meaning depends on the 2D placement.
+        #[serde(default = "default_true")]
+        stack: bool,
         #[serde(default)]
         scale: Option<f32>,
         #[serde(default)]

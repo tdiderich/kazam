@@ -135,6 +135,8 @@ components:
           `rows` and `gap` optional. Children are `{ col, row, colspan, rowspan, component }`
           with 1-based `col`/`row`. Leave `col`/`row` off to auto-flow in order.
           Cells size from the container, so a wide grid never pushes text off the page.
+          Under 640px the grid drops to one column in source order; set `stack: false`
+          to keep the authored columns on phones when the 2D placement carries meaning.
 
           Validation errors on two children claiming the same cell, on a child
           placed past `columns`/`rows`, and on grids nested more than 3 deep.

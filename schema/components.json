@@ -2241,6 +2241,11 @@
         "type": "string",
         "required": false,
         "kind": "id"
+      },
+      "stack": {
+        "type": "boolean",
+        "required": false,
+        "kind": "bool"
       }
     },
     "box": {

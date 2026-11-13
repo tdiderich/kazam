@@ -90,8 +90,18 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             gap,
             children,
             id,
+            stack,
             ..
-        } => grid(*columns, *rows, *gap, children, id.as_deref(), base, config),
+        } => grid(
+            *columns,
+            *rows,
+            *gap,
+            children,
+            id.as_deref(),
+            *stack,
+            base,
+            config,
+        ),
         Component::Box {
             title,
             tag,
@@ -1234,12 +1244,14 @@ fn columns_component(
 
 // ── Grid / Box / Connector ────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn grid(
     columns: u32,
     rows: Option<u32>,
     gap: Option<u32>,
     children: &[GridChild],
     id: Option<&str>,
+    stack: bool,
     base: &str,
     config: &SiteConfig,
 ) -> Rendered {
@@ -1255,8 +1267,10 @@ fn grid(
         style.push_str(&format!("; --gap: {}px", gap));
     }
     r.html.push_str(&format!(
-        r#"<div{} class="c-grid" style="{}">"#,
-        id_attr, style
+        r#"<div{} class="c-grid{}" style="{}">"#,
+        id_attr,
+        if stack { " c-grid-stack" } else { "" },
+        style
     ));
     for child in children {
         r.html.push_str(&format!(
