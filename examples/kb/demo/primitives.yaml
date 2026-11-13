@@ -35,12 +35,12 @@ components:
             tier: Enterprise
             users: 47
             coverage: 94%
-            health: Healthy
+            health: { value: Healthy, status: green }
           - name: Beta Corp
             tier: Mid-Market
             users: 12
             coverage: 41%
-            health: At Risk
+            health: { value: At Risk, status: yellow }
           - name: Gamma Inc
             tier: Enterprise
             users: 0
@@ -50,12 +50,12 @@ components:
             tier: Startup
             users: 8
             coverage: 88%
-            health: Healthy
+            health: { value: Healthy, status: green }
           - name: Echo Systems
             tier: Enterprise
             users: 120
             coverage: 99%
-            health: Healthy
+            health: { value: Healthy, status: green }
 
   - type: section
     eyebrow: Callouts
@@ -64,7 +64,7 @@ components:
       - type: callout
         variant: info
         title: Info
-        body: Plain informational callout with a teal accent bar on the left.
+        body: Plain informational callout with a neutral bar on the left. Success gets the green bar.
 
       - type: callout
         variant: success

@@ -147,7 +147,7 @@ components:
       - type: callout
         variant: info
         title: Heads up
-        body: Neutral information with a teal accent bar.
+        body: Neutral information with a neutral ink bar, distinct from success green.
 
       - type: callout
         variant: success

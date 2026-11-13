@@ -750,7 +750,9 @@ h1, h2, h3 { font-weight: 600; color: var(--snow); }
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 0 48px;
+  /* Explicit block inset: children are centered in the 56px bar either
+     way, but they must never sit flush on the bottom rule. */
+  padding: 8px 48px;
   height: 56px;
   flex-shrink: 0;
   border-bottom: 1.5px solid var(--teal);
@@ -1578,11 +1580,11 @@ body.shell-hub { min-height: 100vh; }
   border: 1px solid rgba(var(--text-rgb), 0.1);
   background: rgba(var(--text-rgb), 0.03);
   text-decoration: none;
-  color: var(--text);
+  color: var(--snow);
   transition: border-color 0.2s, background 0.2s, transform 0.15s;
 }
 .c-role-map-card:hover {
-  border-color: var(--accent);
+  border-color: var(--teal);
   background: rgba(var(--accent-rgb), 0.08);
   transform: translateY(-2px);
 }
@@ -1751,7 +1753,7 @@ a.c-card { color: inherit; }
   background: rgba(var(--text-rgb),0.12);
 }
 .c-timeline-phase.completed .c-timeline-dot { background: var(--green); }
-.c-timeline-phase.active .c-timeline-dot { background: var(--teal); box-shadow: 0 0 8px rgba(var(--accent-rgb),0.5); }
+.c-timeline-phase.active .c-timeline-dot { background: var(--teal); }
 .c-timeline-label {
   font-size: 11px; font-weight: 600;
   text-transform: uppercase;
@@ -1885,8 +1887,6 @@ body.shell-document .doc-body h3, body.shell-document .doc-body h4 {
 }
 .c-markdown h2, body.shell-document .doc-body h2 {
   font-size: 18px;
-  padding-left: 12px;
-  border-left: 3px solid var(--teal);
 }
 .c-markdown h3, body.shell-document .doc-body h3 { font-size: 16px; color: var(--teal); }
 .c-markdown h4, body.shell-document .doc-body h4 {
@@ -1992,10 +1992,10 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 }
 .c-markdown blockquote, body.shell-document .doc-body blockquote {
   position: relative;
-  background: rgba(var(--accent-rgb),0.07);
-  border-left: 3px solid rgba(var(--accent-rgb), 0.5);
-  border-radius: 0 8px 8px 0;
-  padding: 0.6em 1.2em 0.6em 1.4em;
+  /* The left rule is the structural quote marker for inline prose quotes:
+     neutral, not accent, and no panel fill behind it. */
+  border-left: 2px solid rgba(var(--text-rgb), 0.25);
+  padding: 0.2em 1.2em 0.2em 1.4em;
   color: var(--muted);
   font-style: italic;
   margin-bottom: 1em;
@@ -2078,12 +2078,14 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   border-left: 3px solid;
   background: rgba(var(--text-rgb), 0.08);
 }
-.c-callout-info { border-left-color: var(--teal); }
-.c-callout-warn { border-left-color: var(--yellow); background: rgba(251, 191, 36, 0.04); }
-.c-callout-success { border-left-color: var(--green); background: rgba(52, 211, 153, 0.04); }
-.c-callout-danger { border-left-color: var(--red); background: rgba(248, 113, 113, 0.04); }
+/* Info is neutral ink so it never reads as success: in the dark theme the
+   accent and "good" are the same sage. Tints follow the theme tokens. */
+.c-callout-info { border-left-color: rgba(var(--text-rgb), 0.45); }
+.c-callout-warn { border-left-color: var(--yellow); background: color-mix(in srgb, var(--yellow) 5%, var(--card-bg)); }
+.c-callout-success { border-left-color: var(--green); background: color-mix(in srgb, var(--green) 7%, var(--card-bg)); }
+.c-callout-danger { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 6%, var(--card-bg)); }
 .c-callout-title { font-weight: 600; margin-bottom: 4px; color: var(--snow); }
-.c-callout-info .c-callout-title { color: var(--teal); }
+.c-callout-info .c-callout-title { color: var(--snow); }
 .c-callout-warn .c-callout-title { color: var(--yellow); }
 .c-callout-success .c-callout-title { color: var(--green); }
 .c-callout-danger .c-callout-title { color: var(--red); }
@@ -2219,7 +2221,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   margin-top: 2px;
 }
 .c-org-node-count {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--muted);
   margin-top: 4px;
   font-weight: 500;
@@ -2282,7 +2284,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   justify-content: center;
 }
 .c-org-node-tags .c-badge {
-  font-size: 9.5px;
+  font-size: 11px;
   padding: 2px 7px;
 }
 .c-org-node-contact {
@@ -2429,7 +2431,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-seq-note p { margin: 0 0 6px; }
 .c-seq-note p:last-child { margin-bottom: 0; }
 .seq-active .seq-dim { opacity: 0.32; filter: saturate(0.35); transition: opacity 0.25s ease, filter 0.25s ease; }
-.seq-active .seq-hi { transition: box-shadow 0.25s ease; box-shadow: 0 0 0 2px var(--box-accent, var(--teal)), 0 0 24px -6px var(--box-accent, var(--teal)); }
+.seq-active .seq-hi { transition: box-shadow 0.25s ease; box-shadow: 0 0 0 2px var(--box-accent, var(--teal)); }
 .seq-active .seq-hi.c-connector { box-shadow: none; }
 .seq-active .seq-hi.c-connector .c-connector-label { color: var(--snow); }
 @media print { .c-sequence { display: none !important; } .seq-dim { opacity: 1 !important; filter: none !important; } .seq-hi { box-shadow: none !important; } }
@@ -2897,7 +2899,6 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 }
 .c-event.severity-major .c-event-dot {
   background: var(--teal);
-  box-shadow: 0 0 6px rgba(var(--accent-rgb),0.5);
 }
 .c-event.severity-info .c-event-dot { background: var(--muted); }
 .c-event-body {
@@ -2915,7 +2916,7 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 .c-event-date { font-variant-numeric: tabular-nums; }
 .c-event-severity {
   text-transform: uppercase;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   font-weight: 600;
   padding: 2px 6px;
@@ -3045,7 +3046,6 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 .c-tree-node.status-active > .c-tree-row > .c-tree-glyph {
   color: var(--teal);
   background: rgba(var(--accent-rgb),0.15);
-  box-shadow: 0 0 6px rgba(var(--accent-rgb),0.4);
 }
 .c-tree-node.status-blocked > .c-tree-row > .c-tree-glyph {
   color: var(--red);
@@ -3365,10 +3365,10 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
   border-radius: 50%;
   background: rgba(var(--text-rgb), 0.3);
 }
-.c-status-green .c-status-dot { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent); }
-.c-status-yellow .c-status-dot { background: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 18%, transparent); }
-.c-status-red .c-status-dot { background: var(--red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent); }
-.c-status-teal .c-status-dot { background: var(--teal); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15); }
+.c-status-green .c-status-dot { background: var(--green); }
+.c-status-yellow .c-status-dot { background: var(--yellow); }
+.c-status-red .c-status-dot { background: var(--red); }
+.c-status-teal .c-status-dot { background: var(--teal); }
 /* Status as data inside a meta value or a table cell keeps the host's type. */
 .c-meta-value .c-status, .c-table td .c-status { font-size: inherit; font-weight: inherit; }
 .c-meta-value .c-status-dot, .c-table td .c-status-dot { flex: none; }
@@ -3454,10 +3454,12 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 /* Blockquote */
 .c-blockquote {
   margin: 0;
+/* A pull quote is a panel, so it takes the panel border rather than a
+   colored side stripe; the italic and the attribution mark it as a quote. */
   padding: 24px 32px;
-  background: rgba(var(--accent-rgb), 0.03);
-  border-left: 3px solid var(--teal);
-  border-radius: 0 10px 10px 0;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
 }
 .c-blockquote blockquote {
   margin: 0;
@@ -3490,7 +3492,7 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
   border: 1px solid rgba(var(--accent-rgb), 0.2);
 }
 .c-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.c-avatar-sm { width: 24px; height: 24px; font-size: 10px; }
+.c-avatar-sm { width: 24px; height: 24px; font-size: 11px; }
 .c-avatar-md { width: 40px; height: 40px; font-size: 13px; }
 .c-avatar-lg { width: 56px; height: 56px; font-size: 18px; }
 .c-avatar-xl { width: 80px; height: 80px; font-size: 24px; }
@@ -3723,13 +3725,13 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 }
 .c-arch-node-detail {
   fill: rgba(var(--text-rgb),0.55);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 400;
 }
 .c-arch-edge { pointer-events: none; }
 .c-arch-edge-label {
   fill: rgba(var(--text-rgb),0.55);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -3771,7 +3773,7 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 .c-progress-target { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--snow); border-radius: 1px; opacity: 0.8; z-index: 1; }
 
 /* Event timeline tags + filter pills */
-.c-event-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(var(--accent-rgb),0.1); color: var(--teal); }
+.c-event-tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: rgba(var(--accent-rgb),0.1); color: var(--teal); }
 .c-event-tag-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .c-event-tag-pill { appearance: none; background: rgba(var(--text-rgb),0.06); border: 1px solid rgba(var(--text-rgb),0.1); color: rgba(var(--text-rgb),0.7); font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 100px; cursor: pointer; transition: all 0.15s; }
 .c-event-tag-pill:hover { color: var(--snow); border-color: rgba(var(--text-rgb),0.2); }
@@ -3798,7 +3800,7 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 .c-tree-summary-table th:not(:first-child), .c-tree-summary-table td:not(:first-child) { text-align: right; }
 
 /* Aside */
-.c-aside { background: rgba(var(--text-rgb),0.04); border-left: 3px solid rgba(var(--text-rgb),0.15); border-radius: 0 8px 8px 0; padding: 16px 20px; }
+.c-aside { background: rgba(var(--text-rgb),0.04); border: 1px solid var(--card-border); border-radius: 12px; padding: 16px 20px; }
 .c-aside .c-aside-body { font-size: 14px; color: rgba(var(--text-rgb),0.75); line-height: 1.6; }
 .c-aside .c-aside-body > :first-child { margin-top: 0; }
 .c-aside .c-aside-body > :last-child { margin-bottom: 0; }
@@ -4196,7 +4198,6 @@ a.c-queue-label:hover {
 }
 .c-queue-row.drift .c-queue-stripe {
   background: var(--yellow);
-  box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
 }
 .c-queue-row.drift .c-queue-date::before {
   content: "drift";
@@ -4286,17 +4287,18 @@ body.shell-standard { page: standard-page; }
   body.shell-standard.print-letter .c-columns { display: table; width: 100%; table-layout: fixed; border-spacing: 16px 0; margin-left: -16px; width: calc(100% + 32px); }
   body.shell-standard.print-letter .c-column { display: table-cell; vertical-align: top; }
   body.shell-standard.print-letter .c-column > * { margin-bottom: 8px; }
-  body.shell-standard.print-letter .c-table { font-size: 11px; line-height: 1.4; }
+  body.shell-standard.print-letter .c-table { font-size: 13px; line-height: 1.4; }
   body.shell-standard.print-letter .c-table th, body.shell-standard.print-letter .c-table td { padding: 5px 9px; }
   body.shell-standard.print-letter .c-table-wrap { display: block; }
   body.shell-standard.print-letter .c-callout { padding: 8px 12px; }
   body.shell-standard.print-letter .c-box, body.shell-standard.print-letter .c-grid-cell { break-inside: avoid; page-break-inside: avoid; }
-  body.shell-standard.print-letter { font-size: 12px; }
-  body.shell-standard.print-letter .c-box { font-size: 11px; padding: 8px 11px; }
-  body.shell-standard.print-letter .c-box-title { font-size: 12.5px; }
-  body.shell-standard.print-letter .c-box-tag { font-size: 9.5px; }
-  body.shell-standard.print-letter .c-connector { min-height: 20px; font-size: 9.5px; }
-  body.shell-standard.print-letter .c-markdown, body.shell-standard.print-letter .c-callout-body, body.shell-standard.print-letter .c-table { font-size: 12px; }
+  /* Type floor holds in print too: 13px body at 1.45, 11px labels. */
+  body.shell-standard.print-letter { font-size: 13px; }
+  body.shell-standard.print-letter .c-box { font-size: 13px; line-height: 1.45; padding: 8px 11px; }
+  body.shell-standard.print-letter .c-box-title { font-size: 14px; }
+  body.shell-standard.print-letter .c-box-tag { font-size: 11px; }
+  body.shell-standard.print-letter .c-connector { min-height: 20px; font-size: 11px; }
+  body.shell-standard.print-letter .c-markdown, body.shell-standard.print-letter .c-callout-body, body.shell-standard.print-letter .c-table { font-size: 13px; }
   body.shell-standard.print-letter .c-section-heading { font-size: 16px; }
 
   /* ── Standard continuous: letter-size pages, vertically centered sections ── */
@@ -4528,7 +4530,7 @@ body.shell-standard { page: standard-page; }
    its own responsive rules above and is exempt. */
 @media (max-width: 768px) {
   .container { padding: 0 20px; }
-  .site-bar { padding: 0 20px; gap: 12px; }
+  .site-bar { padding: 8px 20px; gap: 12px; }
   .site-bar-subtitle { display: none; }
   /* Slightly tighter logo cap on phones so it never fights the hamburger. */
   .site-bar-logo { max-height: 28px; max-width: 160px; }
