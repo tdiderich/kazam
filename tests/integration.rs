@@ -445,9 +445,8 @@ components:
     assert_contains(&html, r#"class="c-chart-legend""#);
 
     // SemColor threading through: green was requested explicitly somewhere.
-    // Charts use the canonical hex palette (not theme CSS vars) so stacks
-    // stay distinguishable on themes that remap --green.
-    assert_contains(&html, "#34D399");
+    // Charts follow the theme: named green maps to the chart's good slot.
+    assert_contains(&html, "var(--chart-2)");
 
     // Titles rendered as figcaptions
     assert_contains(&html, r#"class="c-chart-title">Pie</figcaption>"#);
@@ -2588,7 +2587,7 @@ fn grid_box_connector_render_html() {
     );
     assert_contains(
         &html,
-        r#"<div id="g" class="c-grid" style="--cols: 2; --gap: 12px">"#,
+        r#"<div id="g" class="c-grid c-grid-stack" style="--cols: 2; --gap: 12px">"#,
     );
     assert_contains(
         &html,
@@ -2678,7 +2677,7 @@ fn motion_page_emits_carriers_body_class_and_script() {
     );
     assert_contains(
         &html,
-        r#"<div class="kz-anim" data-animate="stagger"><div class="c-grid""#,
+        r#"<div class="kz-anim" data-animate="stagger"><div class="c-grid c-grid-stack""#,
     );
     assert_contains(&html, "IntersectionObserver");
     assert!(html.matches("kz-anim").count() >= 2);
