@@ -232,16 +232,19 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             orientation,
             data,
             series,
+            palette,
             ..
-        } => charts::render(charts::ChartSpec {
-            kind: *kind,
-            title,
-            height: *height,
-            x_label,
-            y_label,
-            orientation: *orientation,
-            data,
-            series,
+        } => charts::with_palette(*palette, || {
+            charts::render(charts::ChartSpec {
+                kind: *kind,
+                title,
+                height: *height,
+                x_label,
+                y_label,
+                orientation: *orientation,
+                data,
+                series,
+            })
         }),
         Component::RoleMap { title, .. } => role_map(title.as_deref(), config, base),
         Component::Sankey {
@@ -249,16 +252,22 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             height,
             flows,
             colors,
+            palette,
             ..
-        } => charts::render_sankey(title, *height, flows, colors),
+        } => charts::with_palette(*palette, || {
+            charts::render_sankey(title, *height, flows, colors)
+        }),
         Component::Radar {
             title,
             height,
             axes,
             curves,
             max,
+            palette,
             ..
-        } => charts::render_radar(title, *height, axes, curves, *max),
+        } => charts::with_palette(*palette, || {
+            charts::render_radar(title, *height, axes, curves, *max)
+        }),
         Component::Quadrant {
             title,
             height,
@@ -266,8 +275,11 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             y_axis,
             quadrants,
             points,
+            palette,
             ..
-        } => charts::render_quadrant(title, *height, x_axis, y_axis, quadrants, points),
+        } => charts::with_palette(*palette, || {
+            charts::render_quadrant(title, *height, x_axis, y_axis, quadrants, points)
+        }),
         Component::Architecture {
             title,
             height,
@@ -669,7 +681,7 @@ fn stat_grid(stats: &[Stat], columns: u32) -> Rendered {
     for s in stats {
         h.push_str(&format!(
             r#"<div class="c-stat" style="--stat-color: {color}"><div class="c-stat-label">{label}</div><div class="c-stat-value">{value}</div>"#,
-            color = s.color.hex(),
+            color = s.color.css(),
             label = esc(&s.label),
             value = esc(&s.value),
         ));
@@ -1316,7 +1328,7 @@ fn connector(
         .map(|h| format!(r#" style="--connector-accent: {}""#, h))
         .unwrap_or_else(|| match color {
             SemColor::Default => String::new(),
-            c => format!(r#" style="--connector-accent: {}""#, c.hex()),
+            c => format!(r#" style="--connector-accent: {}""#, c.css()),
         });
     r.html.push_str(&format!(
         r#"<div class="c-connector c-connector-{}"{}>"#,
@@ -3411,7 +3423,7 @@ fn icon_component(name: &str, size: IconSize, color: SemColor) -> Rendered {
     let px = size.pixels();
     let color_value = match color {
         SemColor::Default => "currentColor".to_string(),
-        _ => color.hex().to_string(),
+        _ => color.css().to_string(),
     };
     Rendered::new(icons::render(name, px, &color_value))
 }
@@ -3607,10 +3619,10 @@ fn gauge(items: &[GaugeItem], title: Option<&str>, columns: u32, max: f64) -> Re
         let circumference = 2.0 * std::f64::consts::PI * r;
         let dash = circumference * pct;
         let gap = circumference - dash;
-        let color = item.color.hex();
+        let color = item.color.css();
         h.push_str(r#"<div class="c-gauge-item">"#);
         h.push_str(&format!(
-            r#"<svg class="c-gauge-ring" viewBox="0 0 64 64"><circle cx="32" cy="32" r="{r}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/><circle cx="32" cy="32" r="{r}" fill="none" stroke="{color}" stroke-width="6" stroke-dasharray="{dash:.1} {gap:.1}" stroke-dashoffset="{offset:.1}" stroke-linecap="round" transform="rotate(-90 32 32)"/><text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="c-gauge-value">{val}</text></svg>"#,
+            r#"<svg class="c-gauge-ring" viewBox="0 0 64 64"><circle cx="32" cy="32" r="{r}" fill="none" stroke="rgba(var(--text-rgb), 0.08)" stroke-width="6"/><circle cx="32" cy="32" r="{r}" fill="none" stroke="{color}" stroke-width="6" stroke-dasharray="{dash:.1} {gap:.1}" stroke-dashoffset="{offset:.1}" stroke-linecap="round" transform="rotate(-90 32 32)"/><text x="32" y="32" text-anchor="middle" dominant-baseline="central" class="c-gauge-value">{val}</text></svg>"#,
             r = r,
             color = color,
             dash = dash,
@@ -3702,8 +3714,9 @@ fn sorted_accounts(accounts: &[TierAccount]) -> Vec<&TierAccount> {
     v
 }
 
-/// Color class for a tier: its explicit color, or an accent shade by
-/// position (tier 1 solid, 2 at 62%, 3 at 32%, 4+ hollow).
+/// Color class for a tier: its explicit color, or a status by position
+/// (1-2 good, 3 watch, 4+ alert). Each position also draws a different
+/// swatch shape so the tier never reads from colour alone.
 fn tier_color_class(color: Option<SemColor>, index: usize) -> String {
     match color {
         Some(c) => format!("c-tier-{}", sem_color_class(c)),

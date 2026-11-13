@@ -152,6 +152,7 @@ impl Theme {
              --green: {green};\
              --yellow: {yellow};\
              --red: {red};\
+             {chart_good}\
              }}\n",
             bg = self.bg,
             bg_rgb = bg_rgb,
@@ -171,8 +172,68 @@ impl Theme {
             yellow = self.yellow,
             red = self.red,
             header_border = self.header_border,
+            chart_good = chart_good_decl(&self.green, &self.accent),
         )
     }
+}
+
+/// Lighter "good" step for chart series when good and the accent are the
+/// same color (the dark theme), so series 1 and 2 stay distinguishable.
+const CHART_GOOD_MIX: &str = "color-mix(in oklab, var(--green) 55%, var(--snow))";
+
+fn chart_good_decl(green: &str, accent: &str) -> String {
+    if green.trim().eq_ignore_ascii_case(accent.trim()) {
+        format!("--chart-good: {};", CHART_GOOD_MIX)
+    } else {
+        String::new()
+    }
+}
+
+/// Mode override block for the switchable CSS: every theme token except
+/// the accent, with the rgb triples spelled out.
+fn mode_override_block(selector: &str, t: &Theme) -> String {
+    let bg_rgb = hex_to_rgb_triple(&t.bg).unwrap_or_else(|| "247, 247, 242".into());
+    let text_rgb = hex_to_rgb_triple(&t.text).unwrap_or_else(|| "18, 17, 19".into());
+    format!(
+        "{selector} {{\n\
+         --bg: {bg};\n\
+         --bg-rgb: {bg_rgb};\n\
+         --surface: {panel};\n\
+         --snow: {text};\n\
+         --text-rgb: {text_rgb};\n\
+         --muted: {subtle};\n\
+         --light-muted: {muted};\n\
+         --card-bg: {surface};\n\
+         --card-border: {border};\n\
+         --card-hover-border: {border_strong};\n\
+         --surface-strong: {surface_strong};\n\
+         --overlay-hover: {overlay};\n\
+         --header-border: {header_border};\n\
+         --accent-soft: {accent_soft};\n\
+         --green: {green};\n\
+         --yellow: {yellow};\n\
+         --red: {red};\n\
+         --chart-good: var(--green);\n\
+         }}\n",
+        selector = selector,
+        bg = t.bg,
+        bg_rgb = bg_rgb,
+        panel = panel_from_bg(&t.bg),
+        text = t.text,
+        text_rgb = text_rgb,
+        subtle = t.text_subtle,
+        muted = t.text_muted,
+        surface = t.surface,
+        border = t.border,
+        border_strong = t.border_strong,
+        surface_strong = t.surface_strong,
+        overlay = t.overlay_hover,
+        header_border = t.header_border,
+        accent_soft = t.accent_soft,
+        green = t.green,
+        yellow = t.yellow,
+        red = t.red,
+    )
 }
 
 /// Opaque panel color for floating chrome (modals, overlays, pickers) that
@@ -368,30 +429,12 @@ pub fn render_switchable_css(theme: &Theme) -> String {
     let mut out = theme.root_block();
 
     // ── Light mode override ───────────────────────────────────────────────
-    // These values are hardcoded (not derived from light()) because the
-    // data-attribute override context cannot use self-referential
-    // `var(--text-rgb)` chains - the circular references resolve incorrectly
-    // when layered over the dark :root.
-    out.push_str(
-        "[data-mode=\"light\"] {\n\
-          --bg: #F7F7F2;\n\
-          --bg-rgb: 247, 247, 242;\n\
-          --surface: #FFFFFF;\n\
-          --snow: #1a1a1a;\n\
-          --text-rgb: 26, 26, 26;\n\
-          --muted: #888888;\n\
-          --light-muted: #666666;\n\
-          --card-bg: rgba(0, 0, 0, 0.05);\n\
-          --card-border: rgba(0, 0, 0, 0.12);\n\
-          --card-hover-border: rgba(var(--accent-rgb), 0.35);\n\
-          --surface-strong: rgba(0, 0, 0, 0.06);\n\
-          --overlay-hover: rgba(0, 0, 0, 0.08);\n\
-          --header-border: rgba(var(--accent-rgb), 0.2);\n\
-          --accent-soft: rgba(var(--accent-rgb), 0.12);\n\
-          --yellow: #8B7B00;\n\
-          --red: #B5404F;\n\
-        }\n",
-    );
+    // Generated from light() so baked and runtime-switched light pages are
+    // the same palette. Every derived token is redeclared here, next to the
+    // overridden --text-rgb / --bg-rgb, so `rgba(var(--text-rgb), n)` values
+    // resolve against the light ink instead of inheriting the dark root's
+    // computed values. The accent stays with [data-theme].
+    out.push_str(&mode_override_block("[data-mode=\"light\"]", &light()));
 
     // ── Rainbow theme accents ─────────────────────────────────────────────
     // Each selector overrides just --teal, --accent-rgb, and --green so
@@ -408,12 +451,13 @@ pub fn render_switchable_css(theme: &Theme) -> String {
     ];
     for (name, hex, rgb) in rainbow {
         out.push_str(&format!(
-            "[data-theme=\"{name}\"] {{ --teal: {hex}; --accent-rgb: {rgb}; --green: {hex}; }}\n",
+            "[data-theme=\"{name}\"] {{ --teal: {hex}; --accent-rgb: {rgb}; --green: {hex}; --chart-good: {mix}; }}\n",
             name = name,
             hex = hex,
             rgb = rgb,
         ));
     }
+            mix = CHART_GOOD_MIX,
     out.push('\n');
 
     // ── Texture variants ──────────────────────────────────────────────────
@@ -3525,6 +3569,15 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
   margin: 0;
   padding: 20px 22px 18px;
   background: rgba(var(--text-rgb),0.04);
+  /* Series palette, resolved on the chart so it follows whatever theme
+     wraps it: accent, good, watch, alert, then two neutral steps.
+     --chart-good is set only where good collides with the accent. */
+  --chart-1: var(--teal);
+  --chart-2: var(--chart-good, var(--green));
+  --chart-3: var(--yellow);
+  --chart-4: var(--red);
+  --chart-5: rgba(var(--text-rgb), 0.6);
+  --chart-6: rgba(var(--text-rgb), 0.32);
   border: 1px solid rgba(var(--text-rgb),0.1);
   border-radius: 12px;
   display: flex; flex-direction: column; gap: 14px;
@@ -3561,6 +3614,14 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 .c-chart-grid {
   stroke: rgba(var(--text-rgb),0.08);
   stroke-width: 1;
+.c-chart-plot { min-width: 0; }
+/* Phones: keep the SVG at a readable width and scroll it sideways rather
+   than scaling the whole drawing (and its labels) down to ~5px. */
+@media (max-width: 640px) {
+  .c-chart-plot { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; padding-bottom: 4px; }
+  .c-chart-plot > .c-chart-svg { min-width: 600px; }
+  .c-chart-pie .c-chart-plot > .c-chart-svg { min-width: 0; }
+}
 }
 .c-chart-axis {
   fill: rgba(var(--text-rgb),0.55);
@@ -3617,6 +3678,7 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 /* Radar */
 .c-radar-ring { pointer-events: none; }
 .c-radar-axis { pointer-events: none; }
+.c-sankey-chip { fill: var(--bg); fill-opacity: 0.85; }
 .c-radar-label {
   fill: rgba(var(--text-rgb),0.65);
   font-size: 11px;

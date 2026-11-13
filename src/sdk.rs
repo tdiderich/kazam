@@ -1356,11 +1356,21 @@ function renderBlock(text: string): React.ReactElement {
   return <>{elements}</>;
 }
 
-const semToHex: Record<string, string> = { default: "var(--color-text-muted, #999)", green: "var(--color-green, #4ade80)", yellow: "var(--color-yellow, #facc15)", red: "var(--color-red, #f87171)", teal: "var(--color-teal, #2dd4bf)" };
-const getColor = (c?: string, i?: number) => {
-  if (c && semToHex[c]) return semToHex[c];
-  const palette = ["var(--color-accent, #8b5cf6)", "var(--color-green, #4ade80)", "var(--color-yellow, #facc15)", "var(--color-red, #f87171)", "var(--color-teal, #2dd4bf)"];
-  return palette[(i || 0) % palette.length];
+// Theme-following semantic colors (the kazam CSS tokens). Mirrors
+// SemColor::css in Rust.
+const semToHex: Record<string, string> = { default: "var(--teal)", green: "var(--green)", yellow: "var(--yellow)", red: "var(--red)", teal: "var(--teal)" };
+// Chart series: theme palette by default (--chart-1..6 on .c-chart: accent,
+// good, watch, alert, two neutral steps); `palette: signal` opts into the
+// fixed bright set. Mirrors series_color in src/render/charts.rs.
+const CHART_SEM: Record<string, string> = { default: "var(--chart-1)", teal: "var(--chart-1)", green: "var(--chart-2)", yellow: "var(--chart-3)", red: "var(--chart-4)" };
+const SIGNAL_SEM: Record<string, string> = { default: "#3CCECE", teal: "#3CCECE", green: "#34D399", yellow: "#FBBF24", red: "#F87171" };
+const SIGNAL_CYCLE = ["#3CCECE", "#34D399", "#FBBF24", "#F87171"];
+const getColor = (c?: string, i?: number, palette?: string) => {
+  const signal = palette === "signal";
+  const named = signal ? SIGNAL_SEM : CHART_SEM;
+  if (c && named[c]) return named[c];
+  const n = i || 0;
+  return signal ? SIGNAL_CYCLE[n % SIGNAL_CYCLE.length] : `var(--chart-${(n % 6) + 1})`;
 };
 
 // Shared SVG label budgeter: estimates rendered width (~0.56px per char per
@@ -1377,6 +1387,7 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
   const xLabel = comp.x_label as string | undefined;
   const yLabel = comp.y_label as string | undefined;
   const kind = (comp.kind as string) || "bar";
+  const palette = comp.palette as string | undefined;
   const data = (comp.data as Array<{ label: string; value: number; color?: string }>) || [];
   const series = (comp.series as Array<{ label: string; color?: string; points: Array<{ label: string; value: number }> }>) || [];
   const h = (comp.height as number) || 200;
@@ -1408,11 +1419,11 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
       const pct = Math.round((d.value / total) * 100);
       const tx = cx + (r * 0.6) * Math.cos(midAngle);
       const ty = cy + (r * 0.6) * Math.sin(midAngle);
-      return <path key={i} d={path} fill={getColor(d.color, i)} stroke="var(--color-bg, #111)" strokeWidth="1" className="c-chart-slice" onMouseEnter={() => setTip({ x: tx, y: ty, text: `${d.label}: ${d.value} (${pct}%)` })} onMouseLeave={() => setTip(null)} />;
+      return <path key={i} d={path} fill={getColor(d.color, i, palette)} stroke="var(--bg)" strokeWidth="1" className="c-chart-slice" onMouseEnter={() => setTip({ x: tx, y: ty, text: `${d.label}: ${d.value} (${pct}%)` })} onMouseLeave={() => setTip(null)} />;
     });
     const legend = data.map((d, i) => (
       <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-        <span style={{ width: 10, height: 10, borderRadius: "50%", background: getColor(d.color, i), display: "inline-block" }} />
+        <span style={{ width: 10, height: 10, borderRadius: "50%", background: getColor(d.color, i, palette), display: "inline-block" }} />
         <span><span data-kz-field={`data[${i}].label`}>{d.label}</span>: <span data-kz-field={`data[${i}].value`}>{d.value}</span></span>
       </div>
     ));
@@ -1445,7 +1456,7 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
             const shown = fitLabel(d.label, vw - padL - 12);
             return <React.Fragment key={i}>
               <text x={padL} y={rowY + 14} fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{shown}{shown !== d.label && <title>{d.label}</title>}</text>
-              <rect x={padL} y={rowY + 20} width={w} height={18} fill={getColor(d.color, i)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: padL + w / 2, y: rowY + 16, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
+              <rect x={padL} y={rowY + 20} width={w} height={18} fill={getColor(d.color, i, palette)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: padL + w / 2, y: rowY + 16, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
               <text x={padL + w + 6} y={rowY + 33} fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].value`}>{d.value}</text>
             </React.Fragment>;
           })}
@@ -1468,7 +1479,7 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
             const x = padX + i * (barW + gap);
             const shown = fitLabel(d.label, labelBudget);
             return <React.Fragment key={i}>
-              <rect x={x} y={h - barH} width={barW} height={barH} fill={getColor(d.color, i)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: x + barW / 2, y: h - barH - 4, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
+              <rect x={x} y={h - barH} width={barW} height={barH} fill={getColor(d.color, i, palette)} rx={3} className="c-chart-bar" onMouseEnter={() => setTip({ x: x + barW / 2, y: h - barH - 4, text: `${d.label}: ${d.value}` })} onMouseLeave={() => setTip(null)} />
               <text x={x + barW / 2} y={h - barH - 6} textAnchor="middle" fontSize={11} fontWeight="500" fill="var(--color-text, #eee)" data-kz-field={`data[${i}].value`}>{d.value}</text>
               {tilted
                 ? <text x={x + barW / 2} y={h + 14} textAnchor="end" transform={`rotate(-30 ${x + barW / 2} ${h + 14})`} fontSize={11} fill="var(--color-text-muted, #999)" data-kz-field={`data[${i}].label`}>{shown}{shown !== d.label && <title>{d.label}</title>}</text>
@@ -1501,14 +1512,14 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
         const y = pad.t + plotH - (p.value / maxVal) * plotH;
         return `${x},${y}`;
       }).join(" ");
-      return <polyline key={si} points={pts} fill="none" stroke={getColor(s.color, si)} strokeWidth="2.5" strokeLinejoin="round" />;
+      return <polyline key={si} points={pts} fill="none" stroke={getColor(s.color, si, palette)} strokeWidth="2.5" strokeLinejoin="round" />;
     });
     const dots = series.map((s, si) =>
       s.points.map((p, pi) => {
         const x = pad.l + (pi / Math.max(n - 1, 1)) * plotW;
         const y = pad.t + plotH - (p.value / maxVal) * plotH;
         const label = series.length > 1 ? `${s.label}: ${p.value}` : String(p.value);
-        return <circle key={`${si}-${pi}`} cx={x} cy={y} r={4} fill={getColor(s.color, si)} className="c-chart-dot" data-kz-field={`series[${si}].points[${pi}].value`} onMouseEnter={() => setTip({ x, y: y - 4, text: label })} onMouseLeave={() => setTip(null)} />;
+        return <circle key={`${si}-${pi}`} cx={x} cy={y} r={4} fill={getColor(s.color, si, palette)} className="c-chart-dot" data-kz-field={`series[${si}].points[${pi}].value`} onMouseEnter={() => setTip({ x, y: y - 4, text: label })} onMouseLeave={() => setTip(null)} />;
       })
     );
     // At most ~8 x-labels: every step-th point plus the last, each ellipsized
@@ -1525,7 +1536,7 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
     });
     const legend = series.length > 1 ? series.map((s, si) => (
       <div key={si} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-        <span style={{ width: 16, height: 2, background: getColor(s.color, si), display: "inline-block" }} />
+        <span style={{ width: 16, height: 2, background: getColor(s.color, si, palette), display: "inline-block" }} />
         <span data-kz-field={`series[${si}].label`}>{s.label}</span>
       </div>
     )) : null;
@@ -1539,7 +1550,7 @@ function ChartSVG({ id, comp }: { id?: string; comp: ComponentData }) {
     );
   }
 
-  const body = chart || <div className="c-chart-placeholder">Chart ({kind})</div>;
+  const body = chart ? <div className="c-chart-plot">{chart}</div> : <div className="c-chart-placeholder">Chart ({kind})</div>;
   const showAxes = kind !== "pie" && (xLabel || yLabel);
   return (
     <div id={id} className="c-chart" data-kind={kind}>
@@ -2429,7 +2440,7 @@ function vennTspans(fit: VennFit, x: number, avail: number, weight: number) {
 // Mirrors src/render/components.rs (`journey_layout`, `jt_place_labels`,
 // `fmt_long_date`). Change both together.
 
-/** Tier color class: explicit color, else accent shade by position. */
+/** Tier color class: explicit color, else a status by position (good, good, watch, alert), each with its own swatch shape. */
 function tierClass(color: string | undefined, i: number): string {
   return color ? `c-tier-${color}` : `c-tier-pos-${Math.min(i + 1, 4)}`;
 }
@@ -2557,7 +2568,7 @@ function jtPlaceLabels(items: Array<[number, string]>, charW: number, railW: num
 
 const jtPct = (x: number) => (x * 100).toFixed(2);
 
-/** `c-hud-<color>` or an accent shade class (1 solid .. 4 hollow). */
+/** `c-hud-<color>` or a shade class (1-2 good, 3 watch, 4 alert; swatch shape differs per shade). */
 function hudClass(color: string | undefined, shade: number | undefined): string {
   return color ? `c-hud-${color}` : `c-hud-shade-${Math.min(4, Math.max(1, Math.round(shade ?? 1)))}`;
 }
@@ -4571,31 +4582,43 @@ function ComponentView({
         const ty = tp.y + tOff;
         targetOff[f.target] = tOff + linkHT;
         const sx = sp.x + nodeW, tx = tp.x, cpx = (sx + tx) / 2;
-        const fillColor = colors[f.source] || colors[f.target] || ["default", "green", "yellow", "red", "teal"][i % 5];
-        const fill = semToHex[fillColor] || semToHex.default;
+        const fill = getColor(colors[f.source] || colors[f.target], nodeNames.indexOf(f.source), comp.palette as string | undefined);
         return <path key={i} d={`M ${sx} ${sy} C ${cpx} ${sy}, ${cpx} ${ty}, ${tx} ${ty} L ${tx} ${ty + linkHT} C ${cpx} ${ty + linkHT}, ${cpx} ${sy + linkHS}, ${sx} ${sy + linkHS} Z`} fill={fill} fillOpacity={0.35} className="c-sankey-link" data-kz-field={`flows[${i}].value`}><title>{`${f.source} → ${f.target}: ${fmtNum(f.value)}`}</title></path>;
       });
 
-      const nodeEls = nodeNames.map((n, i) => {
+      const nodeRects = nodeNames.map((n, i) => {
         const pos = positions[n];
-        const fillColor = colors[n] || ["default", "green", "yellow", "red", "teal"][i % 5];
-        const fill = semToHex[fillColor] || semToHex.default;
-        const c = col[n];
-        const [lx, anchor] = c === 0 ? [pos.x - 6, "end" as const] : c === maxCol ? [pos.x + nodeW + 6, "start" as const] : [pos.x + nodeW / 2, "middle" as const];
-        const ly = pos.y + pos.h / 2;
-        const labelBudget = c === 0 || c === maxCol ? padX - 10 : Math.max(colSpacing - nodeW - 12, 60);
-        const shown = fitLabel(n, labelBudget, 12);
-        return <React.Fragment key={i}>
-          <rect x={pos.x} y={pos.y} width={nodeW} height={pos.h} fill={fill} rx={2} className="c-sankey-node" />
-          <text x={lx} y={ly} textAnchor={anchor} dominantBaseline="middle" className="c-sankey-label">{shown}{shown !== n && <title>{n}</title>}</text>
-          <text x={lx} y={ly + 14} textAnchor={anchor} dominantBaseline="middle" className="c-sankey-value">{fmtNum(nodeTotal[n])}</text>
-        </React.Fragment>;
+        const fill = getColor(colors[n], i, comp.palette as string | undefined);
+        return <rect key={i} x={pos.x} y={pos.y} width={nodeW} height={pos.h} fill={fill} rx={2} className="c-sankey-node"><title>{`${n}: ${fmtNum(nodeTotal[n])}`}</title></rect>;
       });
+
+      // Labels sit outside the node bars on a ground-colored chip (first
+      // column left, the rest right) and are pushed apart within a column.
+      // Mirrors render_sankey in src/render/charts.rs.
+      const labelRows = nodeNames
+        .map((n) => ({ n, c: col[n], ly: positions[n].y + positions[n].h / 2 }))
+        .sort((a, b) => a.c - b.c || a.ly - b.ly);
+      for (let k = 1; k < labelRows.length; k++) {
+        const prev = labelRows[k - 1], cur = labelRows[k];
+        if (prev.c === cur.c && cur.ly < prev.ly + 22) cur.ly = prev.ly + 22;
+      }
+      const nodeEls = [nodeRects, labelRows.map(({ n, c, ly }, i) => {
+        const pos = positions[n];
+        const left = c === 0 && maxCol > 0;
+        const lx = left ? pos.x - 8 : pos.x + nodeW + 8;
+        const val = fmtNum(nodeTotal[n]);
+        const textW = (n.length + val.length) * 7.6 + 6;
+        const chipX = left ? lx - textW - 5 : lx - 5;
+        return <React.Fragment key={`l${i}`}>
+          <rect x={chipX} y={ly - 10} width={textW + 10} height={20} rx={4} className="c-sankey-chip" />
+          <text x={lx} y={ly} textAnchor={left ? "end" : "start"} dominantBaseline="middle"><tspan className="c-sankey-label">{n}</tspan><tspan className="c-sankey-value" dx={6}>{val}</tspan></text>
+        </React.Fragment>;
+      })];
 
       return (
         <figure id={id} className="c-chart c-chart-sankey" role="img" aria-label={title || "Sankey diagram"}>
           {title && <figcaption className="c-chart-title" data-kz-field="title">{title}</figcaption>}
-          <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">{flowPaths}{nodeEls}</svg>
+          <div className="c-chart-plot"><svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">{flowPaths}{nodeEls}</svg></div>
         </figure>
       );
     }
@@ -4638,7 +4661,7 @@ function ComponentView({
       });
 
       const curveSvg = curves.map((curve, ci) => {
-        const color = semToHex[curve.color || ""] || getColor(curve.color, ci);
+        const color = getColor(curve.color, ci, comp.palette as string | undefined);
         const pts = curve.values.map((v, i) => pointAt(i, Math.min(v, maxVal)).join(",")).join(" ");
         const dots = curve.values.map((v, i) => {
           const [px, py] = pointAt(i, Math.min(v, maxVal));
@@ -4653,7 +4676,7 @@ function ComponentView({
       const legend = curves.length > 1 ? (
         <ul className="c-chart-legend">
           {curves.map((c, i) => {
-            const color = semToHex[c.color || ""] || getColor(c.color, i);
+            const color = getColor(c.color, i, comp.palette as string | undefined);
             return <li key={i} className="c-chart-legend-item"><span className="c-chart-swatch" style={{ background: color }} /><span data-kz-field={`curves[${i}].label`}>{c.label}</span></li>;
           })}
         </ul>
@@ -4662,7 +4685,7 @@ function ComponentView({
       return (
         <figure id={id} className="c-chart c-chart-radar" role="img" aria-label={title || "Radar chart"}>
           {title && <figcaption className="c-chart-title" data-kz-field="title">{title}</figcaption>}
-          <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">{rings}{spokes}{curveSvg}</svg>
+          <div className="c-chart-plot"><svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">{rings}{spokes}{curveSvg}</svg></div>
           {legend}
         </figure>
       );
@@ -4696,7 +4719,7 @@ function ComponentView({
       return (
         <figure id={id} className="c-chart c-chart-quadrant" role="img" aria-label={title || "Quadrant chart"}>
           {title && <figcaption className="c-chart-title" data-kz-field="title">{title}</figcaption>}
-          <svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
+          <div className="c-chart-plot"><svg viewBox={`0 0 ${VB_W} ${h}`} preserveAspectRatio="xMidYMid meet" className="c-chart-svg">
             {quadRects.map(([qx, qy, qw, qh], i) => (
               <React.Fragment key={i}>
                 <rect x={qx} y={qy} width={qw} height={qh} fill={quadColors[i]} className="c-quadrant-bg" />
@@ -4717,7 +4740,7 @@ function ComponentView({
             {points.map((pt, i) => {
               const px = left + Math.min(Math.max(pt.x, 0), 1) * plotW;
               const py = top + (1 - Math.min(Math.max(pt.y, 0), 1)) * plotH;
-              const color = semToHex[pt.color || ""] || getColor(pt.color, i);
+              const color = getColor(pt.color, i, comp.palette as string | undefined);
               const labelText = pt.label.length > 35 ? pt.label.slice(0, 32) + "…" : pt.label;
               const lx = pt.x > 0.5 ? px - 10 : px + 10;
               const anchor = pt.x > 0.5 ? "end" : "start";
@@ -4726,7 +4749,7 @@ function ComponentView({
                 <text x={lx} y={py} textAnchor={anchor} dominantBaseline="middle" className="c-quadrant-point-label" data-kz-field={`points[${i}].label`}>{labelText}</text>
               </React.Fragment>;
             })}
-          </svg>
+          </svg></div>
         </figure>
       );
     }

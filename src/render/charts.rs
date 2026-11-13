@@ -1,14 +1,15 @@
 //! Build-time SVG chart renderer. Three kinds - pie, bar, timeseries - with an
 //! optional second dimension via `series:`. No JS, no runtime deps.
 //!
-//! Chart colors use the canonical `SemColor` hexes (teal/green/yellow/red)
-//! rather than the theme's CSS vars on purpose: themes like `dark` remap
-//! `--teal` and `--green` onto the same sage tone, which destroys stack
-//! contrast. Charts must stay distinguishable across every theme, so they
-//! bypass theme overrides even when the user writes `color: green`.
+//! Chart colors follow the theme by default: series cycle through
+//! `--chart-1..6` (accent, good, watch, alert, then two neutral steps),
+//! defined on `.c-chart` in theme.rs so they resolve against whatever theme
+//! wraps the chart. `palette: signal` opts back into the fixed bright
+//! `SemColor::hex` set.
 
 use super::{esc, Rendered};
-use crate::types::{ChartKind, ChartOrientation, ChartPoint, ChartSeries, SemColor};
+use crate::types::{ChartKind, ChartOrientation, ChartPalette, ChartPoint, ChartSeries, SemColor};
+use std::cell::Cell;
 
 const VB_W: f64 = 720.0;
 
@@ -58,7 +59,7 @@ pub fn render(spec: ChartSpec<'_>) -> Rendered {
     // would strip the legend and the screen-reader data table from the
     // accessibility tree.
     let html = format!(
-        r#"<figure class="c-chart c-chart-{k}">{title}<div role="img" aria-label="{aria}">{svg}</div>{legend}{table}</figure>"#,
+        r#"<figure class="c-chart c-chart-{k}">{title}<div class="c-chart-plot" role="img" aria-label="{aria}">{svg}</div>{legend}{table}</figure>"#,
         k = kind_class(spec.kind),
         aria = esc(&aria),
         title = title_html,
@@ -160,14 +161,57 @@ fn coerce_series<'a>(
     Vec::new()
 }
 
-fn series_color(series_color: Option<SemColor>, idx: usize) -> &'static str {
-    let c = series_color.unwrap_or_else(|| cycle_color(idx));
-    c.hex()
+thread_local! {
+    static SIGNAL: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Default palette for multi-series charts when the author hasn't set colors.
-/// Skips the `Default` alias (which is the same hex as `Teal`) so four
-/// consecutive series land on four distinct tones.
+/// Render `f` with `palette` active. Chart renderers read it through
+/// `series_color`, so the palette doesn't thread through every helper.
+pub fn with_palette<R>(palette: ChartPalette, f: impl FnOnce() -> R) -> R {
+    let prev = SIGNAL.with(|c| c.replace(palette == ChartPalette::Signal));
+    let out = f();
+    SIGNAL.with(|c| c.set(prev));
+    out
+}
+
+fn signal() -> bool {
+    SIGNAL.with(|c| c.get())
+}
+
+/// Color for series (or slice/node) `idx`: the author's semantic color when
+/// set, else the next step of the palette.
+fn series_color(series_color: Option<SemColor>, idx: usize) -> &'static str {
+    match (series_color, signal()) {
+        (Some(c), true) => c.hex(),
+        (Some(c), false) => theme_sem(c),
+        (None, true) => cycle_color(idx).hex(),
+        (None, false) => THEME_CYCLE[idx % THEME_CYCLE.len()],
+    }
+}
+
+/// Named colors inside a chart. `--chart-2` is "good" unless good collides
+/// with the accent (the dark theme), where it becomes a lighter step, so a
+/// teal series and a green series stay distinguishable.
+fn theme_sem(c: SemColor) -> &'static str {
+    match c {
+        SemColor::Default | SemColor::Teal => "var(--chart-1)",
+        SemColor::Green => "var(--chart-2)",
+        SemColor::Yellow => "var(--chart-3)",
+        SemColor::Red => "var(--chart-4)",
+    }
+}
+
+const THEME_CYCLE: [&str; 6] = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+    "var(--chart-6)",
+];
+
+/// Signal palette cycle (opt-in). Skips the `Default` alias (same hex as
+/// `Teal`) so four consecutive series land on four distinct tones.
 fn cycle_color(idx: usize) -> SemColor {
     match idx % 4 {
         0 => SemColor::Teal,
@@ -765,7 +809,7 @@ fn wrap_chart(kind: &str, title: &Option<String>, svg: &str) -> Rendered {
         .map(esc)
         .unwrap_or_else(|| format!("{} chart", kind));
     Rendered::new(format!(
-        r#"<figure class="c-chart c-chart-{kind}" role="img" aria-label="{aria}">{title}{svg}</figure>"#,
+        r#"<figure class="c-chart c-chart-{kind}" role="img" aria-label="{aria}">{title}<div class="c-chart-plot">{svg}</div></figure>"#,
         kind = kind,
         aria = aria,
         title = title_html,
@@ -939,13 +983,13 @@ pub fn render_sankey(
         let tx = tp.x;
         let cpx = (sx + tx) / 2.0;
 
-        let color = colors
-            .get(&f.source)
-            .or_else(|| colors.get(&f.target))
-            .copied()
-            .unwrap_or_else(|| {
-                cycle_color(node_names.iter().position(|n| n == &f.source).unwrap_or(0))
-            });
+        let color = series_color(
+            colors
+                .get(&f.source)
+                .or_else(|| colors.get(&f.target))
+                .copied(),
+            node_names.iter().position(|n| n == &f.source).unwrap_or(0),
+        );
 
         let title_text = format!("{} \u{2192} {}: {}", f.source, f.target, fmt_num(f.value));
 
@@ -958,17 +1002,17 @@ pub fn render_sankey(
             ty0 = ty,
             ty1 = ty + link_h_target,
             cpx = cpx,
-            fill = color.hex(),
+            fill = color,
             t = esc(&title_text),
         ));
     }
 
     for name in &node_names {
         let pos = &positions[name.as_str()];
-        let color = colors
-            .get(name.as_str())
-            .copied()
-            .unwrap_or_else(|| cycle_color(node_names.iter().position(|n| n == name).unwrap_or(0)));
+        let color = series_color(
+            colors.get(name.as_str()).copied(),
+            node_names.iter().position(|n| n == name).unwrap_or(0),
+        );
 
         svg.push_str(&format!(
             r#"<rect x="{x:.1}" y="{y:.1}" width="{w}" height="{h:.1}" fill="{fill}" rx="2" class="c-sankey-node"><title>{name}: {total}</title></rect>"#,
@@ -976,33 +1020,59 @@ pub fn render_sankey(
             y = pos.y,
             w = node_w,
             h = pos.h,
-            fill = color.hex(),
+            fill = color,
             name = esc(name),
             total = fmt_num(node_total[name.as_str()]),
         ));
+    }
 
-        let c = col[name.as_str()];
-        let (lx, anchor) = if c == 0 {
-            (pos.x - 6.0, "end")
-        } else if c == max_col {
-            (pos.x + node_w + 6.0, "start")
+    // Labels sit outside the node bars on a ground-colored chip, so they
+    // stay legible where they cross a link. First column labels go left,
+    // every other column right. Within a column, labels are pushed apart
+    // so short neighbouring nodes don't stack their text.
+    let mut labels: Vec<(usize, f64, &str)> = node_names
+        .iter()
+        .map(|n| {
+            let p = &positions[n.as_str()];
+            (col[n.as_str()], p.y + p.h / 2.0, n.as_str())
+        })
+        .collect();
+    labels.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+    const LABEL_GAP: f64 = 22.0;
+    let mut prev: Option<(usize, f64)> = None;
+    for (c, ly, _) in labels.iter_mut() {
+        if let Some((pc, py)) = prev {
+            if pc == *c && *ly < py + LABEL_GAP {
+                *ly = py + LABEL_GAP;
+            }
+        }
+        prev = Some((*c, *ly));
+    }
+    for (c, ly, name) in labels {
+        let pos = &positions[name];
+        let total_str = fmt_num(node_total[name]);
+        let (lx, anchor) = if c == 0 && max_col > 0 {
+            (pos.x - 8.0, "end")
         } else {
-            (pos.x + node_w / 2.0, "middle")
+            (pos.x + node_w + 8.0, "start")
         };
-        let ly = pos.y + pos.h / 2.0;
-        let total_str = fmt_num(node_total[name.as_str()]);
+        // ~0.56em per glyph at 13px plus the 6px gap before the value.
+        let text_w = (name.chars().count() + total_str.chars().count()) as f64 * 7.6 + 6.0;
+        let chip_w = text_w + 10.0;
+        let chip_x = if anchor == "end" {
+            lx - text_w - 5.0
+        } else {
+            lx - 5.0
+        };
         svg.push_str(&format!(
-            r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-sankey-label">{name}</text>"#,
+            r#"<rect x="{x:.1}" y="{y:.1}" width="{w:.1}" height="20" rx="4" class="c-sankey-chip"/><text x="{lx:.1}" y="{ly:.1}" text-anchor="{anchor}" dominant-baseline="middle"><tspan class="c-sankey-label">{name}</tspan><tspan class="c-sankey-value" dx="6">{val}</tspan></text>"#,
+            x = chip_x,
+            y = ly - 10.0,
+            w = chip_w,
             lx = lx,
             ly = ly,
             anchor = anchor,
             name = esc(name),
-        ));
-        svg.push_str(&format!(
-            r#"<text x="{lx:.1}" y="{ly2:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-sankey-value">{val}</text>"#,
-            lx = lx,
-            ly2 = ly + 14.0,
-            anchor = anchor,
             val = total_str,
         ));
     }
@@ -1145,7 +1215,7 @@ pub fn render_radar(
         .unwrap_or_default();
 
     Rendered::new(format!(
-        r#"<figure class="c-chart c-chart-radar" role="img" aria-label="{aria}">{title}{svg}{legend}</figure>"#,
+        r#"<figure class="c-chart c-chart-radar" role="img" aria-label="{aria}">{title}<div class="c-chart-plot">{svg}</div>{legend}</figure>"#,
         aria = title
             .as_deref()
             .map(esc)
@@ -1433,7 +1503,7 @@ pub fn render_architecture(
             r#"<rect x="{rx:.1}" y="{ry:.1}" width="{nw}" height="{nh}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
             nw = node_w,
             nh = node_h,
-            stroke = n.color.hex(),
+            stroke = n.color.css(),
         ));
         svg.push_str(&format!(
             r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{label}</text>"#,
@@ -1596,7 +1666,7 @@ pub fn render_pipeline(
         svg.push_str(&format!(r#"<g opacity="{opacity}">"#));
         svg.push_str(&format!(
             r#"<rect x="{x:.1}" y="{y:.1}" width="{input_w}" height="{item_h}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5"/>"#,
-            stroke = item.color.hex(),
+            stroke = item.color.css(),
         ));
         svg.push_str(&format!(
             r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{l}</text>"#,
@@ -1704,7 +1774,7 @@ pub fn render_pipeline(
         svg.push_str(&format!(r#"<g opacity="{opacity}">"#));
         svg.push_str(&format!(
             r#"<rect x="{x:.1}" y="{y:.1}" width="{output_w}" height="{item_h}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5"/>"#,
-            stroke = item.color.hex(),
+            stroke = item.color.css(),
         ));
         svg.push_str(&format!(
             r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{l}</text>"#,
@@ -1745,7 +1815,7 @@ pub fn render_pipeline(
 
             svg.push_str(&format!(
                 r#"<rect x="{x:.1}" y="{y:.1}" width="{ctx_item_w}" height="{item_h}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5"/>"#,
-                stroke = item.color.hex(),
+                stroke = item.color.css(),
             ));
             svg.push_str(&format!(
                 r#"<text x="{cx:.1}" y="{ty:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{l}</text>"#,
@@ -1857,10 +1927,10 @@ fn progress_badge_svg(
     match status {
         TimelineStatus::Upcoming => String::new(),
         TimelineStatus::Completed => format!(
-            r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="9" fill="{fill}" stroke="#0A0E17" stroke-width="2"/><path d="M {x1:.1} {y1:.1} L {x2:.1} {y2:.1} L {x3:.1} {y3:.1}" fill="none" stroke="#0A0E17" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##,
+            r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="9" fill="{fill}" stroke="var(--bg)" stroke-width="2"/><path d="M {x1:.1} {y1:.1} L {x2:.1} {y2:.1} L {x3:.1} {y3:.1}" fill="none" stroke="var(--bg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##,
             cx = corner_x,
             cy = corner_y,
-            fill = SemColor::Green.hex(),
+            fill = SemColor::Green.css(),
             x1 = corner_x - 4.0,
             y1 = corner_y,
             x2 = corner_x - 1.2,
@@ -1869,10 +1939,10 @@ fn progress_badge_svg(
             y3 = corner_y - 3.2,
         ),
         TimelineStatus::Active => format!(
-            r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="9" fill="{fill}" stroke="#0A0E17" stroke-width="2"/><path d="M {x1:.1} {y1:.1} L {x1:.1} {y2:.1} L {x3:.1} {cy:.1} Z" fill="#0A0E17"/>"##,
+            r##"<circle cx="{cx:.1}" cy="{cy:.1}" r="9" fill="{fill}" stroke="var(--bg)" stroke-width="2"/><path d="M {x1:.1} {y1:.1} L {x1:.1} {y2:.1} L {x3:.1} {cy:.1} Z" fill="#0A0E17"/>"##,
             cx = corner_x,
             cy = corner_y,
-            fill = SemColor::Yellow.hex(),
+            fill = SemColor::Yellow.css(),
             x1 = corner_x - 2.5,
             y1 = corner_y - 3.5,
             y2 = corner_y + 3.5,
@@ -2328,7 +2398,7 @@ pub fn render_graph(
         };
         let stroke = grp
             .color
-            .map(|c| c.hex())
+            .map(|c| c.css())
             .unwrap_or("rgba(var(--text-rgb),0.2)");
         svg.push_str(&format!(
             r#"<rect x="{gx:.1}" y="{gy:.1}" width="{gw:.1}" height="{gh:.1}" rx="10" fill="rgba(var(--text-rgb),0.02)" stroke="{stroke}" stroke-width="1" stroke-dasharray="5 3"/>"#,
@@ -2576,7 +2646,7 @@ pub fn render_graph(
                 label_x,
                 label_y - 8.0,
                 label,
-                Some(stroke_color.hex()),
+                Some(stroke_color.css()),
             ));
         }
     }

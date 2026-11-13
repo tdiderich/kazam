@@ -233,6 +233,10 @@
     "JourneyView": [
       "timeline",
       "details"
+    ],
+    "ChartPalette": [
+      "theme",
+      "signal"
     ]
   },
   "types": {
@@ -2716,6 +2720,11 @@
         "type": "ChartSeries[]",
         "required": false,
         "kind": "list"
+      },
+      "palette": {
+        "type": "ChartPalette",
+        "required": false,
+        "kind": "enum"
       }
     },
     "chart_group": {
@@ -2762,6 +2771,11 @@
         "type": "Record<string, SemColor>",
         "required": false,
         "kind": "object"
+      },
+      "palette": {
+        "type": "ChartPalette",
+        "required": false,
+        "kind": "enum"
       }
     },
     "radar": {
@@ -2789,6 +2803,11 @@
         "type": "number",
         "required": false,
         "kind": "layout"
+      },
+      "palette": {
+        "type": "ChartPalette",
+        "required": false,
+        "kind": "enum"
       }
     },
     "quadrant": {
@@ -2821,6 +2840,11 @@
         "type": "QuadrantPoint[]",
         "required": true,
         "kind": "list"
+      },
+      "palette": {
+        "type": "ChartPalette",
+        "required": false,
+        "kind": "enum"
       }
     },
     "architecture": {

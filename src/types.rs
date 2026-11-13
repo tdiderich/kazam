@@ -974,6 +974,12 @@ pub enum Component {
         /// For timeseries → multi-line. Ignored by pie.
         #[serde(default)]
         series: Option<Vec<ChartSeries>>,
+        /// Series colors. `theme` (default) derives them from the active
+        /// theme: accent first, then good, watch, alert, then neutral steps.
+        /// `signal` opts into the fixed bright palette (teal, green, amber,
+        /// coral) that ignores the theme.
+        #[serde(default)]
+        palette: ChartPalette,
         /// Shrinks the rendered chart to this fraction of the container
         /// width (height follows, since the SVG keeps its aspect ratio),
         /// centered. Clamped to 0.1–2.0. Use when a chart is too tall to
@@ -1000,6 +1006,9 @@ pub enum Component {
         flows: Vec<SankeyFlow>,
         #[serde(default)]
         colors: HashMap<String, SemColor>,
+        /// See `Chart.palette`.
+        #[serde(default)]
+        palette: ChartPalette,
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
@@ -1014,6 +1023,9 @@ pub enum Component {
         curves: Vec<RadarCurve>,
         #[serde(default)]
         max: Option<f64>,
+        /// See `Chart.palette`.
+        #[serde(default)]
+        palette: ChartPalette,
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
@@ -1028,6 +1040,9 @@ pub enum Component {
         y_axis: String,
         quadrants: Vec<String>,
         points: Vec<QuadrantPoint>,
+        /// See `Chart.palette`.
+        #[serde(default)]
+        palette: ChartPalette,
         /// See `Chart.scale`.
         #[serde(default)]
         scale: Option<f32>,
@@ -1390,6 +1405,19 @@ impl SemColor {
         }
     }
 
+    /// Theme-following CSS color: the status tokens for green/yellow/red,
+    /// the accent for default/teal. Use this for anything drawn on a page.
+    pub fn css(&self) -> &'static str {
+        match self {
+            SemColor::Default | SemColor::Teal => "var(--teal)",
+            SemColor::Green => "var(--green)",
+            SemColor::Yellow => "var(--yellow)",
+            SemColor::Red => "var(--red)",
+        }
+    }
+
+    /// The fixed bright "signal" palette. Ignores the theme; only charts
+    /// with `palette: signal` and explicit opt-ins use it.
     pub fn hex(&self) -> &'static str {
         match self {
             SemColor::Default => "#3CCECE",
@@ -1399,6 +1427,16 @@ impl SemColor {
             SemColor::Teal => "#3CCECE",
         }
     }
+}
+
+/// Chart series palette. `Theme` follows the active theme; `Signal` is the
+/// fixed bright set, opt-in only.
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum ChartPalette {
+    #[default]
+    Theme,
+    Signal,
 }
 
 /// Accepts `#RGB`, `#RRGGBB`, or `#RRGGBBAA` (case-insensitive hex digits
@@ -1430,7 +1468,7 @@ pub(crate) fn safe_href_scheme(href: &str) -> bool {
 /// invalid overrides silently.
 pub(crate) fn resolve_hex(hex: Option<&str>, color: SemColor) -> &str {
     hex.filter(|h| valid_hex_color(h))
-        .unwrap_or_else(|| color.hex())
+        .unwrap_or_else(|| color.css())
 }
 
 /// A YAML scalar read as text: `count: 6` and `count: "6"` both work.
