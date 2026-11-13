@@ -357,7 +357,7 @@ components:
           One card per tier, side by side: a swatch, the tier label, a big count, and an
           optional share bar (`share` is 0-100 and shows as given, so 8.4 stays 8.4%).
           A count of `0` gets a hollow swatch. `active: true` gives a card the accent border.
-          Leave `color` off and tiers take accent shades by position: solid, 62%, 32%, then hollow.
+          Leave `color` off and tiers take a status by position: good, good, watch, then alert. Each position draws its own swatch shape (square, half-filled square, diamond, circle), so the tier never reads from colour alone.
 
           Give a tier `accounts` and the card becomes a button: clicking it opens a panel
           under the row listing each account with its ARR and renewal date, soonest first.
@@ -393,7 +393,7 @@ components:
                 value: $406K           # optional; leads the share row as "$406K ARR"
                 share: 31.2            # optional, 0-100
                 detail: Cohere Health  # optional muted line
-                color: teal            # optional; unset = accent shade by position
+                color: teal            # optional; unset = status by position
                 href: ./tier-outstanding   # optional; card links, never expands
                 active: false
                 accounts:              # optional; card opens a panel
@@ -414,7 +414,7 @@ components:
         body: |
           One card per health dimension: the label, the tier it lands in (swatch plus
           mono name), and the rule behind it. `value` shows before the detail.
-          Color with `color:` (semantic) or `shade:` 1-4 (accent solid, 62%, 32%, hollow).
+          Color with `color:` (semantic) or `shade:` 1-4 (1-2 good, 3 watch, 4 alert).
 
       - type: health_breakdown
         id: account-health

@@ -393,7 +393,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         count: "6"
         value: $406K             # tier dollars, lead the row; share sits right of them
         share: 31.2              # 0-100, shown as given (31.2%)
-        color: teal              # optional; unset = accent shade by position (solid, 62%, 32%, hollow)
+        color: teal              # optional; unset = status by position (good, good, watch, alert)
         detail: Cohere Health    # optional muted line
         accounts:                # optional; clicking the card opens a panel
           - name: Cohere Health
@@ -419,8 +419,9 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
       - { label: Noise reduction, tier: Outstanding, shade: 1, detail: 50% or more of findings auto-triaged }
       - { label: License utilization, tier: Okay, shade: 3, value: "28.4%", detail: of assets investigated }
   ```
-  `shade` 1-4 is the accent at full, 62%, 32%, and hollow (matches tier_summary
-  positions); `color:` (semantic palette) wins over it.
+  `shade` 1-4 maps to status: 1-2 good (solid, half-filled), 3 watch (diamond),
+  4 alert (circle), matching tier_summary positions; `color:` (semantic palette)
+  wins over it.
 
 - **selectable_grid** - interactive phase tracker / click-to-focus cards
   ```yaml
