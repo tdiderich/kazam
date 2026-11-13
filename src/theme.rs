@@ -1230,6 +1230,7 @@ body.shell-deck .deck-arrow:hover { color: var(--teal); }
 body.shell-deck .deck-arrow:disabled { visibility: hidden; }
 
 /* Present button (inline with deck nav or toolbar) */
+.deck-present-btn, .site-bar-print-btn { display: inline-flex; align-items: center; gap: 6px; }
 .deck-present-btn {
   font-size: 12px; font-weight: 600;
   color: var(--muted);
@@ -4729,23 +4730,37 @@ body.shell-standard { page: standard-page; }
 
 /* Deck shell on narrow phones in portrait: nudge the viewer to rotate. The
    deck is designed for landscape, but we respect pinch-zoom and swipe so
-   this is a soft hint, not a wall. */
+   this is a soft hint, not a wall. It takes its own row above the deck
+   instead of floating over the header. */
 @media (max-width: 640px) and (orientation: portrait) {
+  body.shell-deck { display: flex; flex-direction: column; }
   body.shell-deck::before {
-    content: "↻ Tip: rotate your phone to landscape for the full deck view.";
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    padding: 8px 12px;
+    content: "Tip: rotate your phone to landscape for the full deck view.";
+    flex: none;
+    display: block;
+    padding: 8px 16px;
     text-align: center;
     font-size: 12px;
     font-weight: 500;
+    line-height: 1.4;
     background: rgba(var(--accent-rgb), 0.12);
-    color: var(--teal);
+    color: var(--snow);
     border-bottom: 1px solid rgba(var(--accent-rgb), 0.25);
-    z-index: 1000;
-    letter-spacing: 0.2px;
   }
-  body.shell-deck .deck-root { top: 34px; }
+  body.shell-deck > .deck-root { flex: 1; min-height: 0; }
+}
+/* Deck header on small phones: the site name goes (the eyebrow keeps the
+   page context), Present and PDF collapse to icon buttons. The bottom bar
+   lets its arrow labels shrink and truncate instead of overflowing. */
+@media (max-width: 480px) {
+  body.shell-deck .site-bar-name, body.shell-deck .site-bar-brand, body.shell-deck .site-bar-divider { display: none; }
+  body.shell-deck .site-bar-eyebrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  body.shell-deck .site-bar-right { gap: 8px; }
+  body.shell-deck .btn-label, .deck-nav .btn-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  body.shell-deck .deck-present-btn, body.shell-deck .site-bar-print-btn, .deck-nav .deck-present-btn { min-width: 36px; min-height: 36px; padding: 0; justify-content: center; }
+  .deck-nav { padding: 0 16px !important; gap: 8px; }
+  .deck-nav .deck-arrow { min-width: 0 !important; flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .deck-nav .deck-nav-label { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
 }
 "#;
 

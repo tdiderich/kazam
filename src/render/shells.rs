@@ -802,11 +802,15 @@ pub mod deck {
         _edit_url: Option<&str>,
     ) -> String {
         let mut right = subtitle_span(page);
-        right
-            .push_str(r#"<button class="deck-present-btn" id="deck-present-btn">Present</button>"#);
-        right.push_str(
-            r#"<button class="site-bar-print-btn" onclick="window.print()">Download PDF</button>"#,
-        );
+        // Icon plus label; under 480px the labels hide and the icons stay.
+        right.push_str(&format!(
+            r#"<button class="deck-present-btn" id="deck-present-btn" aria-label="Present">{}<span class="btn-label">Present</span></button>"#,
+            crate::icons::render("play", 14, "currentColor")
+        ));
+        right.push_str(&format!(
+            r#"<button class="site-bar-print-btn" onclick="window.print()" aria-label="Download PDF">{}<span class="btn-label">Download PDF</span></button>"#,
+            crate::icons::render("download", 14, "currentColor")
+        ));
         let bar = site_bar(page, config, base, &right);
 
         let mut scripts = body.scripts.clone();

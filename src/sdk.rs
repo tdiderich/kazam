@@ -5522,7 +5522,7 @@ function DeckRenderer({ slides, renderChart, renderRoleMap }: { slides: SlideDat
         <div className="deck-nav">
           <button className="deck-arrow deck-prev" onClick={() => go(current - 1)} disabled={current === 0} aria-label="Previous slide">← {slides[current - 1]?.label}</button>
           <span className="deck-nav-label" aria-live="polite">{slides[current]?.label}</span>
-          <button className="deck-present-btn" onClick={enterPresentation}>Present</button>
+          <button className="deck-present-btn" onClick={enterPresentation} aria-label="Present"><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg><span className="btn-label">Present</span></button>
           <button className="deck-arrow deck-next" onClick={() => go(current + 1)} disabled={current >= slides.length - 1} aria-label="Next slide">{slides[current + 1]?.label} →</button>
         </div>
       )}

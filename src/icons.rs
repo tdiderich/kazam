@@ -18,6 +18,10 @@ pub fn get(name: &str) -> Option<&'static str> {
         "x" => Some(r#"<path d="M18 6 6 18"/><path d="m6 6 12 12"/>"#),
         "plus" => Some(r#"<path d="M5 12h14"/><path d="M12 5v14"/>"#),
         "search" => Some(r#"<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>"#),
+        "play" => Some(r#"<polygon points="6 3 20 12 6 21 6 3"/>"#),
+        "download" => Some(
+            r#"<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>"#,
+        ),
         // Status
         "info" => {
             Some(r#"<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>"#)
