@@ -3148,20 +3148,29 @@ fn breadcrumb(items: &[BreadcrumbItem], base: &str) -> Rendered {
         if i > 0 {
             h.push_str(r#"<li class="c-breadcrumb-sep" aria-hidden="true">/</li>"#);
         }
-        h.push_str(r#"<li class="c-breadcrumb-item">"#);
+        // Only the last item is the current page; an unlinked middle item
+        // is a plain label, not "current".
+        let current = i + 1 == items.len();
+        let aria = if current {
+            r#" aria-current="page""#
+        } else {
+            ""
+        };
+        h.push_str(&format!(
+            r#"<li class="c-breadcrumb-item{}">"#,
+            if current { " is-current" } else { "" }
+        ));
         match &item.href {
             Some(href) => {
                 h.push_str(&format!(
-                    r#"<a href="{}">{}</a>"#,
+                    r#"<a href="{}"{}>{}</a>"#,
                     esc(&resolve_href(href, base)),
+                    aria,
                     esc(&item.label)
                 ));
             }
             None => {
-                h.push_str(&format!(
-                    r#"<span aria-current="page">{}</span>"#,
-                    esc(&item.label)
-                ));
+                h.push_str(&format!(r#"<span{}>{}</span>"#, aria, esc(&item.label)));
             }
         }
         h.push_str("</li>");

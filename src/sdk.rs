@@ -4251,13 +4251,22 @@ function ComponentView({
     case "breadcrumb": {
       const items = (comp.items as Array<{ label: string; href?: string }>) || [];
       return (
-        <nav id={id} className="c-breadcrumb" data-kz-list="items">
-          {items.map((item, i) => (
-            <span key={i}>
-              {i > 0 && <span className="c-breadcrumb-sep">/</span>}
-              {item.href ? <a href={item.href} data-kz-field={`items[${i}].label`}>{item.label}</a> : <span data-kz-field={`items[${i}].label`}>{item.label}</span>}
-            </span>
-          ))}
+        <nav id={id} className="c-breadcrumb" aria-label="Breadcrumb">
+          <ol data-kz-list="items">
+            {items.map((item, i) => {
+              // Only the last item is the current page (mirrors breadcrumb() in Rust).
+              const current = i === items.length - 1;
+              const aria = current ? ({ "aria-current": "page" } as const) : {};
+              return (
+                <React.Fragment key={i}>
+                  {i > 0 && <li className="c-breadcrumb-sep" aria-hidden="true">/</li>}
+                  <li className={`c-breadcrumb-item${current ? " is-current" : ""}`}>
+                    {item.href ? <a href={item.href} {...aria} data-kz-field={`items[${i}].label`}>{item.label}</a> : <span {...aria} data-kz-field={`items[${i}].label`}>{item.label}</span>}
+                  </li>
+                </React.Fragment>
+              );
+            })}
+          </ol>
         </nav>
       );
     }

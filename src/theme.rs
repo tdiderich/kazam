@@ -3383,7 +3383,9 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
 }
 .c-breadcrumb-item a { color: var(--light-muted); transition: color 0.15s; }
 .c-breadcrumb-item a:hover { color: var(--teal); }
-.c-breadcrumb-item span[aria-current="page"] { color: var(--snow); font-weight: 500; }
+.c-breadcrumb-item > span { color: var(--light-muted); }
+.c-breadcrumb-item [aria-current="page"] { color: var(--snow); font-weight: 600; }
+.c-breadcrumb-item a[aria-current="page"] { text-decoration: none; cursor: default; }
 .c-breadcrumb-sep { color: var(--muted); opacity: 0.5; }
 
 /* Button Group */
