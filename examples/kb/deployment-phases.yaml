@@ -4,7 +4,7 @@ shell: standard
 components:
   - type: header
     title: Full Scale Deployment
-    eyebrow: Reference
+    eyebrow: All customers / standard rollout
 
   - type: selectable_grid
     interaction: single_select

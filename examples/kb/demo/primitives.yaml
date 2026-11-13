@@ -4,11 +4,11 @@ shell: standard
 components:
   - type: header
     title: Component Primitives
-    eyebrow: Demo
+    eyebrow: Acme Corp / Q2 2026
     subtitle: Every reusable component available in kazam
 
   - type: section
-    eyebrow: Interactive
+    eyebrow: Portfolio / 5 accounts
     heading: Sortable & Filterable Table
     components:
       - type: table
@@ -58,7 +58,7 @@ components:
             health: { value: Healthy, status: green }
 
   - type: section
-    eyebrow: Callouts
+    eyebrow: Acme Corp / this week
     heading: Contextual Messages
     components:
       - type: callout
@@ -82,7 +82,7 @@ components:
         body: Credentials detected in public repository. See the [runbook](#).
 
   - type: section
-    eyebrow: Tabs
+    eyebrow: Acme Corp / overview
     heading: Progressive Disclosure
     components:
       - type: tabs
@@ -121,7 +121,7 @@ components:
                     color: green
 
   - type: section
-    eyebrow: Accordion
+    eyebrow: Onboarding / FAQ
     heading: Collapsible Sections
     components:
       - type: accordion
@@ -149,7 +149,7 @@ components:
                   Humans review and edit.
 
   - type: section
-    eyebrow: Layout
+    eyebrow: Acme Corp / rollout
     heading: Multi-column Row
     components:
       - type: columns

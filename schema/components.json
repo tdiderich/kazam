@@ -3398,7 +3398,7 @@
     },
     "section": {
       "use_when": "Grouping a page into scannable chunks with a heading. In presentation mode each top-level section is a slide.",
-      "avoid_when": "Wrapping a single component with no heading. Context in the title. Put the context (customer, audience, page kind) in eyebrow and keep the title under about 8 words.",
+      "avoid_when": "Wrapping a single component with no heading. Context in the title: put it in the eyebrow and keep the title under about 8 words. The eyebrow is real context (customer, period, scope, like 'Acme Corp / Q2 2026'), never a component type name ('SANKEY', 'CALLOUTS') or an audience tag ('CEO AND CRO').",
       "rules": [
         {
           "warn": "components > 12",
@@ -3488,10 +3488,10 @@
       ]
     },
     "header": {
-      "avoid_when": "Context in the title. Put the context (customer, audience, page kind) in eyebrow and keep the title under about 8 words."
+      "avoid_when": "Context in the title: put it in the eyebrow and keep the title under about 8 words. The eyebrow is real context (customer, period, scope, like 'Acme Corp / Q2 2026'), never a component type name ('SANKEY', 'CALLOUTS') or an audience tag ('CEO AND CRO')."
     },
     "hero_banner": {
-      "avoid_when": "Context in the title. Put the context (customer, audience, page kind) in eyebrow and keep the title under about 8 words."
+      "avoid_when": "Context in the title: put it in the eyebrow and keep the title under about 8 words. The eyebrow is real context (customer, period, scope, like 'Acme Corp / Q2 2026'), never a component type name ('SANKEY', 'CALLOUTS') or an audience tag ('CEO AND CRO')."
     },
     "badge": {
       "use_when": "A short status or category label on a card or row. Green, yellow and red mean status; the accent (teal/default) means emphasis. Never use a status color as decoration.",

@@ -2,7 +2,7 @@ title: Customer HUD Demo
 shell: standard
 components:
   - type: section
-    eyebrow: Portfolio / CEO and CRO
+    eyebrow: Portfolio / Q4 2026
     heading: Every account, by health
     components:
       - type: tier_summary
@@ -22,7 +22,7 @@ components:
           - { label: Poor, count: "2", value: $26K, share: 2.0 }
 
   - type: section
-    eyebrow: Owner / AE and TSE
+    eyebrow: Your accounts / this week
     heading: My accounts, and what is next
     components:
       - type: next_steps
@@ -44,7 +44,7 @@ components:
           - { label: Kickoff deck, account: northfield, status: done }
 
   - type: section
-    eyebrow: "Account view / Overall: good"
+    eyebrow: Account / Q4 2026
     heading: Ostra Health
     components:
       - type: columns

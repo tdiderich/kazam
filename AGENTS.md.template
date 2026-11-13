@@ -87,7 +87,7 @@ OR `slides:` (for deck). Nothing else is required.
 ```yaml
 title: Page Title           # required
 shell: standard             # standard | document | deck
-eyebrow: Reference          # optional - small label in document/deck headers
+eyebrow: Acme Corp          # optional - context label (customer, period, scope) in document/deck headers
 subtitle: Q4 2026           # optional - date / context in document/deck
 texture: none               # optional - override site-wide texture on this page
 glow: corner                # optional - override site-wide glow on this page
@@ -247,9 +247,12 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   - type: header
     title: Required
     subtitle: Optional subtitle
-    eyebrow: Optional label
+    eyebrow: Acme Corp / Q2 2026  # optional: real context, see the eyebrow rule
     id: optional-stable-anchor   # else auto-slugged from title
   ```
+  **Eyebrow rule:** the eyebrow carries real context (customer, period, scope),
+  like `Acme Corp / Q2 2026`. Never a component type name (`SANKEY`, `CALLOUTS`)
+  or an audience tag (`CEO AND CRO`). Keep titles under about 8 words.
 
 - **hero_banner** - full-width hero with eyebrow, title, subtitle, and CTA buttons.
   Use on landing pages only - one per page, first component.
@@ -662,7 +665,7 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   dedupe with `-2`, `-3`, etc.
   ```yaml
   - type: section
-    eyebrow: Category
+    eyebrow: Acme Corp / this week   # real context, not the component name
     heading: Section Title
     id: optional-stable-anchor   # else auto-slugged from heading
     components: [...]

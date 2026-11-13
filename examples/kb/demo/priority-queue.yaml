@@ -4,7 +4,7 @@ shell: standard
 components:
   - type: header
     title: Priority Queue
-    eyebrow: Component demo
+    eyebrow: All customers / this week
     subtitle: Live deployment tracker across all customers
 
   - type: priority_queue
