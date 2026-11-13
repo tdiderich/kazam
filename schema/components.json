@@ -3238,7 +3238,7 @@
     },
     "box": {
       "use_when": "A labelled panel: title left, uppercase tag right, short markdown body, optional nested components. The unit inside grid diagrams.",
-      "avoid_when": "Warnings or notes in prose flow (use callout). Long text (use section with markdown).",
+      "avoid_when": "Warnings or notes in prose flow (use callout). Long text (use section with markdown). hex: colors (they skip the theme's contrast tuning; #7a3f8a reads at 2.1:1). Use color: or border: dashed to mark a second lane.",
       "example": "box-band",
       "rules": [
         {
@@ -3252,6 +3252,10 @@
         {
           "warn": "words(tag) > 3",
           "say": "tag renders uppercase and right-aligned. One to three words."
+        },
+        {
+          "warn": "hex",
+          "say": "hex: skips the theme's contrast tuning. Use color: (theme status or accent) or border: dashed to mark a second lane."
         }
       ]
     },
@@ -3297,7 +3301,7 @@
     },
     "callout": {
       "use_when": "One point the reader must not miss: a caveat, a decision, a rule of thumb. One or two sentences.",
-      "avoid_when": "Body copy. More than two callouts in a row.",
+      "avoid_when": "Body copy. More than two callouts in a row. Stacking callouts back to back: merge them or move the rest into prose.",
       "rules": [
         {
           "warn": "words(body) > 80",
@@ -3306,8 +3310,8 @@
       ]
     },
     "table": {
-      "use_when": "Rows that share the same fields. Comparisons, inventories, mappings.",
-      "avoid_when": "One row (use a definition_list or stat_grid). Cells that need paragraphs (use markdown with headings).",
+      "use_when": "Rows that share the same fields. Comparisons, inventories, mappings. A cell written as { value, status } draws a status dot before the value; use it for health or state columns. Sorting, filtering and summary read the value.",
+      "avoid_when": "One row (use a definition_list or stat_grid). Cells that need paragraphs (use markdown with headings). Status carried only by cell wording or by color_map text color when a status cell fits.",
       "example": "table",
       "rules": [
         {
@@ -3321,8 +3325,8 @@
       ]
     },
     "chart": {
-      "use_when": "One series over a handful of categories or a time series. Headline numbers belong in stat_grid.",
-      "avoid_when": "More than 10 categories (use a table). Two unrelated metrics (use two charts).",
+      "use_when": "One series over a handful of categories or a time series. Headline numbers belong in stat_grid. Series follow the theme by default (accent, good, watch, alert, then neutral steps). Name a series color only when it carries status.",
+      "avoid_when": "More than 10 categories (use a table). Two unrelated metrics (use two charts). palette: signal unless the page needs the fixed bright set on purpose (it ignores the theme).",
       "example": "chart-bar",
       "rules": [
         {
@@ -3337,7 +3341,7 @@
     },
     "stat_grid": {
       "use_when": "Two to six headline metrics, each with a label, a value, and a one-line detail.",
-      "avoid_when": "Long labels or paragraphs (use table). A single number (use markdown or callout).",
+      "avoid_when": "Long labels or paragraphs (use table). A single number (use markdown or callout). Coloring a stat to decorate it. Green, yellow and red mean status; the accent (teal/default) means emphasis. Never use a status color as decoration.",
       "example": "stat_grid",
       "rules": [
         {
@@ -3352,7 +3356,7 @@
     },
     "card_grid": {
       "use_when": "Peer items with a title, a status badge, a line of description, and links: customers, projects, tools.",
-      "avoid_when": "Items with relationships between them (use graph). Items with many fields (use table).",
+      "avoid_when": "Items with relationships between them (use graph). Items with many fields (use table). Badge or card colors as decoration. Green, yellow and red mean status; the accent (teal/default) means emphasis. Never use a status color as decoration.",
       "example": "card_grid",
       "rules": [
         {
@@ -3389,7 +3393,7 @@
     },
     "section": {
       "use_when": "Grouping a page into scannable chunks with a heading. In presentation mode each top-level section is a slide.",
-      "avoid_when": "Wrapping a single component with no heading.",
+      "avoid_when": "Wrapping a single component with no heading. Context in the title. Put the context (customer, audience, page kind) in eyebrow and keep the title under about 8 words.",
       "rules": [
         {
           "warn": "components > 12",
@@ -3477,6 +3481,24 @@
           "say": "Over 200 calls is an archive. Keep the recent ones here."
         }
       ]
+    },
+    "header": {
+      "avoid_when": "Context in the title. Put the context (customer, audience, page kind) in eyebrow and keep the title under about 8 words."
+    },
+    "hero_banner": {
+      "avoid_when": "Context in the title. Put the context (customer, audience, page kind) in eyebrow and keep the title under about 8 words."
+    },
+    "badge": {
+      "use_when": "A short status or category label on a card or row. Green, yellow and red mean status; the accent (teal/default) means emphasis. Never use a status color as decoration.",
+      "avoid_when": "Status colors as decoration."
+    },
+    "progress_bar": {
+      "use_when": "One percentage with a label. Use color or thresholds only when the number itself is good or bad news (on track, at risk, off track). Green, yellow and red mean status; the accent (teal/default) means emphasis. Never use a status color as decoration.",
+      "avoid_when": "Coverage, share or progress through a plan in a status color: use tone: neutral. A good-news metric left on a yellow threshold band."
+    },
+    "meta": {
+      "use_when": "Page or account metadata as a key-value strip. Give a field status: (green, yellow, red) when its value is a state, like Overall health: Healthy, so the state reads as data.",
+      "avoid_when": "Long values or more than about 6 fields (use a definition_list or table). Status written only as words when a status: field fits."
     }
   }
 }
