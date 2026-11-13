@@ -3622,12 +3622,35 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
   overflow: visible;
 }
 .c-chart-plot { min-width: 0; }
-/* Phones: keep the SVG at a readable width and scroll it sideways rather
-   than scaling the whole drawing (and its labels) down to ~5px. */
+/* Charts that fit a phone draw twice: a 720-wide and a 360-wide variant.
+   Under 640px the narrow one shows, so labels keep near their real size. */
+.c-chart-narrow { display: none; }
+.c-chart-key, .c-sankey-key { margin: 10px 0 0; padding: 0; font-size: 13px; line-height: 1.5; color: var(--light-muted); }
+.c-chart-key { padding-left: 1.6em; columns: 2; column-gap: 16px; }
+.c-chart-key li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
+.c-sankey-key { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.c-sankey-key ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.c-sankey-key li li { display: inline-flex; align-items: center; gap: 6px; }
+.c-sankey-key-name { color: var(--snow); }
+.c-sankey-key-val { font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) {
-  .c-chart-plot { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; padding-bottom: 4px; }
-  .c-chart-plot > .c-chart-svg { min-width: 600px; }
-  .c-chart-pie .c-chart-plot > .c-chart-svg { min-width: 0; }
+  .c-chart-wide { display: none; }
+  .c-chart-narrow { display: block; }
+  /* Diagrams with no narrow drawing (graph, pipeline) scroll sideways at a
+     readable width, with a visible scrollbar, a right-edge shade and a
+     caption saying so. */
+  .c-chart-plot:not(:has(> .c-chart-narrow)) {
+    overflow-x: auto; overscroll-behavior-x: contain;
+    scrollbar-width: thin; scrollbar-color: rgba(var(--text-rgb), 0.35) transparent;
+    padding-bottom: 6px;
+    /* Edge shade pinned to the right edge of the scroller. */
+    background: radial-gradient(farthest-side at 100% 50%, rgba(var(--text-rgb), 0.2), transparent) right / 16px 100% no-repeat scroll;
+  }
+  .c-chart-plot:not(:has(> .c-chart-narrow)) > .c-chart-svg { min-width: 560px; }
+  .c-chart-plot:not(:has(> .c-chart-narrow))::after {
+    content: "Scroll sideways for the full diagram"; display: block; margin-top: 6px;
+    font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+  }
 }
 .c-chart-grid {
   stroke: rgba(var(--text-rgb),0.08);

@@ -3298,3 +3298,22 @@ fn call_log_react_default_limit_matches_rust() {
     assert_contains(&s, "const CALL_LOG_DEFAULT_LIMIT = 5;");
     assert_contains(&s, "addEventListener(\"hashchange\", apply)");
 }
+
+#[test]
+fn charts_draw_a_narrow_variant_for_phones() {
+    let html = build_one_page(
+        "chart-narrow",
+        "title: C\nshell: standard\ncomponents:\n  - type: sankey\n    flows:\n      - { source: A, target: B, value: 3 }\n      - { source: B, target: C, value: 2 }\n  - type: radar\n    axes: [One, Two, Three]\n    curves:\n      - { label: S, values: [1, 2, 3] }\n",
+        "",
+    );
+    // Wide and narrow drawings both ship; CSS shows one per viewport.
+    assert_contains(&html, r#"<div class="c-chart-wide"><svg viewBox="0 0 720"#);
+    assert_contains(
+        &html,
+        r#"<div class="c-chart-narrow"><svg viewBox="0 0 360"#,
+    );
+    // Narrow sankey lists names in a key; narrow radar numbers its axes.
+    assert_contains(&html, r#"<ol class="c-sankey-key">"#);
+    assert_contains(&html, r#"<ol class="c-chart-key"><li>One</li>"#);
+    assert_contains(&html, ".c-chart-narrow { display: none; }");
+}

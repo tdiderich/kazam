@@ -11,7 +11,11 @@ use super::{esc, Rendered};
 use crate::types::{ChartKind, ChartOrientation, ChartPalette, ChartPoint, ChartSeries, SemColor};
 use std::cell::Cell;
 
-const VB_W: f64 = 720.0;
+/// Desktop drawing width. Charts that fit a phone also draw a second,
+/// narrow variant (`NARROW_W`) that CSS swaps in under 640px, so labels
+/// render near their real size instead of scaling down with the SVG.
+const WIDE_W: f64 = 720.0;
+const NARROW_W: f64 = 360.0;
 
 /// Bundle of chart render inputs. Mirrors the `Component::Chart` fields -
 /// passed as one arg so the entry point isn't a 7-positional-parameter blob.
@@ -34,11 +38,11 @@ pub fn render(spec: ChartSpec<'_>) -> Rendered {
         .clone()
         .unwrap_or_else(|| default_aria(spec.kind));
 
-    let svg = match spec.kind {
+    let svg = dual(|| match spec.kind {
         ChartKind::Pie => render_pie(&series_vec, h),
         ChartKind::Bar => render_bar(&series_vec, h, spec.orientation, spec.x_label, spec.y_label),
         ChartKind::Timeseries => render_timeseries(&series_vec, h, spec.x_label, spec.y_label),
-    };
+    });
 
     let title_html = spec
         .title
@@ -163,6 +167,53 @@ fn coerce_series<'a>(
 
 thread_local! {
     static SIGNAL: Cell<bool> = const { Cell::new(false) };
+    static NARROW: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Current drawing width: `WIDE_W`, or `NARROW_W` inside `dual`.
+fn vb_w() -> f64 {
+    if narrow() {
+        NARROW_W
+    } else {
+        WIDE_W
+    }
+}
+
+fn narrow() -> bool {
+    NARROW.with(|c| c.get())
+}
+
+/// Draw `f` twice, wide and narrow, for CSS to pick by viewport. The
+/// narrow pass may add HTML after its SVG (an axis or node key).
+fn dual(f: impl Fn() -> String) -> String {
+    let wide = f();
+    let prev = NARROW.with(|c| c.replace(true));
+    let thin = f();
+    NARROW.with(|c| c.set(prev));
+    format!(r#"<div class="c-chart-wide">{wide}</div><div class="c-chart-narrow">{thin}</div>"#)
+}
+
+/// Numbered key for axis or node names that the narrow drawing replaces
+/// with numbers.
+fn axis_key(names: &[String]) -> String {
+    let mut k = String::from(r#"<ol class="c-chart-key">"#);
+    for n in names {
+        k.push_str(&format!("<li>{}</li>", esc(n)));
+    }
+    k.push_str("</ol>");
+    k
+}
+
+/// End-truncate `label` to roughly `px` of 13px text.
+fn fit_px(label: &str, px: f64) -> String {
+    let max = (px / 7.3).floor().max(1.0) as usize;
+    if label.chars().count() <= max {
+        label.to_string()
+    } else {
+        let mut t: String = label.chars().take(max.saturating_sub(1).max(1)).collect();
+        t.push('\u{2026}');
+        t
+    }
 }
 
 /// Render `f` with `palette` active. Chart renderers read it through
@@ -237,13 +288,17 @@ fn render_pie(series: &[NormSeries], height: u32) -> String {
     }
 
     let h = height as f64;
-    let cx = h / 2.0 + 20.0;
+    let cx = if narrow() {
+        vb_w() / 2.0
+    } else {
+        h / 2.0 + 20.0
+    };
     let cy = h / 2.0;
     let r = (h / 2.0) - 16.0;
 
     let mut out = format!(
         r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
+        vb_w = vb_w(),
         h = h,
     );
 
@@ -333,7 +388,7 @@ fn render_bar_vertical(
     let right = 20.0;
     let top = 16.0;
     let bottom = 40.0;
-    let plot_w = VB_W - left - right;
+    let plot_w = vb_w() - left - right;
     let plot_h = h - top - bottom;
 
     let buckets = collect_buckets(series);
@@ -354,7 +409,7 @@ fn render_bar_vertical(
 
     let mut out = format!(
         r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
+        vb_w = vb_w(),
         h = h,
     );
 
@@ -421,7 +476,7 @@ fn render_bar_vertical(
             r#"<text x="{x:.2}" y="{y:.2}" class="c-chart-axis c-chart-axis-x">{t}</text>"#,
             x = cx,
             y = top + plot_h + 20.0,
-            t = esc(bucket),
+            t = esc(&fit_px(bucket, bucket_w - 4.0)),
         ));
     }
 
@@ -440,7 +495,7 @@ fn render_bar_horizontal(
     let right = 24.0;
     let top = 16.0;
     let bottom = 32.0;
-    let plot_w = VB_W - left - right;
+    let plot_w = vb_w() - left - right;
     let plot_h = h - top - bottom;
 
     let buckets = collect_buckets(series);
@@ -460,7 +515,7 @@ fn render_bar_horizontal(
 
     let mut out = format!(
         r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
+        vb_w = vb_w(),
         h = h,
     );
 
@@ -524,7 +579,7 @@ fn render_bar_horizontal(
             r#"<text x="{x:.2}" y="{y:.2}" class="c-chart-axis c-chart-axis-y-right">{t}</text>"#,
             x = left - 10.0,
             y = cy + 3.5,
-            t = esc(bucket),
+            t = esc(&fit_px(bucket, left - 14.0)),
         ));
     }
 
@@ -548,7 +603,7 @@ fn render_timeseries(
     let right = 20.0;
     let top = 16.0;
     let bottom = 40.0;
-    let plot_w = VB_W - left - right;
+    let plot_w = vb_w() - left - right;
     let plot_h = h - top - bottom;
 
     let buckets = collect_buckets(series);
@@ -571,7 +626,7 @@ fn render_timeseries(
 
     let mut out = format!(
         r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
+        vb_w = vb_w(),
         h = h,
     );
 
@@ -597,7 +652,8 @@ fn render_timeseries(
     // X-axis labels (one per bucket). If there are many buckets, thin them
     // out so labels don't collide.
     let n = buckets.len();
-    let stride = (n as f64 / 10.0).ceil() as usize;
+    let max_ticks = if narrow() { 4.0 } else { 10.0 };
+    let stride = (n as f64 / max_ticks).ceil() as usize;
     let stride = stride.max(1);
     let x_of = |i: usize| -> f64 {
         if n == 1 {
@@ -732,7 +788,7 @@ fn render_legend(kind: ChartKind, series: &[NormSeries]) -> String {
 fn empty_svg(height: u32) -> String {
     format!(
         r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg"><text x="50%" y="50%" class="c-chart-empty" text-anchor="middle">No data</text></svg>"#,
-        vb_w = VB_W,
+        vb_w = vb_w(),
         h = height,
     )
 }
@@ -902,7 +958,7 @@ pub fn render_sankey(
     let pad_y = 20.0;
     let node_w = 18.0;
     let node_gap = 8.0;
-    let plot_w = VB_W - pad_x * 2.0;
+    let plot_w = vb_w() - pad_x * 2.0;
     let plot_h = h - pad_y * 2.0;
 
     let col_spacing = if num_cols > 1 {
@@ -948,7 +1004,7 @@ pub fn render_sankey(
 
     let mut svg = format!(
         r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
+        vb_w = vb_w(),
         h = h,
     );
 
@@ -1078,7 +1134,134 @@ pub fn render_sankey(
     }
 
     svg.push_str("</svg>");
-    wrap_chart("sankey", title, &svg)
+    let thin = sankey_narrow(h, &node_names, &col, max_col, &node_total, flows, colors);
+    wrap_chart(
+        "sankey",
+        title,
+        &format!(
+            r#"<div class="c-chart-wide">{svg}</div><div class="c-chart-narrow">{thin}</div>"#
+        ),
+    )
+}
+
+/// Phone layout for a sankey: stages run top to bottom, nodes are
+/// horizontal bars sized within their row, and names with totals go in a
+/// key under the plot (grouped by stage, swatch matching the bar) instead
+/// of on the drawing, where a 360px row has no room for them.
+fn sankey_narrow(
+    h: f64,
+    node_names: &[String],
+    col: &std::collections::HashMap<&str, usize>,
+    max_col: usize,
+    node_total: &std::collections::HashMap<&str, f64>,
+    flows: &[crate::types::SankeyFlow],
+    colors: &std::collections::HashMap<String, SemColor>,
+) -> String {
+    let w = NARROW_W;
+    let pad = 8.0;
+    let bar_h = 14.0;
+    let gap = 6.0;
+    let rows = max_col + 1;
+    let row_step = (h * 0.75).max(200.0) / rows.max(2) as f64 + 30.0;
+    let vb_h = pad * 2.0 + bar_h + row_step * (rows as f64 - 1.0);
+    let color_of = |n: &str| {
+        series_color(
+            colors.get(n).copied(),
+            node_names.iter().position(|x| x == n).unwrap_or(0),
+        )
+    };
+
+    // x/width per node, in row order.
+    let mut pos: std::collections::HashMap<&str, (f64, f64, f64)> =
+        std::collections::HashMap::new();
+    let mut groups: Vec<Vec<&str>> = vec![Vec::new(); rows];
+    for n in node_names {
+        groups[col[n.as_str()]].push(n.as_str());
+    }
+    for (r, g) in groups.iter().enumerate() {
+        let total: f64 = g.iter().map(|n| node_total[n]).sum();
+        let avail = w - pad * 2.0 - gap * (g.len().saturating_sub(1)) as f64;
+        let y = pad + row_step * r as f64;
+        let mut x = pad;
+        for n in g {
+            let nw = if total > 0.0 {
+                (node_total[n] / total * avail).max(2.0)
+            } else {
+                2.0
+            };
+            pos.insert(n, (x, y, nw));
+            x += nw + gap;
+        }
+    }
+
+    let mut svg = format!(
+        r#"<svg viewBox="0 0 {w} {vb_h:.1}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#
+    );
+    let mut out_off: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    let mut in_off: std::collections::HashMap<&str, f64> = std::collections::HashMap::new();
+    for f in flows {
+        let (sx, sy, sw) = pos[f.source.as_str()];
+        let (tx, ty, tw) = pos[f.target.as_str()];
+        let s_tot = node_total[f.source.as_str()];
+        let t_tot = node_total[f.target.as_str()];
+        let lw_s = if s_tot > 0.0 {
+            f.value / s_tot * sw
+        } else {
+            0.0
+        };
+        let lw_t = if t_tot > 0.0 {
+            f.value / t_tot * tw
+        } else {
+            0.0
+        };
+        let so = out_off.entry(&f.source).or_insert(0.0);
+        let x0 = sx + *so;
+        *so += lw_s;
+        let to = in_off.entry(&f.target).or_insert(0.0);
+        let x1 = tx + *to;
+        *to += lw_t;
+        let y0 = sy + bar_h;
+        let y1 = ty;
+        let cy = (y0 + y1) / 2.0;
+        let fill = series_color(
+            colors
+                .get(&f.source)
+                .or_else(|| colors.get(&f.target))
+                .copied(),
+            node_names.iter().position(|n| n == &f.source).unwrap_or(0),
+        );
+        svg.push_str(&format!(
+            r#"<path d="M {x0:.1} {y0:.1} C {x0:.1} {cy:.1}, {x1:.1} {cy:.1}, {x1:.1} {y1:.1} L {x1e:.1} {y1:.1} C {x1e:.1} {cy:.1}, {x0e:.1} {cy:.1}, {x0e:.1} {y0:.1} Z" fill="{fill}" fill-opacity="0.35" class="c-sankey-link"><title>{t}</title></path>"#,
+            x1e = x1 + lw_t,
+            x0e = x0 + lw_s,
+            t = esc(&format!("{} \u{2192} {}: {}", f.source, f.target, fmt_num(f.value))),
+        ));
+    }
+    for n in node_names {
+        let (x, y, nw) = pos[n.as_str()];
+        svg.push_str(&format!(
+            r#"<rect x="{x:.1}" y="{y:.1}" width="{nw:.1}" height="{bar_h}" fill="{fill}" rx="2" class="c-sankey-node"><title>{t}</title></rect>"#,
+            fill = color_of(n),
+            t = esc(&format!("{}: {}", n, fmt_num(node_total[n.as_str()]))),
+        ));
+    }
+    svg.push_str("</svg>");
+
+    let mut key = String::from(r#"<ol class="c-sankey-key">"#);
+    for g in &groups {
+        key.push_str("<li><ul>");
+        for n in g {
+            key.push_str(&format!(
+                r#"<li><span class="c-chart-swatch" style="background:{c}"></span><span class="c-sankey-key-name">{n}</span> <span class="c-sankey-key-val">{v}</span></li>"#,
+                c = color_of(n),
+                n = esc(n),
+                v = fmt_num(node_total[n]),
+            ));
+        }
+        key.push_str("</ul></li>");
+    }
+    key.push_str("</ol>");
+    svg + &key
 }
 
 // ── Radar ───────────────────────────────────────────
@@ -1104,88 +1287,100 @@ pub fn render_radar(
         .fold(0.0_f64, f64::max);
     let max_val = max.unwrap_or(auto_max).max(1.0);
 
-    let cx = VB_W / 2.0;
-    let cy = h / 2.0;
-    let r = (VB_W.min(h) / 2.0) - 60.0;
-    let rings = 5;
+    let draw = || -> String {
+        let cx = vb_w() / 2.0;
+        let cy = h / 2.0;
+        let r = (vb_w().min(h) / 2.0) - if narrow() { 28.0 } else { 60.0 };
+        let rings = 5;
 
-    let angle_of = |i: usize| -> f64 {
-        -std::f64::consts::FRAC_PI_2 + (i as f64) * std::f64::consts::TAU / (n as f64)
-    };
-
-    let point_at = |i: usize, val: f64| -> (f64, f64) {
-        let a = angle_of(i);
-        let d = (val / max_val) * r;
-        (cx + d * a.cos(), cy + d * a.sin())
-    };
-
-    let mut svg = format!(
-        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
-        h = h,
-    );
-
-    for ring in 1..=rings {
-        let frac = ring as f64 / rings as f64;
-        let mut pts = String::new();
-        for i in 0..n {
-            let (px, py) = point_at(i, max_val * frac);
-            if !pts.is_empty() {
-                pts.push(' ');
-            }
-            pts.push_str(&format!("{:.1},{:.1}", px, py));
-        }
-        svg.push_str(&format!(
-            r#"<polygon points="{pts}" fill="none" stroke="rgba(var(--text-rgb),0.1)" stroke-width="1" class="c-radar-ring"/>"#,
-        ));
-    }
-
-    for (i, axis_label) in axes.iter().enumerate() {
-        let (ex, ey) = point_at(i, max_val);
-        svg.push_str(&format!(
-            r#"<line x1="{cx:.1}" y1="{cy:.1}" x2="{ex:.1}" y2="{ey:.1}" stroke="rgba(var(--text-rgb),0.12)" stroke-width="1" class="c-radar-axis"/>"#,
-        ));
-        let label_d = r + 16.0;
-        let a = angle_of(i);
-        let lx = cx + label_d * a.cos();
-        let ly = cy + label_d * a.sin();
-        let anchor = if (a.cos()).abs() < 0.1 {
-            "middle"
-        } else if a.cos() > 0.0 {
-            "start"
-        } else {
-            "end"
+        let angle_of = |i: usize| -> f64 {
+            -std::f64::consts::FRAC_PI_2 + (i as f64) * std::f64::consts::TAU / (n as f64)
         };
-        svg.push_str(&format!(
-            r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-radar-label">{label}</text>"#,
-            label = esc(axis_label),
-        ));
-    }
 
-    for (ci, curve) in curves.iter().enumerate() {
-        let color = series_color(curve.color, ci);
-        let mut pts = String::new();
-        for (i, &val) in curve.values.iter().enumerate() {
-            let (px, py) = point_at(i, val.min(max_val));
-            if !pts.is_empty() {
-                pts.push(' ');
+        let point_at = |i: usize, val: f64| -> (f64, f64) {
+            let a = angle_of(i);
+            let d = (val / max_val) * r;
+            (cx + d * a.cos(), cy + d * a.sin())
+        };
+
+        let mut svg = format!(
+            r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+            vb_w = vb_w(),
+            h = h,
+        );
+
+        for ring in 1..=rings {
+            let frac = ring as f64 / rings as f64;
+            let mut pts = String::new();
+            for i in 0..n {
+                let (px, py) = point_at(i, max_val * frac);
+                if !pts.is_empty() {
+                    pts.push(' ');
+                }
+                pts.push_str(&format!("{:.1},{:.1}", px, py));
             }
-            pts.push_str(&format!("{:.1},{:.1}", px, py));
-        }
-        svg.push_str(&format!(
-            r#"<polygon points="{pts}" fill="{color}" fill-opacity="0.18" stroke="{color}" stroke-width="2" class="c-radar-curve"/>"#,
-        ));
-        for (i, &val) in curve.values.iter().enumerate() {
-            let (px, py) = point_at(i, val.min(max_val));
-            let tip = format!("{} \u{2014} {}: {}", curve.label, axes[i], fmt_num(val));
             svg.push_str(&format!(
-                r#"<circle cx="{px:.1}" cy="{py:.1}" r="3.5" fill="{color}" class="c-chart-dot"><title>{tip}</title></circle>"#,
-                tip = esc(&tip),
+                r#"<polygon points="{pts}" fill="none" stroke="rgba(var(--text-rgb),0.1)" stroke-width="1" class="c-radar-ring"/>"#,
             ));
         }
-    }
 
-    svg.push_str("</svg>");
+        for (i, axis_label) in axes.iter().enumerate() {
+            let (ex, ey) = point_at(i, max_val);
+            svg.push_str(&format!(
+                r#"<line x1="{cx:.1}" y1="{cy:.1}" x2="{ex:.1}" y2="{ey:.1}" stroke="rgba(var(--text-rgb),0.12)" stroke-width="1" class="c-radar-axis"/>"#,
+            ));
+            let label_d = r + 16.0;
+            let a = angle_of(i);
+            let lx = cx + label_d * a.cos();
+            let ly = cy + label_d * a.sin();
+            let anchor = if (a.cos()).abs() < 0.1 {
+                "middle"
+            } else if a.cos() > 0.0 {
+                "start"
+            } else {
+                "end"
+            };
+            // Narrow: numbered axes, names listed in a key under the plot.
+            let label = if narrow() {
+                (i + 1).to_string()
+            } else {
+                esc(axis_label)
+            };
+            svg.push_str(&format!(
+                r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-radar-label">{label}</text>"#,
+            ));
+        }
+
+        for (ci, curve) in curves.iter().enumerate() {
+            let color = series_color(curve.color, ci);
+            let mut pts = String::new();
+            for (i, &val) in curve.values.iter().enumerate() {
+                let (px, py) = point_at(i, val.min(max_val));
+                if !pts.is_empty() {
+                    pts.push(' ');
+                }
+                pts.push_str(&format!("{:.1},{:.1}", px, py));
+            }
+            svg.push_str(&format!(
+                r#"<polygon points="{pts}" fill="{color}" fill-opacity="0.18" stroke="{color}" stroke-width="2" class="c-radar-curve"/>"#,
+            ));
+            for (i, &val) in curve.values.iter().enumerate() {
+                let (px, py) = point_at(i, val.min(max_val));
+                let tip = format!("{} \u{2014} {}: {}", curve.label, axes[i], fmt_num(val));
+                svg.push_str(&format!(
+                    r#"<circle cx="{px:.1}" cy="{py:.1}" r="3.5" fill="{color}" class="c-chart-dot"><title>{tip}</title></circle>"#,
+                    tip = esc(&tip),
+                ));
+            }
+        }
+
+        svg.push_str("</svg>");
+        if narrow() {
+            svg.push_str(&axis_key(axes));
+        }
+        svg
+    };
+    let svg = dual(draw);
 
     let legend = if curves.len() > 1 {
         let mut leg = String::from(r#"<ul class="c-chart-legend">"#);
@@ -1242,112 +1437,118 @@ pub fn render_quadrant(
         return wrap_chart("quadrant", title, &empty_svg(h as u32));
     }
 
-    let left = 90.0;
-    let right = 20.0;
-    let top = 10.0;
-    let bottom = 40.0;
-    let plot_w = VB_W - left - right;
-    let plot_h = h - top - bottom;
-    let mid_x = left + plot_w / 2.0;
-    let mid_y = top + plot_h / 2.0;
+    let draw = || -> String {
+        let left = if narrow() { 34.0 } else { 90.0 };
+        let right = 20.0;
+        let top = 10.0;
+        let bottom = 40.0;
+        let plot_w = vb_w() - left - right;
+        let plot_h = h - top - bottom;
+        let mid_x = left + plot_w / 2.0;
+        let mid_y = top + plot_h / 2.0;
 
-    let mut svg = format!(
-        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
-        h = h,
-    );
+        let mut svg = format!(
+            r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+            vb_w = vb_w(),
+            h = h,
+        );
 
-    let quad_colors = [
-        "rgba(52,211,153,0.06)",
-        "rgba(251,191,36,0.04)",
-        "rgba(248,113,113,0.06)",
-        "rgba(60,206,206,0.04)",
-    ];
-    let quad_rects = [
-        (mid_x, top, plot_w / 2.0, plot_h / 2.0),
-        (left, top, plot_w / 2.0, plot_h / 2.0),
-        (left, mid_y, plot_w / 2.0, plot_h / 2.0),
-        (mid_x, mid_y, plot_w / 2.0, plot_h / 2.0),
-    ];
-    for (i, (qx, qy, qw, qh)) in quad_rects.iter().enumerate() {
+        let quad_colors = [
+            "rgba(52,211,153,0.06)",
+            "rgba(251,191,36,0.04)",
+            "rgba(248,113,113,0.06)",
+            "rgba(60,206,206,0.04)",
+        ];
+        let quad_rects = [
+            (mid_x, top, plot_w / 2.0, plot_h / 2.0),
+            (left, top, plot_w / 2.0, plot_h / 2.0),
+            (left, mid_y, plot_w / 2.0, plot_h / 2.0),
+            (mid_x, mid_y, plot_w / 2.0, plot_h / 2.0),
+        ];
+        for (i, (qx, qy, qw, qh)) in quad_rects.iter().enumerate() {
+            svg.push_str(&format!(
+                r#"<rect x="{qx:.1}" y="{qy:.1}" width="{qw:.1}" height="{qh:.1}" fill="{fill}" class="c-quadrant-bg"/>"#,
+                fill = quad_colors[i],
+            ));
+            let lx = qx + qw / 2.0;
+            let ly = qy + qh / 2.0;
+            svg.push_str(&format!(
+                r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle" class="c-quadrant-zone-label"{fs}>{label}</text>"#,
+                fs = if narrow() { r#" font-size="13""# } else { "" },
+                label = esc(&quadrants[i]),
+            ));
+        }
+
         svg.push_str(&format!(
-            r#"<rect x="{qx:.1}" y="{qy:.1}" width="{qw:.1}" height="{qh:.1}" fill="{fill}" class="c-quadrant-bg"/>"#,
-            fill = quad_colors[i],
-        ));
-        let lx = qx + qw / 2.0;
-        let ly = qy + qh / 2.0;
-        svg.push_str(&format!(
-            r#"<text x="{lx:.1}" y="{ly:.1}" text-anchor="middle" dominant-baseline="middle" class="c-quadrant-zone-label">{label}</text>"#,
-            label = esc(&quadrants[i]),
-        ));
-    }
-
-    svg.push_str(&format!(
-        r#"<line x1="{mid_x:.1}" y1="{top:.1}" x2="{mid_x:.1}" y2="{bot:.1}" class="c-quadrant-cross"/>"#,
-        bot = top + plot_h,
-    ));
-    svg.push_str(&format!(
-        r#"<line x1="{left:.1}" y1="{mid_y:.1}" x2="{rr:.1}" y2="{mid_y:.1}" class="c-quadrant-cross"/>"#,
-        rr = left + plot_w,
-    ));
-
-    let x_parts: Vec<&str> = x_axis.split(" \u{2192} ").collect();
-    if x_parts.len() == 2 {
-        svg.push_str(&format!(
-            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="start" class="c-chart-axis">{t}</text>"#,
-            x = left,
-            y = top + plot_h + 24.0,
-            t = esc(x_parts[0]),
+            r#"<line x1="{mid_x:.1}" y1="{top:.1}" x2="{mid_x:.1}" y2="{bot:.1}" class="c-quadrant-cross"/>"#,
+            bot = top + plot_h,
         ));
         svg.push_str(&format!(
-            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="end" class="c-chart-axis">{t}</text>"#,
-            x = left + plot_w,
-            y = top + plot_h + 24.0,
-            t = esc(x_parts[1]),
+            r#"<line x1="{left:.1}" y1="{mid_y:.1}" x2="{rr:.1}" y2="{mid_y:.1}" class="c-quadrant-cross"/>"#,
+            rr = left + plot_w,
         ));
-    } else {
-        svg.push_str(&format!(
-            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" class="c-chart-axis">{t}</text>"#,
-            x = mid_x,
-            y = top + plot_h + 24.0,
-            t = esc(x_axis),
-        ));
-    }
 
-    svg.push_str(&format!(
-        r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
-        x = left - 50.0,
-        y = mid_y,
-        t = esc(y_axis),
-    ));
-
-    for (i, pt) in points.iter().enumerate() {
-        let px = left + pt.x.clamp(0.0, 1.0) * plot_w;
-        let py = top + (1.0 - pt.y.clamp(0.0, 1.0)) * plot_h;
-        let color = series_color(pt.color, i);
-        let tip = format!("{} ({:.0}%, {:.0}%)", pt.label, pt.x * 100.0, pt.y * 100.0);
-        svg.push_str(&format!(
-            r#"<circle cx="{px:.1}" cy="{py:.1}" r="6" fill="{color}" class="c-chart-dot"><title>{tip}</title></circle>"#,
-            tip = esc(&tip),
-        ));
-        let label_text = if pt.label.len() > 35 {
-            format!("{}…", &pt.label[..32])
+        let x_parts: Vec<&str> = x_axis.split(" \u{2192} ").collect();
+        if x_parts.len() == 2 {
+            svg.push_str(&format!(
+                r#"<text x="{x:.1}" y="{y:.1}" text-anchor="start" class="c-chart-axis">{t}</text>"#,
+                x = left,
+                y = top + plot_h + 24.0,
+                t = esc(x_parts[0]),
+            ));
+            svg.push_str(&format!(
+                r#"<text x="{x:.1}" y="{y:.1}" text-anchor="end" class="c-chart-axis">{t}</text>"#,
+                x = left + plot_w,
+                y = top + plot_h + 24.0,
+                t = esc(x_parts[1]),
+            ));
         } else {
-            pt.label.clone()
-        };
-        let (lx, anchor) = if pt.x > 0.5 {
-            (px - 10.0, "end")
-        } else {
-            (px + 10.0, "start")
-        };
-        svg.push_str(&format!(
-            r#"<text x="{lx:.1}" y="{py:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-quadrant-point-label">{label}</text>"#,
-            label = esc(&label_text),
-        ));
-    }
+            svg.push_str(&format!(
+                r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" class="c-chart-axis">{t}</text>"#,
+                x = mid_x,
+                y = top + plot_h + 24.0,
+                t = esc(x_axis),
+            ));
+        }
 
-    svg.push_str("</svg>");
-    wrap_chart("quadrant", title, &svg)
+        svg.push_str(&format!(
+            r#"<text x="{x:.1}" y="{y:.1}" text-anchor="middle" transform="rotate(-90,{x:.1},{y:.1})" class="c-chart-axis">{t}</text>"#,
+            x = if narrow() { 14.0 } else { left - 50.0 },
+            y = mid_y,
+            t = esc(y_axis),
+        ));
+
+        for (i, pt) in points.iter().enumerate() {
+            let px = left + pt.x.clamp(0.0, 1.0) * plot_w;
+            let py = top + (1.0 - pt.y.clamp(0.0, 1.0)) * plot_h;
+            let color = series_color(pt.color, i);
+            let tip = format!("{} ({:.0}%, {:.0}%)", pt.label, pt.x * 100.0, pt.y * 100.0);
+            svg.push_str(&format!(
+                r#"<circle cx="{px:.1}" cy="{py:.1}" r="6" fill="{color}" class="c-chart-dot"><title>{tip}</title></circle>"#,
+                tip = esc(&tip),
+            ));
+            let label_text = if narrow() {
+                fit_px(&pt.label, plot_w / 2.0 - 12.0)
+            } else if pt.label.len() > 35 {
+                format!("{}…", &pt.label[..32])
+            } else {
+                pt.label.clone()
+            };
+            let (lx, anchor) = if pt.x > 0.5 {
+                (px - 10.0, "end")
+            } else {
+                (px + 10.0, "start")
+            };
+            svg.push_str(&format!(
+                r#"<text x="{lx:.1}" y="{py:.1}" text-anchor="{anchor}" dominant-baseline="middle" class="c-quadrant-point-label">{label}</text>"#,
+                label = esc(&label_text),
+            ));
+        }
+
+        svg.push_str("</svg>");
+        svg
+    };
+    wrap_chart("quadrant", title, &dual(draw))
 }
 
 // ── Architecture ────────────────────────────────────
@@ -1397,136 +1598,171 @@ pub fn render_architecture(
     let max_col = col.values().copied().max().unwrap_or(0);
     let num_cols = max_col + 1;
 
-    let is_lr = matches!(direction, ArchDirection::LeftToRight);
-    let pad = 40.0;
-    let node_w = 130.0;
-    let node_h = 56.0;
-
-    let mut cols_nodes: Vec<Vec<&crate::types::ArchNode>> = vec![Vec::new(); num_cols];
-    for n in nodes {
-        let c = col.get(n.id.as_str()).copied().unwrap_or(0);
-        cols_nodes[c].push(n);
-    }
-
-    struct NPos {
-        cx: f64,
-        cy: f64,
-    }
-    let mut positions: std::collections::HashMap<&str, NPos> = std::collections::HashMap::new();
-
-    if is_lr {
-        let col_spacing = if num_cols > 1 {
-            (VB_W - pad * 2.0 - node_w) / (num_cols as f64 - 1.0).max(1.0)
-        } else {
-            0.0
-        };
-        for (ci, col_nodes) in cols_nodes.iter().enumerate() {
-            let n_count = col_nodes.len();
-            let total_h = n_count as f64 * node_h + (n_count as f64 - 1.0).max(0.0) * 16.0;
-            let start_y = (h - total_h) / 2.0;
-            for (ni, node) in col_nodes.iter().enumerate() {
-                positions.insert(
-                    &node.id,
-                    NPos {
-                        cx: pad + node_w / 2.0 + col_spacing * ci as f64,
-                        cy: start_y + ni as f64 * (node_h + 16.0) + node_h / 2.0,
-                    },
-                );
+    let draw = || -> String {
+        // Narrow: always top to bottom, nodes shrink to share a 360px row and
+        // the drawing grows tall enough for every row.
+        let is_lr = matches!(direction, ArchDirection::LeftToRight) && !narrow();
+        let pad = if narrow() { 16.0 } else { 40.0 };
+        let widest_row = {
+            let mut per: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
+            for c in col.values() {
+                *per.entry(*c).or_default() += 1;
             }
-        }
-    } else {
-        let row_spacing = if num_cols > 1 {
-            (h - pad * 2.0 - node_h) / (num_cols as f64 - 1.0).max(1.0)
+            per.values().copied().max().unwrap_or(1)
+        };
+        let node_w: f64 = if narrow() {
+            ((vb_w() - pad * 2.0 - 12.0 * (widest_row as f64 - 1.0)) / widest_row as f64).min(130.0)
         } else {
-            0.0
+            130.0
         };
-        for (ci, col_nodes) in cols_nodes.iter().enumerate() {
-            let n_count = col_nodes.len();
-            let total_w = n_count as f64 * node_w + (n_count as f64 - 1.0).max(0.0) * 24.0;
-            let start_x = (VB_W - total_w) / 2.0;
-            for (ni, node) in col_nodes.iter().enumerate() {
-                positions.insert(
-                    &node.id,
-                    NPos {
-                        cx: start_x + ni as f64 * (node_w + 24.0) + node_w / 2.0,
-                        cy: pad + node_h / 2.0 + row_spacing * ci as f64,
-                    },
-                );
-            }
-        }
-    }
-
-    let mut svg = format!(
-        r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
-        h = h,
-    );
-
-    svg.push_str(r#"<defs><marker id="arch-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)"/></marker></defs>"#);
-
-    for conn in connections {
-        let Some(fp) = positions.get(conn.from.as_str()) else {
-            continue;
-        };
-        let Some(tp) = positions.get(conn.to.as_str()) else {
-            continue;
-        };
-
-        let (x1, y1, x2, y2) = if is_lr {
-            (fp.cx + node_w / 2.0, fp.cy, tp.cx - node_w / 2.0, tp.cy)
+        let node_h = 56.0;
+        let h = if narrow() {
+            h.max(pad * 2.0 + node_h + (num_cols as f64 - 1.0) * (node_h + 44.0))
         } else {
-            (fp.cx, fp.cy + node_h / 2.0, tp.cx, tp.cy - node_h / 2.0)
+            h
         };
+        let row_gap = if narrow() { 12.0 } else { 24.0 };
 
-        svg.push_str(&format!(
-            r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="rgba(var(--text-rgb),0.3)" stroke-width="1.5" marker-end="url(#arch-arrow)" class="c-arch-edge"/>"#,
-        ));
-
-        if let Some(label) = &conn.label {
-            let mx = (x1 + x2) / 2.0;
-            let my = (y1 + y2) / 2.0 - 8.0;
-            svg.push_str(&format!(
-                r#"<text x="{mx:.1}" y="{my:.1}" text-anchor="middle" class="c-arch-edge-label">{l}</text>"#,
-                l = esc(label),
-            ));
+        let mut cols_nodes: Vec<Vec<&crate::types::ArchNode>> = vec![Vec::new(); num_cols];
+        for n in nodes {
+            let c = col.get(n.id.as_str()).copied().unwrap_or(0);
+            cols_nodes[c].push(n);
         }
-    }
 
-    for n in nodes {
-        let Some(pos) = positions.get(n.id.as_str()) else {
-            continue;
-        };
-        let rx = pos.cx - node_w / 2.0;
-        let ry = pos.cy - node_h / 2.0;
+        struct NPos {
+            cx: f64,
+            cy: f64,
+        }
+        let mut positions: std::collections::HashMap<&str, NPos> = std::collections::HashMap::new();
 
-        svg.push_str(&format!(
-            r#"<rect x="{rx:.1}" y="{ry:.1}" width="{nw}" height="{nh}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
-            nw = node_w,
-            nh = node_h,
-            stroke = n.color.css(),
-        ));
-        svg.push_str(&format!(
-            r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{label}</text>"#,
-            cx = pos.cx,
-            cy = if n.detail.is_some() {
-                pos.cy - 7.0
+        if is_lr {
+            let col_spacing = if num_cols > 1 {
+                (vb_w() - pad * 2.0 - node_w) / (num_cols as f64 - 1.0).max(1.0)
             } else {
-                pos.cy
-            },
-            label = esc(&n.label),
-        ));
-        if let Some(detail) = &n.detail {
-            svg.push_str(&format!(
-                r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail">{d}</text>"#,
-                cx = pos.cx,
-                cy = pos.cy + 10.0,
-                d = esc(detail),
-            ));
+                0.0
+            };
+            for (ci, col_nodes) in cols_nodes.iter().enumerate() {
+                let n_count = col_nodes.len();
+                let total_h = n_count as f64 * node_h + (n_count as f64 - 1.0).max(0.0) * 16.0;
+                let start_y = (h - total_h) / 2.0;
+                for (ni, node) in col_nodes.iter().enumerate() {
+                    positions.insert(
+                        &node.id,
+                        NPos {
+                            cx: pad + node_w / 2.0 + col_spacing * ci as f64,
+                            cy: start_y + ni as f64 * (node_h + 16.0) + node_h / 2.0,
+                        },
+                    );
+                }
+            }
+        } else {
+            let row_spacing = if num_cols > 1 {
+                (h - pad * 2.0 - node_h) / (num_cols as f64 - 1.0).max(1.0)
+            } else {
+                0.0
+            };
+            for (ci, col_nodes) in cols_nodes.iter().enumerate() {
+                let n_count = col_nodes.len();
+                let total_w = n_count as f64 * node_w + (n_count as f64 - 1.0).max(0.0) * row_gap;
+                let start_x = (vb_w() - total_w) / 2.0;
+                for (ni, node) in col_nodes.iter().enumerate() {
+                    positions.insert(
+                        &node.id,
+                        NPos {
+                            cx: start_x + ni as f64 * (node_w + row_gap) + node_w / 2.0,
+                            cy: pad + node_h / 2.0 + row_spacing * ci as f64,
+                        },
+                    );
+                }
+            }
         }
-    }
 
-    svg.push_str("</svg>");
-    wrap_chart("arch", title, &svg)
+        let mut svg = format!(
+            r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
+            vb_w = vb_w(),
+            h = h,
+        );
+
+        svg.push_str(r#"<defs><marker id="arch-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 3.5 L 0 7 z" fill="rgba(var(--text-rgb),0.5)"/></marker></defs>"#);
+
+        for conn in connections {
+            let Some(fp) = positions.get(conn.from.as_str()) else {
+                continue;
+            };
+            let Some(tp) = positions.get(conn.to.as_str()) else {
+                continue;
+            };
+
+            let (x1, y1, x2, y2) = if is_lr {
+                (fp.cx + node_w / 2.0, fp.cy, tp.cx - node_w / 2.0, tp.cy)
+            } else {
+                (fp.cx, fp.cy + node_h / 2.0, tp.cx, tp.cy - node_h / 2.0)
+            };
+
+            svg.push_str(&format!(
+                r#"<line x1="{x1:.1}" y1="{y1:.1}" x2="{x2:.1}" y2="{y2:.1}" stroke="rgba(var(--text-rgb),0.3)" stroke-width="1.5" marker-end="url(#arch-arrow)" class="c-arch-edge"/>"#,
+            ));
+
+            if let Some(label) = &conn.label {
+                // Narrow rows are close together, so midpoint labels of a
+                // fan-in or fan-out collide: pin each label to the end of
+                // the edge that has only one edge (just under its source,
+                // or just above its target).
+                let (mx, my, fs) = if narrow() {
+                    let outs = connections.iter().filter(|c| c.from == conn.from).count();
+                    if outs == 1 {
+                        (x1, y1 + 14.0, r#" font-size="13""#)
+                    } else {
+                        (x2, y2 - 6.0, r#" font-size="13""#)
+                    }
+                } else {
+                    ((x1 + x2) / 2.0, (y1 + y2) / 2.0 - 8.0, "")
+                };
+                svg.push_str(&format!(
+                    r#"<text x="{mx:.1}" y="{my:.1}" text-anchor="middle" class="c-arch-edge-label" style="stroke:var(--bg);stroke-width:3px;paint-order:stroke"{fs}>{l}</text>"#,
+                    l = esc(label),
+                ));
+            }
+        }
+
+        for n in nodes {
+            let Some(pos) = positions.get(n.id.as_str()) else {
+                continue;
+            };
+            let rx = pos.cx - node_w / 2.0;
+            let ry = pos.cy - node_h / 2.0;
+
+            svg.push_str(&format!(
+                r#"<rect x="{rx:.1}" y="{ry:.1}" width="{nw}" height="{nh}" rx="8" fill="rgba(var(--text-rgb),0.06)" stroke="{stroke}" stroke-width="1.5" class="c-arch-node"/>"#,
+                nw = node_w,
+                nh = node_h,
+                stroke = n.color.css(),
+            ));
+            svg.push_str(&format!(
+                r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-label">{label}</text>"#,
+                cx = pos.cx,
+                cy = if n.detail.is_some() {
+                    pos.cy - 7.0
+                } else {
+                    pos.cy
+                },
+                label = esc(&if narrow() { fit_px(&n.label, node_w - 10.0) } else { n.label.clone() }),
+            ));
+            if let Some(detail) = &n.detail {
+                svg.push_str(&format!(
+                    r#"<text x="{cx:.1}" y="{cy:.1}" text-anchor="middle" dominant-baseline="middle" class="c-arch-node-detail"{fs}>{d}</text>"#,
+                    fs = if narrow() { r#" font-size="13""# } else { "" },
+                    cx = pos.cx,
+                    cy = pos.cy + 10.0,
+                    d = esc(&if narrow() { fit_px(detail, node_w - 10.0) } else { detail.clone() }),
+                ));
+            }
+        }
+
+        svg.push_str("</svg>");
+        svg
+    };
+    wrap_chart("arch", title, &dual(draw))
 }
 
 // ── Pipeline ────────────────────────────────────────
@@ -1625,7 +1861,7 @@ pub fn render_pipeline(
     let total_stages_h: f64 =
         stage_heights.iter().sum::<f64>() + (stages.len() as f64 - 1.0).max(0.0) * stage_gap;
 
-    let stages_w = VB_W - pad - input_w - gap - gap - output_w - pad;
+    let stages_w = vb_w() - pad - input_w - gap - gap - output_w - pad;
     let stages_x = pad + input_w + gap;
     let stages_start_y = (main_h - total_stages_h) / 2.0;
 
@@ -1646,7 +1882,7 @@ pub fn render_pipeline(
 
     let mut svg = format!(
         r#"<svg viewBox="0 0 {vb_w} {h}" preserveAspectRatio="xMidYMid meet" class="c-chart-svg">"#,
-        vb_w = VB_W,
+        vb_w = vb_w(),
         h = h,
     );
 
@@ -1805,7 +2041,7 @@ pub fn render_pipeline(
         let ctx_item_w = input_w.max(output_w) + 20.0;
         let ctx_total_w =
             context.len() as f64 * ctx_item_w + (context.len() as f64 - 1.0).max(0.0) * 16.0;
-        let ctx_start_x = (VB_W - ctx_total_w) / 2.0;
+        let ctx_start_x = (vb_w() - ctx_total_w) / 2.0;
 
         for (i, item) in context.iter().enumerate() {
             let x = ctx_start_x + i as f64 * (ctx_item_w + 16.0);
@@ -2152,7 +2388,7 @@ pub fn render_graph(
             + max_row_count as f64 * default_w
             + (max_row_count as f64 - 1.0).max(0.0) * node_gap_v
     };
-    let vb_w = needed_w.max(VB_W);
+    let vb_w = needed_w.max(vb_w());
 
     let needed_h = if !is_lr {
         pad * 2.0 + col_max_h.iter().sum::<f64>() + (num_cols as f64 - 1.0).max(0.0) * min_col_gap
