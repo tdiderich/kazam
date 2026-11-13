@@ -134,7 +134,7 @@ components:
         events:
           - date: 2026-04-29
             severity: major
-            title: Acme Corp - support SLA breached (P1 ticket #4821)
+            title: "Acme Corp - support SLA breached (P1 ticket #4821)"
             summary: |
               Ticket open 48 hours with no engineer response. Escalated to VP
               Engineering. Customer contacted by CSM.

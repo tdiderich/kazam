@@ -92,12 +92,84 @@ pub fn validate_source(
     site_rules: &[crate::shape::ShapeRule],
 ) -> Vec<ValidationError> {
     let mut errors = validate_page(file, page);
+    errors.extend(check_hash_truncation(file, content));
     if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(content) {
         let (rules, problems) = crate::shape::rules_for(file, site_rules);
         errors.extend(problems);
         errors.extend(crate::shape::check_page(file, &value, &rules));
     }
     errors
+}
+
+/// Words that can't end a sentence: a value cut off after one of these
+/// was almost certainly truncated by a ` #` comment.
+const DANGLING_WORDS: &[&str] = &[
+    "a", "an", "the", "to", "of", "for", "with", "and", "or", "in", "on", "at", "by", "from",
+    "into", "via", "see", "per",
+];
+
+/// Warn on plain (unquoted) scalars that an unquoted ` #` cuts short: YAML
+/// reads the rest of the line as a comment, so
+/// `detail: Route findings to #security-alerts` renders "Route findings
+/// to". Flags a ` #` followed directly by text (a channel, ticket or
+/// heading reference, not a `# note`) or a value left ending in a dangling
+/// word. Block scalars (`|`, `>`) are skipped: `#` is literal there.
+pub(crate) fn check_hash_truncation(file: &str, content: &str) -> Vec<ValidationError> {
+    let mut out = Vec::new();
+    let mut block_indent: Option<usize> = None;
+    for (n, line) in content.lines().enumerate() {
+        let indent = line.len() - line.trim_start().len();
+        let trimmed = line.trim_start();
+        if let Some(bi) = block_indent {
+            if trimmed.is_empty() || indent > bi {
+                continue;
+            }
+            block_indent = None;
+        }
+        if trimmed.starts_with('#') {
+            continue;
+        }
+        // Strip a list marker, then a `key:` prefix, to reach the value.
+        let item = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        let value = match item.find(": ") {
+            Some(i) if !item[..i].contains(' ') || item[..i].starts_with('"') => &item[i + 2..],
+            _ if trimmed.starts_with("- ") => item,
+            _ => {
+                if item.ends_with(':') {
+                    continue;
+                }
+                item
+            }
+        };
+        let v = value.trim_start();
+        if v.starts_with(['|', '>']) {
+            block_indent = Some(indent);
+            continue;
+        }
+        if v.is_empty() || v.starts_with(['"', '\'', '[', '{', '&', '*', '!', '#']) {
+            continue;
+        }
+        let Some(pos) = v.find(" #") else { continue };
+        let kept = v[..pos].trim_end();
+        let rest = &v[pos + 2..];
+        let glued = rest.chars().next().is_some_and(|c| !c.is_whitespace());
+        let last = kept.rsplit(' ').next().unwrap_or("").to_ascii_lowercase();
+        let dangling = DANGLING_WORDS.contains(&last.as_str());
+        if glued || dangling {
+            out.push(ValidationError::warning(
+                file,
+                format!("line {}", n + 1),
+                "yaml_comment",
+                format!(
+                    "Unquoted ` #` starts a YAML comment, so this value ends at \"{}\" and \"#{}\" is dropped.",
+                    kept,
+                    rest.trim_end()
+                ),
+                Some("Quote the whole value, or use a block scalar (|).".into()),
+            ));
+        }
+    }
+    out
 }
 
 /// Walk up from `path` to the nearest `kazam.yaml` and read its
@@ -3162,5 +3234,20 @@ mod tests {
                 .any(|e| e.message.contains("nest") && e.message.contains("max is 3")),
             "expected depth error, got {errors:?}"
         );
+    }
+
+    #[test]
+    fn hash_in_plain_scalar_warns() {
+        let yaml = "title: T\nshell: standard\ncomponents:\n  - type: steps\n    items:\n      - title: Slack\n        detail: Route findings to #security-alerts\n      - title: ok\n        detail: plain  # a note\n      - title: \"quoted #fine\"\n  - type: markdown\n    body: |\n      see #channel here\n";
+        let w = check_hash_truncation("t.yaml", yaml);
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert_eq!(w[0].path, "line 7");
+        assert!(!w[0].is_error());
+    }
+
+    #[test]
+    fn hash_after_dangling_word_warns() {
+        let w = check_hash_truncation("t.yaml", "title: Send it to # ops\n");
+        assert_eq!(w.len(), 1, "{w:?}");
     }
 }

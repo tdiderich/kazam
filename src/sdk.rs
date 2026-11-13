@@ -622,7 +622,8 @@ fn generate_mcp() -> String {
     instructions.push_str(
         "A page is YAML with three top-level keys, all required: `title`, `shell` (usually \
          `standard`), and `components` (a list of `- type: ...` blocks). Quote any inline YAML value \
-         that contains a comma or colon, or use block style. \
+         that contains a comma or colon, or use block style. Quote any value with a ` #` in it \
+         (`#channel`, `ticket #42`): unquoted, YAML drops everything from ` #` on as a comment. \
          Pages are YAML components. The write tools run shape rules on every write and return \
          warnings without blocking; fix them in a follow-up edit. Cold starts on layout components go \
          wrong most often, so:

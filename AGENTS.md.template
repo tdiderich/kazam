@@ -859,6 +859,9 @@ theme's contrast tuning.
 
 - **YAML number-parsing**: `"47"`, `"1.2"` - quote anything that should stay a
   string. Unquoted `47` is an integer, which will fail `label: expected string`.
+- **` #` starts a comment**: `detail: Route alerts to #security-alerts` renders
+  "Route alerts to". Quote any value with ` #` in it (`#channel`, `ticket #42`).
+  `kazam validate` warns when it sees one.
 - **Columns pattern**: each column is a list of components, so you get `- -` at
   the start of each inner list. This is correct YAML.
 - **nav_back was removed**. Use `breadcrumb` instead (first component on the page).
