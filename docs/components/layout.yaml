@@ -188,16 +188,15 @@ components:
               body: "`color: teal`. Bold and _italic_ render, so a dimmer trailing note is one underscore away."
           - component:
               type: box
-              title: Exact accent
+              title: Second lane
               tag: Model-driven
-              hex: "#7a3f8a"
-              body: "`hex: \"#7a3f8a\"`. Border, tag, and fill tint all derive from the one hex."
+              border: dashed
+              body: "`border: dashed` marks a second lane without a second hue. `hex:` exists for an exact brand color, but it skips the theme's contrast tuning, so prefer theme colors."
           - colspan: 2
             component:
               type: box
               title: A band
               tag: Nested
-              hex: "#7a3f8a"
               border: dashed
               components:
                 - type: grid
@@ -214,7 +213,6 @@ components:
           - type: box
             title: A band
             tag: Nested
-            hex: "#7a3f8a"
             border: dashed
             components:
               - type: grid
@@ -240,7 +238,7 @@ components:
         children:
           - component: { type: box, title: Scanner, body: Finds candidates. }
           - component: { type: connector, label: candidate findings }
-          - component: { type: box, title: Investigation, hex: "#7a3f8a", body: Decides what is real. }
+          - component: { type: box, title: Investigation, border: dashed, body: Decides what is real. }
 
       - type: code
         language: yaml

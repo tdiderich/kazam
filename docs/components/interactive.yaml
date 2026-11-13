@@ -151,7 +151,7 @@ components:
         children:
           - component: { type: box, id: seq-a, title: Ingest, body: Read the source at one commit. }
           - component: { type: box, id: seq-b, title: Match, body: Candidates from rules and advisories. }
-          - component: { type: box, id: seq-c, title: Decide, hex: "#7a3f8a", body: An agent reads the path and rules. }
+          - component: { type: box, id: seq-c, title: Decide, border: dashed, body: An agent reads the path and rules. }
 
       - type: sequence
         target: seq-demo

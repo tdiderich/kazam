@@ -58,7 +58,7 @@ components:
               id: aisast
               title: 2b · AI SAST
               tag: Model-driven
-              hex: "#7a3f8a"
+              border: dashed
               body: |
                 No scanner. No ruleset. Agents read your code and reason through the attack scenarios a rule can't express: broken object-level authorisation, auth bypass, cross-tenant access, business logic.
 
@@ -77,7 +77,6 @@ components:
             component:
               type: connector
               label: straight to verdict, own lane
-              hex: "#7a3f8a"
 
           - col: 1
             row: 5
@@ -87,7 +86,6 @@ components:
               id: investigation
               title: 3 · Investigation, one finding at a time
               tag: Model-driven
-              hex: "#7a3f8a"
               border: dashed
               components:
                 - type: grid
@@ -98,28 +96,24 @@ components:
                         type: box
                         id: research
                         title: Research
-                        hex: "#7a3f8a"
                         body: |
                           What this vulnerability actually needs from an attacker. The advisory, plus the vulnerable package's own source. _Done once per CVE, shared across every finding of it._
                     - component:
                         type: box
                         id: reachability
                         title: Reachability
-                        hex: "#7a3f8a"
                         body: |
                           Can your code hit the vulnerable path at all. A static call graph and an agent both check. Either says yes, we treat it as reachable. _Nothing reachable means not exploitable, and the run ends here._
                     - component:
                         type: box
                         id: exploitability
                         title: Exploitability
-                        hex: "#7a3f8a"
                         body: |
                           Read the path. Weigh the guards, the sanitisers, and whether an attacker controls the value that reaches the sink. _This is the step that recognises a safe case as safe._
                     - component:
                         type: box
                         id: impact
                         title: Impact and likelihood
-                        hex: "#7a3f8a"
                         body: |
                           What a working exploit gets an attacker, weighed against how hard it is to pull off. _Both come from your code, not from a CVSS score._
 

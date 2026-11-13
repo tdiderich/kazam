@@ -3,14 +3,13 @@
   id: investigation
   title: Investigation, one finding at a time
   tag: Model-driven
-  hex: "#7a3f8a"
   border: dashed
   components:
     - type: grid
       columns: 4
       gap: 8
       children:
-        - component: { type: box, id: research, title: Research, hex: "#7a3f8a", body: What the CVE needs from an attacker. }
-        - component: { type: box, id: reach, title: Reachability, hex: "#7a3f8a", body: Can your code hit the path at all. }
-        - component: { type: box, id: exploit, title: Exploitability, hex: "#7a3f8a", body: Guards and sanitisers on the real path. }
-        - component: { type: box, id: impact, title: Impact, hex: "#7a3f8a", body: From your code, not a CVSS score. }
+        - component: { type: box, id: research, title: Research, body: What the CVE needs from an attacker. }
+        - component: { type: box, id: reach, title: Reachability, body: Can your code hit the path at all. }
+        - component: { type: box, id: exploit, title: Exploitability, body: Guards and sanitisers on the real path. }
+        - component: { type: box, id: impact, title: Impact, body: From your code, not a CVSS score. }
