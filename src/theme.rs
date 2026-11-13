@@ -2380,28 +2380,30 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-columns-stretch .c-column > * { flex: 1; }
 
 /* Motion: entrance reveals, only under body.kz-motion (page sets motion: true
-   or a host forces it). Carriers start hidden and transition in when the
-   observer adds .kz-in. Reduced motion, print, and export show everything. */
+   or a host forces it). Content starts visible: the motion script marks
+   only carriers that are still below the fold with .kz-wait, and the
+   observer drops it as each scrolls in. No JS, reduced motion, print and
+   export never hide anything. */
 .kz-anim { display: block; }
-.kz-motion .kz-anim { opacity: 0; transition: opacity 0.5s ease, transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1); will-change: opacity, transform; }
-.kz-motion .kz-anim[data-animate="fade-up"] { transform: translateY(14px); }
-.kz-motion .kz-anim[data-animate="slide-left"] { transform: translateX(-18px); }
-.kz-motion .kz-anim[data-animate="slide-right"] { transform: translateX(18px); }
-.kz-motion .kz-anim.kz-in { opacity: 1; transform: none; }
-/* Stagger: the carrier shows at once, its direct grid/column/section children step in. */
-.kz-motion .kz-anim[data-animate="stagger"] { opacity: 1; transform: none; }
+.kz-motion .kz-anim { transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+.kz-motion .kz-anim.kz-wait { opacity: 0; }
+.kz-motion .kz-anim.kz-wait[data-animate="fade-up"] { transform: translateY(14px); }
+.kz-motion .kz-anim.kz-wait[data-animate="slide-left"] { transform: translateX(-18px); }
+.kz-motion .kz-anim.kz-wait[data-animate="slide-right"] { transform: translateX(18px); }
+/* Stagger: the carrier stays put, its children step in. */
+.kz-motion .kz-anim.kz-wait[data-animate="stagger"] { opacity: 1; transform: none; }
 .kz-motion .kz-anim[data-animate="stagger"] .c-grid > .c-grid-cell,
 .kz-motion .kz-anim[data-animate="stagger"] .c-columns > .c-column,
 .kz-motion .kz-anim[data-animate="stagger"] .c-card-grid > .c-card,
 .kz-motion .kz-anim[data-animate="stagger"] .c-stat-grid > .c-stat,
 .kz-motion .kz-anim[data-animate="stagger"] > .c-section > *:not(.c-section-header),
-.kz-motion .kz-anim[data-animate="stagger"] > .c-box > *:not(.c-box-h) { opacity: 0; transform: translateY(12px); transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
-.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-grid > .c-grid-cell,
-.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-columns > .c-column,
-.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-card-grid > .c-card,
-.kz-motion .kz-anim[data-animate="stagger"].kz-in .c-stat-grid > .c-stat,
-.kz-motion .kz-anim[data-animate="stagger"].kz-in > .c-section > *:not(.c-section-header),
-.kz-motion .kz-anim[data-animate="stagger"].kz-in > .c-box > *:not(.c-box-h) { opacity: 1; transform: none; }
+.kz-motion .kz-anim[data-animate="stagger"] > .c-box > *:not(.c-box-h) { transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+.kz-motion .kz-anim.kz-wait[data-animate="stagger"] .c-grid > .c-grid-cell,
+.kz-motion .kz-anim.kz-wait[data-animate="stagger"] .c-columns > .c-column,
+.kz-motion .kz-anim.kz-wait[data-animate="stagger"] .c-card-grid > .c-card,
+.kz-motion .kz-anim.kz-wait[data-animate="stagger"] .c-stat-grid > .c-stat,
+.kz-motion .kz-anim.kz-wait[data-animate="stagger"] > .c-section > *:not(.c-section-header),
+.kz-motion .kz-anim.kz-wait[data-animate="stagger"] > .c-box > *:not(.c-box-h) { opacity: 0; transform: translateY(12px); }
 .kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(1) { transition-delay: 0ms; }
 .kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(2) { transition-delay: 80ms; }
 .kz-motion .kz-anim[data-animate="stagger"] > * > *:nth-child(3) { transition-delay: 160ms; }

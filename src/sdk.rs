@@ -5354,24 +5354,35 @@ function ComponentView({
   return scaled;
 }
 
-/** Reveals `.kz-anim` carriers under `root` as they scroll into view. */
+/** Reveals `.kz-anim` carriers under `root` as they scroll into view.
+ *  Content starts visible: only carriers below the fold get `.kz-wait`
+ *  (hidden) until they scroll in. Mirrors MOTION in src/render/scripts.rs. */
 function useMotionReveal(root: React.RefObject<HTMLElement | null>, enabled: boolean) {
   React.useEffect(() => {
     if (!enabled || !root.current) return;
     const els = Array.from(root.current.querySelectorAll<HTMLElement>(".kz-anim"));
     if (els.length === 0) return;
     const reduce = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce || typeof IntersectionObserver === "undefined") {
-      els.forEach((el) => el.classList.add("kz-in"));
-      return;
-    }
+    if (reduce || typeof IntersectionObserver === "undefined") return;
     const io = new IntersectionObserver((entries) => {
       entries.forEach((e) => {
-        if (e.isIntersecting) { e.target.classList.add("kz-in"); io.unobserve(e.target); }
+        if (e.isIntersecting) {
+          e.target.classList.remove("kz-wait");
+          e.target.classList.add("kz-in");
+          io.unobserve(e.target);
+        }
       });
     }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
+    const fold = window.innerHeight;
+    els.forEach((el) => {
+      if (el.getBoundingClientRect().top < fold) return;
+      el.classList.add("kz-wait");
+      io.observe(el);
+    });
+    return () => {
+      io.disconnect();
+      els.forEach((el) => el.classList.remove("kz-wait"));
+    };
   }, [root, enabled]);
 }
 

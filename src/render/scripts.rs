@@ -925,23 +925,31 @@ document.querySelectorAll('[data-queue-search]').forEach(function (input) {
 });
 "#;
 
-/// Reveals `[data-animate]` carriers as they scroll into view. Without an
-/// IntersectionObserver (or with reduced motion) everything is shown at once.
+/// Reveals `[data-animate]` carriers as they scroll into view. Content is
+/// visible by default: only carriers still below the fold get `.kz-wait`
+/// (hidden), and the observer drops it as each scrolls in. Without an
+/// IntersectionObserver, or with reduced motion, nothing is ever hidden.
 const MOTION: &str = r#"
 (function () {
   var els = document.querySelectorAll('.kz-motion .kz-anim');
   if (!els.length) return;
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduce || !('IntersectionObserver' in window)) {
-    els.forEach(function (el) { el.classList.add('kz-in'); });
-    return;
-  }
+  if (reduce || !('IntersectionObserver' in window)) return;
   var io = new IntersectionObserver(function (entries) {
     entries.forEach(function (e) {
-      if (e.isIntersecting) { e.target.classList.add('kz-in'); io.unobserve(e.target); }
+      if (e.isIntersecting) {
+        e.target.classList.remove('kz-wait');
+        e.target.classList.add('kz-in');
+        io.unobserve(e.target);
+      }
     });
   }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
-  els.forEach(function (el) { io.observe(el); });
+  var fold = window.innerHeight;
+  els.forEach(function (el) {
+    if (el.getBoundingClientRect().top < fold) return;
+    el.classList.add('kz-wait');
+    io.observe(el);
+  });
 })();
 "#;
 
