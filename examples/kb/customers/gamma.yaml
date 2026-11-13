@@ -18,6 +18,7 @@ components:
         value: Enterprise
       - key: Overall Health
         value: TBD
+        status: default
       - key: Region
         value: GCP us-central1
       - key: Active Users

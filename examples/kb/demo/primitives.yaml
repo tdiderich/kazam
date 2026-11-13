@@ -45,7 +45,7 @@ components:
             tier: Enterprise
             users: 0
             coverage: 0%
-            health: TBD
+            health: { value: TBD, status: default }
           - name: Delta Labs
             tier: Startup
             users: 8

@@ -101,6 +101,38 @@ pub fn validate_source(
     errors
 }
 
+/// Every deck slide should say what it is about: a `title`, or a first
+/// component that carries a heading (header, section, hero_banner). A
+/// `label` alone only reaches the nav bar.
+fn validate_slide_titles(file: &str, slides: &[Slide], errors: &mut Vec<ValidationError>) {
+    for (i, slide) in slides.iter().enumerate() {
+        if slide.title.as_deref().is_some_and(|t| !t.trim().is_empty()) {
+            continue;
+        }
+        let headed = matches!(
+            slide.components.first(),
+            Some(Component::Header { .. })
+                | Some(Component::HeroBanner { .. })
+                | Some(Component::Section {
+                    heading: Some(_),
+                    ..
+                })
+        );
+        if !headed {
+            errors.push(ValidationError::warning(
+                file,
+                format!("slides[{}]", i),
+                "shape",
+                format!(
+                    "Slide \"{}\" has no title, so the slide itself never says what it is about.",
+                    slide.label
+                ),
+                Some("Add title: (under about 8 words), or start the slide with a header or a section with a heading.".into()),
+            ));
+        }
+    }
+}
+
 /// Words that can't end a sentence: a value cut off after one of these
 /// was almost certainly truncated by a ` #` comment.
 const DANGLING_WORDS: &[&str] = &[
@@ -207,6 +239,7 @@ pub fn validate_page(file: &str, page: &Page) -> Vec<ValidationError> {
         }
         if matches!(page.shell, Shell::Deck) {
             validate_slide_density(file, slides, &mut errors);
+            validate_slide_titles(file, slides, &mut errors);
         }
     }
     if let Some(fv) = &page.freshness {
@@ -3249,5 +3282,20 @@ mod tests {
     fn hash_after_dangling_word_warns() {
         let w = check_hash_truncation("t.yaml", "title: Send it to # ops\n");
         assert_eq!(w.len(), 1, "{w:?}");
+    }
+
+    #[test]
+    fn deck_slide_without_title_warns() {
+        let page: Page = serde_yaml::from_str(
+            "title: D\nshell: deck\nslides:\n  - label: A\n    components:\n      - { type: markdown, body: x }\n  - label: B\n    title: Has one\n    components:\n      - { type: markdown, body: y }\n",
+        )
+        .unwrap();
+        let errs = validate_page("d.yaml", &page);
+        let w: Vec<_> = errs
+            .iter()
+            .filter(|e| e.message.contains("has no title"))
+            .collect();
+        assert_eq!(w.len(), 1, "{errs:?}");
+        assert_eq!(w[0].path, "slides[0]");
     }
 }

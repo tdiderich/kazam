@@ -1679,6 +1679,12 @@ a.c-card { color: inherit; }
 .c-badge-green { background: color-mix(in srgb, var(--green) 12%, transparent); color: color-mix(in oklab, var(--green) 60%, var(--snow)); opacity: 1; }
 .c-badge-yellow { background: color-mix(in srgb, var(--yellow) 12%, transparent); color: color-mix(in oklab, var(--yellow) 60%, var(--snow)); opacity: 1; }
 .c-badge-red { background: color-mix(in srgb, var(--red) 12%, transparent); color: color-mix(in oklab, var(--red) 60%, var(--snow)); opacity: 1; }
+/* Status badges lead with the same dot as status cells and meta fields,
+   so health reads the same way everywhere. */
+.c-badge-green::before, .c-badge-yellow::before, .c-badge-red::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  margin-right: 6px; vertical-align: 1px; background: currentColor;
+}
 .c-badge-teal { background: rgba(var(--accent-rgb), 0.12); color: color-mix(in oklab, var(--teal) 60%, var(--snow)); opacity: 1; }
 
 /* Selectable Grid */
@@ -2051,7 +2057,12 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
   font-family: inherit;
   max-width: 320px;
 }
-.c-table-filter:focus { outline: none; border-color: rgba(var(--accent-rgb), 0.6); }
+.c-table-filter:focus { border-color: rgba(var(--accent-rgb), 0.6); }
+/* Filter cue: a search glyph inside the field so it reads as a filter. */
+.c-table-filter-wrap { position: relative; display: block; max-width: 320px; margin-bottom: 12px; color: var(--muted); }
+.c-table-filter-wrap > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.c-table-filter-wrap > .c-table-filter { width: 100%; padding-left: 34px; margin-bottom: 0; }
+.c-table-filter::placeholder { color: var(--muted); }
 .c-table {
   width: 100%;
   border-collapse: collapse;
@@ -2073,10 +2084,11 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 }
 .c-table th[data-sortable] { cursor: pointer; transition: color 0.15s; }
 .c-table th[data-sortable]:hover { color: var(--snow); }
+/* Sort affordance stays visible at rest, not only on hover. */
 .c-table th[data-sortable]::after {
   content: ' ↕';
-  opacity: 0.3;
-  font-size: 10px;
+  color: var(--muted);
+  font-size: 11px;
 }
 .c-table th.sort-asc::after { content: ' ↑'; opacity: 1; color: var(--teal); }
 .c-table th.sort-desc::after { content: ' ↓'; opacity: 1; color: var(--teal); }
@@ -2455,6 +2467,7 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-seq-note { color: var(--light-muted); font-size: 14px; line-height: 1.5; }
 .c-seq-note p { margin: 0 0 6px; }
 .c-seq-note p:last-child { margin-bottom: 0; }
+.seq-active .seq-dim .seq-dim { opacity: 1; filter: none; }
 .seq-active .seq-dim { opacity: 0.32; filter: saturate(0.35); transition: opacity 0.25s ease, filter 0.25s ease; }
 .seq-active .seq-hi { transition: box-shadow 0.25s ease; box-shadow: 0 0 0 2px var(--box-accent, var(--teal)); }
 .seq-active .seq-hi.c-connector { box-shadow: none; }

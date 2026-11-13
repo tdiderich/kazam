@@ -36,7 +36,7 @@ components:
           - { id: northfield, name: Northfield, stage: Operationalizing, shade: 2, owner: Will }
           - { id: cohere, name: Cohere Health, stage: Adopted, shade: 1, owner: Tyler }
         steps:
-          - { label: Book the renewal review, detail: "Ostra Health: contract ends in 120 days", account: ostra, due: 2026-10-24 }
+          - { label: Book the renewal review, detail: "Ostra Health: contract ends Feb 15", account: ostra, due: 2026-11-24 }
           - { label: Schedule the exec roadmap call, detail: "Brightline: Adopted, one every 90 days", account: brightline, due: 2026-11-04 }
           - { label: Move past onboarding, detail: "Larkspur: day 52 of a 45 day target", account: larkspur, due: 2026-10-17, status: overdue }
           - { label: Confirm SSO rollout, detail: "Larkspur: IT owner named last week", account: larkspur, due: 2026-10-28 }
@@ -59,7 +59,7 @@ components:
           - - type: journey_track
               title: Journey
               start: 2025-11-01
-              end: 2026-11-15
+              end: 2027-02-15
               stages:
                 - { label: Onboarding, date: 2025-11-03 }
                 - { label: Operationalizing, date: 2026-02-12 }
@@ -71,7 +71,7 @@ components:
                 - { label: Kickoff, date: 2025-11-25 }
                 - { label: Config review, date: 2026-02-25 }
                 - { label: Exec call, date: 2026-07-10 }
-                - { label: Renewal review, date: 2026-10-20, status: upcoming }
+                - { label: Renewal review, date: 2026-12-01, status: upcoming }
               history:
                 events:
                   - { date: 2025-11-03, label: Entered Onboarding, kind: stage }
@@ -94,6 +94,6 @@ components:
         id: account-next
         title: Next steps
         steps:
-          - { label: Book the renewal review, detail: "Contract ends in 120 days", due: 2026-10-24, status: due }
+          - { label: Book the renewal review, detail: "Contract ends Feb 15", due: 2026-11-24, status: due }
           - { label: Send the Q3 value recap, detail: "Noise reduction and license numbers", due: 2026-10-10, status: overdue }
           - { label: Confirm the new champion, detail: "Intro call done in April", status: done }

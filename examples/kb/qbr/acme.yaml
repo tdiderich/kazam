@@ -5,6 +5,7 @@ subtitle: April 2026
 
 slides:
   - label: Success Outcomes
+    title: Faster detection, wider coverage
     components:
       - type: before_after
         items:
@@ -24,6 +25,7 @@ slides:
             after_context: freed for strategic initiatives
 
   - label: Deployment Progress
+    title: On track for full rollout by June
     components:
       - type: timeline
         items:
@@ -53,6 +55,7 @@ slides:
             color: yellow
 
   - label: Next Steps
+    title: Three moves for Q3
     components:
       - type: steps
         items:

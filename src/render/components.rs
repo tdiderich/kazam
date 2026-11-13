@@ -1010,7 +1010,10 @@ fn table(
 
     if filterable {
         h.push_str(
-            r#"<input type="text" class="c-table-filter" data-table-filter placeholder="Filter…">"#,
+            &format!(
+                r#"<label class="c-table-filter-wrap">{}<input type="search" class="c-table-filter" data-table-filter placeholder="Filter rows…" aria-label="Filter rows"></label>"#,
+                crate::icons::render("search", 14, "currentColor")
+            ),
         );
     }
     h.push_str(r#"<table class="c-table" data-kazam-table><thead><tr>"#);
@@ -4159,8 +4162,9 @@ fn next_step_card(
     base: &str,
 ) -> String {
     let status = match s.status {
+        Some(StepStatus::Done) => format!(" {}", StepStatus::Done.class()),
+        _ if step_overdue(s, today) => " is-overdue".to_string(),
         Some(x) => format!(" {}", x.class()),
-        None if step_overdue(s, today) => " is-overdue".to_string(),
         None => String::new(),
     };
     let mut h = format!(
@@ -4196,10 +4200,13 @@ fn strip_account_prefix<'a>(detail: &'a str, account_name: Option<&str>) -> &'a 
 
 /// Open (not done) steps, overdue count, and soonest due day for an account.
 /// Overdue by status, or (no status given) by a due date before today.
+/// Overdue when typed so, or when the due date has passed: the date wins
+/// over a stale typed `due` / `upcoming`. Done steps are never overdue.
 fn step_overdue(s: &NextStep, today: Option<i64>) -> bool {
     match s.status {
-        Some(st) => st == StepStatus::Overdue,
-        None => matches!(
+        Some(StepStatus::Done) => false,
+        Some(StepStatus::Overdue) => true,
+        _ => matches!(
             (s.due.as_deref().and_then(jt_day), today),
             (Some(d), Some(t)) if d < t
         ),

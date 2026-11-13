@@ -2794,9 +2794,11 @@ function JourneyFrame({ id, title, history, defaultView, dated, children }: { id
 type NsStep = { label: string; detail?: string; account?: string; due?: unknown; status?: string; owner?: string; href?: string };
 type NsAccount = { id: string; name: string; stage?: string; color?: string; shade?: number; owner?: string; href?: string };
 
-/** Overdue by status, or (no status) by a due date before today. Mirrors step_overdue. */
+/** Overdue when typed so, or when the due date has passed (the date wins
+ *  over a stale typed due/upcoming); done is never overdue. Mirrors step_overdue. */
 function nsOverdue(s: NsStep, today: number | null): boolean {
-  if (s.status) return s.status === "overdue";
+  if (s.status === "done") return false;
+  if (s.status === "overdue") return true;
   const d = kzIsoDays(s.due);
   return d != null && today != null && d < today;
 }
@@ -2887,7 +2889,7 @@ function NextStepsView({ id, explicitId, steps, accounts, owners, title, order }
   const card = (s: NsStep, i: number, name?: string) => {
     const o = ownerOf(s);
     const iso = kzIso(s.due);
-    const status = s.status ?? (nsOverdue(s, today) ? "overdue" : undefined);
+    const status = s.status === "done" ? "done" : nsOverdue(s, today) ? "overdue" : s.status;
     const href = kzSafeHref(s.href);
     return (
       <li key={i} className={`c-next-step${status ? ` is-${status}` : ""}`} {...(o ? { "data-owner": o } : {})} hidden={isHidden(o) || undefined}>
