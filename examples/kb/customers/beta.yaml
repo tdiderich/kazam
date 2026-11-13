@@ -18,6 +18,7 @@ components:
         value: Mid-Market
       - key: Overall Health
         value: At Risk
+        status: yellow
       - key: Region
         value: Azure West US
       - key: Active Users

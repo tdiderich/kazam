@@ -924,6 +924,12 @@ pub enum Component {
         target: Option<u8>,
         #[serde(default)]
         thresholds: HashMap<String, String>,
+        /// `status` (default) lets `color` / `thresholds` pick the fill.
+        /// `neutral` draws a plain ink fill and ignores both: use it for a
+        /// measure that isn't good or bad news on its own (coverage, share,
+        /// progress through a plan), so it never reads as a warning.
+        #[serde(default)]
+        tone: ProgressTone,
         #[serde(default)]
         scale: Option<f32>,
         #[serde(default)]
@@ -1361,6 +1367,10 @@ impl Component {
 pub struct MetaField {
     pub key: String,
     pub value: String,
+    /// Optional status: renders a status dot before the value, so a field
+    /// like `Overall health: Healthy` carries its state as data.
+    #[serde(default)]
+    pub status: Option<SemColor>,
 }
 
 #[derive(Deserialize)]
@@ -1427,6 +1437,15 @@ impl SemColor {
             SemColor::Teal => "#3CCECE",
         }
     }
+}
+
+/// Fill tone for progress_bar.
+#[derive(Deserialize, Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[serde(rename_all = "snake_case")]
+pub enum ProgressTone {
+    #[default]
+    Status,
+    Neutral,
 }
 
 /// Chart series palette. `Theme` follows the active theme; `Signal` is the
@@ -3122,11 +3141,23 @@ pub fn value_to_string(v: &serde_yaml::Value) -> String {
         serde_yaml::Value::Bool(b) => b.to_string(),
         serde_yaml::Value::Number(n) => n.to_string(),
         serde_yaml::Value::String(s) => s.clone(),
+        // A status cell, `{ value: Healthy, status: green }`, reads as its value.
+        serde_yaml::Value::Mapping(m) if m.contains_key("value") && m.contains_key("status") => {
+            m.get("value").map(value_to_string).unwrap_or_default()
+        }
         serde_yaml::Value::Sequence(_) | serde_yaml::Value::Mapping(_) => {
             serde_yaml::to_string(v).unwrap_or_default()
         }
         serde_yaml::Value::Tagged(t) => value_to_string(&t.value),
     }
+}
+
+/// The status of a table cell written as `{ value: ..., status: green }`.
+/// Plain cells, and maps whose status isn't a SemColor, have none.
+pub fn cell_status(v: &serde_yaml::Value) -> Option<SemColor> {
+    let m = v.as_mapping()?;
+    m.get("value")?;
+    serde_yaml::from_value(m.get("status")?.clone()).ok()
 }
 
 #[cfg(test)]

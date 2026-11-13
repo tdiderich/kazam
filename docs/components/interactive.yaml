@@ -29,6 +29,9 @@ components:
           Rows are a list of maps keyed by column `key`. Sort tries numeric parsing first
           (stripping `$`, `%`, `,`) then falls back to string compare.
 
+          A cell written as `{ value: Healthy, status: green }` draws a status dot before
+          its value. Sorting, filtering and `summary` read the value.
+
       - type: table
         filterable: true
         columns:
@@ -44,23 +47,29 @@ components:
             sortable: true
           - key: close
             label: Close date
+          - key: health
+            label: Health
         rows:
           - customer: Acme Corp
             acv: $480,000
             stage: Closed Won
             close: 2026-04-15
+            health: { value: Healthy, status: green }
           - customer: Beta Corp
             acv: $120,000
             stage: Negotiation
             close: 2026-05-30
+            health: { value: At risk, status: yellow }
           - customer: Gamma Inc
             acv: $850,000
             stage: Discovery
             close: 2026-07-10
+            health: { value: Healthy, status: green }
           - customer: Delta Labs
             acv: $45,000
             stage: Closed Won
             close: 2026-03-01
+            health: { value: Churn risk, status: red }
 
       - type: code
         language: yaml

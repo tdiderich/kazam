@@ -115,12 +115,15 @@ components:
     heading: Horizontal progress
     components:
       - type: markdown
-        body: "Linear progress fill with optional label, percentage readout, and trailing detail. Purely static - no indeterminate animation."
+        body: |
+          Linear progress fill with optional label, percentage readout, and trailing detail. Purely static - no indeterminate animation.
+
+          Green, yellow and red mean status: on track, at risk, off track. Use them (or `thresholds:`) only when the number is good or bad news on its own. For coverage, share or progress through a plan, set `tone: neutral` for a plain ink fill. The default fill is the accent, which means emphasis.
 
       - type: progress_bar
         value: 94
         label: Scan coverage
-        color: green
+        tone: neutral
         detail: 94 of 100 accounts connected
 
       - type: progress_bar
@@ -140,7 +143,8 @@ components:
           - type: progress_bar
             value: 94                  # 0-100
             label: Scan coverage       # optional
-            color: green               # default | green | yellow | red | teal
+            tone: neutral              # neutral = plain fill, ignores color/thresholds
+            color: green               # default | green | yellow | red | teal (status)
             detail: 94 of 100 accounts # optional
 
   # ── kbd ────────────────────────────────────

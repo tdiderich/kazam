@@ -237,6 +237,10 @@
     "ChartPalette": [
       "theme",
       "signal"
+    ],
+    "ProgressTone": [
+      "status",
+      "neutral"
     ]
   },
   "types": {
@@ -327,6 +331,11 @@
         "type": "string",
         "required": true,
         "kind": "text"
+      },
+      "status": {
+        "type": "SemColor",
+        "required": false,
+        "kind": "enum"
       }
     },
     "Link": {
@@ -2639,6 +2648,11 @@
         "type": "Record<string, string>",
         "required": false,
         "kind": "object"
+      },
+      "tone": {
+        "type": "ProgressTone",
+        "required": false,
+        "kind": "enum"
       }
     },
     "empty_state": {

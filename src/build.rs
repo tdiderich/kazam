@@ -837,6 +837,7 @@ fn generate_health_page(
         )),
         target: None,
         thresholds: HashMap::new(),
+        tone: Default::default(),
         scale: None,
         animate: None,
     });

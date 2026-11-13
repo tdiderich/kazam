@@ -42,7 +42,7 @@ components:
     heading: Key-value strip
     components:
       - type: markdown
-        body: "Horizontal grid of labeled values. Great for page metadata - author, date, status, version."
+        body: "Horizontal grid of labeled values. Great for page metadata - author, date, status, version. Give a field `status:` (green, yellow, red, teal, default) to draw a status dot before its value, so state reads as data, not just wording."
 
       - type: meta
         fields:
@@ -52,6 +52,7 @@ components:
             value: 2026-04-16
           - key: Status
             value: Active
+            status: green
           - key: Version
             value: "1.2"
 
@@ -66,6 +67,7 @@ components:
                 value: 2026-04-16
               - key: Status
                 value: Active
+                status: green    # optional status dot
 
   # ── markdown ───────────────────────────────
   - type: section

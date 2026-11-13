@@ -3365,10 +3365,13 @@ button.c-call-head:focus-visible { outline: 2px solid var(--teal); outline-offse
   border-radius: 50%;
   background: rgba(var(--text-rgb), 0.3);
 }
-.c-status-green .c-status-dot { background: var(--green); box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15); }
-.c-status-yellow .c-status-dot { background: var(--yellow); box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.15); }
-.c-status-red .c-status-dot { background: var(--red); box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15); }
+.c-status-green .c-status-dot { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent); }
+.c-status-yellow .c-status-dot { background: var(--yellow); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yellow) 18%, transparent); }
+.c-status-red .c-status-dot { background: var(--red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent); }
 .c-status-teal .c-status-dot { background: var(--teal); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15); }
+/* Status as data inside a meta value or a table cell keeps the host's type. */
+.c-meta-value .c-status, .c-table td .c-status { font-size: inherit; font-weight: inherit; }
+.c-meta-value .c-status-dot, .c-table td .c-status-dot { flex: none; }
 
 /* Breadcrumb */
 .c-breadcrumb ol {

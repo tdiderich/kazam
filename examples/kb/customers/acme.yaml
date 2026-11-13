@@ -18,6 +18,7 @@ components:
         value: Enterprise
       - key: Overall Health
         value: Healthy
+        status: green
       - key: Region
         value: AWS us-east-1
       - key: Active Users

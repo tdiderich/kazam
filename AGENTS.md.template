@@ -276,7 +276,11 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         value: Someone
       - key: Updated
         value: '2026-04-17'
+      - key: Overall health
+        value: Healthy
+        status: green        # optional: green | yellow | red | teal | default, draws a status dot
   ```
+  Put state in `status`, not in the value's wording alone, so it reads at a glance.
 
 - **markdown** - rich prose (CommonMark + tables + strikethrough)
   ```yaml
@@ -346,9 +350,13 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
   - type: progress_bar
     value: 72                # 0-100
     label: Scan coverage
-    color: green
+    tone: neutral            # optional: neutral = plain ink fill, ignores color/thresholds
     detail: 72 of 100 accounts
   ```
+  Green, yellow and red mean status (on track, at risk, off track). Use them, or
+  `thresholds:`, only when the number itself is good or bad news. For coverage,
+  share or progress through a plan, use `tone: neutral`. The default fill is the
+  accent, which means emphasis, not status.
 - **divider** - horizontal rule, optionally with a center label
   ```yaml
   - type: divider
@@ -563,7 +571,10 @@ consistent (2 spaces). Quote any string that looks like a number (e.g. `"47"`).
         align: left              # left | right | center
     rows:
       - name: Acme Corp
+        health: { value: Healthy, status: green }   # status cell: dot + text
   ```
+  A cell written as `{ value, status }` draws a status dot before the value;
+  sorting, filtering and `summary.group_by` read the value.
 
 - **tabs** - tabbed panels with arbitrary content
   ```yaml

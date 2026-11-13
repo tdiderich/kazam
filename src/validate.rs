@@ -2740,6 +2740,7 @@ mod tests {
                 detail: None,
                 target: None,
                 thresholds: std::collections::HashMap::new(),
+                tone: Default::default(),
                 scale: None,
                 animate: None,
             }]),

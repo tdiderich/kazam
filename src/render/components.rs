@@ -211,8 +211,17 @@ pub fn render(c: &Component, base: &str, config: &SiteConfig) -> Rendered {
             detail,
             target,
             thresholds,
+            tone,
             ..
-        } => progress_bar(*value, label, color, detail, *target, thresholds),
+        } => {
+            // Neutral tone ignores color and thresholds: the fill is plain ink.
+            let neutral = std::collections::HashMap::new();
+            let (color, thresholds) = match tone {
+                ProgressTone::Neutral => ("neutral", &neutral),
+                ProgressTone::Status => (color.as_str(), thresholds),
+            };
+            progress_bar(*value, label, color, detail, *target, thresholds)
+        }
         Component::EmptyState {
             title,
             body,
@@ -501,11 +510,25 @@ fn meta(fields: &[MetaField]) -> Rendered {
     for f in fields {
         h.push_str(&format!(
             r#"<div class="c-meta-item"><span class="c-meta-key">{}</span><span class="c-meta-value">{}</span></div>"#,
-            esc(&f.key), esc(&f.value)
+            esc(&f.key),
+            status_text(f.status, &esc(&f.value))
         ));
     }
     h.push_str("</div>");
     Rendered::new(h)
+}
+
+/// Wraps already-rendered text in a status dot when a status is set. The
+/// text stays, so the state never reads from colour alone.
+fn status_text(status: Option<SemColor>, inner: &str) -> String {
+    match status {
+        Some(c) => format!(
+            r#"<span class="c-status c-status-{}"><span class="c-status-dot" aria-hidden="true"></span><span>{}</span></span>"#,
+            sem_color_class(c),
+            inner
+        ),
+        None => inner.to_string(),
+    }
 }
 
 // ── Card Grid ─────────────────────────────────────
@@ -994,7 +1017,9 @@ fn table(
     for row in rows {
         h.push_str("<tr>");
         for col in columns {
-            let v = row.get(&col.key).map(value_to_string).unwrap_or_default();
+            let raw = row.get(&col.key);
+            let v = raw.map(value_to_string).unwrap_or_default();
+            let status = raw.and_then(crate::types::cell_status);
             let color_class = col
                 .color_map
                 .get(&v)
@@ -1004,7 +1029,7 @@ fn table(
                 r#"<td class="{}{}">{}</td>"#,
                 col.align.class(),
                 color_class,
-                render_cell(&v)
+                status_text(status, &render_cell(&v))
             ));
         }
         h.push_str("</tr>");
@@ -3301,6 +3326,7 @@ fn progress_color_style(color: &str) -> String {
         "yellow" => "var(--yellow)".to_string(),
         "red" => "var(--red)".to_string(),
         "teal" => "var(--teal)".to_string(),
+        "neutral" => "rgba(var(--text-rgb), 0.55)".to_string(),
         hex if hex.starts_with('#') => hex.to_string(),
         _ => "var(--teal)".to_string(),
     }

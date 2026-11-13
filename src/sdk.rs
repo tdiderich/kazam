@@ -1373,6 +1373,23 @@ const getColor = (c?: string, i?: number, palette?: string) => {
   return signal ? SIGNAL_CYCLE[n % SIGNAL_CYCLE.length] : `var(--chart-${(n % 6) + 1})`;
 };
 
+// Status as data: a meta field's `status`, or a table cell written as
+// `{ value, status }`, draws the status dot before the text. Mirrors
+// status_text / cell_status in Rust.
+const STATUS_COLORS = ["default", "green", "yellow", "red", "teal"];
+function cellParts(v: unknown): { text: string; status?: string } {
+  if (v && typeof v === "object" && !Array.isArray(v) && "value" in v && "status" in v) {
+    const o = v as { value: unknown; status: unknown };
+    const st = typeof o.status === "string" && STATUS_COLORS.includes(o.status) ? o.status : undefined;
+    return { text: String(o.value ?? ""), status: st };
+  }
+  return { text: String(v ?? "") };
+}
+function StatusText({ status, children }: { status?: string; children: React.ReactNode }) {
+  if (!status || !STATUS_COLORS.includes(status)) return <>{children}</>;
+  return <span className={`c-status c-status-${status}`}><span className="c-status-dot" aria-hidden="true" /><span>{children}</span></span>;
+}
+
 // Shared SVG label budgeter: estimates rendered width (~0.56px per char per
 // fontSize unit) and end-ellipsizes to fit budgetPx. When the result differs
 // from the input, render the full text in a <title> child for hover.
@@ -3288,7 +3305,7 @@ function ComponentView({
           summary.colors && typeof summary.colors === "object" && !Array.isArray(summary.colors) ? (summary.colors as Record<string, unknown>) : {};
         const counts = new Map<string, number>();
         for (const row of rows) {
-          const v = String(row[summary.group_by] ?? "");
+          const v = cellParts(row[summary.group_by]).text;
           counts.set(v, (counts.get(v) || 0) + 1);
         }
         for (const label of Array.from(counts.keys()).sort()) {
@@ -3333,10 +3350,10 @@ function ComponentView({
               {rows.map((row, ri) => (
                 <tr key={ri}>
                   {columns.map((col, ci) => {
-                    const cellVal = String(row[col.key] ?? "");
+                    const { text: cellVal, status } = cellParts(row[col.key]);
                     const mappedColor = col.color_map ? col.color_map[cellVal] : undefined;
                     return (
-                      <td key={ci} className={mappedColor ? `cell-${mappedColor}` : undefined} data-kz-field={`rows[${ri}].${col.key}`}>{renderInline(cellVal)}</td>
+                      <td key={ci} className={mappedColor ? `cell-${mappedColor}` : undefined} data-kz-field={`rows[${ri}].${col.key}`}><StatusText status={status}>{renderInline(cellVal)}</StatusText></td>
                     );
                   })}
                 </tr>
@@ -3348,13 +3365,13 @@ function ComponentView({
     }
 
     case "meta": {
-      const fields = (comp.fields as Array<{ key: string; value: string }>) || [];
+      const fields = (comp.fields as Array<{ key: string; value: string; status?: string }>) || [];
       return (
         <div id={id} className="c-meta" data-kz-list="fields">
           {fields.map((f, i) => (
             <div key={i} className="c-meta-item">
               <span className="c-meta-key" data-kz-field={`fields[${i}].key`}>{f.key}</span>
-              <span className="c-meta-value" data-kz-field={`fields[${i}].value`}>{renderInline(f.value)}</span>
+              <span className="c-meta-value" data-kz-field={`fields[${i}].value`}><StatusText status={f.status}>{renderInline(f.value)}</StatusText></span>
             </div>
           ))}
         </div>
@@ -3417,8 +3434,9 @@ function ComponentView({
       const detail = comp.detail as string | undefined;
       const target = comp.target as number | undefined;
       const rawThresholds = comp.thresholds as Record<string, string> | undefined;
-      let autoColor = (comp.color as string) || "default";
-      if (rawThresholds && typeof rawThresholds === "object") {
+      const neutral = comp.tone === "neutral";
+      let autoColor = neutral ? "neutral" : (comp.color as string) || "default";
+      if (!neutral && rawThresholds && typeof rawThresholds === "object") {
         const entries = Object.entries(rawThresholds)
           .map(([k, v]) => ({ at: Number(k), color: v }))
           .filter(t => !isNaN(t.at))
@@ -3429,6 +3447,7 @@ function ComponentView({
       const isHex = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(autoColor);
       const fillStyle: React.CSSProperties = { "--progress": `${value}%` } as React.CSSProperties;
       if (isHex) fillStyle.background = autoColor;
+      else if (autoColor === "neutral") fillStyle.background = "rgba(var(--text-rgb), 0.55)";
       else if (semToHex[autoColor]) fillStyle.background = semToHex[autoColor];
       const targetPct = target != null ? Math.min(100, Math.max(0, target)) : undefined;
       return (
