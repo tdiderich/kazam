@@ -2838,7 +2838,7 @@ fn journey_track_renders_dated_line_detour_and_touchpoints() {
 }
 
 #[test]
-fn tier_summary_defaults_to_accent_shades_by_position() {
+fn tier_summary_defaults_to_status_by_position() {
     let html = build_one_page(
         "tier-shades",
         "title: T\nshell: standard\ncomponents:\n  - type: tier_summary\n    tiers:\n      - { label: A, count: 1 }\n      - { label: B, count: 2 }\n      - { label: C, count: 3, color: red }\n      - { label: D, count: 4 }\n      - { label: E, count: 5 }\n",
@@ -2849,7 +2849,75 @@ fn tier_summary_defaults_to_accent_shades_by_position() {
     assert_contains(&html, r#"class="c-tier c-tier-red""#);
     assert_contains(&html, r#"class="c-tier c-tier-pos-4""#);
     assert!(!html.contains("c-tier-pos-5"));
-    assert_contains(&html, "color-mix(in srgb, var(--teal) 62%, var(--bg))");
+    // Positions map onto status (good, good, watch, alert), each with its
+    // own swatch shape, never lightness of one accent.
+    assert_contains(&html, ".c-tier-pos-3 { --tier-c: var(--yellow); }");
+    assert_contains(&html, ".c-tier-pos-4 { --tier-c: var(--red); }");
+    assert!(!html.contains("color-mix(in srgb, var(--teal) 62%, var(--bg))"));
+}
+
+#[test]
+fn meta_and_table_cells_render_status_dots() {
+    let html = build_one_page(
+        "status-data",
+        "title: S\nshell: standard\ncomponents:\n  - type: meta\n    fields:\n      - { key: Overall health, value: Healthy, status: green }\n      - { key: Region, value: us-east-1 }\n  - type: table\n    columns:\n      - { key: name, label: Name }\n      - { key: health, label: Health }\n    rows:\n      - { name: Acme, health: { value: At risk, status: yellow } }\n      - { name: Beta, health: Fine }\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<span class="c-meta-value"><span class="c-status c-status-green"><span class="c-status-dot" aria-hidden="true"></span><span>Healthy</span></span></span>"#,
+    );
+    assert_contains(&html, r#"<span class="c-meta-value">us-east-1</span>"#);
+    assert_contains(
+        &html,
+        r#"<span class="c-status c-status-yellow"><span class="c-status-dot" aria-hidden="true"></span><span>At risk</span></span>"#,
+    );
+    assert_contains(&html, ">Fine</td>");
+}
+
+#[test]
+fn progress_bar_neutral_tone_ignores_color_and_thresholds() {
+    let html = build_one_page(
+        "progress-tone",
+        "title: P\nshell: standard\ncomponents:\n  - type: progress_bar\n    value: 60\n    color: yellow\n    thresholds: { \"0\": red, \"50\": yellow }\n    tone: neutral\n",
+        "",
+    );
+    assert_contains(&html, "background: rgba(var(--text-rgb), 0.55)");
+    assert!(!html.contains("background: var(--yellow)\""));
+}
+
+#[test]
+fn chart_series_follow_theme_unless_signal_palette() {
+    let themed = build_one_page(
+        "chart-theme",
+        "title: C\nshell: standard\ncomponents:\n  - type: chart\n    kind: pie\n    data:\n      - { label: A, value: 1 }\n      - { label: B, value: 2, color: red }\n",
+        "",
+    );
+    assert_contains(&themed, r#"fill="var(--chart-1)""#);
+    assert_contains(&themed, r#"fill="var(--chart-4)""#);
+    assert!(!themed.contains(r##"fill="#3CCECE""##));
+    let signal = build_one_page(
+        "chart-signal",
+        "title: C\nshell: standard\ncomponents:\n  - type: chart\n    kind: bar\n    palette: signal\n    data:\n      - { label: A, value: 1 }\n",
+        "",
+    );
+    assert_contains(&signal, r##"fill="#3CCECE""##);
+}
+
+#[test]
+fn breadcrumb_marks_only_last_item_current() {
+    let html = build_one_page(
+        "crumbs",
+        "title: B\nshell: standard\ncomponents:\n  - type: breadcrumb\n    items:\n      - { label: Home, href: index.html }\n      - { label: Customers }\n      - { label: Acme, href: acme.html }\n",
+        "",
+    );
+    assert_contains(
+        &html,
+        r#"<li class="c-breadcrumb-item"><span>Customers</span></li>"#,
+    );
+    assert_contains(&html, r#"aria-current="page">Acme</a>"#);
+    // Count markup only; the stylesheet also names the attribute.
+    assert_eq!(html.matches(r#"aria-current="page">"#).count(), 1);
 }
 
 #[test]
