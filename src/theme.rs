@@ -40,16 +40,12 @@ impl Theme {
                 // (#899878). ~45% saturation, ~60% lightness - they sit on
                 // a dark bg without screaming. Users can still override any
                 // accent via `colors:` for a brighter brand pop.
-                let accent = match other {
-                    "red" => "#BB7777",
-                    "orange" => "#BB8C66",
-                    "yellow" => "#B8A866",
-                    "green" => "#7A9878",
-                    "blue" => "#7897B8",
-                    "indigo" => "#8A7FBB",
-                    "violet" => "#AB7FBB",
-                    "teal" => "#3CCECE",
-                    _ => return dark(),
+                let Some(accent) = RAINBOW_ACCENTS
+                    .iter()
+                    .find(|(n, _)| *n == other)
+                    .map(|(_, hex)| *hex)
+                else {
+                    return dark();
                 };
                 Theme {
                     accent: accent.into(),
@@ -235,6 +231,21 @@ fn mode_override_block(selector: &str, t: &Theme) -> String {
         red = t.red,
     )
 }
+
+/// Rainbow theme accents, shared by baked (`Theme::named`) and runtime
+/// switchable CSS. Muted, earthy siblings of the dark theme's sage
+/// (#899878), ~45% saturation and ~60% lightness so they sit on a dark bg
+/// without screaming; teal is the one bright exception.
+const RAINBOW_ACCENTS: &[(&str, &str)] = &[
+    ("red", "#BB7777"),
+    ("orange", "#BB8C66"),
+    ("yellow", "#B8A866"),
+    ("green", "#7A9878"),
+    ("blue", "#7897B8"),
+    ("indigo", "#8A7FBB"),
+    ("violet", "#AB7FBB"),
+    ("teal", "#3CCECE"),
+];
 
 /// Opaque panel color for floating chrome (modals, overlays, pickers) that
 /// must not let page content bleed through. Derived from the page bg: dark
@@ -439,25 +450,19 @@ pub fn render_switchable_css(theme: &Theme) -> String {
     out.push_str(&mode_override_block("[data-mode=\"light\"]", &light()));
 
     // ── Rainbow theme accents ─────────────────────────────────────────────
-    // Each selector overrides just --teal, --accent-rgb, and --green so
+    // Each selector overrides only the accent (--teal, --accent-rgb), so
     // every accent-dependent var (--card-hover-border, etc.) updates too.
-    let rainbow: &[(&str, &str, &str)] = &[
-        ("red", "#BB7777", "187, 119, 119"),
-        ("orange", "#BB8C66", "187, 140, 102"),
-        ("yellow", "#B8A866", "184, 168, 102"),
-        ("green", "#899878", "137, 152, 120"),
-        ("blue", "#7897B8", "120, 151, 184"),
-        ("indigo", "#8A7FBB", "138, 127, 187"),
-        ("violet", "#AB7FBB", "171, 127, 187"),
-        ("teal", "#3CCECE", "60, 206, 206"),
-    ];
-    for (name, hex, rgb) in rainbow {
+    // Status colors never follow the accent: --green stays "good" on every
+    // theme. --chart-good resets to it unless the accent equals good.
+    for (name, hex) in RAINBOW_ACCENTS {
+        let rgb = hex_to_rgb_triple(hex).unwrap_or_default();
+        let chart_good = if chart_good_decl(dark().green.as_str(), hex).is_empty() {
+            "var(--green)"
+        } else {
+            CHART_GOOD_MIX
+        };
         out.push_str(&format!(
-            "[data-theme=\"{name}\"] {{ --teal: {hex}; --accent-rgb: {rgb}; --green: {hex}; --chart-good: {mix}; }}\n",
-            name = name,
-            hex = hex,
-            rgb = rgb,
-            mix = CHART_GOOD_MIX,
+            "[data-theme=\"{name}\"] {{ --teal: {hex}; --accent-rgb: {rgb}; --chart-good: {chart_good}; }}\n",
         ));
     }
     out.push('\n');
@@ -4849,5 +4854,20 @@ mod tests {
         let flat = render_css(&t, Texture::None, Glow::None, Depth::Flat);
         assert!(!flat.contains("0 10px 28px"));
         assert!(flat.contains(".export-root .c-card"));
+    }
+
+    #[test]
+    fn status_good_never_follows_a_rainbow_accent() {
+        // Baked: violet swaps the accent and leaves good alone.
+        let t = Theme::named("violet", Mode::Dark);
+        assert_eq!(t.green, dark().green);
+        // Switchable: theme blocks set the accent only.
+        let css = render_switchable_css(&dark());
+        let violet = css
+            .lines()
+            .find(|l| l.starts_with("[data-theme=\"violet\"]"))
+            .expect("violet block");
+        assert!(violet.contains("--teal: #AB7FBB"));
+        assert!(!violet.contains("--green:"), "{violet}");
     }
 }
