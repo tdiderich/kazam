@@ -1403,7 +1403,7 @@ fn sequence(target: &str, steps: &[SeqStep], id: Option<&str>, base: &str) -> Re
         steps.len().max(1)
     ));
     h.push_str(r#"<button type="button" class="c-seq-btn" data-seq-next aria-label="Next step">&rarr;</button>"#);
-    h.push_str(r#"<button type="button" class="c-seq-btn c-seq-reset" data-seq-reset aria-label="Show everything">Show all</button>"#);
+    h.push_str(r#"<button type="button" class="c-seq-btn c-seq-reset" data-seq-reset aria-pressed="false" aria-label="Show everything">Show all</button>"#);
     h.push_str("</div>");
     h.push_str(r#"<div class="c-seq-steps">"#);
     for (i, step) in steps.iter().enumerate() {

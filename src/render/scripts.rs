@@ -978,6 +978,7 @@ document.querySelectorAll('[data-sequence]').forEach(function (root) {
     if (idx) idx.textContent = String(i + 1);
     if (prev) prev.disabled = i <= 0;
     if (next) next.disabled = i >= steps.length - 1;
+    if (reset) reset.setAttribute('aria-pressed', 'false');
     root.classList.add('c-seq-live');
     if (!target) return;
     clear();
@@ -992,10 +993,14 @@ document.querySelectorAll('[data-sequence]').forEach(function (root) {
       if (!holds) el.classList.add('seq-dim');
     });
   }
+  // "Show all": nothing highlighted, no step note, count reads "-".
   function off() {
     cur = -1;
-    steps.forEach(function (s, j) { s.hidden = j !== 0; });
-    if (idx) idx.textContent = '1';
+    steps.forEach(function (s) { s.hidden = true; });
+    if (idx) idx.textContent = '\u2013';
+    if (prev) prev.disabled = true;
+    if (next) next.disabled = false;
+    if (reset) reset.setAttribute('aria-pressed', 'true');
     root.classList.remove('c-seq-live');
     clear();
   }
@@ -1007,7 +1012,9 @@ document.querySelectorAll('[data-sequence]').forEach(function (root) {
     else if (e.key === 'ArrowLeft' || e.key === '[') { e.preventDefault(); if (cur > 0) apply(cur - 1); }
     else if (e.key === 'Escape') { off(); }
   });
-  if (prev) prev.disabled = true;
+  // Start on step 1, highlighted, so the count, the note and the drawing
+  // agree from the first paint.
+  apply(0);
 });
 "#;
 

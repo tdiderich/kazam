@@ -2433,7 +2433,8 @@ body.shell-document .doc-body h3:first-child, body.shell-document .doc-body h4:f
 .c-seq-btn { font: inherit; font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--card-border); background: rgba(var(--text-rgb), 0.04); color: var(--snow); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
 .c-seq-btn:hover:not(:disabled) { border-color: rgba(var(--accent-rgb), 0.6); background: rgba(var(--accent-rgb), 0.08); }
 .c-seq-btn:disabled { opacity: 0.4; cursor: default; }
-.c-seq-reset { margin-left: auto; font-size: 12px; color: var(--muted); }
+.c-seq-reset { margin-left: auto; font-size: 12px; color: var(--light-muted); }
+.c-seq-reset[aria-pressed="true"] { color: var(--snow); border-color: rgba(var(--accent-rgb), 0.6); }
 .c-seq-count { font-size: 12px; letter-spacing: 0.04em; color: var(--muted); font-variant-numeric: tabular-nums; }
 .c-seq-note { color: var(--light-muted); font-size: 14px; line-height: 1.5; }
 .c-seq-note p { margin: 0 0 6px; }

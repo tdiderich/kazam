@@ -3670,7 +3670,9 @@ function ComponentView({
       type SeqStep = { highlight?: string[]; note?: string };
       const target = (comp.target as string) || "";
       const steps = (comp.steps as SeqStep[]) || [];
-      const [cur, setCur] = React.useState(-1);
+      // Starts on step 1, highlighted (mirrors SEQUENCE in scripts.rs);
+      // -1 is "Show all": nothing highlighted, no note.
+      const [cur, setCur] = React.useState(0);
       const rootRef = React.useRef<HTMLDivElement | null>(null);
       React.useEffect(() => {
         if (typeof document === "undefined") return;
@@ -3693,7 +3695,7 @@ function ComponentView({
         return clear;
       }, [cur, target, steps]);
       const shown = cur < 0 ? 0 : cur;
-      const step = steps[shown];
+      const step = cur < 0 ? undefined : steps[shown];
       const go = (d: 1 | -1) => setCur((c) => (d > 0 ? Math.min(steps.length - 1, c < 0 ? 0 : c + 1) : Math.max(0, c - 1)));
       return (
         <div
@@ -3712,9 +3714,9 @@ function ComponentView({
         >
           <div className="c-seq-bar">
             <button type="button" className="c-seq-btn" disabled={cur <= 0} onClick={() => go(-1)} aria-label="Previous step">&larr;</button>
-            <span className="c-seq-count">{shown + 1} / {Math.max(1, steps.length)}</span>
+            <span className="c-seq-count">{cur < 0 ? "–" : shown + 1} / {Math.max(1, steps.length)}</span>
             <button type="button" className="c-seq-btn" disabled={cur >= steps.length - 1} onClick={() => go(1)} aria-label="Next step">&rarr;</button>
-            <button type="button" className="c-seq-btn c-seq-reset" onClick={() => setCur(-1)} aria-label="Show everything">Show all</button>
+            <button type="button" className="c-seq-btn c-seq-reset" onClick={() => setCur(-1)} aria-pressed={cur < 0} aria-label="Show everything">Show all</button>
           </div>
           <div className="c-seq-steps" data-kz-list="steps">
             {step && (
